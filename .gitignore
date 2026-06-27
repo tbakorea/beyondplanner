@@ -1,0 +1,5 @@
+.DS_Store
+*.numbers
+*.xlsx
+outputs/
+dashboard/qa_*.png
