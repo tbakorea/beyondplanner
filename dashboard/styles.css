@@ -463,6 +463,21 @@ body.ceo-mode .day-main-panel {
   font-weight: 840;
 }
 
+#topUploadDeviceButton,
+#topPullDbButton {
+  font-weight: 820;
+}
+
+#topUploadDeviceButton {
+  border-color: rgba(95, 118, 104, 0.34);
+  background: rgba(174, 191, 177, 0.16);
+}
+
+#topPullDbButton {
+  border-color: rgba(56, 67, 74, 0.22);
+  background: rgba(217, 229, 234, 0.34);
+}
+
 .coach-bubble {
   position: relative;
   width: 58px;

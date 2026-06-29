@@ -510,6 +510,73 @@ async function manualSyncNow() {
   renderSidebar();
 }
 
+async function uploadThisDeviceToDb() {
+  if (!hasPlannerContent(state)) {
+    syncStatus.message = "이 기기에 올릴 내용 없음";
+    renderSidebar();
+    window.alert("현재 이 기기에 저장할 플래너 내용이 없습니다.");
+    return;
+  }
+  const ok = window.confirm("현재 이 기기의 내용을 DB 기준 데이터로 저장합니다. 아이폰을 기준으로 삼으려면 아이폰에서 이 버튼을 누르세요.");
+  if (!ok) return;
+  syncStatus.message = "이 기기 기준 DB 저장 중";
+  renderSidebar();
+  const ready = await prepareServerStateApi();
+  if (!ready) {
+    renderSidebar();
+    return;
+  }
+  await persistStateToServer();
+}
+
+async function pullDbToThisDevice() {
+  const ok = !hasPlannerContent(state) || window.confirm("DB 기준 데이터를 이 기기로 불러옵니다. 이 기기의 현재 로컬 내용은 DB 내용으로 바뀝니다.");
+  if (!ok) return;
+  syncStatus.message = "DB에서 불러오는 중";
+  renderSidebar();
+  const ready = await prepareServerStateApi();
+  if (!ready) {
+    renderSidebar();
+    return;
+  }
+  try {
+    const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
+    if (!response.ok) throw new Error(await extractSyncError(response));
+    const payload = await response.json();
+    if (!payload.exists || !payload.state) {
+      syncStatus.message = "DB 데이터 없음";
+      renderSidebar();
+      window.alert("아직 DB에 저장된 플래너 데이터가 없습니다. 기준 기기에서 먼저 기기→DB를 눌러주세요.");
+      return;
+    }
+    state = migrateState(payload.state);
+    lastServerUpdatedAt = payload.updatedAt || "";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    syncStatus.enabled = true;
+    syncStatus.message = "DB 데이터 불러옴";
+    renderAll();
+  } catch (error) {
+    syncStatus.message = error.message || "DB 불러오기 실패";
+    renderSidebar();
+  }
+}
+
+async function prepareServerStateApi() {
+  try {
+    await hydrateServerConfig();
+    const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
+    if (!response.ok && response.status !== 404) throw new Error(await extractSyncError(response));
+    serverSyncReady = true;
+    syncStatus.enabled = true;
+    return true;
+  } catch (error) {
+    serverSyncReady = false;
+    syncStatus.enabled = false;
+    syncStatus.message = error.message || "DB 연결 실패";
+    return false;
+  }
+}
+
 function hasPlannerContent(source = state) {
   const hasText = (value) => String(value || "").trim().length > 0;
   if (hasText(source.foundation?.mission)) return true;
@@ -668,6 +735,8 @@ function setupSelectors() {
   el("topExportButton").onclick = exportPlanner;
   el("topImportButton").onclick = () => el("importFile").click();
   el("topSyncButton").onclick = manualSyncNow;
+  el("topUploadDeviceButton").onclick = uploadThisDeviceToDb;
+  el("topPullDbButton").onclick = pullDbToThisDevice;
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
   el("quickLogoutButton").onclick = logoutPlanner;
