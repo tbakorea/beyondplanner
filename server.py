@@ -19,7 +19,6 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 
 ROOT = pathlib.Path(__file__).resolve().parent
-DASHBOARD_DIR = ROOT / "dashboard"
 PLANNER_ENV = os.environ.get("PLANNER_ENV", "dev").strip().lower() or "dev"
 
 
@@ -36,7 +35,7 @@ STATE_FILE = get_state_file()
 
 class BeyondPlannerHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=str(DASHBOARD_DIR), **kwargs)
+        super().__init__(*args, directory=str(ROOT), **kwargs)
 
     def do_GET(self):  # noqa: N802
         path = self.path.split("?", 1)[0]
@@ -213,6 +212,7 @@ def main():
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.host, args.port), BeyondPlannerHandler)
     print(f"Beyond Work server: http://127.0.0.1:{args.port}/index.html")
+    print(f"Dashboard: http://127.0.0.1:{args.port}/dashboard/index.html")
     print(f"Environment: {PLANNER_ENV}")
     print(f"State file: {STATE_FILE}")
     server.serve_forever()

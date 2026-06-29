@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260629m" />
+    <link rel="stylesheet" href="./styles.css?v=20260629o" />
   </head>
   <body>
     <header class="app-header">
@@ -37,11 +37,13 @@
           <button type="button" data-top-view="day">일간 일정</button>
           <button type="button" data-top-view="projects">프로젝트</button>
           <button type="button" data-top-view="notes">용돈/자금</button>
+          <button id="quickLogoutButton" type="button">로그아웃</button>
         </nav>
         <div class="top-status" aria-label="플래너 상태">
           <span id="topYearProgress">연간 0%</span>
           <span id="topCarryover">이월 0</span>
           <span id="topSearchCount">검색 0</span>
+          <span id="topAccountStatus">-</span>
           <button id="privacyNowButton" type="button">보안모드</button>
           <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
             <option value="0">자동꺼짐</option>
@@ -55,6 +57,7 @@
           <button id="topExportButton" type="button">백업</button>
           <button id="topImportButton" type="button">복원</button>
           <button id="lockNowButton" type="button">잠금</button>
+          <button id="logoutButton" type="button">로그아웃</button>
         </div>
       </div>
     </header>
@@ -386,7 +389,7 @@
       </div>
     </section>
 
-    <script src="./data.js?v=20260629m"></script>
-    <script src="./app.js?v=20260629m"></script>
+    <script src="./data.js?v=20260629o"></script>
+    <script src="./app.js?v=20260629o"></script>
   </body>
 </html>

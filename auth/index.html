@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f5ef" />
+    <title>Beyond Work Login</title>
+    <link rel="stylesheet" href="./styles.css?v=20260629b" />
+  </head>
+  <body>
+    <main class="auth-shell">
+      <section class="brand-panel">
+        <p class="eyebrow">beyond ai planning system</p>
+        <h1>Beyond Work</h1>
+        <p>일정, 프로젝트, 자금흐름을 하나의 실행 시스템으로 연결합니다.</p>
+        <div class="tier-list" aria-label="플래너 등급">
+          <span>Staff</span>
+          <span>Manager</span>
+          <span>Director</span>
+          <strong>CEO</strong>
+        </div>
+      </section>
+
+      <section class="auth-card" aria-label="로그인과 회원가입">
+        <div class="auth-tabs">
+          <button class="is-active" id="loginTab" type="button">로그인</button>
+          <button id="signupTab" type="button">회원가입</button>
+        </div>
+
+        <form id="loginForm" class="auth-form">
+          <label>
+            이메일
+            <input id="loginEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </label>
+          <label>
+            비밀번호
+            <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="비밀번호" />
+          </label>
+          <button class="primary-action" type="submit">대시보드 열기</button>
+        </form>
+
+        <form id="signupForm" class="auth-form" hidden>
+          <label>
+            이름
+            <input id="signupName" type="text" autocomplete="name" placeholder="이름 또는 회사명" />
+          </label>
+          <label>
+            이메일
+            <input id="signupEmail" type="email" autocomplete="email" required placeholder="you@example.com" />
+          </label>
+          <label>
+            비밀번호
+            <input id="signupPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="6자리 이상" />
+          </label>
+          <label>
+            플래너 등급
+            <select id="signupTier">
+              <option value="ceo">CEO</option>
+              <option value="director">Director</option>
+              <option value="manager">Manager</option>
+              <option value="staff">Staff</option>
+            </select>
+          </label>
+          <button class="primary-action" type="submit">계정 만들고 시작</button>
+        </form>
+
+        <p class="auth-message" id="authMessage" role="status"></p>
+      </section>
+    </main>
+
+    <script src="./auth.js?v=20260629b"></script>
+  </body>
+</html>

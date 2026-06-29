@@ -4,8 +4,11 @@ const DEVICE_KEY = "beyondWorkDeviceId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
 const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
 const PRIVACY_CONFIG_KEY = "beyondWorkPrivacyConfig.v1";
+const AUTH_USERS_KEY = "beyondWorkAuthUsers.v1";
+const AUTH_SESSION_KEY = "beyondWorkAuthSession.v1";
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
+requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(STORAGE_KEY);
   history.replaceState(null, "", window.location.pathname);
@@ -56,6 +59,32 @@ let financeTurnDirection = 0;
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function requirePlannerAuth() {
+  const session = getAuthSession();
+  if (session?.email) return;
+  const next = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  window.location.replace(`../auth/index.html?next=${next}`);
+  throw new Error("Beyond Work login required");
+}
+
+function getAuthSession() {
+  try {
+    const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || "null");
+    const users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || "{}");
+    const user = session?.email ? users[session.email] : null;
+    if (!user) return null;
+    return { ...session, tier: normalizeAccountTier(user.tier || session.tier), name: user.name || "" };
+  } catch {
+    return null;
+  }
+}
+
+function logoutPlanner() {
+  localStorage.removeItem(AUTH_SESSION_KEY);
+  const next = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
+  window.location.href = `../auth/index.html?next=${next}`;
 }
 
 function pad(value) {
@@ -528,6 +557,8 @@ function setupSelectors() {
   el("topExportButton").onclick = exportPlanner;
   el("topImportButton").onclick = () => el("importFile").click();
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
+  el("logoutButton").onclick = logoutPlanner;
+  el("quickLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
   el("revealPrivacyButton").onclick = deactivatePrivacyBlind;
@@ -1197,8 +1228,21 @@ function renderSidebar() {
   el("topYearProgress").textContent = `연간 ${Math.round((elapsed / 365) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
   el("topSearchCount").textContent = `검색 ${results.length} · ${syncStatus.environment.toUpperCase()} · ${syncStatus.message}`;
+  const auth = getAuthSession();
+  el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : "로그인 필요";
   el("dailyTodayButton").hidden = iso(selectedDate) === iso(todayInPlanner());
   updateCoachBubble();
+}
+
+function normalizeAccountTier(tier = "staff") {
+  const legacyMap = { basic: "staff", pro: "manager", executive: "director" };
+  const normalized = legacyMap[tier] || tier;
+  return ["ceo", "director", "manager", "staff"].includes(normalized) ? normalized : "staff";
+}
+
+function formatTierName(tier = "staff") {
+  const names = { ceo: "CEO", director: "Director", manager: "Manager", staff: "Staff" };
+  return names[normalizeAccountTier(tier)] || "Staff";
 }
 
 function renderFoundation() {
