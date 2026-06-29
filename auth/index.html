@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work Login</title>
-    <link rel="stylesheet" href="./styles.css?v=20260629b" />
+    <link rel="stylesheet" href="./styles.css?v=20260629d" />
   </head>
   <body>
     <main class="auth-shell">
@@ -36,7 +36,7 @@
             비밀번호
             <input id="loginPassword" type="password" autocomplete="current-password" required placeholder="비밀번호" />
           </label>
-          <button class="primary-action" type="submit">대시보드 열기</button>
+          <button class="primary-action" type="submit">로그인</button>
         </form>
 
         <form id="signupForm" class="auth-form" hidden>
@@ -53,6 +53,10 @@
             <input id="signupPassword" type="password" autocomplete="new-password" required minlength="6" placeholder="6자리 이상" />
           </label>
           <label>
+            비밀번호 확인
+            <input id="signupPasswordConfirm" type="password" autocomplete="new-password" required minlength="6" placeholder="비밀번호 다시 입력" />
+          </label>
+          <label>
             플래너 등급
             <select id="signupTier">
               <option value="ceo">CEO</option>
@@ -61,13 +65,13 @@
               <option value="staff">Staff</option>
             </select>
           </label>
-          <button class="primary-action" type="submit">계정 만들고 시작</button>
+          <button class="primary-action" type="submit">회원가입</button>
         </form>
 
         <p class="auth-message" id="authMessage" role="status"></p>
       </section>
     </main>
 
-    <script src="./auth.js?v=20260629b"></script>
+    <script src="./auth.js?v=20260629d"></script>
   </body>
 </html>

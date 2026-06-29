@@ -32,9 +32,11 @@ signupForm.onsubmit = async (event) => {
   const name = document.getElementById("signupName").value.trim();
   const email = normalizeEmail(document.getElementById("signupEmail").value);
   const password = document.getElementById("signupPassword").value;
+  const passwordConfirm = document.getElementById("signupPasswordConfirm").value;
   const tier = document.getElementById("signupTier").value;
   if (!email) return showMessage("이메일을 입력하세요.");
   if (password.length < 6) return showMessage("비밀번호는 6자리 이상으로 설정하세요.");
+  if (password !== passwordConfirm) return showMessage("비밀번호 확인이 일치하지 않습니다.");
   if (!tiers.includes(tier)) return showMessage("등급을 다시 선택하세요.");
   const users = getUsers();
   if (users[email]) return showMessage("이미 가입된 이메일입니다.");
@@ -48,8 +50,12 @@ signupForm.onsubmit = async (event) => {
     createdAt: new Date().toISOString(),
   };
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-  saveSession(email, users[email]);
-  redirectToDashboard();
+  document.getElementById("loginEmail").value = email;
+  document.getElementById("loginPassword").value = "";
+  document.getElementById("signupPassword").value = "";
+  document.getElementById("signupPasswordConfirm").value = "";
+  setMode("login");
+  showMessage("회원가입이 완료되었습니다. 로그인해 주세요.");
 };
 
 function setMode(mode) {
