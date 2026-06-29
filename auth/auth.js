@@ -7,14 +7,17 @@ const signupTab = document.getElementById("signupTab");
 const loginForm = document.getElementById("loginForm");
 const signupForm = document.getElementById("signupForm");
 const message = document.getElementById("authMessage");
+const authPage = document.body.dataset.authPage || "tabs";
 
 migrateLegacyTiers();
 if (getSession()) redirectToDashboard();
+prefillLoginEmail();
+wireAuthLinks();
 
-loginTab.onclick = () => setMode("login");
-signupTab.onclick = () => setMode("signup");
+if (loginTab && signupForm) loginTab.onclick = () => setMode("login");
+if (signupTab && loginForm) signupTab.onclick = () => setMode("signup");
 
-loginForm.onsubmit = async (event) => {
+if (loginForm) loginForm.onsubmit = async (event) => {
   event.preventDefault();
   const email = normalizeEmail(document.getElementById("loginEmail").value);
   const password = document.getElementById("loginPassword").value;
@@ -27,7 +30,7 @@ loginForm.onsubmit = async (event) => {
   redirectToDashboard();
 };
 
-signupForm.onsubmit = async (event) => {
+if (signupForm) signupForm.onsubmit = async (event) => {
   event.preventDefault();
   const name = document.getElementById("signupName").value.trim();
   const email = normalizeEmail(document.getElementById("signupEmail").value);
@@ -50,15 +53,13 @@ signupForm.onsubmit = async (event) => {
     createdAt: new Date().toISOString(),
   };
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-  document.getElementById("loginEmail").value = email;
-  document.getElementById("loginPassword").value = "";
   document.getElementById("signupPassword").value = "";
   document.getElementById("signupPasswordConfirm").value = "";
-  setMode("login");
-  showMessage("회원가입이 완료되었습니다. 로그인해 주세요.");
+  redirectToLogin(email, "created");
 };
 
 function setMode(mode) {
+  if (!loginForm || !signupForm || !loginTab || !signupTab) return;
   const isLogin = mode === "login";
   loginForm.hidden = !isLogin;
   signupForm.hidden = isLogin;
@@ -129,12 +130,41 @@ function redirectToDashboard() {
   window.location.replace(safeNext);
 }
 
+function redirectToLogin(email = "", status = "") {
+  const params = new URLSearchParams();
+  const next = new URLSearchParams(window.location.search).get("next");
+  if (next && !next.startsWith("http")) params.set("next", next);
+  if (email) params.set("email", email);
+  if (status) params.set("status", status);
+  const query = params.toString();
+  window.location.href = `../login/${query ? `?${query}` : ""}`;
+}
+
+function prefillLoginEmail() {
+  const email = normalizeEmail(new URLSearchParams(window.location.search).get("email") || "");
+  const loginEmail = document.getElementById("loginEmail");
+  if (email && loginEmail) loginEmail.value = email;
+  if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "created") {
+    showMessage("회원가입이 완료되었습니다. 로그인해 주세요.");
+  }
+}
+
+function wireAuthLinks() {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+  const suffix = next && !next.startsWith("http") ? `?next=${encodeURIComponent(next)}` : "";
+  const signupLink = document.getElementById("signupLink");
+  const loginLink = document.getElementById("loginLink");
+  if (signupLink) signupLink.href = `../signup/${suffix}`;
+  if (loginLink) loginLink.href = `../login/${suffix}`;
+}
+
 function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
 function showMessage(text) {
-  message.textContent = text;
+  if (message) message.textContent = text;
 }
 
 function randomId() {

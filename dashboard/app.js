@@ -65,7 +65,7 @@ function requirePlannerAuth() {
   const session = getAuthSession();
   if (session?.email) return;
   const next = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
-  window.location.replace(`../auth/index.html?next=${next}`);
+  window.location.replace(`../login/?next=${next}`);
   throw new Error("Beyond Work login required");
 }
 
@@ -84,7 +84,7 @@ function getAuthSession() {
 function logoutPlanner() {
   localStorage.removeItem(AUTH_SESSION_KEY);
   const next = encodeURIComponent(`${window.location.pathname}${window.location.search}${window.location.hash}`);
-  window.location.href = `../auth/index.html?next=${next}`;
+  window.location.href = `../login/?next=${next}`;
 }
 
 function pad(value) {
