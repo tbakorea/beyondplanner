@@ -62,7 +62,7 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             self.handle_get_state()
             return
         if path == "/api/config":
-            self.write_json(200, {"environment": PLANNER_ENV, "stateFile": STATE_FILE.name})
+            self.write_json(200, {"environment": PLANNER_ENV, "stateFile": STATE_FILE.name, "storage": "supabase-db" if supabase_configured() else "file"})
             return
         super().do_GET()
 
@@ -80,6 +80,18 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
         self.send_error(404, "Not found")
 
     def handle_get_state(self):
+        token = bearer_token(self.headers)
+        if token and supabase_configured():
+            try:
+                self.write_json(200, get_supabase_planner_state(token))
+                return
+            except urllib.error.HTTPError as exc:
+                self.write_json(exc.code, {"error": extract_supabase_error(exc.read().decode("utf-8", "replace")) or "Supabase DB 상태를 읽을 수 없습니다."})
+                return
+            except Exception as exc:
+                self.write_json(502, {"error": "Supabase DB 연결 중 오류가 발생했습니다.", "detail": str(exc)})
+                return
+
         if not STATE_FILE.exists():
             self.write_json(200, {"exists": False, "state": None, "updatedAt": "", "deviceId": ""})
             return
@@ -103,6 +115,18 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
         if not isinstance(state, dict):
             self.write_json(400, {"error": "저장할 플래너 state가 필요합니다."})
             return
+
+        token = bearer_token(self.headers)
+        if token and supabase_configured():
+            try:
+                self.write_json(200, save_supabase_planner_state(token, state, payload))
+                return
+            except urllib.error.HTTPError as exc:
+                self.write_json(exc.code, {"error": extract_supabase_error(exc.read().decode("utf-8", "replace")) or "Supabase DB에 저장할 수 없습니다."})
+                return
+            except Exception as exc:
+                self.write_json(502, {"error": "Supabase DB 저장 중 오류가 발생했습니다.", "detail": str(exc)})
+                return
 
         envelope = {
             "state": state,
@@ -290,6 +314,97 @@ def call_supabase_auth(action: str, payload: dict) -> dict:
             "expiresAt": data.get("expires_at") or "",
         },
     }
+
+
+def supabase_configured() -> bool:
+    return bool(os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip() and os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip())
+
+
+def bearer_token(headers) -> str:
+    value = headers.get("Authorization", "")
+    if not value.lower().startswith("bearer "):
+        return ""
+    return value.split(" ", 1)[1].strip()
+
+
+def supabase_base() -> tuple[str, str]:
+    supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip().rstrip("/")
+    anon_key = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip()
+    if not supabase_url or not anon_key:
+        raise RuntimeError("Supabase 환경변수가 설정되어 있지 않습니다.")
+    return supabase_url, anon_key
+
+
+def call_supabase_user(token: str) -> dict:
+    supabase_url, anon_key = supabase_base()
+    request = urllib.request.Request(
+        f"{supabase_url}/auth/v1/user",
+        headers={"apikey": anon_key, "Authorization": f"Bearer {token}"},
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def get_supabase_planner_state(token: str) -> dict:
+    supabase_url, anon_key = supabase_base()
+    user = call_supabase_user(token)
+    user_id = user.get("id")
+    if not user_id:
+        raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
+    request = urllib.request.Request(
+        f"{supabase_url}/rest/v1/planner_states?user_id=eq.{user_id}&select=state,updated_at,device_id&limit=1",
+        headers={
+            "apikey": anon_key,
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        },
+        method="GET",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        rows = json.loads(response.read().decode("utf-8"))
+    if not rows:
+        return {"exists": False, "state": None, "updatedAt": "", "deviceId": "", "storage": "supabase-db"}
+    row = rows[0]
+    return {
+        "exists": True,
+        "state": row.get("state"),
+        "updatedAt": row.get("updated_at") or "",
+        "deviceId": row.get("device_id") or "",
+        "storage": "supabase-db",
+    }
+
+
+def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
+    supabase_url, anon_key = supabase_base()
+    user = call_supabase_user(token)
+    user_id = user.get("id")
+    if not user_id:
+        raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
+    updated_at = payload.get("updatedAt") or utc_now()
+    body = [
+        {
+            "user_id": user_id,
+            "state": state,
+            "updated_at": updated_at,
+            "device_id": str(payload.get("deviceId") or ""),
+        }
+    ]
+    request = urllib.request.Request(
+        f"{supabase_url}/rest/v1/planner_states?on_conflict=user_id",
+        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "apikey": anon_key,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=representation",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        rows = json.loads(response.read().decode("utf-8") or "[]")
+    saved = rows[0] if rows else {}
+    return {"ok": True, "updatedAt": saved.get("updated_at") or updated_at, "storage": "supabase-db"}
 
 
 def normalize_tier(tier: str) -> str:

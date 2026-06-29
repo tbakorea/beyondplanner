@@ -456,6 +456,13 @@ body.ceo-mode .day-main-panel {
   background: var(--stone);
 }
 
+#topSyncButton.is-warning {
+  border-color: rgba(183, 126, 54, 0.46);
+  background: rgba(255, 244, 210, 0.94);
+  color: #7a4b13;
+  font-weight: 840;
+}
+
 .coach-bubble {
   position: relative;
   width: 58px;
@@ -1124,9 +1131,90 @@ body.is-privacy-blind .app-shell {
 
 .project-board {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.5fr);
   gap: 12px;
   align-items: start;
+}
+
+.project-list-panel {
+  position: sticky;
+  top: var(--sticky-panel-top);
+  display: grid;
+  gap: 9px;
+}
+
+.project-list-count {
+  display: inline-flex;
+  min-width: 28px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(95, 118, 104, 0.24);
+  border-radius: 999px;
+  background: rgba(174, 191, 177, 0.14);
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 860;
+}
+
+.project-list {
+  display: grid;
+  gap: 6px;
+}
+
+.project-list-item {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid rgba(221, 216, 203, 0.96);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--ink);
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-list-item.is-active {
+  border-color: rgba(38, 60, 52, 0.42);
+  background: rgba(174, 191, 177, 0.18);
+  box-shadow: inset 3px 0 0 var(--forest);
+}
+
+.project-list-title {
+  min-width: 0;
+  color: var(--forest);
+  font-size: 14px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.project-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.project-list-meta span,
+.project-list-meta b {
+  border: 1px solid rgba(95, 118, 104, 0.18);
+  border-radius: 999px;
+  background: rgba(247, 245, 239, 0.78);
+  padding: 3px 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 780;
+}
+
+.project-list-item small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.project-add-inline {
+  margin-top: 3px;
 }
 
 .project-card {
@@ -1208,6 +1296,10 @@ body.is-privacy-blind .app-shell {
 body.ceo-mode .project-board {
   grid-template-columns: 1fr;
   gap: 9px;
+}
+
+body.ceo-mode .project-list-panel {
+  position: static;
 }
 
 body.ceo-mode .project-card-head,
@@ -1351,6 +1443,7 @@ body.ceo-mode .project-money-row input:last-child {
   grid-template-columns: 1fr;
   gap: 14px;
   transform-origin: center left;
+  touch-action: pan-y;
 }
 
 .finance-year-grid.is-turning-next {
@@ -1391,11 +1484,12 @@ body.ceo-mode .project-money-row input:last-child {
 
 .finance-row {
   display: grid;
-  grid-template-columns: 84px minmax(150px, 1.4fr) minmax(96px, 0.7fr) 54px 72px minmax(140px, 1fr);
+  grid-template-columns: 84px minmax(150px, 1.4fr) minmax(96px, 0.7fr) 54px 72px minmax(140px, 1fr) 28px;
   gap: 6px;
   align-items: center;
   border-bottom: 1px solid var(--soft-line);
   padding: 4px 0;
+  touch-action: pan-y;
 }
 
 .finance-row input,
@@ -1410,10 +1504,39 @@ body.ceo-mode .project-money-row input:last-child {
   text-align: center;
 }
 
+.finance-repeat-end-date:disabled {
+  color: var(--muted);
+  background: rgba(247, 245, 239, 0.62);
+}
+
 .finance-status-완료 input,
 .finance-status-완료 select {
   color: var(--muted);
   background: rgba(247, 245, 239, 0.74);
+}
+
+.finance-delete {
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  min-height: 26px;
+  border: 1px solid rgba(140, 45, 39, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.86);
+  color: #8c2d27;
+  padding: 0;
+  font-size: 16px;
+  font-weight: 820;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.finance-delete:hover {
+  background: rgba(140, 45, 39, 0.08);
+}
+
+.finance-row-fixed {
+  grid-template-columns: 84px minmax(150px, 1.25fr) minmax(92px, 0.6fr) 52px 70px minmax(120px, 0.9fr) 92px 128px 28px;
 }
 
 body.ceo-mode .finance-year-grid {
@@ -1456,7 +1579,7 @@ body.ceo-mode .finance-month-tabs button {
 }
 
 body.ceo-mode .finance-row {
-  grid-template-columns: 58px minmax(0, 1fr) minmax(76px, 0.58fr);
+  grid-template-columns: 58px minmax(0, 1fr) minmax(76px, 0.58fr) 26px;
   gap: 4px;
   padding: 5px 0;
 }
@@ -1484,6 +1607,47 @@ body.ceo-mode .finance-row select:nth-of-type(2) {
 
 body.ceo-mode .finance-row input:last-child {
   grid-column: 3;
+}
+
+body.ceo-mode .finance-delete {
+  grid-column: 4;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+body.ceo-mode .finance-row-fixed {
+  grid-template-columns: 54px minmax(0, 1fr) minmax(70px, 0.54fr) 26px;
+}
+
+body.ceo-mode .finance-row-fixed .finance-due,
+body.ceo-mode .finance-row-fixed .finance-status,
+body.ceo-mode .finance-row-fixed .finance-repeat-end-mode {
+  grid-row: 2;
+}
+
+body.ceo-mode .finance-row-fixed .finance-due {
+  grid-column: 1;
+}
+
+body.ceo-mode .finance-row-fixed .finance-status {
+  grid-column: 2;
+}
+
+body.ceo-mode .finance-row-fixed .finance-repeat-end-mode {
+  grid-column: 3;
+}
+
+body.ceo-mode .finance-row-fixed .finance-memo,
+body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
+  grid-row: 3;
+}
+
+body.ceo-mode .finance-row-fixed .finance-memo {
+  grid-column: 1 / span 2;
+}
+
+body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
+  grid-column: 3 / span 2;
 }
 
 .finance-add-row {
@@ -2906,7 +3070,7 @@ input[type="checkbox"]:checked::after {
   }
 
   .finance-row {
-    grid-template-columns: 52px minmax(0, 1fr) 62px;
+    grid-template-columns: 52px minmax(0, 1fr) 62px 25px;
     gap: 4px;
   }
 
@@ -2936,6 +3100,52 @@ input[type="checkbox"]:checked::after {
 
   .finance-row input:last-child {
     grid-column: 3;
+  }
+
+  .finance-delete {
+    grid-column: 4;
+    grid-row: 1 / span 2;
+    align-self: center;
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    min-height: 24px;
+    font-size: 14px;
+  }
+
+  .finance-row-fixed {
+    grid-template-columns: 50px minmax(0, 1fr) 58px 24px;
+  }
+
+  .finance-row-fixed .finance-due,
+  .finance-row-fixed .finance-status,
+  .finance-row-fixed .finance-repeat-end-mode {
+    grid-row: 2;
+  }
+
+  .finance-row-fixed .finance-due {
+    grid-column: 1;
+  }
+
+  .finance-row-fixed .finance-status {
+    grid-column: 2;
+  }
+
+  .finance-row-fixed .finance-repeat-end-mode {
+    grid-column: 3 / span 2;
+  }
+
+  .finance-row-fixed .finance-memo,
+  .finance-row-fixed .finance-repeat-end-date {
+    grid-row: 3;
+  }
+
+  .finance-row-fixed .finance-memo {
+    grid-column: 1 / span 2;
+  }
+
+  .finance-row-fixed .finance-repeat-end-date {
+    grid-column: 3 / span 2;
   }
 
   .finance-summary {
