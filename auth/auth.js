@@ -19,19 +19,37 @@ if (signupTab && loginForm) signupTab.onclick = () => setMode("signup");
 
 if (loginForm) loginForm.onsubmit = async (event) => {
   event.preventDefault();
+  showMessage("로그인 확인 중입니다...");
   const email = normalizeEmail(document.getElementById("loginEmail").value);
   const password = document.getElementById("loginPassword").value;
+  try {
+    const result = await requestAuth("login", { email, password });
+    cacheRemoteUser(result.user);
+    saveSession(result.user.email, result.user, result.session);
+    redirectToDashboard();
+    return;
+  } catch (error) {
+    const localUser = await loginLocalUser(email, password);
+    if (localUser) {
+      saveSession(email, localUser);
+      redirectToDashboard();
+      return;
+    }
+    return showMessage(error.message || "로그인할 수 없습니다.");
+  }
+};
+
+async function loginLocalUser(email, password) {
   const users = getUsers();
   const user = users[email];
-  if (!user) return showMessage("가입된 이메일이 없습니다.");
+  if (!user) return null;
   const passwordHash = await hashPassword(password, user.salt);
-  if (passwordHash !== user.passwordHash) return showMessage("비밀번호가 맞지 않습니다.");
-  saveSession(email, user);
-  redirectToDashboard();
-};
+  return passwordHash === user.passwordHash ? user : null;
+}
 
 if (signupForm) signupForm.onsubmit = async (event) => {
   event.preventDefault();
+  showMessage("회원정보를 저장 중입니다...");
   const name = document.getElementById("signupName").value.trim();
   const email = normalizeEmail(document.getElementById("signupEmail").value);
   const password = document.getElementById("signupPassword").value;
@@ -41,6 +59,15 @@ if (signupForm) signupForm.onsubmit = async (event) => {
   if (password.length < 6) return showMessage("비밀번호는 6자리 이상으로 설정하세요.");
   if (password !== passwordConfirm) return showMessage("비밀번호 확인이 일치하지 않습니다.");
   if (!tiers.includes(tier)) return showMessage("등급을 다시 선택하세요.");
+  try {
+    const result = await requestAuth("signup", { name, email, password, tier });
+    cacheRemoteUser(result.user);
+    clearSignupPasswordFields();
+    redirectToLogin(result.user.email, "created");
+    return;
+  } catch (error) {
+    if (!isLocalFallbackAllowed(error)) return showMessage(error.message || "회원가입을 완료할 수 없습니다.");
+  }
   const users = getUsers();
   if (users[email]) return showMessage("이미 가입된 이메일입니다.");
   const salt = randomId();
@@ -53,9 +80,8 @@ if (signupForm) signupForm.onsubmit = async (event) => {
     createdAt: new Date().toISOString(),
   };
   localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-  document.getElementById("signupPassword").value = "";
-  document.getElementById("signupPasswordConfirm").value = "";
-  redirectToLogin(email, "created");
+  clearSignupPasswordFields();
+  redirectToLogin(email, "local");
 };
 
 function setMode(mode) {
@@ -80,21 +106,40 @@ function getSession() {
   try {
     const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || "null");
     const users = getUsers();
-    return session?.email && users[session.email] ? session : null;
+    return session?.email && (session.provider === "supabase" || users[session.email]) ? session : null;
   } catch {
     return null;
   }
 }
 
-function saveSession(email, user) {
+function saveSession(email, user, remoteSession = {}) {
   localStorage.setItem(
     AUTH_SESSION_KEY,
     JSON.stringify({
       email,
       tier: normalizeTier(user.tier),
+      name: user.name || "",
+      provider: remoteSession?.accessToken ? "supabase" : user.provider || "local",
+      accessToken: remoteSession?.accessToken || "",
+      refreshToken: remoteSession?.refreshToken || "",
+      expiresAt: remoteSession?.expiresAt || "",
       loginAt: new Date().toISOString(),
     }),
   );
+}
+
+function cacheRemoteUser(user = {}) {
+  if (!user.email) return;
+  const users = getUsers();
+  users[user.email] = {
+    ...(users[user.email] || {}),
+    email: user.email,
+    name: user.name || users[user.email]?.name || "",
+    tier: normalizeTier(user.tier),
+    provider: "supabase",
+    updatedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
 }
 
 function migrateLegacyTiers() {
@@ -147,6 +192,9 @@ function prefillLoginEmail() {
   if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "created") {
     showMessage("회원가입이 완료되었습니다. 로그인해 주세요.");
   }
+  if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "local") {
+    showMessage("서버 연결 없이 이 기기에만 가입되었습니다. 배포 환경변수를 확인해 주세요.");
+  }
 }
 
 function wireAuthLinks() {
@@ -165,6 +213,35 @@ function normalizeEmail(value) {
 
 function showMessage(text) {
   if (message) message.textContent = text;
+}
+
+async function requestAuth(action, payload) {
+  const response = await fetch("/api/auth", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+  if (!response.ok) {
+    const error = new Error(data.error || "인증 서버에서 요청을 처리하지 못했습니다.");
+    error.status = response.status;
+    throw error;
+  }
+  return data;
+}
+
+function isLocalFallbackAllowed(error) {
+  return [404, 501, 502, 503].includes(Number(error?.status));
+}
+
+function clearSignupPasswordFields() {
+  document.getElementById("signupPassword").value = "";
+  document.getElementById("signupPasswordConfirm").value = "";
 }
 
 function randomId() {

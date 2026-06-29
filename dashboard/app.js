@@ -74,8 +74,13 @@ function getAuthSession() {
     const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || "null");
     const users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || "{}");
     const user = session?.email ? users[session.email] : null;
-    if (!user) return null;
-    return { ...session, tier: normalizeAccountTier(user.tier || session.tier), name: user.name || "" };
+    if (!session?.email) return null;
+    if (!user && session.provider !== "supabase") return null;
+    return {
+      ...session,
+      tier: normalizeAccountTier(user?.tier || session.tier),
+      name: user?.name || session.name || "",
+    };
   } catch {
     return null;
   }

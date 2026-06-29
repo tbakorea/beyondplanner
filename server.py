@@ -22,6 +22,25 @@ ROOT = pathlib.Path(__file__).resolve().parent
 PLANNER_ENV = os.environ.get("PLANNER_ENV", "dev").strip().lower() or "dev"
 
 
+def load_env_file():
+    for filename in (".env.local", ".env"):
+        path = ROOT / filename
+        if not path.exists():
+            continue
+        for raw_line in path.read_text(encoding="utf-8").splitlines():
+            line = raw_line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, value = line.split("=", 1)
+            key = key.strip()
+            value = value.strip().strip('"').strip("'")
+            if key and key not in os.environ:
+                os.environ[key] = value
+
+
+load_env_file()
+
+
 def get_state_file() -> pathlib.Path:
     explicit = os.environ.get("PLANNER_STATE_FILE", "").strip()
     if explicit:
@@ -51,6 +70,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
         path = self.path.split("?", 1)[0]
         if path == "/api/ask":
             self.handle_ai_question()
+            return
+        if path == "/api/auth":
+            self.handle_auth()
             return
         if path == "/api/state":
             self.handle_save_state()
@@ -96,6 +118,35 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
 
         self.write_json(200, {"ok": True, "updatedAt": envelope["updatedAt"]})
+
+    def handle_auth(self):
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            self.write_json(400, {"error": "요청 JSON을 읽을 수 없습니다."})
+            return
+
+        action = str(payload.get("action", "")).strip().lower()
+        if action not in {"signup", "login"}:
+            self.write_json(400, {"error": "지원하지 않는 인증 요청입니다."})
+            return
+
+        try:
+            result = call_supabase_auth(action, payload)
+        except RuntimeError as exc:
+            self.write_json(503, {"error": str(exc)})
+            return
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            message = extract_supabase_error(detail) or "인증 서버 요청에 실패했습니다."
+            self.write_json(exc.code, {"error": message})
+            return
+        except Exception as exc:  # pragma: no cover - runtime network boundary
+            self.write_json(502, {"error": "인증 서버 연결 중 오류가 발생했습니다.", "detail": str(exc)})
+            return
+
+        self.write_json(200, result)
 
     def handle_ai_question(self):
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -188,6 +239,69 @@ def call_openai(api_key: str, payload: dict) -> str:
     with urllib.request.urlopen(request, timeout=45) as response:
         data = json.loads(response.read().decode("utf-8"))
     return extract_response_text(data)
+
+
+def call_supabase_auth(action: str, payload: dict) -> dict:
+    supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip().rstrip("/")
+    anon_key = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip()
+    if not supabase_url or not anon_key:
+        raise RuntimeError("Supabase 환경변수가 설정되어 있지 않습니다.")
+
+    email = str(payload.get("email", "")).strip().lower()
+    password = str(payload.get("password", ""))
+    if not email or not password:
+        raise urllib.error.HTTPError("", 400, "이메일과 비밀번호가 필요합니다.", {}, None)
+
+    if action == "signup":
+        name = str(payload.get("name", "")).strip()
+        tier = normalize_tier(str(payload.get("tier", "staff")).strip())
+        endpoint = f"{supabase_url}/auth/v1/signup"
+        request_payload = {"email": email, "password": password, "data": {"name": name, "tier": tier}}
+    else:
+        endpoint = f"{supabase_url}/auth/v1/token?grant_type=password"
+        request_payload = {"email": email, "password": password}
+
+    request = urllib.request.Request(
+        endpoint,
+        data=json.dumps(request_payload, ensure_ascii=False).encode("utf-8"),
+        headers={
+            "apikey": anon_key,
+            "Authorization": f"Bearer {anon_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        data = json.loads(response.read().decode("utf-8"))
+
+    user = data.get("user") or data
+    metadata = user.get("user_metadata") or {}
+    return {
+        "ok": True,
+        "provider": "supabase",
+        "user": {
+            "email": str(user.get("email") or email).lower(),
+            "name": str(metadata.get("name") or ""),
+            "tier": normalize_tier(str(metadata.get("tier") or payload.get("tier") or "staff")),
+        },
+        "session": {
+            "accessToken": data.get("access_token") or "",
+            "refreshToken": data.get("refresh_token") or "",
+            "expiresAt": data.get("expires_at") or "",
+        },
+    }
+
+
+def normalize_tier(tier: str) -> str:
+    return tier if tier in {"ceo", "director", "manager", "staff"} else "staff"
+
+
+def extract_supabase_error(detail: str) -> str:
+    try:
+        data = json.loads(detail)
+    except json.JSONDecodeError:
+        return detail[:300]
+    return str(data.get("msg") or data.get("message") or data.get("error_description") or data.get("error") or "")
 
 
 def extract_response_text(data: dict) -> str:
