@@ -3,3 +3,8 @@
 *.xlsx
 outputs/
 dashboard/qa_*.png
+.env
+.env.*
+planner-state.json
+planner-state.*.json
+tools/

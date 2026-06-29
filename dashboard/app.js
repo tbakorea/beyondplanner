@@ -1,5 +1,11 @@
 const YEAR = 2026;
 const STORAGE_KEY = "franklinClassicPlanner2026.v1";
+const DEVICE_KEY = "beyondWorkDeviceId";
+const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
+const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
+const PRIVACY_CONFIG_KEY = "beyondWorkPrivacyConfig.v1";
+const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(STORAGE_KEY);
   history.replaceState(null, "", window.location.pathname);
@@ -16,6 +22,10 @@ const repeatFrequencies = [
   ["weekly", "매주"],
 ];
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
+const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
+const moneyStatuses = ["예정", "확인", "보류", "완료"];
+const projectStatuses = ["대기", "진행", "보류", "완료"];
+const projectMoneyTypes = ["수입", "비용"];
 const defaultRoles = ["개인", "가족", "일", "성장", "공헌", "건강", "관계"];
 const isMacEnvironment = /Mac|iPhone|iPad/.test(navigator.platform || "") || /Macintosh|iPhone|iPad/.test(navigator.userAgent || "");
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
@@ -23,14 +33,26 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
 
-let state = loadState();
 let selectedDate = todayInPlanner();
+let selectedFinanceMonth = monthKey(selectedDate);
+let state = loadState();
 let searchQuery = "";
+let aiSearch = { query: "", answer: "", loading: false, error: "" };
+let syncStatus = { enabled: false, environment: "local", message: "이 기기에 저장됨", saving: false };
+let serverSyncReady = false;
+let serverSyncTimer = 0;
+let lastServerUpdatedAt = "";
 let daySwipeKey = "";
 let plannerMode = localStorage.getItem("beyondWorkMode") || "";
+const deviceId = getDeviceId();
 const dayPanelOrder = ["week", "main", "memo"];
 let currentDayPanel = "main";
 let dateSlideTimer = 0;
+let lockTimer = 0;
+let privacyTimer = 0;
+let isLocked = false;
+let isPrivacyBlind = false;
+let financeTurnDirection = 0;
 
 function el(id) {
   return document.getElementById(id);
@@ -84,6 +106,15 @@ function daysBetween(a, b) {
   return Math.round((b - a) / 86400000);
 }
 
+function getDeviceId() {
+  let id = localStorage.getItem(DEVICE_KEY);
+  if (!id) {
+    id = `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(DEVICE_KEY, id);
+  }
+  return id;
+}
+
 function loadState() {
   const saved = localStorage.getItem(STORAGE_KEY);
   if (saved) return migrateState(JSON.parse(saved));
@@ -115,10 +146,17 @@ function loadState() {
       references: Array.from({ length: 8 }, () => ""),
       freeform: "",
     },
+    finance: createFinanceState(),
+    projects: createProjectState(),
   };
 }
 
 function migrateState(nextState) {
+  nextState.finance ||= createFinanceState();
+  normalizeFinanceState(nextState.finance);
+  nextState.projects ||= createProjectState();
+  normalizeProjectState(nextState.projects);
+  nextState.notes ||= { projects: Array.from({ length: 8 }, () => ""), references: Array.from({ length: 8 }, () => ""), freeform: "" };
   nextState.profile ||= { age: "", job: "", goals: "", strengths: "", risks: "" };
   nextState.repeats ||= {};
   nextState.repeats.priorityTasks ||= emptyRepeatRules(4);
@@ -149,8 +187,232 @@ function migrateState(nextState) {
   return nextState;
 }
 
+function createFinanceState() {
+  return {
+    months: createFinanceMonths(),
+    fixed: Array.from({ length: 6 }, () => emptyMoneyItem("지출")),
+    issueMemo: "",
+    decisionMemo: "",
+  };
+}
+
+function emptyMoneyItem(type = "지출") {
+  return { id: `money-${Date.now()}-${Math.random().toString(16).slice(2)}`, type, title: "", amount: "", dueDay: "", status: "예정", memo: "", taskDate: "" };
+}
+
+function financeMonthKeys() {
+  return Array.from({ length: 12 }, (_, index) => `${YEAR}-${pad(index + 1)}`);
+}
+
+function createFinanceMonths() {
+  return Object.fromEntries(financeMonthKeys().map((key) => [key, Array.from({ length: 5 }, () => emptyMoneyItem())]));
+}
+
+function normalizeFinanceState(finance) {
+  if (!finance.months) {
+    finance.months = createFinanceMonths();
+    const legacyMonth = monthKey(selectedDate);
+    if (Array.isArray(finance.monthly)) finance.months[legacyMonth] = finance.monthly;
+  }
+  delete finance.monthly;
+  finance.fixed ||= [];
+  finance.issueMemo ||= "";
+  finance.decisionMemo ||= "";
+  financeMonthKeys().forEach((key) => {
+    finance.months[key] ||= Array.from({ length: 5 }, () => emptyMoneyItem());
+    while (finance.months[key].length < 5) finance.months[key].push(emptyMoneyItem());
+  });
+  while (finance.fixed.length < 6) finance.fixed.push(emptyMoneyItem("지출"));
+  Object.keys(finance.months).forEach((key) => {
+    finance.months[key] = finance.months[key].map((item) => normalizeMoneyItem(item));
+  });
+  finance.fixed = finance.fixed.map((item) => normalizeMoneyItem(item, "지출"));
+}
+
+function normalizeMoneyItem(item, fallbackType = "지출") {
+  return {
+    id: item?.id || `money-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    type: moneyTypes.includes(item?.type) ? item.type : fallbackType,
+    title: item?.title || "",
+    amount: item?.amount || "",
+    dueDay: item?.dueDay || "",
+    status: moneyStatuses.includes(item?.status) ? item.status : "예정",
+    memo: item?.memo || "",
+    taskDate: item?.taskDate || "",
+  };
+}
+
+function createProjectState() {
+  return {
+    items: [
+      emptyProject("신규 프로젝트"),
+      emptyProject("운영 개선"),
+      emptyProject("매출 프로젝트"),
+    ],
+  };
+}
+
+function emptyProject(title = "") {
+  return {
+    id: `project-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title,
+    status: "진행",
+    owner: "",
+    startDate: "",
+    endDate: "",
+    goal: "",
+    nextAction: "",
+    dueDate: "",
+    budget: "",
+    actual: "",
+    notes: "",
+    finances: [emptyProjectMoney("수입"), emptyProjectMoney("비용"), emptyProjectMoney("비용")],
+  };
+}
+
+function emptyProjectMoney(type = "비용") {
+  return {
+    id: `project-money-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    type,
+    title: "",
+    amount: "",
+    probability: type === "수입" ? "70" : "100",
+    timing: "",
+    memo: "",
+  };
+}
+
+function normalizeProjectState(projects) {
+  projects.items ||= [];
+  if (!projects.items.length) projects.items = createProjectState().items;
+  projects.items = projects.items.map((project) => normalizeProject(project));
+}
+
+function normalizeProject(project) {
+  return {
+    id: project?.id || `project-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: project?.title || "",
+    status: projectStatuses.includes(project?.status) ? project.status : "진행",
+    owner: project?.owner || "",
+    startDate: project?.startDate || "",
+    endDate: project?.endDate || "",
+    goal: project?.goal || "",
+    nextAction: project?.nextAction || "",
+    dueDate: project?.dueDate || "",
+    budget: project?.budget || "",
+    actual: project?.actual || "",
+    notes: project?.notes || "",
+    finances: Array.isArray(project?.finances) ? project.finances.map((item) => normalizeProjectMoney(item)) : [emptyProjectMoney("수입"), emptyProjectMoney("비용")],
+  };
+}
+
+function normalizeProjectMoney(item) {
+  return {
+    id: item?.id || `project-money-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    type: projectMoneyTypes.includes(item?.type) ? item.type : "비용",
+    title: item?.title || "",
+    amount: item?.amount || "",
+    probability: item?.probability || (item?.type === "수입" ? "70" : "100"),
+    timing: item?.timing || "",
+    memo: item?.memo || "",
+  };
+}
+
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  scheduleServerSync();
+}
+
+async function hydrateServerState() {
+  try {
+    await hydrateServerConfig();
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) throw new Error("서버 저장소를 확인할 수 없습니다.");
+    const payload = await response.json();
+    serverSyncReady = true;
+    syncStatus.enabled = true;
+    if (payload.exists && payload.state) {
+      state = migrateState(payload.state);
+      lastServerUpdatedAt = payload.updatedAt || "";
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      syncStatus.message = "서버 동기화됨";
+    } else {
+      syncStatus.message = "서버 저장소 준비됨";
+      await persistStateToServer();
+    }
+  } catch {
+    serverSyncReady = false;
+    syncStatus.enabled = false;
+    syncStatus.environment = "local";
+    syncStatus.message = "이 기기에 저장됨";
+  }
+}
+
+async function hydrateServerConfig() {
+  try {
+    const response = await fetch("/api/config", { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    syncStatus.environment = payload.environment || "server";
+  } catch {
+    syncStatus.environment = "server";
+  }
+}
+
+function scheduleServerSync() {
+  if (!serverSyncReady) return;
+  window.clearTimeout(serverSyncTimer);
+  syncStatus.saving = true;
+  syncStatus.message = "서버 저장 중";
+  serverSyncTimer = window.setTimeout(() => {
+    persistStateToServer();
+  }, 650);
+}
+
+async function persistStateToServer() {
+  if (!serverSyncReady) return;
+  const updatedAt = new Date().toISOString();
+  try {
+    const response = await fetch("/api/state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state, updatedAt, deviceId }),
+    });
+    if (!response.ok) throw new Error("저장 실패");
+    const payload = await response.json().catch(() => ({}));
+    lastServerUpdatedAt = payload.updatedAt || updatedAt;
+    syncStatus.enabled = true;
+    syncStatus.saving = false;
+    syncStatus.message = "서버 동기화됨";
+    renderSidebar();
+  } catch {
+    syncStatus.saving = false;
+    syncStatus.message = "서버 저장 실패";
+    renderSidebar();
+  }
+}
+
+async function pullServerStateIfNewer() {
+  if (!serverSyncReady) return;
+  try {
+    const response = await fetch("/api/state", { cache: "no-store" });
+    if (!response.ok) return;
+    const payload = await response.json();
+    if (!payload.exists || !payload.state || !payload.updatedAt) return;
+    if (payload.deviceId === deviceId) {
+      lastServerUpdatedAt = payload.updatedAt;
+      return;
+    }
+    if (lastServerUpdatedAt && payload.updatedAt <= lastServerUpdatedAt) return;
+    state = migrateState(payload.state);
+    lastServerUpdatedAt = payload.updatedAt;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    syncStatus.message = "다른 기기 변경 반영됨";
+    renderAll();
+  } catch {
+    syncStatus.message = "서버 확인 실패";
+    renderSidebar();
+  }
 }
 
 function ensureMonth(key = monthKey()) {
@@ -265,8 +527,19 @@ function setupSelectors() {
   el("topPrintButton").onclick = () => window.print();
   el("topExportButton").onclick = exportPlanner;
   el("topImportButton").onclick = () => el("importFile").click();
+  el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
+  el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
+  el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
+  el("revealPrivacyButton").onclick = deactivatePrivacyBlind;
+  el("lockFromPrivacyButton").onclick = () => lockPlanner("보안모드에서 완전 잠금으로 전환되었습니다.");
+  el("financePrevMonth").onclick = () => shiftFinanceMonth(-1);
+  el("financeNextMonth").onclick = () => shiftFinanceMonth(1);
+  el("financeMonthTitle").onclick = () => renderFinanceMonthTabs(true);
+  el("fixedMoneyAdd").onclick = () => addMoneyRow(state.finance.fixed, { fixed: true });
+  el("addProjectButton").onclick = addProject;
   el("topSearchToggle").onclick = toggleTopSearch;
   el("topSearchSubmit").onclick = runHeaderSearch;
+  el("topSearchClose").onclick = closeTopSearch;
   el("coachBubble").onclick = () => {
     showView("coach");
     renderAll();
@@ -280,6 +553,14 @@ function setupSelectors() {
   el("aiMemoSuggest").onclick = () => applyMemoPrompt();
   el("closeSearchButton").onclick = closeSearch;
   el("closeCoachButton").onclick = closeCoach;
+  el("unlockPasscodeButton").onclick = unlockWithPasscode;
+  el("unlockBiometricButton").onclick = unlockWithBiometric;
+  el("savePasscodeButton").onclick = saveLockPasscode;
+  el("registerBiometricButton").onclick = registerBiometric;
+  el("clearSecurityButton").onclick = clearSecuritySettings;
+  el("lockPasscode").onkeydown = (event) => {
+    if (event.key === "Enter") unlockWithPasscode();
+  };
   document.querySelectorAll("[data-merge-range]").forEach((button) => {
     button.onclick = () => {
       mergeAppointmentRange(ensureDay(), button.dataset.mergeRange);
@@ -300,6 +581,8 @@ function setupSelectors() {
   setupDailyPageSwipe();
   setupDaySwipePager();
   setupWheelDayNavigation();
+  setupFinanceMonthSwipe();
+  setupAutoLock();
   applyPlannerMode();
   updateStickyPanelTop();
   window.addEventListener("resize", () => {
@@ -325,12 +608,18 @@ function toggleTopSearch() {
   }
 }
 
+function closeTopSearch() {
+  const popover = el("topSearchPopover");
+  if (popover) popover.hidden = true;
+}
+
 function runHeaderSearch() {
   const input = el("headerSearch");
   const popover = el("topSearchPopover");
   if (!input) return;
   updateSearch(input.value);
   if (popover && input.value.trim()) popover.hidden = true;
+  requestAiSearchAnswer(input.value);
 }
 
 function updateStickyPanelTop() {
@@ -355,6 +644,7 @@ function updateSearch(value) {
 
 function closeSearch() {
   searchQuery = "";
+  aiSearch = { query: "", answer: "", loading: false, error: "" };
   el("plannerSearch").value = "";
   el("headerSearch").value = "";
   closeToDailyPage();
@@ -368,6 +658,252 @@ function closeToDailyPage() {
   showView("day");
   renderAll();
   positionDaySwipe();
+}
+
+function setupAutoLock() {
+  ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => {
+    window.addEventListener(eventName, resetLockTimer, { passive: true });
+  });
+  resetLockTimer();
+  updateLockUi();
+  updatePrivacyUi();
+}
+
+function hasSecuritySettings() {
+  return Boolean(getLockConfig()?.passcodeHash || getBiometricCredential());
+}
+
+function resetLockTimer() {
+  if (isLocked || isPrivacyBlind) return;
+  window.clearTimeout(lockTimer);
+  window.clearTimeout(privacyTimer);
+  const privacySeconds = getPrivacyConfig().timeoutSeconds;
+  if (privacySeconds > 0) {
+    privacyTimer = window.setTimeout(
+      () => activatePrivacyBlind(`${formatPrivacyTimeout(privacySeconds)} 동안 사용이 없어 내용이 블라인드 처리되었습니다.`),
+      privacySeconds * 1000,
+    );
+  }
+  if (!hasSecuritySettings()) return;
+  lockTimer = window.setTimeout(() => lockPlanner("일정 시간 사용이 없어 잠금 처리되었습니다."), LOCK_TIMEOUT_MS);
+}
+
+function lockPlanner(message = "플래너가 잠겼습니다.") {
+  isLocked = true;
+  deactivatePrivacyBlind(false);
+  window.clearTimeout(lockTimer);
+  window.clearTimeout(privacyTimer);
+  document.body.classList.add("is-locked");
+  const screen = el("lockScreen");
+  screen.hidden = false;
+  el("lockMessage").textContent = hasSecuritySettings()
+    ? message
+    : "먼저 비밀번호를 설정하면 자동 잠금이 활성화됩니다. 지원 기기에서는 생체인증도 등록할 수 있습니다.";
+  el("lockPasscode").value = "";
+  updateLockUi();
+  window.setTimeout(() => el("lockPasscode")?.focus(), 80);
+}
+
+function unlockPlanner(message = "잠금 해제됨") {
+  isLocked = false;
+  document.body.classList.remove("is-locked");
+  el("lockScreen").hidden = true;
+  el("lockMessage").textContent = message;
+  resetLockTimer();
+}
+
+function activatePrivacyBlind(message = "플래너 내용이 블라인드 처리되었습니다.") {
+  if (isLocked) return;
+  isPrivacyBlind = true;
+  window.clearTimeout(lockTimer);
+  window.clearTimeout(privacyTimer);
+  document.body.classList.add("is-privacy-blind");
+  const screen = el("privacyBlindScreen");
+  if (screen) screen.hidden = false;
+  if (el("privacyBlindMessage")) el("privacyBlindMessage").textContent = message;
+  updatePrivacyUi();
+}
+
+function deactivatePrivacyBlind(resetTimer = true) {
+  isPrivacyBlind = false;
+  document.body.classList.remove("is-privacy-blind");
+  const screen = el("privacyBlindScreen");
+  if (screen) screen.hidden = true;
+  updatePrivacyUi();
+  if (resetTimer) resetLockTimer();
+}
+
+function updateLockUi() {
+  const passcodeReady = Boolean(getLockConfig()?.passcodeHash);
+  const biometricReady = Boolean(getBiometricCredential());
+  if (el("unlockPasscodeButton")) el("unlockPasscodeButton").disabled = !passcodeReady;
+  if (el("unlockBiometricButton")) el("unlockBiometricButton").disabled = !biometricReady || !canUseWebAuthn();
+  if (el("registerBiometricButton")) el("registerBiometricButton").disabled = !canUseWebAuthn();
+}
+
+function getPrivacyConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PRIVACY_CONFIG_KEY) || "null");
+    const timeoutSeconds = Number(saved?.timeoutSeconds ?? DEFAULT_PRIVACY_TIMEOUT_SECONDS);
+    return { timeoutSeconds: Number.isFinite(timeoutSeconds) ? timeoutSeconds : DEFAULT_PRIVACY_TIMEOUT_SECONDS };
+  } catch {
+    return { timeoutSeconds: DEFAULT_PRIVACY_TIMEOUT_SECONDS };
+  }
+}
+
+function savePrivacyTimeout(timeoutSeconds) {
+  const normalized = Number.isFinite(timeoutSeconds) ? Math.max(0, timeoutSeconds) : DEFAULT_PRIVACY_TIMEOUT_SECONDS;
+  localStorage.setItem(PRIVACY_CONFIG_KEY, JSON.stringify({ timeoutSeconds: normalized, updatedAt: new Date().toISOString() }));
+  updatePrivacyUi();
+  resetLockTimer();
+}
+
+function updatePrivacyUi() {
+  const config = getPrivacyConfig();
+  const select = el("privacyTimeoutSelect");
+  if (select && select.value !== String(config.timeoutSeconds)) select.value = String(config.timeoutSeconds);
+  const button = el("privacyNowButton");
+  if (button) button.textContent = isPrivacyBlind ? "보안중" : "보안모드";
+}
+
+function formatPrivacyTimeout(seconds) {
+  if (seconds < 60) return `${seconds}초`;
+  return `${Math.round(seconds / 60)}분`;
+}
+
+function getLockConfig() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCK_CONFIG_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function getBiometricCredential() {
+  try {
+    return JSON.parse(localStorage.getItem(BIOMETRIC_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
+
+async function saveLockPasscode() {
+  const passcode = el("newPasscode").value.trim();
+  if (passcode.length < 4) {
+    el("lockMessage").textContent = "비밀번호는 4자리 이상으로 설정하세요.";
+    return;
+  }
+  const salt = randomBase64Url(16);
+  const passcodeHash = await digestPasscode(passcode, salt);
+  localStorage.setItem(LOCK_CONFIG_KEY, JSON.stringify({ salt, passcodeHash, updatedAt: new Date().toISOString() }));
+  el("newPasscode").value = "";
+  el("lockMessage").textContent = "비밀번호가 저장되었습니다. 잠금 버튼으로 완전 잠금을 사용할 수 있고, 보안모드는 설정한 시간 뒤 내용을 블라인드 처리합니다.";
+  updateLockUi();
+  resetLockTimer();
+}
+
+async function unlockWithPasscode() {
+  const config = getLockConfig();
+  if (!config?.passcodeHash) return;
+  const passcode = el("lockPasscode").value.trim();
+  const hash = await digestPasscode(passcode, config.salt);
+  if (hash !== config.passcodeHash) {
+    el("lockMessage").textContent = "비밀번호가 맞지 않습니다.";
+    return;
+  }
+  unlockPlanner("비밀번호로 잠금 해제됨");
+}
+
+async function registerBiometric() {
+  if (!canUseWebAuthn()) {
+    el("lockMessage").textContent = "이 브라우저에서는 생체인증을 사용할 수 없습니다. HTTPS 또는 localhost에서 지원됩니다.";
+    return;
+  }
+  try {
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { name: "Beyond Work" },
+        user: {
+          id: textToBytes(deviceId).slice(0, 64),
+          name: "Beyond Work 사용자",
+          displayName: "Beyond Work",
+        },
+        pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+        authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required" },
+        timeout: 60000,
+        attestation: "none",
+      },
+    });
+    localStorage.setItem(BIOMETRIC_KEY, JSON.stringify({ id: bufferToBase64Url(credential.rawId), updatedAt: new Date().toISOString() }));
+    el("lockMessage").textContent = "생체인증이 등록되었습니다.";
+    updateLockUi();
+    resetLockTimer();
+  } catch {
+    el("lockMessage").textContent = "생체인증 등록이 취소되었거나 실패했습니다.";
+  }
+}
+
+async function unlockWithBiometric() {
+  const stored = getBiometricCredential();
+  if (!stored?.id || !canUseWebAuthn()) return;
+  try {
+    await navigator.credentials.get({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        allowCredentials: [{ type: "public-key", id: base64UrlToBuffer(stored.id) }],
+        userVerification: "required",
+        timeout: 60000,
+      },
+    });
+    unlockPlanner("생체인증으로 잠금 해제됨");
+  } catch {
+    el("lockMessage").textContent = "생체인증이 취소되었거나 실패했습니다.";
+  }
+}
+
+function clearSecuritySettings() {
+  if (!confirm("비밀번호와 생체인증 설정을 해제할까요?")) return;
+  localStorage.removeItem(LOCK_CONFIG_KEY);
+  localStorage.removeItem(BIOMETRIC_KEY);
+  el("lockMessage").textContent = "보안 설정이 해제되었습니다.";
+  updateLockUi();
+  unlockPlanner("보안 설정 해제됨");
+}
+
+function canUseWebAuthn() {
+  return Boolean(window.isSecureContext && window.PublicKeyCredential && navigator.credentials && crypto?.subtle);
+}
+
+async function digestPasscode(passcode, salt) {
+  const bytes = textToBytes(`${salt}:${passcode}`);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return bufferToBase64Url(digest);
+}
+
+function textToBytes(value) {
+  return new TextEncoder().encode(value);
+}
+
+function randomBase64Url(length) {
+  return bufferToBase64Url(crypto.getRandomValues(new Uint8Array(length)));
+}
+
+function bufferToBase64Url(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBuffer(value) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=");
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return bytes;
 }
 
 function shiftDay(delta, animate = true) {
@@ -660,7 +1196,7 @@ function renderSidebar() {
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
   el("topYearProgress").textContent = `연간 ${Math.round((elapsed / 365) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
-  el("topSearchCount").textContent = `검색 ${results.length}`;
+  el("topSearchCount").textContent = `검색 ${results.length} · ${syncStatus.environment.toUpperCase()} · ${syncStatus.message}`;
   el("dailyTodayButton").hidden = iso(selectedDate) === iso(todayInPlanner());
   updateCoachBubble();
 }
@@ -936,7 +1472,7 @@ function renderTaskSuggestionPopover() {
   node.innerHTML = `
     <div class="ai-suggest-header">
       <strong>AI 추천 업무</strong>
-      <button class="ai-suggest-close" type="button" aria-label="AI 추천 닫기">×</button>
+      <button class="icon-close ai-suggest-close" type="button" aria-label="AI 추천 닫기">×</button>
     </div>
     ${suggestions.map((text, index) => `
       <label>
@@ -1524,13 +2060,313 @@ function mergeAppointmentRange(day, range) {
 }
 
 function renderNotes() {
-  renderEditableList(el("projectIndex"), state.notes.projects, "프로젝트", () => saveState());
-  renderEditableList(el("referenceIndex"), state.notes.references, "참고", () => saveState());
-  document.querySelector("[data-store='notes.freeform']").value = state.notes.freeform || "";
-  document.querySelector("[data-store='notes.freeform']").oninput = (event) => {
-    state.notes.freeform = event.target.value;
-    saveState();
-  };
+  state.finance ||= createFinanceState();
+  normalizeFinanceState(state.finance);
+  if (!state.finance.months[selectedFinanceMonth]) selectedFinanceMonth = monthKey(selectedDate);
+  renderFinanceMonthNav();
+  renderFinanceYearRows();
+  renderMoneyRows(el("fixedMoneyRows"), state.finance.fixed, { fixed: true });
+  document.querySelectorAll("[data-finance-field]").forEach((field) => {
+    field.value = state.finance[field.dataset.financeField] || "";
+    field.oninput = () => {
+      state.finance[field.dataset.financeField] = field.value;
+      saveState();
+    };
+  });
+  renderFinanceSummary();
+}
+
+function renderProjects() {
+  state.projects ||= createProjectState();
+  normalizeProjectState(state.projects);
+  renderProjectSummary();
+  renderProjectBoard();
+}
+
+function renderProjectSummary() {
+  const node = el("projectSummaryStrip");
+  if (!node) return;
+  const projects = state.projects.items || [];
+  const active = projects.filter((project) => project.status !== "완료").length;
+  const totalExpected = projects.reduce((sum, project) => sum + calculateProjectFinance(project).expectedProfit, 0);
+  const dueSoon = projects.filter((project) => {
+    if (!project.dueDate || project.status === "완료") return false;
+    const left = daysBetween(todayInPlanner(), parseDate(project.dueDate));
+    return left >= 0 && left <= 14;
+  }).length;
+  node.innerHTML = `
+    <span>진행 ${active}</span>
+    <span>2주 내 행동 ${dueSoon}</span>
+    <span>예상 손익 ${formatMoneyAmount(totalExpected)}</span>
+  `;
+}
+
+function renderProjectBoard() {
+  const node = el("projectBoard");
+  if (!node) return;
+  node.innerHTML = "";
+  state.projects.items.forEach((project, index) => {
+    const card = document.createElement("article");
+    card.className = `panel project-card project-status-${project.status}`;
+    card.dataset.projectIndex = String(index);
+    const finance = calculateProjectFinance(project);
+    card.innerHTML = `
+      <div class="project-card-head">
+        <input class="project-title-input" type="text" value="${escapeAttr(project.title)}" placeholder="프로젝트명" />
+        <select aria-label="프로젝트 상태">
+          ${projectStatuses.map((status) => `<option value="${status}" ${project.status === status ? "selected" : ""}>${status}</option>`).join("")}
+        </select>
+      </div>
+      <div class="project-meta-grid">
+        <label><span class="row-label">담당</span><input type="text" data-field="owner" value="${escapeAttr(project.owner)}" placeholder="담당자" /></label>
+        <label><span class="row-label">시작</span><input type="date" data-field="startDate" value="${escapeAttr(project.startDate)}" /></label>
+        <label><span class="row-label">마감</span><input type="date" data-field="endDate" value="${escapeAttr(project.endDate)}" /></label>
+        <label><span class="row-label">예산</span><input type="text" data-field="budget" inputmode="numeric" value="${escapeAttr(project.budget)}" placeholder="예산" /></label>
+        <label><span class="row-label">실사용</span><input type="text" data-field="actual" inputmode="numeric" value="${escapeAttr(project.actual)}" placeholder="실사용" /></label>
+      </div>
+      <label class="project-wide-field"><span class="row-label">목표</span><textarea data-field="goal" rows="2" placeholder="완료 기준과 기대 결과">${escapeHtml(project.goal)}</textarea></label>
+      <div class="project-action-row">
+        <label><span class="row-label">다음 행동</span><input type="text" data-field="nextAction" value="${escapeAttr(project.nextAction)}" placeholder="오늘 또는 이번 주 실행할 일" /></label>
+        <label><span class="row-label">실행일</span><input type="date" data-field="dueDate" value="${escapeAttr(project.dueDate)}" /></label>
+      </div>
+      <div class="project-sim-summary">
+        <span>예상 수입 ${formatMoneyAmount(finance.expectedIncome)}</span>
+        <span>예상 비용 ${formatMoneyAmount(finance.expectedCost)}</span>
+        <strong>예상 손익 ${formatMoneyAmount(finance.expectedProfit)}</strong>
+        <span>예산 차이 ${formatMoneyAmount(finance.budgetLeft)}</span>
+      </div>
+      <div class="project-money-grid"></div>
+      <button class="add-row project-money-add" type="button">시뮬레이션 항목 추가</button>
+      <label class="project-wide-field"><span class="row-label">메모</span><textarea data-field="notes" rows="3" placeholder="리스크, 의사결정, 확인할 숫자">${escapeHtml(project.notes)}</textarea></label>
+    `;
+    const [titleInput, statusSelect] = card.querySelectorAll(".project-card-head input, .project-card-head select");
+    titleInput.oninput = () => updateProjectField(index, "title", titleInput.value);
+    statusSelect.onchange = () => updateProjectField(index, "status", statusSelect.value);
+    card.querySelectorAll("[data-field]").forEach((field) => {
+      field.oninput = () => updateProjectField(index, field.dataset.field, field.value);
+      field.onchange = () => updateProjectField(index, field.dataset.field, field.value);
+    });
+    renderProjectMoneyRows(card.querySelector(".project-money-grid"), project.finances, index);
+    card.querySelector(".project-money-add").onclick = () => addProjectMoneyRow(index);
+    node.appendChild(card);
+  });
+}
+
+function renderProjectMoneyRows(node, rows, projectIndex) {
+  if (!node) return;
+  node.innerHTML = "";
+  rows.forEach((item, rowIndex) => {
+    const row = document.createElement("div");
+    row.className = "project-money-row";
+    row.innerHTML = `
+      <select aria-label="수입 또는 비용">
+        ${projectMoneyTypes.map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${type}</option>`).join("")}
+      </select>
+      <input type="text" value="${escapeAttr(item.title)}" placeholder="항목" />
+      <input type="text" inputmode="numeric" value="${escapeAttr(item.amount)}" placeholder="금액" />
+      <input type="number" min="0" max="100" value="${escapeAttr(item.probability)}" placeholder="%" />
+      <input type="text" value="${escapeAttr(item.timing)}" placeholder="시점" />
+      <input type="text" value="${escapeAttr(item.memo)}" placeholder="메모" />
+    `;
+    const [type, title, amount, probability, timing, memo] = row.querySelectorAll("select, input");
+    type.onchange = () => updateProjectMoney(projectIndex, rowIndex, "type", type.value);
+    title.oninput = () => updateProjectMoney(projectIndex, rowIndex, "title", title.value);
+    amount.oninput = () => updateProjectMoney(projectIndex, rowIndex, "amount", amount.value);
+    probability.oninput = () => updateProjectMoney(projectIndex, rowIndex, "probability", probability.value);
+    timing.oninput = () => updateProjectMoney(projectIndex, rowIndex, "timing", timing.value);
+    memo.oninput = () => updateProjectMoney(projectIndex, rowIndex, "memo", memo.value);
+    node.appendChild(row);
+  });
+}
+
+function addProject() {
+  state.projects ||= createProjectState();
+  state.projects.items.push(emptyProject("새 프로젝트"));
+  saveState();
+  renderProjects();
+}
+
+function updateProjectField(index, field, value) {
+  const project = state.projects.items[index];
+  if (!project) return;
+  project[field] = value;
+  if (["title", "nextAction", "dueDate", "status"].includes(field)) syncProjectToTask(project);
+  saveState();
+  renderProjectSummary();
+  renderProjectCardSummary(index);
+}
+
+function addProjectMoneyRow(projectIndex) {
+  const project = state.projects.items[projectIndex];
+  if (!project) return;
+  project.finances.push(emptyProjectMoney("비용"));
+  saveState();
+  renderProjects();
+}
+
+function updateProjectMoney(projectIndex, rowIndex, field, value) {
+  const item = state.projects.items[projectIndex]?.finances?.[rowIndex];
+  if (!item) return;
+  item[field] = value;
+  saveState();
+  renderProjectSummary();
+  renderProjectCardSummary(projectIndex);
+}
+
+function renderProjectCardSummary(index) {
+  const summary = document.querySelector(`.project-card[data-project-index="${index}"] .project-sim-summary`);
+  const project = state.projects.items[index];
+  if (!summary || !project) return;
+  const finance = calculateProjectFinance(project);
+  summary.innerHTML = `
+    <span>예상 수입 ${formatMoneyAmount(finance.expectedIncome)}</span>
+    <span>예상 비용 ${formatMoneyAmount(finance.expectedCost)}</span>
+    <strong>예상 손익 ${formatMoneyAmount(finance.expectedProfit)}</strong>
+    <span>예산 차이 ${formatMoneyAmount(finance.budgetLeft)}</span>
+  `;
+}
+
+function calculateProjectFinance(project) {
+  const expectedIncome = project.finances
+    .filter((item) => item.type === "수입")
+    .reduce((sum, item) => sum + parseMoneyAmount(item.amount) * normalizeProbability(item.probability), 0);
+  const expectedCost = project.finances
+    .filter((item) => item.type === "비용")
+    .reduce((sum, item) => sum + parseMoneyAmount(item.amount) * normalizeProbability(item.probability), 0);
+  const expectedProfit = expectedIncome - expectedCost;
+  const budgetLeft = parseMoneyAmount(project.budget) - parseMoneyAmount(project.actual || expectedCost);
+  return { expectedIncome, expectedCost, expectedProfit, budgetLeft };
+}
+
+function normalizeProbability(value) {
+  const number = Number(String(value || "").replace(/[^0-9.-]/g, ""));
+  if (!Number.isFinite(number)) return 1;
+  return Math.max(0, Math.min(100, number)) / 100;
+}
+
+function syncProjectToTask(project) {
+  removeProjectLinkedTask(project.id);
+  if (!project.dueDate || !project.nextAction?.trim() || project.status === "완료") return;
+  const targetDay = ensureDay(project.dueDate);
+  const task = targetDay.tasks.B.find((item) => item.projectTaskId === project.id) || targetDay.tasks.B.find((item) => !item.text?.trim()) || { text: "", status: "미완료", done: false, priorityUnset: false };
+  task.text = `프로젝트: ${project.title || "이름 없음"} - ${project.nextAction.trim()}`;
+  task.status = "미완료";
+  task.done = false;
+  task.priorityUnset = false;
+  task.projectTaskId = project.id;
+  if (!targetDay.tasks.B.includes(task)) targetDay.tasks.B.push(task);
+}
+
+function removeProjectLinkedTask(projectId) {
+  Object.values(state.days || {}).forEach((day) => {
+    priorities.forEach(([priority]) => {
+      day.tasks[priority] = day.tasks[priority].filter((task) => task.projectTaskId !== projectId);
+    });
+  });
+}
+
+function renderFinanceMonthNav() {
+  const title = el("financeMonthTitle");
+  if (title) {
+    const monthNumber = Number(selectedFinanceMonth.split("-")[1]);
+    title.textContent = `${YEAR}년 ${monthNumber}월 자금 체크`;
+  }
+  renderFinanceMonthTabs(false);
+}
+
+function renderFinanceMonthTabs(forceOpen = false) {
+  const node = el("financeMonthTabs");
+  if (!node) return;
+  node.classList.toggle("is-open", forceOpen || node.classList.contains("is-open"));
+  node.innerHTML = "";
+  financeMonthKeys().forEach((key) => {
+    const monthNumber = Number(key.split("-")[1]);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = key === selectedFinanceMonth ? "is-active" : "";
+    button.textContent = `${monthNumber}월`;
+    button.onclick = () => {
+      const keys = financeMonthKeys();
+      const previousIndex = keys.indexOf(selectedFinanceMonth);
+      const nextIndex = keys.indexOf(key);
+      selectedFinanceMonth = key;
+      node.classList.remove("is-open");
+      financeTurnDirection = nextIndex >= previousIndex ? 1 : -1;
+      renderNotes();
+    };
+    node.appendChild(button);
+  });
+}
+
+function renderFinanceYearRows() {
+  const node = el("financeYearRows");
+  if (!node) return;
+  node.innerHTML = "";
+  const key = selectedFinanceMonth;
+  const rows = state.finance.months[key] || [];
+  const monthPanel = document.createElement("section");
+  monthPanel.className = "finance-month-card";
+  const monthNumber = Number(key.split("-")[1]);
+  monthPanel.innerHTML = `
+    <h4>
+      <span>2026년 ${monthNumber}월 자금 체크</span>
+      <small>${monthNumber}월 예정 수입·지출·이자·카드대금</small>
+    </h4>
+    <div class="finance-grid"></div>
+    <button class="add-row finance-add-row" type="button">항목 추가</button>
+  `;
+  renderMoneyRows(monthPanel.querySelector(".finance-grid"), rows, { monthKey: key });
+  monthPanel.querySelector(".finance-add-row").onclick = () => addMoneyRow(rows, { monthKey: key });
+  node.appendChild(monthPanel);
+  if (financeTurnDirection) {
+    const direction = financeTurnDirection;
+    financeTurnDirection = 0;
+    window.requestAnimationFrame(() => animateFinancePageTurn(direction));
+  }
+}
+
+function shiftFinanceMonth(delta) {
+  const keys = financeMonthKeys();
+  const index = keys.indexOf(selectedFinanceMonth);
+  const nextIndex = Math.max(0, Math.min(keys.length - 1, index + delta));
+  if (nextIndex === index) return;
+  selectedFinanceMonth = keys[nextIndex];
+  financeTurnDirection = delta;
+  renderNotes();
+}
+
+function animateFinancePageTurn(delta) {
+  const node = el("financeYearRows");
+  if (!node) return;
+  node.classList.remove("is-turning-next", "is-turning-prev");
+  void node.offsetWidth;
+  node.classList.add(delta > 0 ? "is-turning-next" : "is-turning-prev");
+  window.setTimeout(() => node.classList.remove("is-turning-next", "is-turning-prev"), 340);
+}
+
+function setupFinanceMonthSwipe() {
+  const zone = el("financeMonthSwipeZone");
+  const panel = el("financeYearRows");
+  [zone, panel].forEach((node) => {
+    if (!node) return;
+    let startX = 0;
+    let startY = 0;
+    node.addEventListener("pointerdown", (event) => {
+      if (event.target.closest("input, select, textarea, button") && node === panel) return;
+      startX = event.clientX;
+      startY = event.clientY;
+    });
+    node.addEventListener("pointerup", (event) => {
+      if (!startX) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      startX = 0;
+      startY = 0;
+      if (Math.abs(dx) < 52 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+      event.preventDefault();
+      shiftFinanceMonth(dx < 0 ? 1 : -1);
+    });
+  });
 }
 
 function renderRepeatsAndInsights() {
@@ -1549,6 +2385,129 @@ function renderEditableList(node, array, placeholder, onSave) {
     };
     node.appendChild(row);
   });
+}
+
+function renderMoneyRows(node, rows, options = {}) {
+  if (!node) return;
+  node.innerHTML = "";
+  rows.forEach((item, index) => {
+    const row = document.createElement("div");
+    row.className = `finance-row finance-status-${item.status}`;
+    row.innerHTML = `
+      <select aria-label="구분">
+        ${moneyTypes.map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${type}</option>`).join("")}
+      </select>
+      <input type="text" value="${escapeAttr(item.title)}" placeholder="내용" />
+      <input type="text" inputmode="numeric" value="${escapeAttr(item.amount)}" placeholder="금액" />
+      <input type="number" min="1" max="31" value="${escapeAttr(item.dueDay)}" placeholder="일" />
+      <select aria-label="상태">
+        ${moneyStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}
+      </select>
+      <input type="text" value="${escapeAttr(item.memo)}" placeholder="메모" />
+    `;
+    const [type, title, amount, dueDay, status, memo] = row.querySelectorAll("select, input");
+    type.onchange = () => updateMoneyItem(rows, index, "type", type.value, options);
+    title.oninput = () => updateMoneyItem(rows, index, "title", title.value, options);
+    amount.oninput = () => updateMoneyItem(rows, index, "amount", amount.value, options);
+    dueDay.oninput = () => updateMoneyItem(rows, index, "dueDay", dueDay.value, options);
+    status.onchange = () => updateMoneyItem(rows, index, "status", status.value, options);
+    memo.oninput = () => updateMoneyItem(rows, index, "memo", memo.value, options);
+    node.appendChild(row);
+  });
+}
+
+function addMoneyRow(rows, options = {}) {
+  rows.push(emptyMoneyItem("지출"));
+  saveState();
+  renderNotes();
+}
+
+function updateMoneyItem(rows, index, field, value, options = {}) {
+  rows[index][field] = value;
+  if (options.monthKey) syncMoneyItemToTask(rows[index], options.monthKey);
+  if (options.fixed) syncFixedMoneyItemToTasks(rows[index]);
+  saveState();
+  renderFinanceSummary();
+}
+
+function renderFinanceSummary() {
+  const node = el("financeSummary");
+  if (!node) return;
+  const activeMonthRows = (state.finance.months?.[selectedFinanceMonth] || []).filter((item) => item.title || item.amount);
+  const yearlyRows = Object.values(state.finance.months || {}).flat().filter((item) => item.title || item.amount);
+  const activeOpenRows = activeMonthRows.filter((item) => item.status !== "완료");
+  const yearlyOpenRows = yearlyRows.filter((item) => item.status !== "완료");
+  const expenseTotal = activeMonthRows
+    .filter((item) => item.type !== "수입")
+    .reduce((sum, item) => sum + parseMoneyAmount(item.amount), 0);
+  const incomeTotal = activeMonthRows
+    .filter((item) => item.type === "수입")
+    .reduce((sum, item) => sum + parseMoneyAmount(item.amount), 0);
+  const monthNumber = Number(selectedFinanceMonth.split("-")[1]);
+  node.textContent = `${monthNumber}월 ${activeOpenRows.length}건 · 수입 ${formatMoneyAmount(incomeTotal)} · 지출 ${formatMoneyAmount(expenseTotal)} · 연간 미확인 ${yearlyOpenRows.length}`;
+}
+
+function syncMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
+  const targetDate = getMoneyItemDate(item, key);
+  removeFinanceLinkedTask(linkId);
+  if (!targetDate || !item.title?.trim()) {
+    item.taskDate = "";
+    return;
+  }
+  const targetDay = ensureDay(targetDate);
+  const targetPriority = item.type === "수입" ? "B" : "A";
+  const taskText = buildMoneyTaskText(item, fixed);
+  const existing = targetDay.tasks[targetPriority].find((task) => task.financeItemId === linkId);
+  const targetTask = existing || targetDay.tasks[targetPriority].find((task) => !task.text?.trim());
+  const task = targetTask || { text: "", status: "미완료", done: false, priorityUnset: false };
+  task.text = taskText;
+  task.status = item.status === "완료" ? "완료" : "미완료";
+  task.done = item.status === "완료";
+  task.priorityUnset = false;
+  task.financeItemId = linkId;
+  if (!existing && !targetDay.tasks[targetPriority].includes(task)) targetDay.tasks[targetPriority].push(task);
+  item.taskDate = targetDate;
+}
+
+function syncFixedMoneyItemToTasks(item) {
+  removeFinanceLinkedTask(item.id, true);
+  if (!item.title?.trim() || !Number(item.dueDay)) return;
+  Object.keys(createFinanceMonths()).forEach((key) => syncMoneyItemToTask(item, key, `${item.id}-${key}`, true));
+}
+
+function removeFinanceLinkedTask(linkId, prefix = false) {
+  if (!linkId) return;
+  Object.values(state.days || {}).forEach((day) => {
+    priorities.forEach(([priority]) => {
+      day.tasks[priority] = day.tasks[priority].filter((task) => {
+        if (!task.financeItemId) return true;
+        return prefix ? !task.financeItemId.startsWith(`${linkId}-`) : task.financeItemId !== linkId;
+      });
+    });
+  });
+}
+
+function getMoneyItemDate(item, key) {
+  const dueDay = Number(item.dueDay);
+  if (!Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) return "";
+  const [year, month] = key.split("-").map(Number);
+  const lastDay = new Date(year, month, 0).getDate();
+  return `${year}-${pad(month)}-${pad(Math.min(dueDay, lastDay))}`;
+}
+
+function buildMoneyTaskText(item, fixed = false) {
+  const amount = item.amount ? ` ${item.amount}` : "";
+  return `자금 확인${fixed ? "(매월)" : ""}: ${item.title.trim()}${amount}`;
+}
+
+function parseMoneyAmount(value) {
+  const number = Number(String(value || "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
+function formatMoneyAmount(value) {
+  if (!value) return "0";
+  return value.toLocaleString("ko-KR");
 }
 
 function getDayTasks(key) {
@@ -1574,6 +2533,13 @@ function escapeAttr(value = "") {
   return String(value)
     .replaceAll("&", "&amp;")
     .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
 }
@@ -1619,9 +2585,21 @@ function collectSearchResults(query) {
     Object.entries(day.appointments).forEach(([slot, text]) => push("day", `${key} ${slot}`, text, key));
     ["memo", "record"].forEach((field) => push("day", `${key} ${field}`, day[field], key));
   });
+  Object.entries(state.finance?.months || {}).forEach(([key, rows]) => {
+    rows.forEach((item, index) => push("notes", `${key} 자금 ${index + 1} ${item.type} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.memo}`, `${key}-01`));
+  });
+  state.finance?.fixed?.forEach((item, index) => push("notes", `반복 지출 ${index + 1} ${item.type} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.memo}`));
+  push("notes", "경영자 메모", state.finance?.issueMemo || "");
+  push("notes", "이번 달 판단", state.finance?.decisionMemo || "");
   state.notes.projects.forEach((value, index) => push("notes", `프로젝트 ${index + 1}`, value));
   state.notes.references.forEach((value, index) => push("notes", `참고 ${index + 1}`, value));
   push("notes", "자유 노트", state.notes.freeform);
+  state.projects?.items?.forEach((project, index) => {
+    push("projects", `프로젝트 ${index + 1} ${project.status}`, `${project.title} ${project.owner} ${project.goal} ${project.nextAction} ${project.notes}`, project.dueDate || project.endDate);
+    project.finances?.forEach((item, financeIndex) => {
+      push("projects", `프로젝트 자금 ${index + 1}-${financeIndex + 1} ${item.type}`, `${item.title} ${item.amount} ${item.probability} ${item.timing} ${item.memo}`, project.dueDate || project.endDate);
+    });
+  });
   return results.slice(0, 80);
 }
 
@@ -1653,11 +2631,85 @@ function matchesSearchText(text, terms) {
   });
 }
 
+async function requestAiSearchAnswer(value) {
+  const question = value.trim();
+  if (!question) return;
+  aiSearch = { query: question, answer: "", loading: true, error: "" };
+  showView("search");
+  renderSearch();
+  try {
+    const response = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question, context: buildPlannerAiContext() }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "AI 답변을 받아오지 못했습니다.");
+    aiSearch = { query: question, answer: payload.answer || "AI 답변이 비어 있습니다.", loading: false, error: "" };
+  } catch (error) {
+    aiSearch = {
+      query: question,
+      answer: "",
+      loading: false,
+      error: `${error.message || "AI 연결 오류"} · OPENAI_API_KEY로 server.py를 실행했는지 확인하세요.`,
+    };
+  }
+  renderSearch();
+}
+
+function buildPlannerAiContext() {
+  const key = iso(selectedDate);
+  const day = ensureDay(key);
+  const tasks = getDayTasks(key)
+    .filter((task) => task.text)
+    .slice(0, 20)
+    .map((task) => ({
+      priority: task.priority,
+      text: task.text,
+      status: task.status,
+      done: Boolean(task.done),
+    }));
+  const appointments = Object.entries(day.appointments || {})
+    .filter(([, text]) => String(text || "").trim())
+    .slice(0, 20)
+    .map(([time, text]) => ({ time, text }));
+  return {
+    date: formatDate(selectedDate),
+    profile: state.profile,
+    mission: state.foundation?.mission || "",
+    values: (state.foundation?.values || []).filter(Boolean).slice(0, 8),
+    yearGoals: (state.year?.goals || []).filter(Boolean).slice(0, 8),
+    monthProjects: (ensureMonth().projects || []).filter(Boolean).slice(0, 8),
+    weeklyPriorities: (ensureWeek().priorities || []).filter((item) => item.text).slice(0, 5),
+    tasks,
+    appointments,
+    memo: {
+      dayMemo: day.memo || "",
+      dayRecord: day.record || "",
+    },
+    carryovers: getCarryoverTasks(selectedDate).slice(0, 10).map((task) => ({
+      priority: task.priority,
+      text: task.text,
+      date: task.date,
+    })),
+  };
+}
+
 function renderSearch() {
   const node = el("searchResults");
   if (!node) return;
   node.innerHTML = "";
   const results = searchQuery ? collectSearchResults(searchQuery) : [];
+  if (aiSearch.query) {
+    const card = document.createElement("article");
+    card.className = `search-result ai-answer ${aiSearch.loading ? "is-loading" : ""}`;
+    card.innerHTML = `
+      <strong>AI 답변</strong>
+      <small>${escapeAttr(aiSearch.query)}</small>
+      <p>${escapeAttr(aiSearch.loading ? "AI가 플래너 내용을 읽고 답변을 준비하고 있습니다." : aiSearch.error || aiSearch.answer)}</p>
+    `;
+    node.appendChild(card);
+  }
   if (!results.length) {
     const empty = document.createElement("div");
     empty.className = "search-result";
@@ -1720,21 +2772,28 @@ function renderAll() {
   renderMonth();
   renderWeek();
   renderDay();
+  renderProjects();
   renderNotes();
   renderSearch();
   updateStickyPanelTop();
 }
 
-function setup() {
+async function setup() {
   setupSelectors();
   setupTabs();
   selectedDate = todayInPlanner();
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
+  await hydrateServerState();
   renderAll();
   positionDaySwipe("main", true);
   window.setTimeout(() => positionDaySwipe("main", true), 180);
+  window.setInterval(pullServerStateIfNewer, 15000);
+  window.addEventListener("focus", pullServerStateIfNewer);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) pullServerStateIfNewer();
+  });
 }
 
 setup();

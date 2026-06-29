@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260626ab" />
+    <link rel="stylesheet" href="./styles.css?v=20260629m" />
   </head>
   <body>
     <header class="app-header">
@@ -27,6 +27,7 @@
               <span>빠른 검색</span>
               <input id="headerSearch" type="search" placeholder="검색 또는 질문" />
               <button id="topSearchSubmit" type="button">실행</button>
+              <button class="icon-close top-search-close" id="topSearchClose" type="button" aria-label="검색/질문 닫기">×</button>
             </div>
           </div>
           <button type="button" data-top-view="foundation">가치·사명</button>
@@ -34,15 +35,26 @@
           <button type="button" data-top-view="month">월간</button>
           <button type="button" data-top-view="week">주간</button>
           <button type="button" data-top-view="day">일간 일정</button>
-          <button type="button" data-top-view="notes">기록·색인</button>
+          <button type="button" data-top-view="projects">프로젝트</button>
+          <button type="button" data-top-view="notes">용돈/자금</button>
         </nav>
         <div class="top-status" aria-label="플래너 상태">
           <span id="topYearProgress">연간 0%</span>
           <span id="topCarryover">이월 0</span>
           <span id="topSearchCount">검색 0</span>
+          <button id="privacyNowButton" type="button">보안모드</button>
+          <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
+            <option value="0">자동꺼짐</option>
+            <option value="30">30초</option>
+            <option value="60">1분</option>
+            <option value="180">3분</option>
+            <option value="300">5분</option>
+            <option value="600">10분</option>
+          </select>
           <button id="topPrintButton" type="button">인쇄</button>
           <button id="topExportButton" type="button">백업</button>
           <button id="topImportButton" type="button">복원</button>
+          <button id="lockNowButton" type="button">잠금</button>
         </div>
       </div>
     </header>
@@ -67,7 +79,8 @@
           <button class="tab" data-view="month">월간</button>
           <button class="tab" data-view="week">주간</button>
           <button class="tab" data-view="day">일간</button>
-          <button class="tab" data-view="notes">기록·색인</button>
+          <button class="tab" data-view="projects">프로젝트</button>
+          <button class="tab" data-view="notes">용돈/자금</button>
         </nav>
         <section class="mini-panel">
           <span>Selected</span>
@@ -245,7 +258,7 @@
               <p class="eyebrow">AI Coaching</p>
               <h2>오늘의 코칭</h2>
             </div>
-            <button class="mini-action page-close" id="closeCoachButton" type="button">코칭 닫기</button>
+            <button class="icon-close page-close" id="closeCoachButton" type="button" aria-label="코칭 닫기">×</button>
           </div>
           <div class="coach-layout">
             <article class="panel span-7">
@@ -268,23 +281,51 @@
           </div>
         </section>
 
+        <section class="view" id="view-projects">
+          <div class="page-title">
+            <div>
+              <p class="eyebrow">Project Control</p>
+              <h2>프로젝트 관리</h2>
+            </div>
+            <button class="mini-action" id="addProjectButton" type="button">프로젝트 추가</button>
+          </div>
+          <div class="project-summary-strip" id="projectSummaryStrip"></div>
+          <div class="project-board" id="projectBoard"></div>
+        </section>
+
         <section class="view" id="view-notes">
           <div class="page-title">
-            <p class="eyebrow">Records</p>
-            <h2>기록, 프로젝트, 색인</h2>
+            <p class="eyebrow">Money Flow</p>
+            <h2>용돈/자금 관리</h2>
           </div>
-          <div class="notes-layout">
-            <article class="panel span-6">
-              <h3>프로젝트 목록</h3>
-              <div class="editable-list" id="projectIndex"></div>
-            </article>
-            <article class="panel span-6">
-              <h3>연락처 / 참고 정보</h3>
-              <div class="editable-list" id="referenceIndex"></div>
+          <div class="notes-layout finance-layout">
+            <article class="panel span-12 finance-month-panel">
+              <div class="finance-sticky-stack">
+                <h3 class="panel-title-row">
+                  <span>월별 자금 체크</span>
+                  <span class="finance-summary" id="financeSummary">-</span>
+                </h3>
+                <div class="finance-month-nav" id="financeMonthSwipeZone" aria-label="월별 자금 이동">
+                  <button class="icon-button compact" id="financePrevMonth" type="button" title="이전 달">‹</button>
+                  <button class="finance-month-title" id="financeMonthTitle" type="button">2026년 1월 자금 체크</button>
+                  <button class="icon-button compact" id="financeNextMonth" type="button" title="다음 달">›</button>
+                </div>
+                <div class="finance-month-tabs" id="financeMonthTabs" aria-label="자금 월 선택"></div>
+              </div>
+              <div class="finance-year-grid" id="financeYearRows"></div>
             </article>
             <article class="panel span-12">
-              <h3>자유 노트</h3>
-              <textarea data-store="notes.freeform" rows="12" placeholder="플래너 뒤쪽 노트 영역처럼 자유롭게 기록합니다."></textarea>
+              <h3>매달 반복 지출</h3>
+              <div class="finance-grid" id="fixedMoneyRows"></div>
+              <button class="add-row finance-add-row" id="fixedMoneyAdd" type="button">반복 지출 추가</button>
+            </article>
+            <article class="panel span-6">
+              <h3>경영자 메모</h3>
+              <textarea data-finance-field="issueMemo" rows="8" placeholder="기억해야 할 수입, 지출, 이자, 카드대금, 세금, 계약, 입금 이슈를 적습니다."></textarea>
+            </article>
+            <article class="panel span-6">
+              <h3>이번 달 판단</h3>
+              <textarea data-finance-field="decisionMemo" rows="8" placeholder="이번 달 줄일 지출, 반드시 확보할 현금, 다음 행동을 적습니다."></textarea>
             </article>
           </div>
         </section>
@@ -295,17 +336,57 @@
               <p class="eyebrow">Search</p>
               <h2>검색 결과</h2>
             </div>
-            <button class="mini-action page-close" id="closeSearchButton" type="button">검색 닫기</button>
           </div>
           <article class="panel span-12">
-            <h3>플래너 전체 검색</h3>
+            <div class="panel-title-row search-results-heading">
+              <h3>검색 결과</h3>
+              <button class="icon-close page-close" id="closeSearchButton" type="button" aria-label="검색 결과 닫기">×</button>
+            </div>
             <div class="search-results" id="searchResults"></div>
           </article>
         </section>
       </section>
     </main>
 
-    <script src="./data.js?v=20260626ab"></script>
-    <script src="./app.js?v=20260626ab"></script>
+    <section class="privacy-blind-screen" id="privacyBlindScreen" hidden aria-live="polite">
+      <div class="privacy-blind-card">
+        <p class="eyebrow">Privacy Mode</p>
+        <h2>Beyond Work</h2>
+        <p id="privacyBlindMessage">플래너 내용이 블라인드 처리되었습니다.</p>
+        <div class="privacy-actions">
+          <button id="revealPrivacyButton" type="button">내용 보기</button>
+          <button id="lockFromPrivacyButton" type="button">완전 잠금</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="lock-screen" id="lockScreen" hidden aria-live="polite">
+      <div class="lock-card">
+        <p class="eyebrow">Security</p>
+        <h2>Beyond Work 잠금</h2>
+        <p id="lockMessage">비밀번호 또는 생체인증으로 플래너를 깨웁니다.</p>
+        <label>
+          비밀번호
+          <input id="lockPasscode" type="password" inputmode="numeric" autocomplete="current-password" placeholder="비밀번호 입력" />
+        </label>
+        <div class="lock-actions">
+          <button id="unlockPasscodeButton" type="button">비밀번호로 열기</button>
+          <button id="unlockBiometricButton" type="button">생체인증</button>
+        </div>
+        <details class="lock-settings">
+          <summary>보안 설정</summary>
+          <label>
+            새 비밀번호
+            <input id="newPasscode" type="password" inputmode="numeric" autocomplete="new-password" placeholder="4자리 이상" />
+          </label>
+          <button id="savePasscodeButton" type="button">비밀번호 저장</button>
+          <button id="registerBiometricButton" type="button">생체인증 등록</button>
+          <button id="clearSecurityButton" type="button">보안 설정 해제</button>
+        </details>
+      </div>
+    </section>
+
+    <script src="./data.js?v=20260629m"></script>
+    <script src="./app.js?v=20260629m"></script>
   </body>
 </html>
