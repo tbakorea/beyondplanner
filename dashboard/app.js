@@ -1,5 +1,6 @@
 const YEAR = 2026;
 const STORAGE_KEY = "franklinClassicPlanner2026.v1";
+const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
 const DEVICE_KEY = "beyondWorkDeviceId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
 const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
@@ -371,6 +372,7 @@ function normalizeProjectMoney(item) {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  markLocalStateUpdated();
   scheduleServerSync();
 }
 
@@ -383,10 +385,13 @@ async function hydrateServerState() {
     serverSyncReady = true;
     syncStatus.enabled = true;
     if (payload.exists && payload.state) {
-      state = migrateState(payload.state);
-      lastServerUpdatedAt = payload.updatedAt || "";
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      syncStatus.message = "서버 동기화됨";
+      const localUpdatedAt = getStateMeta().updatedAt || "";
+      if (hasPlannerContent(state) && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
+        syncStatus.message = "이 기기 최신본 DB 저장 중";
+        await persistStateToServer({ force: true });
+      } else {
+        storeStateFromServer(payload, "서버 동기화됨");
+      }
     } else {
       if (hasPlannerContent(state)) {
         syncStatus.message = "내 기기 데이터 DB 저장 중";
@@ -427,15 +432,15 @@ function scheduleServerSync() {
   }, 650);
 }
 
-async function persistStateToServer() {
+async function persistStateToServer(options = {}) {
   if (!serverSyncReady) return;
-  if (!hasPlannerContent(state)) {
+  if (!options.force && !hasPlannerContent(state)) {
     syncStatus.saving = false;
     syncStatus.message = "저장할 내용 없음";
     renderSidebar();
     return;
   }
-  const updatedAt = new Date().toISOString();
+  const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : getStateMeta().updatedAt || markLocalStateUpdated();
   try {
     const response = await fetch("/api/state", {
       method: "POST",
@@ -444,7 +449,16 @@ async function persistStateToServer() {
     });
     if (!response.ok) throw new Error(await extractSyncError(response));
     const payload = await response.json().catch(() => ({}));
+    if (payload.stale) {
+      lastServerUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
+      syncStatus.enabled = true;
+      syncStatus.saving = false;
+      syncStatus.message = "DB 최신본 우선";
+      await pullServerStateIfNewer({ force: true });
+      return;
+    }
     lastServerUpdatedAt = payload.updatedAt || updatedAt;
+    saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSyncedAt: lastServerUpdatedAt, dirty: false });
     syncStatus.enabled = true;
     syncStatus.saving = false;
     syncStatus.message = "서버 동기화됨";
@@ -456,7 +470,7 @@ async function persistStateToServer() {
   }
 }
 
-async function pullServerStateIfNewer() {
+async function pullServerStateIfNewer(options = {}) {
   if (!serverSyncReady) return;
   try {
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
@@ -465,13 +479,17 @@ async function pullServerStateIfNewer() {
     if (!payload.exists || !payload.state || !payload.updatedAt) return;
     if (payload.deviceId === deviceId) {
       lastServerUpdatedAt = payload.updatedAt;
+      saveStateMeta({ updatedAt: payload.updatedAt, lastSyncedAt: payload.updatedAt, dirty: false });
       return;
     }
-    if (lastServerUpdatedAt && payload.updatedAt <= lastServerUpdatedAt) return;
-    state = migrateState(payload.state);
-    lastServerUpdatedAt = payload.updatedAt;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    syncStatus.message = "다른 기기 변경 반영됨";
+    const localMeta = getStateMeta();
+    if (!options.force && localMeta.dirty && isTimestampNewer(localMeta.updatedAt, payload.updatedAt)) {
+      syncStatus.message = "이 기기 최신본 DB 저장 중";
+      await persistStateToServer({ force: true });
+      return;
+    }
+    if (!options.force && lastServerUpdatedAt && !isTimestampNewer(payload.updatedAt, lastServerUpdatedAt)) return;
+    storeStateFromServer(payload, "다른 기기 변경 반영됨");
     renderAll();
   } catch (error) {
     syncStatus.message = error.message || "서버 확인 실패";
@@ -485,6 +503,41 @@ function authStateHeaders(extra = {}) {
     ...extra,
     ...(session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {}),
   };
+}
+
+function getStateMeta() {
+  try {
+    return JSON.parse(localStorage.getItem(STATE_META_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveStateMeta(meta) {
+  localStorage.setItem(STATE_META_KEY, JSON.stringify({ ...getStateMeta(), ...meta }));
+}
+
+function markLocalStateUpdated() {
+  const updatedAt = new Date().toISOString();
+  saveStateMeta({ updatedAt, dirty: true, deviceId });
+  return updatedAt;
+}
+
+function storeStateFromServer(payload, message) {
+  state = migrateState(payload.state);
+  lastServerUpdatedAt = payload.updatedAt || "";
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSyncedAt: lastServerUpdatedAt, dirty: false, sourceDeviceId: payload.deviceId || "" });
+  syncStatus.message = message;
+}
+
+function isTimestampNewer(left, right) {
+  return timestampMs(left) > timestampMs(right);
+}
+
+function timestampMs(value) {
+  const ms = Date.parse(value || "");
+  return Number.isFinite(ms) ? ms : 0;
 }
 
 async function extractSyncError(response) {
@@ -504,7 +557,7 @@ async function manualSyncNow() {
     renderSidebar();
     return;
   }
-  if (hasPlannerContent(state)) await persistStateToServer();
+  if (hasPlannerContent(state)) await persistStateToServer({ force: true });
   await pullServerStateIfNewer();
   if (!hasPlannerContent(state)) syncStatus.message = "DB 데이터 없음";
   renderSidebar();
@@ -526,7 +579,7 @@ async function uploadThisDeviceToDb() {
     renderSidebar();
     return;
   }
-  await persistStateToServer();
+  await persistStateToServer({ force: true, bumpUpdatedAt: true });
 }
 
 async function pullDbToThisDevice() {
@@ -549,11 +602,8 @@ async function pullDbToThisDevice() {
       window.alert("아직 DB에 저장된 플래너 데이터가 없습니다. 기준 기기에서 먼저 기기→DB를 눌러주세요.");
       return;
     }
-    state = migrateState(payload.state);
-    lastServerUpdatedAt = payload.updatedAt || "";
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    storeStateFromServer(payload, "DB 데이터 불러옴");
     syncStatus.enabled = true;
-    syncStatus.message = "DB 데이터 불러옴";
     renderAll();
   } catch (error) {
     syncStatus.message = error.message || "DB 불러오기 실패";
@@ -1415,7 +1465,7 @@ function renderSidebar() {
   const syncButton = el("topSyncButton");
   if (syncButton) {
     syncButton.textContent = syncStatus.saving ? "저장 중" : "동기화";
-    syncButton.classList.toggle("is-warning", /실패|대기|필요|준비|DB/.test(syncStatus.message) && syncStatus.message !== "서버 동기화됨");
+    syncButton.classList.toggle("is-warning", /실패|대기|필요|준비|없음/.test(syncStatus.message) && syncStatus.message !== "서버 동기화됨");
   }
   const auth = getAuthSession();
   el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : "로그인 필요";

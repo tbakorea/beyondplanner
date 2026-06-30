@@ -62,7 +62,7 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             self.handle_get_state()
             return
         if path == "/api/config":
-            self.write_json(200, {"environment": PLANNER_ENV, "stateFile": STATE_FILE.name, "storage": "supabase-db" if supabase_configured() else "file"})
+            self.write_json(200, {"environment": PLANNER_ENV, "stateFile": STATE_FILE.name, "storage": planner_storage()})
             return
         super().do_GET()
 
@@ -81,12 +81,16 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
 
     def handle_get_state(self):
         token = bearer_token(self.headers)
-        if token and supabase_configured():
+        if planner_storage() == "supabase-db":
+            if not token:
+                self.write_json(401, {"error": "로그인 세션이 필요합니다."})
+                return
             try:
                 self.write_json(200, get_supabase_planner_state(token))
                 return
             except urllib.error.HTTPError as exc:
-                self.write_json(exc.code, {"error": extract_supabase_error(exc.read().decode("utf-8", "replace")) or "Supabase DB 상태를 읽을 수 없습니다."})
+                detail = exc.read().decode("utf-8", "replace")
+                self.write_json(normalize_supabase_status(exc.code, detail), normalize_supabase_error_payload(detail, "Supabase DB 상태를 읽을 수 없습니다."))
                 return
             except Exception as exc:
                 self.write_json(502, {"error": "Supabase DB 연결 중 오류가 발생했습니다.", "detail": str(exc)})
@@ -117,12 +121,16 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
 
         token = bearer_token(self.headers)
-        if token and supabase_configured():
+        if planner_storage() == "supabase-db":
+            if not token:
+                self.write_json(401, {"error": "로그인 세션이 필요합니다."})
+                return
             try:
                 self.write_json(200, save_supabase_planner_state(token, state, payload))
                 return
             except urllib.error.HTTPError as exc:
-                self.write_json(exc.code, {"error": extract_supabase_error(exc.read().decode("utf-8", "replace")) or "Supabase DB에 저장할 수 없습니다."})
+                detail = exc.read().decode("utf-8", "replace")
+                self.write_json(normalize_supabase_status(exc.code, detail), normalize_supabase_error_payload(detail, "Supabase DB에 저장할 수 없습니다."))
                 return
             except Exception as exc:
                 self.write_json(502, {"error": "Supabase DB 저장 중 오류가 발생했습니다.", "detail": str(exc)})
@@ -320,6 +328,13 @@ def supabase_configured() -> bool:
     return bool(os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip() and os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip())
 
 
+def planner_storage() -> str:
+    requested = os.environ.get("PLANNER_STORAGE", "").strip().lower()
+    if requested in {"file", "local"}:
+        return "file"
+    return "supabase-db" if supabase_configured() else "file"
+
+
 def bearer_token(headers) -> str:
     value = headers.get("Authorization", "")
     if not value.lower().startswith("bearer "):
@@ -382,6 +397,9 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
     if not user_id:
         raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
     updated_at = payload.get("updatedAt") or utc_now()
+    existing = get_supabase_planner_state(token)
+    if existing.get("exists") and is_newer_timestamp(existing.get("updatedAt"), updated_at):
+        return {"ok": True, "stale": True, "updatedAt": existing.get("updatedAt") or "", "storage": "supabase-db"}
     body = [
         {
             "user_id": user_id,
@@ -417,6 +435,36 @@ def extract_supabase_error(detail: str) -> str:
     except json.JSONDecodeError:
         return detail[:300]
     return str(data.get("msg") or data.get("message") or data.get("error_description") or data.get("error") or "")
+
+
+def normalize_supabase_status(status: int, detail: str) -> int:
+    if "planner_states" in detail and "Could not find the table" in detail:
+        return 503
+    return status
+
+
+def normalize_supabase_error_payload(detail: str, fallback: str) -> dict:
+    message = extract_supabase_error(detail) or fallback
+    if "planner_states" in detail and "Could not find the table" in detail:
+        return {
+            "error": "Supabase DB 테이블이 아직 없습니다. supabase/planner_states.sql을 SQL Editor에서 실행해야 저장됩니다.",
+            "code": "planner_states_missing",
+        }
+    return {"error": message}
+
+
+def is_newer_timestamp(left: str, right: str) -> bool:
+    return timestamp_ms(left) > timestamp_ms(right)
+
+
+def timestamp_ms(value: str) -> float:
+    if not value:
+        return 0
+    try:
+        normalized = str(value).replace("Z", "+00:00")
+        return dt.datetime.fromisoformat(normalized).timestamp() * 1000
+    except ValueError:
+        return 0
 
 
 def extract_response_text(data: dict) -> str:

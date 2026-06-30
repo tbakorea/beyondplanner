@@ -5,6 +5,8 @@ outputs/
 dashboard/qa_*.png
 .env
 .env.*
+__pycache__/
+*.pyc
 planner-state.json
 planner-state.*.json
 tools/
