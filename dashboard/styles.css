@@ -1144,17 +1144,56 @@ body.is-privacy-blind .app-shell {
   white-space: nowrap;
 }
 
+#view-projects > .page-title #addProjectButton {
+  display: none;
+}
+
 .project-board {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: max(650px, calc(100vh - var(--app-header-height) - 156px));
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.project-page {
+  flex: 0 0 100%;
+  min-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.project-board.is-detail-open .project-page {
+  transform: translateX(-100%);
+}
+
+.project-page-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  margin: -14px -14px 12px;
+  border-bottom: 1px solid var(--soft-line);
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 253, 248, 0.96);
+  padding: 12px 14px 10px;
+  backdrop-filter: blur(12px) saturate(1.04);
+}
+
+.project-list-panel .project-page-sticky {
   display: grid;
-  grid-template-columns: minmax(280px, 0.72fr) minmax(0, 1.5fr);
-  gap: 12px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
 }
 
 .project-list-panel {
-  position: sticky;
-  top: var(--sticky-panel-top);
   display: grid;
+  align-content: start;
   gap: 9px;
 }
 
@@ -1175,6 +1214,7 @@ body.is-privacy-blind .app-shell {
 .project-list {
   display: grid;
   gap: 6px;
+  padding-bottom: 10px;
 }
 
 .project-list-item {
@@ -1229,13 +1269,30 @@ body.is-privacy-blind .app-shell {
 }
 
 .project-add-inline {
-  margin-top: 3px;
+  min-height: 34px;
+  margin-top: 0;
+  padding: 7px 12px;
 }
 
 .project-card {
   display: grid;
   gap: 10px;
+  min-height: 100%;
   overflow: visible;
+}
+
+.project-detail-panel {
+  padding-left: 12px;
+}
+
+.project-detail-close {
+  margin-left: auto;
+}
+
+.project-empty-message {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 720;
 }
 
 .project-card-head,
@@ -1309,12 +1366,15 @@ body.is-privacy-blind .app-shell {
 }
 
 body.ceo-mode .project-board {
-  grid-template-columns: 1fr;
-  gap: 9px;
+  height: max(620px, calc(100vh - var(--app-header-height) - 146px));
 }
 
 body.ceo-mode .project-list-panel {
-  position: static;
+  gap: 7px;
+}
+
+body.ceo-mode .project-detail-panel {
+  padding-left: 8px;
 }
 
 body.ceo-mode .project-card-head,
@@ -3864,6 +3924,385 @@ body.ceo-mode .day-main-panel .panel {
   body.ceo-mode .day-main-panel,
   .day-main-panel {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+/* Final responsive guardrail: keep every visible control inside its viewport. */
+.app-header,
+.header-tools,
+.workspace,
+.view,
+.panel,
+.top-status,
+.quick-strip {
+  min-width: 0;
+}
+
+.top-status {
+  flex-wrap: wrap;
+  overflow: visible;
+  row-gap: 5px;
+}
+
+.top-status span,
+.top-status button,
+.top-status select {
+  max-width: 100%;
+}
+
+#topAccountStatus {
+  max-width: min(280px, 34vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#privacyTimeoutSelect {
+  width: auto;
+  max-width: 116px;
+}
+
+textarea,
+input,
+select,
+button {
+  max-width: 100%;
+}
+
+.panel,
+.search-result,
+.coach-card,
+.project-list-item,
+.finance-month-card,
+.mini-month,
+.month-calendar,
+.weekly-priority-block,
+.repeat-item,
+.insight {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1320px) {
+  .app-header {
+    padding-right: max(132px, clamp(12px, 2.4vw, 28px));
+  }
+
+  .top-status {
+    justify-content: flex-start;
+  }
+
+  #topAccountStatus {
+    max-width: min(240px, 40vw);
+  }
+}
+
+@media (max-width: 1024px) {
+  .app-header {
+    padding-right: max(122px, env(safe-area-inset-right));
+  }
+
+  .top-status {
+    gap: 5px;
+  }
+
+  .top-status span,
+  .top-status button,
+  .top-status select {
+    min-height: 26px;
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+
+  #topAccountStatus {
+    max-width: min(220px, 46vw);
+  }
+
+  #privacyTimeoutSelect {
+    max-width: 104px;
+  }
+
+  .project-card-head,
+  .project-action-row {
+    grid-template-columns: minmax(0, 1fr) minmax(82px, 0.28fr);
+  }
+
+  .project-meta-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .project-money-row {
+    grid-template-columns: 66px minmax(0, 1.1fr) minmax(76px, 0.7fr) 52px minmax(76px, 0.7fr) minmax(100px, 0.9fr);
+  }
+}
+
+@media (max-width: 820px) {
+  .top-status {
+    display: flex;
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  #topAccountStatus {
+    max-width: min(210px, 60vw);
+  }
+
+  .page-title {
+    min-width: 0;
+  }
+
+  .page-title > * {
+    min-width: 0;
+  }
+
+  .project-board {
+    height: max(620px, calc(100vh - var(--app-header-height) - 132px));
+  }
+
+  .project-card-head,
+  .project-action-row,
+  .project-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-title-input {
+    font-size: 16px;
+  }
+
+  .project-money-row {
+    grid-template-columns: 58px minmax(0, 1fr) 68px 42px;
+    gap: 4px;
+  }
+
+  .project-money-row input:nth-of-type(3),
+  .project-money-row input:nth-of-type(4),
+  .project-money-row input:last-child {
+    grid-row: 2;
+  }
+
+  .project-money-row input:nth-of-type(3) {
+    grid-column: 1;
+  }
+
+  .project-money-row input:nth-of-type(4) {
+    grid-column: 2;
+  }
+
+  .project-money-row input:last-child {
+    grid-column: 3 / span 2;
+  }
+
+  .search-results-heading,
+  #view-coach .page-title {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+
+  #modeToggle {
+    min-width: 96px;
+    max-width: 112px;
+    font-size: 11px;
+  }
+
+  .project-summary-strip {
+    gap: 5px;
+  }
+
+  .project-summary-strip span,
+  .project-sim-summary span,
+  .project-sim-summary strong {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+@media (max-width: 430px) {
+  .top-status {
+    display: none;
+  }
+
+  .quick-strip {
+    max-width: 100%;
+  }
+
+  .project-board {
+    height: max(590px, calc(100vh - var(--app-header-height) - 70px));
+    border-radius: 7px;
+  }
+
+  .project-page-sticky {
+    margin: -6px -6px 8px;
+    padding: 7px 6px 6px;
+  }
+
+  .project-list-panel .project-page-sticky {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .project-list-item {
+    padding: 7px 8px;
+  }
+
+  .project-list-title {
+    font-size: 13px;
+  }
+
+  .project-card {
+    gap: 7px;
+  }
+
+  .project-card-head,
+  .project-action-row,
+  .project-meta-grid {
+    gap: 5px;
+  }
+
+  .project-title-input {
+    min-height: 30px;
+    font-size: 14px;
+  }
+
+  .project-money-row {
+    grid-template-columns: 48px minmax(0, 1fr) 54px 26px;
+  }
+
+  .project-money-row input,
+  .project-money-row select,
+  .project-card input,
+  .project-card select,
+  .project-card textarea {
+    min-height: 28px;
+    padding: 5px 6px;
+    font-size: 11px;
+  }
+
+  .project-sim-summary {
+    gap: 4px;
+    padding: 6px 0;
+  }
+
+  .project-sim-summary span,
+  .project-sim-summary strong {
+    padding: 4px 7px;
+    font-size: 10px;
+  }
+
+  .finance-sticky-stack {
+    top: calc(var(--app-header-height) + 44px);
+  }
+
+  .search-results-heading h3,
+  #view-coach .page-title h2 {
+    font-size: 16px;
+  }
+
+  .search-result,
+  .coach-card,
+  .coach-suggestion {
+    padding: 9px;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --mobile-row-height: 31px;
+  }
+
+  .quick-strip {
+    scroll-padding-inline: 8px 68px;
+    padding-right: max(68px, env(safe-area-inset-right));
+  }
+
+  .quick-strip button,
+  .top-search-toggle {
+    min-height: 29px;
+    padding-inline: 7px;
+  }
+
+  body.ceo-mode .day-main-panel,
+  .day-main-panel {
+    grid-template-columns: minmax(0, 1.02fr) minmax(0, 0.98fr);
+    gap: 4px;
+  }
+
+  .task-row {
+    grid-template-columns: 20px 28px minmax(0, 1fr);
+    column-gap: 2px;
+    min-height: var(--mobile-row-height);
+    padding-left: 1px;
+  }
+
+  .task-cycle {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+  }
+
+  .task-cycle::after {
+    content: "";
+    position: absolute;
+    inset: -8px;
+    border-radius: 12px;
+  }
+
+  .task-status-cell {
+    min-height: 28px;
+  }
+
+  .priority-select,
+  .postpone-select,
+  .postpone-date {
+    width: 28px;
+    max-width: 28px;
+    min-height: 28px;
+  }
+
+  .task-text-input,
+  .task-row input[type="text"],
+  .appointment-row input[type="text"] {
+    min-height: 25px;
+  }
+
+  .appointment-row {
+    min-height: calc(var(--mobile-row-height) * var(--slot-span, 1));
+  }
+
+  .appointment-row.is-merged input[type="text"],
+  .appointment-time.range {
+    min-height: calc(25px + (var(--slot-span, 1) - 1) * var(--mobile-row-height));
+  }
+
+  input[type="checkbox"] {
+    min-width: 22px;
+    min-height: 22px;
+  }
+
+  #view-notes .page-title {
+    margin-bottom: 4px;
+    padding: 4px 0 3px;
+  }
+
+  #view-notes .page-title .eyebrow {
+    display: none;
+  }
+
+  #view-notes .page-title h2 {
+    font-size: 16px;
+  }
+
+  .finance-month-title {
+    min-height: 32px;
+    padding-inline: 8px;
+    font-size: 13px;
   }
 }
 

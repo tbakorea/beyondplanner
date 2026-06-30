@@ -58,6 +58,8 @@ let isLocked = false;
 let isPrivacyBlind = false;
 let financeTurnDirection = 0;
 let financeSwipeSuppressClick = false;
+let projectDetailOpen = false;
+let projectSwipeSuppressClick = false;
 
 function el(id) {
   return document.getElementById(id);
@@ -2388,15 +2390,18 @@ function renderProjectBoard() {
   const node = el("projectBoard");
   if (!node) return;
   node.innerHTML = "";
+  node.className = `project-board ${projectDetailOpen ? "is-detail-open" : ""}`;
   const listPanel = document.createElement("article");
-  listPanel.className = "panel project-list-panel";
+  listPanel.className = "panel project-page project-list-panel";
   listPanel.innerHTML = `
-    <h3 class="panel-title-row">
-      <span>진행중인 프로젝트</span>
-      <span class="project-list-count">${state.projects.items.filter((project) => project.status !== "완료").length}</span>
-    </h3>
+    <div class="project-page-sticky">
+      <h3 class="panel-title-row">
+        <span>프로젝트 리스트</span>
+        <span class="project-list-count">${state.projects.items.filter((project) => project.status !== "완료").length}</span>
+      </h3>
+      <button class="add-row project-add-inline" id="projectAddInline" type="button">신규 프로젝트</button>
+    </div>
     <div class="project-list" id="projectList"></div>
-    <button class="add-row project-add-inline" id="projectAddInline" type="button">프로젝트 추가</button>
   `;
   node.appendChild(listPanel);
 
@@ -2416,18 +2421,35 @@ function renderProjectBoard() {
       </span>
       <small>${escapeHtml(project.nextAction || "다음 행동을 입력하세요")}</small>
     `;
-    button.onclick = () => selectProject(project.id);
+    button.onclick = () => {
+      if (projectSwipeSuppressClick) return;
+      selectProject(project.id, { openDetail: true });
+    };
     list.appendChild(button);
   });
   listPanel.querySelector("#projectAddInline").onclick = addProject;
+  setupProjectPageSwipe(listPanel, "list");
 
   const index = getSelectedProjectIndex();
   const project = state.projects.items[index];
+  const detailPage = document.createElement("article");
+  detailPage.className = "project-page project-detail-panel";
   if (!project) {
     const empty = document.createElement("article");
     empty.className = "panel project-card";
-    empty.innerHTML = "<h3>프로젝트를 추가하세요</h3>";
-    node.appendChild(empty);
+    empty.innerHTML = `
+      <div class="project-page-sticky">
+        <h3 class="panel-title-row">
+          <span>프로젝트 세부내용</span>
+          <button class="icon-close project-detail-close" type="button" aria-label="프로젝트 세부내용 닫기">×</button>
+        </h3>
+      </div>
+      <p class="project-empty-message">프로젝트를 추가하세요.</p>
+    `;
+    detailPage.appendChild(empty);
+    node.appendChild(detailPage);
+    empty.querySelector(".project-detail-close").onclick = closeProjectDetail;
+    setupProjectPageSwipe(detailPage, "detail");
     return;
   }
 
@@ -2436,6 +2458,12 @@ function renderProjectBoard() {
   card.dataset.projectIndex = String(index);
   const finance = calculateProjectFinance(project);
   card.innerHTML = `
+      <div class="project-page-sticky">
+        <h3 class="panel-title-row">
+          <span>프로젝트 세부내용</span>
+          <button class="icon-close project-detail-close" type="button" aria-label="프로젝트 세부내용 닫기">×</button>
+        </h3>
+      </div>
       <div class="project-card-head">
         <input class="project-title-input" type="text" value="${escapeAttr(project.title)}" placeholder="프로젝트명" />
         <select aria-label="프로젝트 상태">
@@ -2467,13 +2495,16 @@ function renderProjectBoard() {
   const [titleInput, statusSelect] = card.querySelectorAll(".project-card-head input, .project-card-head select");
   titleInput.oninput = () => updateProjectField(index, "title", titleInput.value);
   statusSelect.onchange = () => updateProjectField(index, "status", statusSelect.value);
+  card.querySelector(".project-detail-close").onclick = closeProjectDetail;
   card.querySelectorAll("[data-field]").forEach((field) => {
     field.oninput = () => updateProjectField(index, field.dataset.field, field.value);
     field.onchange = () => updateProjectField(index, field.dataset.field, field.value);
   });
   renderProjectMoneyRows(card.querySelector(".project-money-grid"), project.finances, index);
   card.querySelector(".project-money-add").onclick = () => addProjectMoneyRow(index);
-  node.appendChild(card);
+  detailPage.appendChild(card);
+  node.appendChild(detailPage);
+  setupProjectPageSwipe(detailPage, "detail");
 }
 
 function projectTitle(project) {
@@ -2486,10 +2517,42 @@ function getSelectedProjectIndex() {
   return index >= 0 ? index : 0;
 }
 
-function selectProject(projectId) {
+function selectProject(projectId, options = {}) {
   state.projects.selectedId = projectId;
+  if (options.openDetail) projectDetailOpen = true;
   saveState();
   renderProjects();
+}
+
+function closeProjectDetail() {
+  projectDetailOpen = false;
+  renderProjects();
+}
+
+function setupProjectPageSwipe(node, page) {
+  if (!node) return;
+  let startX = 0;
+  let startY = 0;
+  node.addEventListener("pointerdown", (event) => {
+    startX = event.clientX;
+    startY = event.clientY;
+  }, { passive: true });
+  node.addEventListener("pointerup", (event) => {
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (page === "list" && dx < 0 && state.projects.items.length) {
+      projectDetailOpen = true;
+      projectSwipeSuppressClick = true;
+      renderProjects();
+      window.setTimeout(() => {
+        projectSwipeSuppressClick = false;
+      }, 260);
+    }
+    if (page === "detail") {
+      closeProjectDetail();
+    }
+  }, { passive: true });
 }
 
 function renderProjectMoneyRows(node, rows, projectIndex) {
@@ -2524,6 +2587,7 @@ function addProject() {
   const project = emptyProject("새 프로젝트");
   state.projects.items.push(project);
   state.projects.selectedId = project.id;
+  projectDetailOpen = true;
   saveState();
   renderProjects();
   window.requestAnimationFrame(() => document.querySelector(".project-title-input")?.focus());
@@ -2961,10 +3025,22 @@ function escapeHtml(value = "") {
 }
 
 function showView(name) {
+  const previousView = document.querySelector(".view.active")?.id?.replace("view-", "") || "";
+  if (name === "projects" && previousView !== "projects") projectDetailOpen = false;
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
   document.querySelectorAll("[data-top-view]").forEach((item) => item.classList.toggle("is-active", item.dataset.topView === name));
   document.querySelectorAll(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${name}`));
   if (name === "day") positionDaySwipe();
+  keepActiveTopViewVisible(name);
+}
+
+function keepActiveTopViewVisible(name) {
+  const strip = document.querySelector(".quick-strip");
+  const button = document.querySelector(`[data-top-view="${name}"]`);
+  if (!strip || !button || window.innerWidth > 1024) return;
+  window.requestAnimationFrame(() => {
+    button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  });
 }
 
 function collectSearchResults(query) {
