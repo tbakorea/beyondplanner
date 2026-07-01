@@ -251,7 +251,7 @@ body.ceo-mode .day-date-nav {
   gap: 7px;
 }
 
-body.ceo-mode .day-date-nav h2 {
+body.ceo-mode #dayTitle {
   font-size: clamp(15px, 1.55vw, 22px);
 }
 
@@ -854,6 +854,7 @@ body.is-privacy-blind .app-shell {
 }
 
 .daily-heading {
+  position: relative;
   min-width: 0;
 }
 
@@ -865,30 +866,207 @@ body.is-privacy-blind .app-shell {
   min-width: 0;
 }
 
-.day-date-nav h2 {
+.daily-date-button {
+  display: flex;
   flex: 0 1 auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  min-height: 40px;
+  margin: 0;
+  padding: 3px 5px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+}
+
+.daily-date-button:hover,
+.daily-date-button:focus-visible,
+.daily-date-button[aria-expanded="true"] {
+  background: rgba(122, 139, 128, 0.1);
+  outline: none;
+}
+
+#dayTitle {
+  display: block;
   min-width: 0;
   font-size: clamp(22px, 2.2vw, 34px);
+  font-weight: 800;
+  line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   will-change: transform, opacity;
 }
 
-.day-date-nav h2.slide-out-next {
+.daily-date-calendar-mark {
+  flex: 0 0 auto;
+  color: var(--sage-dark);
+  font-size: 16px;
+  line-height: 1;
+}
+
+#dayTitle.slide-out-next {
   animation: dateSlideOutNext 150ms ease-in forwards;
 }
 
-.day-date-nav h2.slide-out-prev {
+#dayTitle.slide-out-prev {
   animation: dateSlideOutPrev 150ms ease-in forwards;
 }
 
-.day-date-nav h2.slide-in-next {
+#dayTitle.slide-in-next {
   animation: dateSlideInNext 260ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
 }
 
-.day-date-nav h2.slide-in-prev {
+#dayTitle.slide-in-prev {
   animation: dateSlideInPrev 260ms cubic-bezier(0.2, 0.78, 0.25, 1) both;
+}
+
+.daily-calendar-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 40px;
+  z-index: 48;
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px;
+  border: 1px solid rgba(116, 124, 116, 0.28);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.99);
+  box-shadow: 0 18px 44px rgba(36, 45, 42, 0.18);
+}
+
+.daily-calendar-popover[hidden] {
+  display: none;
+}
+
+.daily-calendar-toolbar {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px 30px;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.daily-calendar-toolbar strong {
+  color: var(--forest);
+  font-size: 15px;
+  text-align: center;
+}
+
+.daily-calendar-nav,
+.daily-calendar-today {
+  border: 1px solid var(--line);
+  background: var(--sheet);
+  color: var(--forest);
+  cursor: pointer;
+}
+
+.daily-calendar-nav {
+  width: 34px;
+  min-height: 32px;
+  border-radius: 6px;
+  font-size: 22px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.daily-calendar-nav:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.daily-calendar-close {
+  width: 30px;
+  min-height: 30px;
+}
+
+.daily-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.daily-calendar-weekday {
+  padding: 3px 0 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 780;
+  text-align: center;
+}
+
+.daily-calendar-weekday.is-sunday {
+  color: #d7372f;
+}
+
+.daily-calendar-weekday.is-saturday {
+  color: #4e6f7a;
+}
+
+.daily-calendar-day {
+  position: relative;
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.daily-calendar-day:hover,
+.daily-calendar-day:focus-visible {
+  border-color: var(--sage);
+  background: rgba(122, 139, 128, 0.1);
+  outline: none;
+}
+
+.daily-calendar-day.is-outside {
+  color: rgba(77, 86, 82, 0.4);
+}
+
+.daily-calendar-day.is-today {
+  border-color: var(--sage-dark);
+}
+
+.daily-calendar-day.is-selected {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: #fff;
+}
+
+.daily-calendar-day:disabled {
+  color: rgba(77, 86, 82, 0.2);
+  cursor: default;
+}
+
+.daily-calendar-day i {
+  position: absolute;
+  bottom: 3px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #d7372f;
+}
+
+.daily-calendar-day.is-selected i {
+  background: #fff2aa;
+}
+
+.daily-calendar-today {
+  width: 100%;
+  min-height: 32px;
+  margin-top: 9px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 760;
 }
 
 .daily-score {
@@ -2066,6 +2244,28 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   min-height: 28px;
 }
 
+.task-status-label {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--slate);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
+  pointer-events: none;
+}
+
+.task-status-label.is-priority-letter {
+  font-size: 14px;
+  font-weight: 950;
+}
+
 .postpone-date-label {
   position: absolute;
   inset: 3px 6px 3px 4px;
@@ -2103,6 +2303,10 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   content: none;
 }
 
+.task-status-cell:has(select)::before {
+  content: none !important;
+}
+
 .priority-select,
 .postpone-select {
   min-width: 0;
@@ -2116,8 +2320,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   font-weight: 820;
   text-align: center;
   line-height: 1.05;
-  writing-mode: vertical-rl;
-  text-orientation: upright;
+  writing-mode: horizontal-tb;
+  text-orientation: mixed;
   appearance: none;
 }
 
@@ -3403,12 +3607,29 @@ body.ceo-mode .day-main-panel .panel {
     font-size: 11px;
   }
 
-  body.ceo-mode .day-date-nav h2,
-  .day-date-nav h2 {
+  body.ceo-mode #dayTitle,
+  #dayTitle {
     min-width: 0;
     font-size: 17px;
     line-height: 1;
     white-space: nowrap;
+  }
+
+  .daily-date-button {
+    flex: 1 1 auto;
+    gap: 4px;
+    min-height: 30px;
+    padding-inline: 3px;
+  }
+
+  .daily-date-calendar-mark {
+    font-size: 12px;
+  }
+
+  .daily-calendar-popover {
+    left: 0;
+    width: min(350px, calc(100vw - 18px));
+    padding: 10px;
   }
 
   body.ceo-mode .daily-score,
@@ -3679,10 +3900,36 @@ body.ceo-mode .day-main-panel .panel {
     font-size: 10px;
   }
 
-  .day-date-nav h2 {
+  #dayTitle {
     flex: 1 1 auto;
     font-size: clamp(15px, 4.35vw, 17px);
     letter-spacing: 0;
+  }
+
+  .daily-date-button {
+    gap: 3px;
+    min-height: 29px;
+    padding: 1px 2px;
+  }
+
+  .daily-calendar-popover {
+    top: calc(100% + 6px);
+    width: calc(100vw - 18px);
+    padding: 9px;
+  }
+
+  .daily-calendar-toolbar {
+    grid-template-columns: 30px minmax(0, 1fr) 30px 28px;
+    margin-bottom: 6px;
+  }
+
+  .daily-calendar-nav {
+    width: 30px;
+    min-height: 29px;
+  }
+
+  .daily-calendar-day {
+    font-size: 11px;
   }
 
   .daily-score {
@@ -3917,7 +4164,7 @@ body.ceo-mode .day-main-panel .panel {
     font-size: 9.5px;
   }
 
-  .day-date-nav h2 {
+  #dayTitle {
     font-size: 14.5px;
   }
 
@@ -4303,6 +4550,142 @@ button {
     min-height: 32px;
     padding-inline: 8px;
     font-size: 13px;
+  }
+}
+
+@media (max-width: 430px) {
+  .app-header {
+    gap: 4px;
+    padding: max(6px, env(safe-area-inset-top)) 5px 5px;
+  }
+
+  .brand-top {
+    min-height: 24px;
+    gap: 4px;
+  }
+
+  .brand-top .eyebrow {
+    max-width: 150px;
+    font-size: 7.6px;
+    line-height: 1;
+  }
+
+  .brand-row h1 {
+    font-size: 18px;
+  }
+
+  .coach-bubble {
+    width: 34px;
+    height: 27px;
+    border-width: 2px;
+  }
+
+  .coach-bubble::before {
+    width: 17px;
+    height: 13px;
+  }
+
+  .header-tools {
+    overflow: visible;
+  }
+
+  .quick-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+    overflow: visible;
+    scroll-snap-type: none;
+    padding: 1px 0 0;
+  }
+
+  .quick-strip button,
+  .top-search-toggle {
+    min-height: 25px;
+    padding: 3px 6px;
+    font-size: 9.2px;
+  }
+
+  .quick-strip button.is-active {
+    padding-inline: 8px;
+  }
+
+  .quick-strip [data-top-view="notes"] {
+    font-size: 0;
+    padding-inline: 8px;
+  }
+
+  .quick-strip [data-top-view="notes"]::after {
+    content: "자금";
+    font-size: 9.2px;
+  }
+
+  #quickLogoutButton {
+    display: none;
+  }
+
+  #view-day {
+    padding-top: calc(var(--daily-title-height) + 8px);
+  }
+
+  body.ceo-mode .daily-title,
+  .daily-title {
+    position: fixed;
+    top: var(--app-header-height);
+    left: 5px;
+    right: 5px;
+    z-index: 29;
+    width: auto;
+    margin: 0;
+  }
+
+  .day-swipe {
+    height: max(620px, calc(100dvh - var(--app-header-height) - var(--daily-title-height) - 10px));
+    margin: 0 -5px;
+  }
+
+  .day-swipe > .panel {
+    padding-top: 0;
+  }
+
+  body.ceo-mode .day-main-panel,
+  .day-main-panel {
+    padding: 0 5px;
+  }
+
+  .finance-sticky-stack {
+    top: calc(var(--app-header-height) + 6px);
+  }
+
+  #view-notes {
+    padding-top: 34px;
+  }
+
+  #view-notes .page-title {
+    position: fixed;
+    top: var(--app-header-height);
+    left: 5px;
+    right: 5px;
+    z-index: 28;
+    width: auto;
+    margin: 0;
+  }
+
+  #view-notes .finance-sticky-stack {
+    position: fixed;
+    top: calc(var(--app-header-height) + 32px);
+    left: 10px;
+    right: 10px;
+    z-index: 27;
+    width: auto;
+    margin: 0;
+  }
+
+  #view-notes .finance-month-panel {
+    padding-top: 100px;
+  }
+
+  #view-notes .finance-year-grid {
+    padding-top: 0;
   }
 }
 
