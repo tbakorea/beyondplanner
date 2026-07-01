@@ -2398,8 +2398,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .appointment-time.range b {
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 760;
+  font-size: inherit;
+  font-weight: inherit;
   line-height: 1;
 }
 
@@ -3602,8 +3602,9 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .today-jump {
-    min-height: 28px;
-    padding: 3px 6px;
+    min-width: 40px;
+    min-height: 34px;
+    padding: 4px 8px;
     font-size: 11px;
   }
 
@@ -3616,7 +3617,7 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .daily-date-button {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     gap: 4px;
     min-height: 30px;
     padding-inline: 3px;
@@ -3895,18 +3896,20 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .today-jump {
-    min-height: 27px;
-    padding: 2px 6px;
-    font-size: 10px;
+    min-width: 40px;
+    min-height: 34px;
+    padding: 4px 7px;
+    font-size: 11px;
   }
 
   #dayTitle {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     font-size: clamp(15px, 4.35vw, 17px);
     letter-spacing: 0;
   }
 
   .daily-date-button {
+    flex: 0 1 auto;
     gap: 3px;
     min-height: 29px;
     padding: 1px 2px;
@@ -4689,6 +4692,685 @@ button {
   }
 }
 
+.mobile-day-focus-controls {
+  display: none;
+}
+
+body.smartphone-device #privacyNowButton,
+body.smartphone-device #privacyTimeoutSelect,
+body.smartphone-device .privacy-blind-screen {
+  display: none !important;
+}
+
+@media (max-width: 640px) {
+  .mobile-day-focus-controls {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 2px;
+    min-width: 0;
+    padding: 2px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: rgba(236, 231, 221, 0.72);
+  }
+
+  .mobile-day-focus-controls button {
+    min-width: 0;
+    min-height: 27px;
+    padding: 3px 5px;
+    overflow: hidden;
+    border: 0;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10px;
+    font-weight: 820;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .mobile-day-focus-controls button.is-active {
+    background: var(--forest);
+    color: white;
+    box-shadow: 0 2px 6px rgba(38, 60, 52, 0.16);
+  }
+
+  .day-main-panel.is-focus-tasks,
+  .day-main-panel.is-focus-schedule {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel,
+  .day-main-panel.is-focus-schedule .day-schedule-panel {
+    display: block;
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .day-main-panel.is-focus-tasks .day-schedule-panel,
+  .day-main-panel.is-focus-schedule .day-task-panel {
+    display: none;
+  }
+
+  .appointment-time.range b {
+    font-size: inherit;
+    font-weight: inherit;
+  }
+}
+
+.sheet-page-title {
+  align-items: center;
+}
+
+.sheet-board {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: max(650px, calc(100vh - var(--app-header-height) - 118px));
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.sheet-page {
+  flex: 0 0 100%;
+  min-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transition: transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sheet-board.is-detail-open .sheet-page {
+  transform: translateX(-100%);
+}
+
+.sheet-page-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  margin: -14px -14px 12px;
+  border-bottom: 1px solid var(--soft-line);
+  border-radius: 8px 8px 0 0;
+  background: rgba(255, 253, 248, 0.96);
+  padding: 12px 14px 10px;
+  backdrop-filter: blur(12px) saturate(1.04);
+}
+
+.sheet-list-panel .sheet-page-sticky {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sheet-list-panel {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+}
+
+.sheet-list-count {
+  display: inline-flex;
+  min-width: 28px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(95, 118, 104, 0.24);
+  border-radius: 999px;
+  background: rgba(174, 191, 177, 0.14);
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 860;
+}
+
+.sheet-list {
+  display: grid;
+  gap: 6px;
+  padding-bottom: 10px;
+}
+
+.sheet-list-item {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  border: 1px solid rgba(221, 216, 203, 0.96);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--ink);
+  padding: 9px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sheet-list-item.is-active {
+  border-color: rgba(38, 60, 52, 0.42);
+  background: rgba(174, 191, 177, 0.18);
+  box-shadow: inset 3px 0 0 var(--forest);
+}
+
+.sheet-list-title {
+  min-width: 0;
+  color: var(--forest);
+  font-size: 14px;
+  font-weight: 880;
+  line-height: 1.25;
+}
+
+.sheet-list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.sheet-list-meta span,
+.sheet-list-meta b {
+  border: 1px solid rgba(95, 118, 104, 0.18);
+  border-radius: 999px;
+  background: rgba(247, 245, 239, 0.78);
+  padding: 3px 7px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 780;
+}
+
+.sheet-list-item small {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.sheet-add-inline {
+  min-height: 34px;
+  margin-top: 0;
+  padding: 7px 12px;
+}
+
+.sheet-detail-panel {
+  padding-left: 12px;
+}
+
+.sheet-detail-close {
+  margin-left: auto;
+}
+
+.sheet-detail-sticky {
+  margin: 0;
+  border-radius: 7px 7px 0 0;
+}
+
+.sheet-create-controls,
+.sheet-document-actions,
+.sheet-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sheet-create-controls select {
+  width: auto;
+  min-width: 142px;
+  min-height: 34px;
+}
+
+.sheet-workbench {
+  padding: 0;
+  min-width: 0;
+  min-height: 100%;
+  overflow: hidden;
+  border-radius: 7px;
+}
+
+.sheet-tabs {
+  display: flex;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  background: #f0eee7;
+  scrollbar-width: thin;
+}
+
+.sheet-tabs button {
+  flex: 0 0 auto;
+  max-width: 180px;
+  min-height: 33px;
+  padding: 6px 12px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sheet-tabs button.is-active {
+  border-color: var(--line);
+  background: var(--sheet);
+  color: var(--forest);
+}
+
+.sheet-document-bar,
+.sheet-toolbar,
+.sheet-formula-bar,
+.sheet-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--soft-line);
+  background: rgba(255, 253, 248, 0.98);
+}
+
+.sheet-document-bar {
+  justify-content: space-between;
+}
+
+#sheetNameInput {
+  width: min(320px, 52vw);
+  min-height: 32px;
+  padding: 4px 7px;
+  border-color: transparent;
+  background: transparent;
+  color: var(--forest);
+  font-size: 16px;
+  font-weight: 820;
+}
+
+#sheetNameInput:hover,
+#sheetNameInput:focus {
+  border-color: var(--line);
+  background: white;
+}
+
+.sheet-document-actions button,
+.sheet-toolbar button,
+.sheet-toolbar select {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--sheet);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 760;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sheet-document-actions button:disabled,
+.sheet-toolbar button:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
+
+.sheet-document-actions .danger-action {
+  color: #a23b35;
+}
+
+.sheet-toolbar {
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.sheet-toolbar select {
+  width: auto;
+  min-width: 74px;
+}
+
+.sheet-format-toggle {
+  width: 31px;
+}
+
+.sheet-format-toggle.is-active {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: white;
+}
+
+.sheet-fill-picker {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.sheet-fill-picker button {
+  width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.sheet-fill-picker button[data-sheet-fill="none"] {
+  background: linear-gradient(135deg, white 46%, #c84d45 47%, #c84d45 53%, white 54%);
+}
+
+.sheet-fill-picker button[data-sheet-fill="yellow"] {
+  background: #fff18a;
+}
+
+.sheet-fill-picker button[data-sheet-fill="sage"] {
+  background: #d9e5dc;
+}
+
+.sheet-fill-picker button[data-sheet-fill="rose"] {
+  background: #efd9d5;
+}
+
+.sheet-fill-picker button.is-active {
+  outline: 2px solid var(--forest);
+  outline-offset: 1px;
+}
+
+.sheet-formula-bar {
+  display: grid;
+  grid-template-columns: 52px 24px minmax(0, 1fr);
+  gap: 0;
+  padding-block: 5px;
+}
+
+#sheetCellReference {
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 820;
+  text-align: center;
+}
+
+.sheet-formula-bar > span {
+  color: var(--sage-dark);
+  font-size: 13px;
+  font-weight: 820;
+  text-align: center;
+}
+
+#sheetFormulaInput {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+.sheet-grid-wrap {
+  position: relative;
+  width: 100%;
+  height: clamp(420px, calc(100dvh - var(--app-header-height) - 260px), 720px);
+  min-height: 360px;
+  overflow: auto;
+  background: #fbfaf6;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.custom-sheet-grid {
+  width: max-content;
+  min-width: 100%;
+  border-spacing: 0;
+  table-layout: fixed;
+  background: white;
+}
+
+.custom-sheet-grid th,
+.custom-sheet-grid td {
+  height: 36px;
+  min-width: 132px;
+  max-width: 132px;
+  padding: 0;
+  border-right: 1px solid #dedbd2;
+  border-bottom: 1px solid #dedbd2;
+}
+
+.custom-sheet-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 30px;
+  min-width: 132px;
+  background: #eeece5;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+  text-align: center;
+}
+
+.custom-sheet-grid .sheet-corner,
+.custom-sheet-grid .sheet-row-number {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 42px;
+  width: 42px;
+  max-width: 42px;
+  background: #eeece5;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 720;
+  text-align: center;
+}
+
+.custom-sheet-grid .sheet-corner {
+  top: 0;
+  z-index: 6;
+}
+
+.sheet-cell {
+  position: relative;
+  background: white;
+}
+
+.sheet-cell.is-selected {
+  z-index: 2;
+  box-shadow: inset 0 0 0 2px var(--sage-dark);
+}
+
+.sheet-cell.fill-yellow {
+  background: #fff7ad;
+}
+
+.sheet-cell.fill-sage {
+  background: #e2ebe3;
+}
+
+.sheet-cell.fill-rose {
+  background: #f3e2de;
+}
+
+.sheet-cell-input {
+  width: 100%;
+  height: 100%;
+  min-height: 35px;
+  padding: 5px 8px;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  outline: 0 !important;
+  color: var(--ink);
+  font-size: 12px;
+  text-overflow: ellipsis;
+}
+
+.sheet-cell.align-center .sheet-cell-input {
+  text-align: center;
+}
+
+.sheet-cell.align-right .sheet-cell-input {
+  text-align: right;
+}
+
+.sheet-cell.is-bold .sheet-cell-input {
+  font-weight: 820;
+}
+
+.sheet-cell-checkbox {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: auto;
+  accent-color: #c4483e;
+}
+
+.sheet-status-bar {
+  justify-content: flex-end;
+  min-height: 30px;
+  border-top: 1px solid var(--soft-line);
+  border-bottom: 0;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+body.ceo-mode .sheet-create-controls {
+  width: 100%;
+}
+
+body.ceo-mode .sheet-board {
+  height: max(620px, calc(100vh - var(--app-header-height) - 106px));
+}
+
+body.ceo-mode .sheet-list-panel {
+  gap: 7px;
+}
+
+body.ceo-mode .sheet-detail-panel {
+  padding-left: 8px;
+}
+
+body.ceo-mode .sheet-page-title {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+body.ceo-mode .sheet-document-bar {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+body.ceo-mode #sheetNameInput {
+  width: 100%;
+}
+
+body.ceo-mode .sheet-document-actions,
+body.ceo-mode .sheet-tool-group {
+  overflow-x: auto;
+}
+
+@media (max-width: 640px) {
+  #view-sheets {
+    padding-inline: 0;
+  }
+
+  .sheet-page-title {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 7px;
+    padding-inline: 5px;
+  }
+
+  .sheet-page-title h2 {
+    font-size: 20px;
+  }
+
+  .sheet-create-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    width: 100%;
+  }
+
+  .sheet-create-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .sheet-board {
+    height: max(600px, calc(100dvh - var(--app-header-height) - 94px));
+    margin: 0 -5px;
+    border-radius: 0;
+  }
+
+  .sheet-page {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .sheet-detail-panel {
+    padding-left: 5px;
+  }
+
+  .sheet-list-panel .sheet-page-sticky {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sheet-workbench {
+    border-right: 0;
+    border-left: 0;
+    border-radius: 0;
+  }
+
+  .sheet-document-bar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  #sheetNameInput {
+    width: 100%;
+    font-size: 15px;
+  }
+
+  .sheet-document-actions {
+    justify-content: flex-end;
+  }
+
+  .sheet-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  .sheet-tool-group {
+    width: 100%;
+    overflow-x: auto;
+    padding: 1px;
+  }
+
+  .sheet-tool-group:first-child button {
+    flex: 1 0 auto;
+  }
+
+  .sheet-grid-wrap {
+    height: max(480px, calc(100dvh - var(--app-header-height) - 300px));
+  }
+
+  .custom-sheet-grid th,
+  .custom-sheet-grid td,
+  .custom-sheet-grid thead th {
+    min-width: 112px;
+    max-width: 112px;
+  }
+
+  .custom-sheet-grid .sheet-corner,
+  .custom-sheet-grid .sheet-row-number {
+    min-width: 36px;
+    width: 36px;
+    max-width: 36px;
+  }
+}
+
 @media print {
   @page {
     size: A4 landscape;
@@ -4771,5 +5453,11 @@ button {
 
   textarea {
     resize: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .daily-date-calendar-mark {
+    display: none;
   }
 }

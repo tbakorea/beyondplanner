@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260630f" />
+    <link rel="stylesheet" href="./styles.css?v=20260701f" />
   </head>
   <body>
     <header class="app-header">
@@ -37,6 +37,7 @@
           <button type="button" data-top-view="day">일간 일정</button>
           <button type="button" data-top-view="projects">프로젝트</button>
           <button type="button" data-top-view="notes">용돈/자금</button>
+          <button type="button" data-top-view="sheets">커스텀 시트</button>
           <button id="quickLogoutButton" type="button">로그아웃</button>
         </nav>
         <div class="top-status" aria-label="플래너 상태">
@@ -87,6 +88,7 @@
           <button class="tab" data-view="day">일간</button>
           <button class="tab" data-view="projects">프로젝트</button>
           <button class="tab" data-view="notes">용돈/자금</button>
+          <button class="tab" data-view="sheets">커스텀 시트</button>
         </nav>
         <section class="mini-panel">
           <span>Selected</span>
@@ -230,7 +232,12 @@
               <div class="weekly-compass" id="dayCompass"></div>
             </article>
             <section class="swipe-panel day-main-panel" data-panel="main">
-              <article class="panel">
+              <div class="mobile-day-focus-controls" aria-label="일간 화면 크기">
+                <button class="is-active" type="button" data-day-focus="split" aria-pressed="true">함께</button>
+                <button type="button" data-day-focus="tasks" aria-pressed="false">우선업무</button>
+                <button type="button" data-day-focus="schedule" aria-pressed="false">시간일정</button>
+              </div>
+              <article class="panel day-task-panel">
                 <h3 class="panel-title-row">
                   <span>오늘의 우선업무</span>
                   <span class="panel-actions">
@@ -244,7 +251,7 @@
                   <div class="repeat-list" id="repeatPriorityList"></div>
                 </details>
               </article>
-              <article class="panel">
+              <article class="panel day-schedule-panel">
                 <h3 class="panel-title-row">
                   <span>시간별 일정</span>
                   <button class="mini-action" id="aiScheduleSuggest" type="button">AI</button>
@@ -349,6 +356,93 @@
           </div>
         </section>
 
+        <section class="view" id="view-sheets">
+          <div class="page-title sheet-page-title">
+            <div>
+              <p class="eyebrow">Custom Sheets</p>
+              <h2>커스텀 시트</h2>
+            </div>
+          </div>
+          <div class="sheet-board" id="sheetBoard">
+            <article class="panel sheet-page sheet-list-panel">
+              <div class="sheet-page-sticky">
+                <h3 class="panel-title-row">
+                  <span>시트 목록</span>
+                  <span class="sheet-list-count" id="sheetListCount">0</span>
+                </h3>
+                <div class="sheet-create-controls">
+                  <select id="sheetTemplateSelect" aria-label="새 시트 양식">
+                    <option value="blank">빈 시트</option>
+                    <option value="checklist">체크리스트</option>
+                    <option value="finance">간단 자금표</option>
+                    <option value="project">프로젝트 현황표</option>
+                  </select>
+                  <button class="add-row sheet-add-inline" id="addSheetButton" type="button">새 시트 열기</button>
+                </div>
+              </div>
+              <div class="sheet-list" id="sheetList"></div>
+            </article>
+            <article class="sheet-page sheet-detail-panel">
+              <section class="sheet-workbench panel">
+                <div class="sheet-page-sticky sheet-detail-sticky">
+                  <h3 class="panel-title-row">
+                    <span>시트 페이지</span>
+                    <button class="icon-close sheet-detail-close" id="closeSheetDetailButton" type="button" aria-label="시트 페이지 닫기">×</button>
+                  </h3>
+                </div>
+                <div class="sheet-document-bar">
+                  <input id="sheetNameInput" type="text" aria-label="현재 시트 이름" maxlength="40" />
+                  <div class="sheet-document-actions">
+                    <button id="duplicateSheetButton" type="button" title="현재 시트 복제">복제</button>
+                    <button id="exportSheetCsvButton" type="button" title="CSV 파일로 내보내기">CSV</button>
+                    <button class="danger-action" id="deleteSheetButton" type="button" title="현재 시트 삭제">삭제</button>
+                  </div>
+                </div>
+                <div class="sheet-toolbar" aria-label="시트 도구">
+                  <div class="sheet-tool-group">
+                    <button id="addSheetRowButton" type="button" title="마지막에 행 추가">+ 행</button>
+                    <button id="removeSheetRowButton" type="button" title="마지막 행 삭제">− 행</button>
+                    <button id="addSheetColumnButton" type="button" title="마지막에 열 추가">+ 열</button>
+                    <button id="removeSheetColumnButton" type="button" title="마지막 열 삭제">− 열</button>
+                  </div>
+                  <div class="sheet-tool-group">
+                    <select id="sheetCellType" aria-label="셀 형식">
+                      <option value="general">일반</option>
+                      <option value="number">숫자</option>
+                      <option value="currency">금액</option>
+                      <option value="date">날짜</option>
+                      <option value="checkbox">체크</option>
+                    </select>
+                    <button class="sheet-format-toggle" id="sheetBoldButton" type="button" title="굵게" aria-pressed="false"><strong>B</strong></button>
+                    <select id="sheetCellAlign" aria-label="셀 정렬">
+                      <option value="left">왼쪽</option>
+                      <option value="center">가운데</option>
+                      <option value="right">오른쪽</option>
+                    </select>
+                    <div class="sheet-fill-picker" id="sheetFillPicker" aria-label="셀 배경색">
+                      <button type="button" data-sheet-fill="none" title="배경 없음" aria-label="배경 없음"></button>
+                      <button type="button" data-sheet-fill="yellow" title="노란색" aria-label="노란색"></button>
+                      <button type="button" data-sheet-fill="sage" title="세이지색" aria-label="세이지색"></button>
+                      <button type="button" data-sheet-fill="rose" title="장미색" aria-label="장미색"></button>
+                    </div>
+                  </div>
+                </div>
+                <div class="sheet-formula-bar">
+                  <output id="sheetCellReference" aria-label="선택된 셀">A1</output>
+                  <span aria-hidden="true">ƒx</span>
+                  <input id="sheetFormulaInput" type="text" aria-label="셀 내용 또는 수식" placeholder="내용 또는 =SUM(A1:A5)" />
+                </div>
+                <div class="sheet-grid-wrap" id="sheetGridWrap">
+                  <table class="custom-sheet-grid" id="customSheetGrid" aria-label="커스텀 시트"></table>
+                </div>
+                <footer class="sheet-status-bar">
+                  <span id="sheetSizeStatus">0행 × 0열</span>
+                </footer>
+              </section>
+            </article>
+          </div>
+        </section>
+
         <section class="view" id="view-search">
           <div class="page-title">
             <div>
@@ -406,6 +500,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260630f"></script>
+    <script src="./app.js?v=20260701f"></script>
   </body>
 </html>

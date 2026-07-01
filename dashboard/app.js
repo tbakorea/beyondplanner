@@ -30,6 +30,13 @@ const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기
 const moneyStatuses = ["예정", "확인", "보류", "완료"];
 const projectStatuses = ["대기", "진행", "보류", "완료"];
 const projectMoneyTypes = ["수입", "비용"];
+const sheetCellTypes = ["general", "number", "currency", "date", "checkbox"];
+const sheetAlignments = ["left", "center", "right"];
+const sheetFills = ["none", "yellow", "sage", "rose"];
+const SHEET_MIN_ROWS = 6;
+const SHEET_MAX_ROWS = 100;
+const SHEET_MIN_COLUMNS = 3;
+const SHEET_MAX_COLUMNS = 12;
 const defaultRoles = ["개인", "가족", "일", "성장", "공헌", "건강", "관계"];
 const isMacEnvironment = /Mac|iPhone|iPad/.test(navigator.platform || "") || /Macintosh|iPhone|iPad/.test(navigator.userAgent || "");
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
@@ -62,6 +69,11 @@ let financeTurnDirection = 0;
 let financeSwipeSuppressClick = false;
 let projectDetailOpen = false;
 let projectSwipeSuppressClick = false;
+let selectedSheetId = state.customSheets.activeId;
+let selectedSheetCell = "A1";
+let sheetDetailOpen = false;
+let sheetSwipeSuppressClick = false;
+let mobileDayFocusMode = "split";
 
 function el(id) {
   return document.getElementById(id);
@@ -188,6 +200,7 @@ function loadState() {
     },
     finance: createFinanceState(),
     projects: createProjectState(),
+    customSheets: createCustomSheetsState(),
   };
 }
 
@@ -196,6 +209,8 @@ function migrateState(nextState) {
   normalizeFinanceState(nextState.finance);
   nextState.projects ||= createProjectState();
   normalizeProjectState(nextState.projects);
+  nextState.customSheets ||= createCustomSheetsState();
+  normalizeCustomSheetsState(nextState.customSheets);
   nextState.notes ||= { projects: Array.from({ length: 8 }, () => ""), references: Array.from({ length: 8 }, () => ""), freeform: "" };
   nextState.profile ||= { age: "", job: "", goals: "", strengths: "", risks: "" };
   nextState.repeats ||= {};
@@ -225,6 +240,72 @@ function migrateState(nextState) {
     });
   });
   return nextState;
+}
+
+function createCustomSheetsState() {
+  const firstSheet = createCustomSheet("새 시트 1", "blank");
+  return { activeId: firstSheet.id, items: [firstSheet] };
+}
+
+function createCustomSheet(name = "새 시트", template = "blank") {
+  const sheet = {
+    id: `sheet-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name,
+    rows: 12,
+    columns: 6,
+    cells: {},
+    formats: {},
+  };
+  applySheetTemplate(sheet, template);
+  return sheet;
+}
+
+function normalizeCustomSheetsState(customSheets) {
+  customSheets.items = Array.isArray(customSheets.items) ? customSheets.items : [];
+  if (!customSheets.items.length) customSheets.items.push(createCustomSheet("새 시트 1", "blank"));
+  customSheets.items.forEach((sheet, index) => {
+    sheet.id ||= `sheet-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
+    sheet.name = String(sheet.name || `시트 ${index + 1}`).slice(0, 40);
+    sheet.rows = Math.max(SHEET_MIN_ROWS, Math.min(SHEET_MAX_ROWS, Number(sheet.rows) || 12));
+    sheet.columns = Math.max(SHEET_MIN_COLUMNS, Math.min(SHEET_MAX_COLUMNS, Number(sheet.columns) || 6));
+    sheet.cells = sheet.cells && typeof sheet.cells === "object" ? sheet.cells : {};
+    sheet.formats = sheet.formats && typeof sheet.formats === "object" ? sheet.formats : {};
+  });
+  if (!customSheets.items.some((sheet) => sheet.id === customSheets.activeId)) {
+    customSheets.activeId = customSheets.items[0].id;
+  }
+}
+
+function applySheetTemplate(sheet, template) {
+  const templates = {
+    checklist: {
+      columns: 5,
+      headers: ["완료", "항목", "담당", "기한", "메모"],
+      types: ["checkbox", "general", "general", "date", "general"],
+    },
+    finance: {
+      columns: 6,
+      headers: ["구분", "내용", "예정일", "수입", "지출", "메모"],
+      types: ["general", "general", "date", "currency", "currency", "general"],
+    },
+    project: {
+      columns: 6,
+      headers: ["업무", "담당", "시작일", "마감일", "진행률", "상태"],
+      types: ["general", "general", "date", "date", "number", "general"],
+    },
+  };
+  const preset = templates[template];
+  if (!preset) return;
+  sheet.columns = preset.columns;
+  preset.headers.forEach((header, index) => {
+    const reference = `${sheetColumnLabel(index)}1`;
+    sheet.cells[reference] = header;
+    sheet.formats[reference] = { type: "general", bold: true, fill: "sage", align: "center" };
+    for (let row = 2; row <= sheet.rows; row += 1) {
+      const cellReference = `${sheetColumnLabel(index)}${row}`;
+      if (preset.types[index] !== "general") sheet.formats[cellReference] = { type: preset.types[index] };
+    }
+  });
 }
 
 function createFinanceState() {
@@ -644,6 +725,7 @@ function hasPlannerContent(source = state) {
   if (Object.values(source.profile || {}).some(hasText)) return true;
   if ((source.notes?.projects || []).some(hasText) || (source.notes?.references || []).some(hasText) || hasText(source.notes?.freeform)) return true;
   if (financeHasContent(source.finance)) return true;
+  if ((source.customSheets?.items || []).some((sheet) => Object.values(sheet.cells || {}).some(hasText))) return true;
   return (source.projects?.items || []).some(projectHasUserContent);
 }
 
@@ -818,6 +900,28 @@ function setupSelectors() {
   };
   el("fixedMoneyAdd").onclick = () => addMoneyRow(state.finance.fixed, { fixed: true });
   el("addProjectButton").onclick = addProject;
+  el("addSheetButton").onclick = () => addCustomSheet(el("sheetTemplateSelect").value);
+  el("closeSheetDetailButton").onclick = closeSheetDetail;
+  el("duplicateSheetButton").onclick = duplicateCurrentSheet;
+  el("deleteSheetButton").onclick = deleteCurrentSheet;
+  el("exportSheetCsvButton").onclick = exportCurrentSheetCsv;
+  el("addSheetRowButton").onclick = () => resizeCurrentSheet("row", 1);
+  el("removeSheetRowButton").onclick = () => resizeCurrentSheet("row", -1);
+  el("addSheetColumnButton").onclick = () => resizeCurrentSheet("column", 1);
+  el("removeSheetColumnButton").onclick = () => resizeCurrentSheet("column", -1);
+  el("sheetNameInput").oninput = (event) => renameCurrentSheet(event.target.value);
+  el("sheetCellType").onchange = (event) => updateSelectedSheetCellFormat("type", event.target.value);
+  el("sheetCellAlign").onchange = (event) => updateSelectedSheetCellFormat("align", event.target.value);
+  el("sheetBoldButton").onclick = () => toggleSelectedSheetCellBold();
+  el("sheetFormulaInput").onchange = (event) => updateSelectedSheetCellValue(event.target.value);
+  el("sheetFormulaInput").onkeydown = (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    updateSelectedSheetCellValue(event.target.value);
+  };
+  document.querySelectorAll("[data-sheet-fill]").forEach((button) => {
+    button.onclick = () => updateSelectedSheetCellFormat("fill", button.dataset.sheetFill);
+  });
   el("topSearchToggle").onclick = toggleTopSearch;
   el("topSearchSubmit").onclick = runHeaderSearch;
   el("topSearchClose").onclick = closeTopSearch;
@@ -862,13 +966,16 @@ function setupSelectors() {
   setupDailyDateSwipe();
   setupDailyPageSwipe();
   setupDaySwipePager();
+  setupMobileDayFocus();
   setupWheelDayNavigation();
   setupFinanceMonthSwipe();
+  setupSheetPageSwipe();
   setupAutoLock();
   applyPlannerMode();
   updateStickyPanelTop();
   window.addEventListener("resize", () => {
     applyPlannerMode();
+    applyMobileDayFocusMode();
     updateStickyPanelTop();
     positionDaySwipe("main", true);
   });
@@ -960,7 +1067,7 @@ function resetLockTimer() {
   window.clearTimeout(lockTimer);
   window.clearTimeout(privacyTimer);
   const privacySeconds = getPrivacyConfig().timeoutSeconds;
-  if (privacySeconds > 0) {
+  if (!isSmartphoneDevice() && privacySeconds > 0) {
     privacyTimer = window.setTimeout(
       () => activatePrivacyBlind(`${formatPrivacyTimeout(privacySeconds)} 동안 사용이 없어 내용이 블라인드 처리되었습니다.`),
       privacySeconds * 1000,
@@ -995,7 +1102,7 @@ function unlockPlanner(message = "잠금 해제됨") {
 }
 
 function activatePrivacyBlind(message = "플래너 내용이 블라인드 처리되었습니다.") {
-  if (isLocked) return;
+  if (isLocked || isSmartphoneDevice()) return;
   isPrivacyBlind = true;
   window.clearTimeout(lockTimer);
   window.clearTimeout(privacyTimer);
@@ -1459,6 +1566,52 @@ function isPagedDaySwipe() {
   return document.body.classList.contains("ceo-mode") || window.matchMedia("(max-width: 1320px)").matches;
 }
 
+function isSmartphoneLayout() {
+  return window.matchMedia("(max-width: 640px)").matches;
+}
+
+function isSmartphoneDevice() {
+  return /iPhone|iPod|Windows Phone|Android.+Mobile/i.test(navigator.userAgent || "");
+}
+
+function setupMobileDayFocus() {
+  const panel = document.querySelector(".day-main-panel");
+  const taskPanel = panel?.querySelector(".day-task-panel");
+  const schedulePanel = panel?.querySelector(".day-schedule-panel");
+  if (!panel || !taskPanel || !schedulePanel) return;
+  document.querySelectorAll("[data-day-focus]").forEach((button) => {
+    button.onclick = () => setMobileDayFocusMode(button.dataset.dayFocus);
+  });
+  const expandOnInteraction = (mode) => (event) => {
+    if (!isSmartphoneLayout() || !event.target.closest("input, select, textarea, button")) return;
+    setMobileDayFocusMode(mode);
+  };
+  taskPanel.addEventListener("pointerdown", expandOnInteraction("tasks"), { passive: true });
+  taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
+  schedulePanel.addEventListener("pointerdown", expandOnInteraction("schedule"), { passive: true });
+  schedulePanel.addEventListener("focusin", expandOnInteraction("schedule"));
+  applyMobileDayFocusMode();
+}
+
+function setMobileDayFocusMode(mode) {
+  if (!["split", "tasks", "schedule"].includes(mode)) return;
+  mobileDayFocusMode = mode;
+  applyMobileDayFocusMode();
+}
+
+function applyMobileDayFocusMode() {
+  const panel = document.querySelector(".day-main-panel");
+  if (!panel) return;
+  const activeMode = isSmartphoneLayout() ? mobileDayFocusMode : "split";
+  panel.classList.toggle("is-focus-tasks", activeMode === "tasks");
+  panel.classList.toggle("is-focus-schedule", activeMode === "schedule");
+  document.querySelectorAll("[data-day-focus]").forEach((button) => {
+    const isActive = button.dataset.dayFocus === activeMode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
 function isSwipeInteractiveTarget(target) {
   return Boolean(target.closest("textarea, select, button, summary"));
 }
@@ -1512,15 +1665,22 @@ function setupWheelDayNavigation() {
 }
 
 function applyPlannerMode() {
-  const isPhoneMode = window.matchMedia("(max-width: 640px)").matches;
+  const isPhoneMode = isSmartphoneLayout();
+  const isPhoneDevice = isSmartphoneDevice();
   const isAutoCeo = isPhoneMode;
   const isCeo = plannerMode === "ceo" || isAutoCeo;
   document.body.classList.toggle("mac-mode", isMacEnvironment);
   document.body.classList.toggle("phone-mode", isPhoneMode);
+  document.body.classList.toggle("smartphone-device", isPhoneDevice);
   document.body.classList.toggle("ceo-mode", isCeo);
   document.body.classList.toggle("classic-mode", !isCeo);
   const button = el("modeToggle");
   if (button) button.textContent = isCeo ? "Classic mode" : "CEO mode";
+  if (isPhoneDevice) {
+    window.clearTimeout(privacyTimer);
+    if (isPrivacyBlind) deactivatePrivacyBlind(false);
+  }
+  applyMobileDayFocusMode();
   updateStickyPanelTop();
 }
 
@@ -2177,7 +2337,14 @@ function renderTaskRow(task, priority, index) {
     renderAll();
   };
   if (prioritySelect) {
-    prioritySelect.onchange = () => handlePriorityMenuChange(task, priority, index, prioritySelect.value);
+    let handledValue = "";
+    const applyPrioritySelection = () => {
+      if (handledValue === prioritySelect.value) return;
+      handledValue = prioritySelect.value;
+      handlePriorityMenuChange(task, priority, index, prioritySelect.value);
+    };
+    prioritySelect.oninput = applyPrioritySelection;
+    prioritySelect.onchange = applyPrioritySelection;
   }
   if (delegateInput) {
     delegateInput.oninput = () => {
@@ -2334,7 +2501,11 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
 }
 
 function moveTaskPriority(fromPriority, index, toPriority) {
-  if (fromPriority === toPriority) return;
+  if (fromPriority === toPriority) {
+    saveState();
+    renderAll();
+    return;
+  }
   const day = ensureDay();
   const [task] = day.tasks[fromPriority].splice(index, 1);
   if (!task) return;
@@ -2365,12 +2536,24 @@ function schedulePostponedTask(task, priority, targetDate) {
 
 function renderCarryoverTask(task) {
   const row = document.createElement("div");
-  row.className = `task-row carryover-row priority-${task.priority === "A" ? "a" : "none"}`;
-  row.innerHTML = `<button class="task-cycle" type="button" disabled></button><div class="task-status-cell" data-status="${escapeAttr(task.priority)}"><select class="priority-select" disabled><option>${task.priority}</option></select></div><input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />`;
+  const marker = getTaskMarker(task);
+  row.className = `task-row carryover-row priority-${task.priority === "A" ? "a" : "none"} marker-${marker}`;
+  row.innerHTML = `<button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button><div class="task-status-cell" data-status="${escapeAttr(task.priority)}"><select class="priority-select" disabled><option>${task.priority}</option></select></div><input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />`;
+  row.querySelector(".task-cycle").onclick = () => {
+    updateCarryoverTaskMarker(task);
+  };
   row.querySelector(".task-text-input").oninput = (event) => {
     updateCarryoverTaskText(task, event.target.value);
   };
   return row;
+}
+
+function updateCarryoverTaskMarker(taskRef) {
+  const source = state.days[taskRef.date]?.tasks?.[taskRef.priority]?.[taskRef.index];
+  if (!source) return;
+  cycleTaskMarker(source);
+  saveState();
+  renderAll();
 }
 
 function updateCarryoverTaskText(taskRef, value) {
@@ -2503,6 +2686,436 @@ function renderNotes() {
     };
   });
   renderFinanceSummary();
+}
+
+function getCurrentSheet() {
+  state.customSheets ||= createCustomSheetsState();
+  normalizeCustomSheetsState(state.customSheets);
+  let sheet = state.customSheets.items.find((item) => item.id === selectedSheetId);
+  if (!sheet) sheet = state.customSheets.items.find((item) => item.id === state.customSheets.activeId) || state.customSheets.items[0];
+  selectedSheetId = sheet.id;
+  state.customSheets.activeId = sheet.id;
+  selectedSheetCell = clampSheetCellReference(selectedSheetCell, sheet);
+  return sheet;
+}
+
+function renderSheets() {
+  const sheet = getCurrentSheet();
+  renderSheetList(sheet);
+  const board = el("sheetBoard");
+  if (board) board.className = `sheet-board ${sheetDetailOpen ? "is-detail-open" : ""}`;
+  el("sheetNameInput").value = sheet.name;
+  el("deleteSheetButton").disabled = state.customSheets.items.length <= 1;
+  el("removeSheetRowButton").disabled = sheet.rows <= SHEET_MIN_ROWS;
+  el("removeSheetColumnButton").disabled = sheet.columns <= SHEET_MIN_COLUMNS;
+  el("addSheetRowButton").disabled = sheet.rows >= SHEET_MAX_ROWS;
+  el("addSheetColumnButton").disabled = sheet.columns >= SHEET_MAX_COLUMNS;
+  el("sheetSizeStatus").textContent = `${sheet.rows}행 × ${sheet.columns}열`;
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+}
+
+function renderSheetList(activeSheet) {
+  const node = el("sheetList");
+  const count = el("sheetListCount");
+  if (!node) return;
+  if (count) count.textContent = String(state.customSheets.items.length);
+  node.innerHTML = "";
+  state.customSheets.items.forEach((sheet, index) => {
+    const stats = getSheetListStats(sheet);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.dataset.sheetId = sheet.id;
+    button.className = `sheet-list-item ${sheet.id === activeSheet.id ? "is-active" : ""}`;
+    button.innerHTML = `
+      <span class="sheet-list-title">${index + 1}. ${escapeHtml(sheet.name)}</span>
+      <span class="sheet-list-meta">
+        <b>${sheet.rows}행 × ${sheet.columns}열</b>
+        <span>입력 ${stats.filled}칸</span>
+        <span>수식 ${stats.formulas}</span>
+      </span>
+      <small>${escapeHtml(stats.preview || "시트를 열어 필요한 양식을 만드세요")}</small>
+    `;
+    button.onclick = () => {
+      if (sheetSwipeSuppressClick) return;
+      selectCustomSheet(sheet.id, { openDetail: true });
+    };
+    node.appendChild(button);
+  });
+}
+
+function getSheetListStats(sheet) {
+  const entries = Object.entries(sheet.cells || {}).filter(([, value]) => String(value || "").trim());
+  const formulas = entries.filter(([, value]) => String(value).trim().startsWith("=")).length;
+  const preview = entries
+    .slice(0, 4)
+    .map(([reference, value]) => `${reference} ${String(value).trim()}`)
+    .join(" · ");
+  return { filled: entries.length, formulas, preview };
+}
+
+function addCustomSheet(template = "blank") {
+  const templateNames = {
+    blank: "새 시트",
+    checklist: "체크리스트",
+    finance: "자금표",
+    project: "프로젝트표",
+  };
+  const count = state.customSheets.items.length + 1;
+  const sheet = createCustomSheet(`${templateNames[template] || "새 시트"} ${count}`, template);
+  state.customSheets.items.push(sheet);
+  selectCustomSheet(sheet.id, { openDetail: true });
+  window.requestAnimationFrame(() => el("sheetNameInput")?.focus());
+}
+
+function selectCustomSheet(sheetId, options = {}) {
+  if (!state.customSheets.items.some((sheet) => sheet.id === sheetId)) return;
+  selectedSheetId = sheetId;
+  selectedSheetCell = "A1";
+  state.customSheets.activeId = sheetId;
+  if (options.openDetail) sheetDetailOpen = true;
+  saveState();
+  renderSheets();
+}
+
+function closeSheetDetail() {
+  sheetDetailOpen = false;
+  renderSheets();
+}
+
+function setupSheetPageSwipe() {
+  const listPage = document.querySelector(".sheet-list-panel");
+  const detailPage = document.querySelector(".sheet-detail-panel");
+  const bind = (node, page) => {
+    if (!node || node.dataset.sheetSwipeReady) return;
+    node.dataset.sheetSwipeReady = "true";
+    let startX = 0;
+    let startY = 0;
+    node.addEventListener("pointerdown", (event) => {
+      startX = event.clientX;
+      startY = event.clientY;
+    }, { passive: true });
+    node.addEventListener("pointerup", (event) => {
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      if (page === "list" && dx < 0 && state.customSheets.items.length) {
+        sheetDetailOpen = true;
+        sheetSwipeSuppressClick = true;
+        renderSheets();
+        window.setTimeout(() => {
+          sheetSwipeSuppressClick = false;
+        }, 260);
+      }
+      if (page === "detail" && dx > 0) {
+        closeSheetDetail();
+      }
+    }, { passive: true });
+  };
+  bind(listPage, "list");
+  bind(detailPage, "detail");
+}
+
+function renameCurrentSheet(value) {
+  const sheet = getCurrentSheet();
+  sheet.name = String(value || "").slice(0, 40) || "이름 없는 시트";
+  renderSheetList(sheet);
+  saveState();
+}
+
+function duplicateCurrentSheet() {
+  const source = getCurrentSheet();
+  const copy = JSON.parse(JSON.stringify(source));
+  copy.id = `sheet-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  copy.name = `${source.name} 복사본`.slice(0, 40);
+  state.customSheets.items.push(copy);
+  selectCustomSheet(copy.id);
+}
+
+function deleteCurrentSheet() {
+  if (state.customSheets.items.length <= 1) return;
+  const sheet = getCurrentSheet();
+  if (!window.confirm(`'${sheet.name}' 시트를 삭제할까요?`)) return;
+  const index = state.customSheets.items.findIndex((item) => item.id === sheet.id);
+  state.customSheets.items.splice(index, 1);
+  const next = state.customSheets.items[Math.max(0, index - 1)] || state.customSheets.items[0];
+  selectedSheetId = next.id;
+  selectedSheetCell = "A1";
+  state.customSheets.activeId = next.id;
+  saveState();
+  renderSheets();
+}
+
+function resizeCurrentSheet(axis, delta) {
+  const sheet = getCurrentSheet();
+  if (axis === "row") sheet.rows = Math.max(SHEET_MIN_ROWS, Math.min(SHEET_MAX_ROWS, sheet.rows + delta));
+  if (axis === "column") sheet.columns = Math.max(SHEET_MIN_COLUMNS, Math.min(SHEET_MAX_COLUMNS, sheet.columns + delta));
+  pruneSheetOutsideBounds(sheet);
+  selectedSheetCell = clampSheetCellReference(selectedSheetCell, sheet);
+  saveState();
+  renderSheets();
+}
+
+function pruneSheetOutsideBounds(sheet) {
+  [...Object.keys(sheet.cells), ...Object.keys(sheet.formats)].forEach((reference) => {
+    const position = parseSheetCellReference(reference);
+    if (!position || position.row >= sheet.rows || position.column >= sheet.columns) {
+      delete sheet.cells[reference];
+      delete sheet.formats[reference];
+    }
+  });
+}
+
+function renderSheetGrid(sheet) {
+  const table = el("customSheetGrid");
+  const header = Array.from({ length: sheet.columns }, (_, column) => `<th scope="col">${sheetColumnLabel(column)}</th>`).join("");
+  const body = Array.from({ length: sheet.rows }, (_, row) => {
+    const cells = Array.from({ length: sheet.columns }, (_, column) => renderSheetCellMarkup(sheet, row, column)).join("");
+    return `<tr><th class="sheet-row-number" scope="row">${row + 1}</th>${cells}</tr>`;
+  }).join("");
+  table.innerHTML = `<thead><tr><th class="sheet-corner" aria-label="전체 시트"></th>${header}</tr></thead><tbody>${body}</tbody>`;
+  table.querySelectorAll("[data-sheet-cell]").forEach((cell) => bindSheetCell(cell, sheet));
+}
+
+function renderSheetCellMarkup(sheet, row, column) {
+  const reference = `${sheetColumnLabel(column)}${row + 1}`;
+  const raw = String(sheet.cells[reference] ?? "");
+  const format = getSheetCellFormat(sheet, reference);
+  const classes = [
+    "sheet-cell",
+    `fill-${format.fill}`,
+    `align-${format.align}`,
+    format.bold ? "is-bold" : "",
+    selectedSheetCell === reference ? "is-selected" : "",
+  ].filter(Boolean).join(" ");
+  if (format.type === "checkbox") {
+    const checked = raw === "TRUE" || raw === "1";
+    return `<td class="${classes}" data-sheet-cell="${reference}"><input class="sheet-cell-checkbox" type="checkbox" aria-label="${reference}" ${checked ? "checked" : ""} /></td>`;
+  }
+  const display = formatSheetCellDisplay(sheet, reference);
+  return `<td class="${classes}" data-sheet-cell="${reference}"><input class="sheet-cell-input" type="text" aria-label="${reference}" value="${escapeAttr(display)}" title="${escapeAttr(raw.startsWith("=") ? raw : "")}" /></td>`;
+}
+
+function bindSheetCell(cell, sheet) {
+  const reference = cell.dataset.sheetCell;
+  const input = cell.querySelector("input");
+  cell.onclick = () => selectSheetCell(reference);
+  if (input.type === "checkbox") {
+    input.onfocus = () => selectSheetCell(reference);
+    input.onchange = () => {
+      sheet.cells[reference] = input.checked ? "TRUE" : "";
+      saveState();
+      renderSelectedSheetCellControls(sheet);
+    };
+    return;
+  }
+  input.onfocus = () => {
+    selectSheetCell(reference);
+    input.value = String(sheet.cells[reference] ?? "");
+    input.select();
+  };
+  input.oninput = () => {
+    sheet.cells[reference] = input.value;
+    el("sheetFormulaInput").value = input.value;
+    saveState();
+  };
+  input.onblur = () => renderSheetGrid(sheet);
+  input.onkeydown = (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    sheet.cells[reference] = input.value;
+    saveState();
+    moveSheetSelection(1, 0, sheet);
+  };
+}
+
+function selectSheetCell(reference) {
+  const sheet = getCurrentSheet();
+  selectedSheetCell = clampSheetCellReference(reference, sheet);
+  el("customSheetGrid").querySelectorAll("[data-sheet-cell]").forEach((cell) => {
+    cell.classList.toggle("is-selected", cell.dataset.sheetCell === selectedSheetCell);
+  });
+  renderSelectedSheetCellControls(sheet);
+}
+
+function moveSheetSelection(rowDelta, columnDelta, sheet = getCurrentSheet()) {
+  const current = parseSheetCellReference(selectedSheetCell) || { row: 0, column: 0 };
+  const row = Math.max(0, Math.min(sheet.rows - 1, current.row + rowDelta));
+  const column = Math.max(0, Math.min(sheet.columns - 1, current.column + columnDelta));
+  selectedSheetCell = `${sheetColumnLabel(column)}${row + 1}`;
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  window.requestAnimationFrame(() => el("customSheetGrid").querySelector(`[data-sheet-cell="${selectedSheetCell}"] input`)?.focus());
+}
+
+function renderSelectedSheetCellControls(sheet) {
+  const reference = clampSheetCellReference(selectedSheetCell, sheet);
+  const format = getSheetCellFormat(sheet, reference);
+  el("sheetCellReference").textContent = reference;
+  el("sheetFormulaInput").value = String(sheet.cells[reference] ?? "");
+  el("sheetCellType").value = format.type;
+  el("sheetCellAlign").value = format.align;
+  el("sheetBoldButton").classList.toggle("is-active", format.bold);
+  el("sheetBoldButton").setAttribute("aria-pressed", String(format.bold));
+  document.querySelectorAll("[data-sheet-fill]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.sheetFill === format.fill);
+  });
+}
+
+function updateSelectedSheetCellValue(value) {
+  const sheet = getCurrentSheet();
+  sheet.cells[selectedSheetCell] = value;
+  saveState();
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+}
+
+function updateSelectedSheetCellFormat(field, value) {
+  const sheet = getCurrentSheet();
+  const valid = {
+    type: sheetCellTypes,
+    align: sheetAlignments,
+    fill: sheetFills,
+  };
+  if (!valid[field]?.includes(value)) return;
+  const format = { ...getSheetCellFormat(sheet, selectedSheetCell), [field]: value };
+  sheet.formats[selectedSheetCell] = format;
+  if (field === "type" && value === "checkbox" && !["TRUE", "1"].includes(String(sheet.cells[selectedSheetCell] || ""))) {
+    sheet.cells[selectedSheetCell] = "";
+  }
+  saveState();
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+}
+
+function toggleSelectedSheetCellBold() {
+  const sheet = getCurrentSheet();
+  const format = getSheetCellFormat(sheet, selectedSheetCell);
+  sheet.formats[selectedSheetCell] = { ...format, bold: !format.bold };
+  saveState();
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+}
+
+function getSheetCellFormat(sheet, reference) {
+  const stored = sheet.formats[reference] || {};
+  return {
+    type: sheetCellTypes.includes(stored.type) ? stored.type : "general",
+    bold: Boolean(stored.bold),
+    fill: sheetFills.includes(stored.fill) ? stored.fill : "none",
+    align: sheetAlignments.includes(stored.align) ? stored.align : "left",
+  };
+}
+
+function sheetColumnLabel(column) {
+  return String.fromCharCode(65 + Math.max(0, column));
+}
+
+function sheetColumnIndex(label) {
+  return String(label || "").toUpperCase().charCodeAt(0) - 65;
+}
+
+function parseSheetCellReference(reference) {
+  const match = /^([A-L])([1-9]\d*)$/i.exec(String(reference || "").trim());
+  if (!match) return null;
+  return { column: sheetColumnIndex(match[1]), row: Number(match[2]) - 1 };
+}
+
+function clampSheetCellReference(reference, sheet) {
+  const position = parseSheetCellReference(reference) || { row: 0, column: 0 };
+  const row = Math.max(0, Math.min(sheet.rows - 1, position.row));
+  const column = Math.max(0, Math.min(sheet.columns - 1, position.column));
+  return `${sheetColumnLabel(column)}${row + 1}`;
+}
+
+function formatSheetCellDisplay(sheet, reference) {
+  const raw = String(sheet.cells[reference] ?? "");
+  const format = getSheetCellFormat(sheet, reference);
+  let value = raw;
+  if (raw.startsWith("=")) {
+    const result = evaluateSheetFormula(sheet, raw, new Set([reference]));
+    value = Number.isFinite(result) ? result : "#오류";
+  }
+  if (value === "" || value === null || value === undefined) return "";
+  if (value === "#오류") return value;
+  if (format.type === "currency") {
+    const number = parseSheetNumber(value);
+    return Number.isFinite(number) ? `${new Intl.NumberFormat("ko-KR").format(number)}원` : String(value);
+  }
+  if (format.type === "number" || (raw.startsWith("=") && typeof value === "number")) {
+    const number = parseSheetNumber(value);
+    return Number.isFinite(number) ? new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 4 }).format(number) : String(value);
+  }
+  return String(value);
+}
+
+function evaluateSheetFormula(sheet, rawFormula, trail = new Set()) {
+  let expression = String(rawFormula || "").trim().replace(/^=/, "");
+  if (!expression) return Number.NaN;
+  expression = expression.replace(/\b(SUM|AVERAGE|MIN|MAX)\s*\(\s*([A-L][1-9]\d*)\s*:\s*([A-L][1-9]\d*)\s*\)/gi, (_, operation, start, end) => {
+    const values = sheetRangeReferences(start, end).map((reference) => getSheetCellNumericValue(sheet, reference, trail)).filter(Number.isFinite);
+    if (!values.length) return "0";
+    if (operation.toUpperCase() === "SUM") return String(values.reduce((sum, value) => sum + value, 0));
+    if (operation.toUpperCase() === "AVERAGE") return String(values.reduce((sum, value) => sum + value, 0) / values.length);
+    if (operation.toUpperCase() === "MIN") return String(Math.min(...values));
+    return String(Math.max(...values));
+  });
+  expression = expression.replace(/\b([A-L][1-9]\d*)\b/gi, (reference) => {
+    const value = getSheetCellNumericValue(sheet, reference.toUpperCase(), trail);
+    return Number.isFinite(value) ? String(value) : "0";
+  });
+  if (!/^[0-9+\-*/().\s]+$/.test(expression)) return Number.NaN;
+  try {
+    const result = Function(`"use strict"; return (${expression});`)();
+    return Number.isFinite(result) ? result : Number.NaN;
+  } catch {
+    return Number.NaN;
+  }
+}
+
+function getSheetCellNumericValue(sheet, reference, trail) {
+  if (trail.has(reference)) return Number.NaN;
+  const raw = String(sheet.cells[reference] ?? "").trim();
+  if (!raw) return 0;
+  if (raw === "TRUE") return 1;
+  if (!raw.startsWith("=")) return parseSheetNumber(raw);
+  const nextTrail = new Set(trail);
+  nextTrail.add(reference);
+  return evaluateSheetFormula(sheet, raw, nextTrail);
+}
+
+function parseSheetNumber(value) {
+  const number = Number(String(value ?? "").replace(/[원,\s]/g, ""));
+  return Number.isFinite(number) ? number : Number.NaN;
+}
+
+function sheetRangeReferences(start, end) {
+  const first = parseSheetCellReference(start);
+  const last = parseSheetCellReference(end);
+  if (!first || !last) return [];
+  const references = [];
+  for (let row = Math.min(first.row, last.row); row <= Math.max(first.row, last.row); row += 1) {
+    for (let column = Math.min(first.column, last.column); column <= Math.max(first.column, last.column); column += 1) {
+      references.push(`${sheetColumnLabel(column)}${row + 1}`);
+    }
+  }
+  return references;
+}
+
+function exportCurrentSheetCsv() {
+  const sheet = getCurrentSheet();
+  const rows = Array.from({ length: sheet.rows }, (_, row) => Array.from({ length: sheet.columns }, (_, column) => {
+    const reference = `${sheetColumnLabel(column)}${row + 1}`;
+    const value = formatSheetCellDisplay(sheet, reference);
+    return `"${String(value).replaceAll('"', '""')}"`;
+  }).join(","));
+  const blob = new Blob([`\ufeff${rows.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${sheet.name.replace(/[\\/:*?"<>|]/g, "-") || "custom-sheet"}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderProjects() {
@@ -3171,6 +3784,7 @@ function escapeHtml(value = "") {
 function showView(name) {
   const previousView = document.querySelector(".view.active")?.id?.replace("view-", "") || "";
   if (name === "projects" && previousView !== "projects") projectDetailOpen = false;
+  if (name === "sheets" && previousView !== "sheets") sheetDetailOpen = false;
   if (name !== "day") closeDailyCalendar();
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
   document.querySelectorAll("[data-top-view]").forEach((item) => item.classList.toggle("is-active", item.dataset.topView === name));
@@ -3235,6 +3849,11 @@ function collectSearchResults(query) {
     push("projects", `프로젝트 ${index + 1} ${project.status}`, `${project.title} ${project.owner} ${project.goal} ${project.nextAction} ${project.notes}`, project.dueDate || project.endDate);
     project.finances?.forEach((item, financeIndex) => {
       push("projects", `프로젝트 자금 ${index + 1}-${financeIndex + 1} ${item.type}`, `${item.title} ${item.amount} ${item.probability} ${item.timing} ${item.memo}`, project.dueDate || project.endDate);
+    });
+  });
+  state.customSheets?.items?.forEach((sheet) => {
+    Object.entries(sheet.cells || {}).forEach(([reference, value]) => {
+      push("sheets", `${sheet.name} ${reference}`, value);
     });
   });
   return results.slice(0, 80);
@@ -3387,7 +4006,8 @@ function importPlanner(event) {
     try {
       const parsed = JSON.parse(String(reader.result || "{}"));
       if (!parsed.foundation || !parsed.year || !parsed.days) throw new Error("Invalid planner file");
-      state = parsed;
+      state = migrateState(parsed);
+      selectedSheetId = state.customSheets.activeId;
       saveState();
       renderAll();
     } catch {
@@ -3411,6 +4031,7 @@ function renderAll() {
   renderDay();
   renderProjects();
   renderNotes();
+  renderSheets();
   renderSearch();
   updateStickyPanelTop();
 }
