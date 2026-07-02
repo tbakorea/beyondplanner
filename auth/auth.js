@@ -29,11 +29,13 @@ if (loginForm) loginForm.onsubmit = async (event) => {
     redirectToDashboard();
     return;
   } catch (error) {
-    const localUser = await loginLocalUser(email, password);
-    if (localUser) {
-      saveSession(email, localUser);
-      redirectToDashboard();
-      return;
+    if (isLocalFallbackAllowed(error)) {
+      const localUser = await loginLocalUser(email, password);
+      if (localUser) {
+        saveSession(email, localUser);
+        redirectToDashboard();
+        return;
+      }
     }
     return showMessage(error.message || "로그인할 수 없습니다.");
   }

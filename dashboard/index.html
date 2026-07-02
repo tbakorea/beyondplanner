@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260701f" />
+    <link rel="stylesheet" href="./styles.css?v=20260702b" />
   </head>
   <body>
     <header class="app-header">
@@ -30,15 +30,13 @@
               <button class="icon-close top-search-close" id="topSearchClose" type="button" aria-label="검색/질문 닫기">×</button>
             </div>
           </div>
-          <button type="button" data-top-view="foundation">가치·사명</button>
-          <button type="button" data-top-view="year">연간</button>
-          <button type="button" data-top-view="month">월간</button>
+          <button type="button" data-top-view="day">오늘</button>
           <button type="button" data-top-view="week">주간</button>
-          <button type="button" data-top-view="day">일간 일정</button>
+          <button type="button" data-top-view="month">월간</button>
           <button type="button" data-top-view="projects">프로젝트</button>
-          <button type="button" data-top-view="notes">용돈/자금</button>
-          <button type="button" data-top-view="sheets">커스텀 시트</button>
-          <button id="quickLogoutButton" type="button">로그아웃</button>
+          <button type="button" data-top-view="notes">재정</button>
+          <button type="button" data-top-view="sheets">시트</button>
+          <button type="button" data-top-view="foundation">설정</button>
         </nav>
         <div class="top-status" aria-label="플래너 상태">
           <span id="topYearProgress">연간 0%</span>
@@ -46,22 +44,27 @@
           <span id="topSearchCount">검색 0</span>
           <span id="topAccountStatus">-</span>
           <button id="topSyncButton" type="button">동기화</button>
-          <button id="topUploadDeviceButton" type="button" title="현재 기기 내용을 DB 기준 데이터로 저장">기기→DB</button>
-          <button id="topPullDbButton" type="button" title="DB 기준 데이터를 이 기기로 불러오기">DB→기기</button>
-          <button id="privacyNowButton" type="button">보안모드</button>
-          <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
-            <option value="0">자동꺼짐</option>
-            <option value="30">30초</option>
-            <option value="60">1분</option>
-            <option value="180">3분</option>
-            <option value="300">5분</option>
-            <option value="600">10분</option>
-          </select>
-          <button id="topPrintButton" type="button">인쇄</button>
-          <button id="topExportButton" type="button">백업</button>
-          <button id="topImportButton" type="button">복원</button>
-          <button id="lockNowButton" type="button">잠금</button>
-          <button id="logoutButton" type="button">로그아웃</button>
+          <details class="top-more-menu">
+            <summary>관리</summary>
+            <div class="top-more-panel">
+              <button id="topUploadDeviceButton" type="button" title="현재 기기 내용을 DB 기준 데이터로 저장">기기→DB</button>
+              <button id="topPullDbButton" type="button" title="DB 기준 데이터를 이 기기로 불러오기">DB→기기</button>
+              <button id="privacyNowButton" type="button">보안모드</button>
+              <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
+                <option value="0">자동꺼짐</option>
+                <option value="30">30초</option>
+                <option value="60">1분</option>
+                <option value="180">3분</option>
+                <option value="300">5분</option>
+                <option value="600">10분</option>
+              </select>
+              <button id="topPrintButton" type="button">인쇄</button>
+              <button id="topExportButton" type="button">백업</button>
+              <button id="topImportButton" type="button">복원</button>
+              <button id="lockNowButton" type="button">잠금</button>
+              <button id="logoutButton" type="button">로그아웃</button>
+            </div>
+          </details>
         </div>
       </div>
     </header>
@@ -81,14 +84,14 @@
           </div>
         </section>
         <nav class="tabs" aria-label="플래너 섹션">
-          <button class="tab active" data-view="foundation">가치·사명</button>
-          <button class="tab" data-view="year">연간</button>
-          <button class="tab" data-view="month">월간</button>
+          <button class="tab active" data-view="day">오늘</button>
           <button class="tab" data-view="week">주간</button>
-          <button class="tab" data-view="day">일간</button>
+          <button class="tab" data-view="month">월간</button>
           <button class="tab" data-view="projects">프로젝트</button>
-          <button class="tab" data-view="notes">용돈/자금</button>
-          <button class="tab" data-view="sheets">커스텀 시트</button>
+          <button class="tab" data-view="notes">재정</button>
+          <button class="tab" data-view="sheets">시트</button>
+          <button class="tab" data-view="year">연간</button>
+          <button class="tab" data-view="foundation">설정</button>
         </nav>
         <section class="mini-panel">
           <span>Selected</span>
@@ -113,10 +116,15 @@
       </aside>
 
       <section class="workspace">
-        <section class="view active" id="view-foundation">
+        <section class="view" id="view-foundation">
           <div class="page-title">
-            <p class="eyebrow">Foundation</p>
-            <h2>가치, 사명, 역할</h2>
+            <p class="eyebrow">Settings</p>
+            <h2>설정과 가치 기반</h2>
+          </div>
+          <div class="settings-shortcuts" aria-label="설정 바로가기">
+            <button type="button" data-settings-view="year">연간 캘린더</button>
+            <button type="button" data-settings-view="day">오늘 실행 화면</button>
+            <button type="button" data-settings-view="search">검색/질문</button>
           </div>
           <div class="foundation-grid">
             <article class="panel span-6">
@@ -197,7 +205,7 @@
           </div>
         </section>
 
-        <section class="view" id="view-day">
+        <section class="view active" id="view-day">
           <div class="page-title daily-title">
             <div class="daily-heading">
               <p class="eyebrow">Daily Page</p>
@@ -226,17 +234,26 @@
               <strong id="dailyCompletion">0/0</strong>
             </div>
           </div>
+          <section class="daily-pulse" id="dailyPulse" aria-label="오늘 실행 요약"></section>
+          <section class="onboarding-panel" id="onboardingPanel" hidden>
+            <div>
+              <p class="eyebrow">Start</p>
+              <h3>오늘 실행 흐름 만들기</h3>
+              <p>핵심 목표와 이번 주 흐름을 먼저 잡으면 AI 코칭이 더 정확해집니다.</p>
+            </div>
+            <div class="onboarding-actions">
+              <button type="button" data-onboarding-action="task">첫 업무 입력</button>
+              <button type="button" data-onboarding-action="week">주간 계획</button>
+              <button type="button" data-onboarding-action="foundation">가치 설정</button>
+              <button type="button" data-onboarding-dismiss>나중에</button>
+            </div>
+          </section>
           <div class="day-swipe" id="daySwipe" aria-label="일간 페이지 좌우 넘김">
             <article class="panel swipe-panel day-compass-panel" data-panel="week">
               <h3>위클리 콤파스</h3>
               <div class="weekly-compass" id="dayCompass"></div>
             </article>
             <section class="swipe-panel day-main-panel" data-panel="main">
-              <div class="mobile-day-focus-controls" aria-label="일간 화면 크기">
-                <button class="is-active" type="button" data-day-focus="split" aria-pressed="true">함께</button>
-                <button type="button" data-day-focus="tasks" aria-pressed="false">우선업무</button>
-                <button type="button" data-day-focus="schedule" aria-pressed="false">시간일정</button>
-              </div>
               <article class="panel day-task-panel">
                 <h3 class="panel-title-row">
                   <span>오늘의 우선업무</span>
@@ -384,18 +401,13 @@
             </article>
             <article class="sheet-page sheet-detail-panel">
               <section class="sheet-workbench panel">
-                <div class="sheet-page-sticky sheet-detail-sticky">
-                  <h3 class="panel-title-row">
-                    <span>시트 페이지</span>
-                    <button class="icon-close sheet-detail-close" id="closeSheetDetailButton" type="button" aria-label="시트 페이지 닫기">×</button>
-                  </h3>
-                </div>
                 <div class="sheet-document-bar">
                   <input id="sheetNameInput" type="text" aria-label="현재 시트 이름" maxlength="40" />
                   <div class="sheet-document-actions">
                     <button id="duplicateSheetButton" type="button" title="현재 시트 복제">복제</button>
                     <button id="exportSheetCsvButton" type="button" title="CSV 파일로 내보내기">CSV</button>
                     <button class="danger-action" id="deleteSheetButton" type="button" title="현재 시트 삭제">삭제</button>
+                    <button class="icon-close sheet-detail-close" id="closeSheetDetailButton" type="button" aria-label="시트 페이지 닫기">×</button>
                   </div>
                 </div>
                 <div class="sheet-toolbar" aria-label="시트 도구">
@@ -500,6 +512,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260701f"></script>
+    <script src="./app.js?v=20260702b"></script>
   </body>
 </html>

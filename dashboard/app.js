@@ -7,6 +7,7 @@ const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
 const PRIVACY_CONFIG_KEY = "beyondWorkPrivacyConfig.v1";
 const AUTH_USERS_KEY = "beyondWorkAuthUsers.v1";
 const AUTH_SESSION_KEY = "beyondWorkAuthSession.v1";
+const ONBOARDING_DISMISSED_KEY = "beyondWorkOnboardingDismissed.v1";
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
 requirePlannerAuth();
@@ -16,6 +17,35 @@ if (new URLSearchParams(window.location.search).get("reset") === "1") {
 }
 const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
 const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+const koreanCalendarEvents = {
+  "2026-01-01": [{ label: "신정", type: "holiday" }],
+  "2026-02-16": [{ label: "설 연휴", type: "holiday" }],
+  "2026-02-17": [{ label: "설날", type: "holiday" }],
+  "2026-02-18": [{ label: "설 연휴", type: "holiday" }],
+  "2026-03-01": [{ label: "삼일절", type: "national" }],
+  "2026-03-02": [{ label: "삼일절 대체", type: "holiday" }],
+  "2026-05-01": [{ label: "노동절", type: "holiday" }],
+  "2026-05-05": [{ label: "어린이날", type: "holiday" }],
+  "2026-05-24": [{ label: "부처님오신날", type: "holiday" }],
+  "2026-05-25": [{ label: "부처님 대체", type: "holiday" }],
+  "2026-06-03": [{ label: "지방선거", type: "holiday" }],
+  "2026-06-06": [{ label: "현충일", type: "holiday" }],
+  "2026-07-17": [{ label: "제헌절", type: "national" }],
+  "2026-08-15": [{ label: "광복절", type: "national" }],
+  "2026-08-17": [{ label: "광복절 대체", type: "holiday" }],
+  "2026-09-24": [{ label: "추석 연휴", type: "holiday" }],
+  "2026-09-25": [{ label: "추석", type: "holiday" }],
+  "2026-09-26": [{ label: "추석 연휴", type: "holiday" }],
+  "2026-10-03": [{ label: "개천절", type: "national" }],
+  "2026-10-05": [{ label: "개천절 대체", type: "holiday" }],
+  "2026-10-09": [{ label: "한글날", type: "national" }],
+  "2026-12-25": [{ label: "성탄절", type: "holiday" }],
+};
+const lunarDateFormatter = new Intl.DateTimeFormat("ko-KR-u-ca-chinese", {
+  timeZone: "Asia/Seoul",
+  month: "numeric",
+  day: "numeric",
+});
 const priorities = [
   ["A", "가장 중요한 일"],
   ["B", "중요하지만 유연한 일"],
@@ -52,6 +82,7 @@ let aiSearch = { query: "", answer: "", loading: false, error: "" };
 let syncStatus = { enabled: false, environment: "local", message: "이 기기에 저장됨", saving: false };
 let serverSyncReady = false;
 let serverSyncTimer = 0;
+let passiveSyncTimer = 0;
 let lastServerUpdatedAt = "";
 let daySwipeKey = "";
 let plannerMode = localStorage.getItem("beyondWorkMode") || "";
@@ -68,10 +99,12 @@ let isPrivacyBlind = false;
 let financeTurnDirection = 0;
 let financeSwipeSuppressClick = false;
 let projectDetailOpen = false;
+let projectSlideOpening = false;
 let projectSwipeSuppressClick = false;
 let selectedSheetId = state.customSheets.activeId;
 let selectedSheetCell = "A1";
 let sheetDetailOpen = false;
+let sheetSlideOpening = false;
 let sheetSwipeSuppressClick = false;
 let mobileDayFocusMode = "split";
 
@@ -455,15 +488,21 @@ function normalizeProjectMoney(item) {
   };
 }
 
-function saveState() {
+function saveState(options = {}) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   markLocalStateUpdated();
-  scheduleServerSync();
+  scheduleServerSync(options.fastSync ? 120 : 650);
 }
 
 async function hydrateServerState() {
   try {
     await hydrateServerConfig();
+    if (syncStatus.environment === "db" && !getAuthSession()?.accessToken) {
+      serverSyncReady = false;
+      syncStatus.enabled = false;
+      syncStatus.message = "DB 동기화용 재로그인 필요";
+      return;
+    }
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
     if (!response.ok) throw new Error(await extractSyncError(response));
     const payload = await response.json();
@@ -504,9 +543,9 @@ async function hydrateServerConfig() {
   }
 }
 
-function scheduleServerSync() {
+function scheduleServerSync(delay = 650) {
   if (!serverSyncReady) {
-    syncStatus.message = "DB 동기화 대기";
+    syncStatus.message = syncStatus.environment === "db" && !getAuthSession()?.accessToken ? "DB 동기화용 재로그인 필요" : "DB 동기화 대기";
     return;
   }
   window.clearTimeout(serverSyncTimer);
@@ -514,7 +553,7 @@ function scheduleServerSync() {
   syncStatus.message = "서버 저장 중";
   serverSyncTimer = window.setTimeout(() => {
     persistStateToServer();
-  }, 650);
+  }, delay);
 }
 
 async function persistStateToServer(options = {}) {
@@ -696,9 +735,20 @@ async function pullDbToThisDevice() {
   }
 }
 
+function queuePassiveServerPull() {
+  if (!serverSyncReady || document.hidden) return;
+  window.clearTimeout(passiveSyncTimer);
+  passiveSyncTimer = window.setTimeout(() => {
+    pullServerStateIfNewer();
+  }, 420);
+}
+
 async function prepareServerStateApi() {
   try {
     await hydrateServerConfig();
+    if (syncStatus.environment === "db" && !getAuthSession()?.accessToken) {
+      throw new Error("DB 동기화를 위해 다시 로그인하세요.");
+    }
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
     if (!response.ok && response.status !== 404) throw new Error(await extractSyncError(response));
     serverSyncReady = true;
@@ -887,7 +937,7 @@ function setupSelectors() {
   el("topPullDbButton").onclick = pullDbToThisDevice;
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
-  el("quickLogoutButton").onclick = logoutPlanner;
+  if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
   el("revealPrivacyButton").onclick = deactivatePrivacyBlind;
@@ -951,6 +1001,19 @@ function setupSelectors() {
       mergeAppointmentRange(ensureDay(), button.dataset.mergeRange);
     };
   });
+  document.querySelectorAll("[data-settings-view]").forEach((button) => {
+    button.onclick = () => {
+      showView(button.dataset.settingsView);
+      renderAll();
+    };
+  });
+  document.querySelectorAll("[data-onboarding-action]").forEach((button) => {
+    button.onclick = () => handleOnboardingAction(button.dataset.onboardingAction);
+  });
+  document.querySelector("[data-onboarding-dismiss]")?.addEventListener("click", () => {
+    localStorage.setItem(ONBOARDING_DISMISSED_KEY, "1");
+    renderOnboarding(ensureDay());
+  });
   el("importFile").onchange = importPlanner;
   el("plannerSearch").oninput = (event) => {
     updateSearch(event.target.value);
@@ -979,6 +1042,11 @@ function setupSelectors() {
     updateStickyPanelTop();
     positionDaySwipe("main", true);
   });
+  window.addEventListener("focus", queuePassiveServerPull);
+  window.addEventListener("online", queuePassiveServerPull);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) queuePassiveServerPull();
+  });
   window.addEventListener("orientationchange", () => {
     window.setTimeout(() => {
       updateStickyPanelTop();
@@ -993,6 +1061,8 @@ function toggleTopSearch() {
   if (!popover || !input) return;
   popover.hidden = !popover.hidden;
   if (!popover.hidden) {
+    showView("search");
+    renderSearch();
     window.requestAnimationFrame(() => input.focus());
   }
 }
@@ -1469,6 +1539,27 @@ function setupTopViews() {
   });
 }
 
+function handleOnboardingAction(action) {
+  if (action === "task") {
+    const day = ensureDay();
+    const hasEmptySlot = day.tasks.A.some((task) => !task.text?.trim());
+    if (!hasEmptySlot) day.tasks.A.push({ text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
+    showView("day");
+    renderAll();
+    window.requestAnimationFrame(() => document.querySelector(".day-task-panel .task-text-input")?.focus());
+    return;
+  }
+  if (action === "week") {
+    showView("week");
+    renderAll();
+    return;
+  }
+  if (action === "foundation") {
+    showView("foundation");
+    renderAll();
+  }
+}
+
 function setupDailyDateSwipe() {
   const zone = el("dailyDateSwipeZone");
   if (!zone) return;
@@ -1579,17 +1670,31 @@ function setupMobileDayFocus() {
   const taskPanel = panel?.querySelector(".day-task-panel");
   const schedulePanel = panel?.querySelector(".day-schedule-panel");
   if (!panel || !taskPanel || !schedulePanel) return;
-  document.querySelectorAll("[data-day-focus]").forEach((button) => {
-    button.onclick = () => setMobileDayFocusMode(button.dataset.dayFocus);
-  });
   const expandOnInteraction = (mode) => (event) => {
     if (!isSmartphoneLayout() || !event.target.closest("input, select, textarea, button")) return;
     setMobileDayFocusMode(mode);
+  };
+  const resetOnVerticalSwipe = (node) => {
+    let startX = 0;
+    let startY = 0;
+    node.addEventListener("pointerdown", (event) => {
+      startX = event.clientX;
+      startY = event.clientY;
+    }, { passive: true });
+    node.addEventListener("pointerup", (event) => {
+      if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      if (Math.abs(dy) < 52 || Math.abs(dy) < Math.abs(dx) * 1.25) return;
+      setMobileDayFocusMode("split");
+    }, { passive: true });
   };
   taskPanel.addEventListener("pointerdown", expandOnInteraction("tasks"), { passive: true });
   taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
   schedulePanel.addEventListener("pointerdown", expandOnInteraction("schedule"), { passive: true });
   schedulePanel.addEventListener("focusin", expandOnInteraction("schedule"));
+  resetOnVerticalSwipe(taskPanel);
+  resetOnVerticalSwipe(schedulePanel);
   applyMobileDayFocusMode();
 }
 
@@ -1605,11 +1710,6 @@ function applyMobileDayFocusMode() {
   const activeMode = isSmartphoneLayout() ? mobileDayFocusMode : "split";
   panel.classList.toggle("is-focus-tasks", activeMode === "tasks");
   panel.classList.toggle("is-focus-schedule", activeMode === "schedule");
-  document.querySelectorAll("[data-day-focus]").forEach((button) => {
-    const isActive = button.dataset.dayFocus === activeMode;
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-pressed", String(isActive));
-  });
 }
 
 function isSwipeInteractiveTarget(target) {
@@ -1816,9 +1916,24 @@ function renderYear() {
     for (let day = 1; day <= new Date(YEAR, month + 1, 0).getDate(); day += 1) {
       const cell = document.createElement("span");
       const date = new Date(YEAR, month, day);
-      const count = countTasksForDay(iso(date));
-      cell.textContent = day;
-      if (count) cell.title = `${count} tasks`;
+      const key = iso(date);
+      const count = countTasksForDay(key);
+      const events = getCalendarEvents(key);
+      const lunarLabel = getLunarDecadeLabel(date);
+      const hasHoliday = events.some((event) => event.type === "holiday" || event.type === "national");
+      cell.className = `${hasHoliday ? "has-holiday" : ""} ${lunarLabel ? "has-lunar" : ""}`.trim();
+      cell.innerHTML = `
+        <b class="mini-day-number">${day}</b>
+        ${lunarLabel ? `<em class="lunar-mark">음 ${lunarLabel}</em>` : ""}
+        ${events.map((event) => `<small class="calendar-event event-${event.type}">${escapeHtml(event.label)}</small>`).join("")}
+        ${count ? `<span class="count-pill mini-count">${count}</span>` : ""}
+      `;
+      const title = [
+        ...events.map((event) => event.label),
+        lunarLabel ? `음력 ${lunarLabel}` : "",
+        count ? `${count} tasks` : "",
+      ].filter(Boolean).join(" · ");
+      if (title) cell.title = title;
       cell.onclick = () => {
         selectedDate = date;
         showView("day");
@@ -1830,6 +1945,24 @@ function renderYear() {
   }
   renderEditableList(el("yearGoals"), state.year.goals, "연간 목표", () => saveState());
   renderEditableList(el("futureLog"), state.year.future, "언젠가 / 대기", () => saveState());
+}
+
+function getCalendarEvents(key) {
+  return koreanCalendarEvents[key] || [];
+}
+
+function getLunarDecadeLabel(date) {
+  try {
+    const parts = lunarDateFormatter.formatToParts(date);
+    const monthPart = parts.find((part) => part.type === "month");
+    const dayPart = parts.find((part) => part.type === "day");
+    const month = Number(String(monthPart?.value || "").replace(/\D/g, ""));
+    const day = Number(String(dayPart?.value || "").replace(/\D/g, ""));
+    if (!month || ![1, 10, 20].includes(day)) return "";
+    return `${month}/${day}`;
+  } catch {
+    return "";
+  }
 }
 
 function renderMonth() {
@@ -1904,10 +2037,14 @@ function renderDay() {
   const formattedDate = formatDate(selectedDate);
   el("dayTitle").textContent = formattedDate;
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
-  const allTasks = getDayTasks(iso(selectedDate));
-  const done = allTasks.filter((task) => task.text && task.done).length;
-  const total = allTasks.filter((task) => task.text).length;
+  const key = iso(selectedDate);
+  const allTasks = getDayTasks(key);
+  const carryovers = getCarryoverTasks(selectedDate);
+  const done = allTasks.filter((task) => task.text && task.done).length + carryovers.filter((task) => isCarryoverCompletedOn(task, key)).length;
+  const total = allTasks.filter((task) => task.text).length + carryovers.length;
   el("dailyCompletion").textContent = `${done}/${total}`;
+  renderDailyPulse(day, allTasks, carryovers, { done, total });
+  renderOnboarding(day);
   renderDayCompass();
   renderTaskBoard(day);
   renderRepeatPriorityList();
@@ -1922,6 +2059,68 @@ function renderDay() {
   });
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   positionDaySwipe();
+}
+
+function renderDailyPulse(day, tasks, carryovers, completion) {
+  const node = el("dailyPulse");
+  if (!node) return;
+  const selectedKey = iso(selectedDate);
+  const activeTasks = tasks.filter((task) => task.text);
+  const carryoverOpen = carryovers.filter((task) => !isCarryoverCompletedOn(task, selectedKey));
+  const openTasks = activeTasks.filter((task) => !shouldStrikeTask(task)).length + carryoverOpen.length;
+  const nextAppointment = getNextAppointmentSummary(day);
+  const coach = buildCoachAnalysis();
+  const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
+  node.innerHTML = `
+    <article class="pulse-card pulse-primary">
+      <span>오늘 실행</span>
+      <strong>${completion.done}/${completion.total}</strong>
+      <small>${completionRate}% 완료 · 남은 핵심 ${openTasks}</small>
+    </article>
+    <article class="pulse-card">
+      <span>다음 일정</span>
+      <strong>${escapeHtml(nextAppointment.time)}</strong>
+      <small>${escapeHtml(nextAppointment.text)}</small>
+    </article>
+    <article class="pulse-card">
+      <span>이월 관리</span>
+      <strong>${carryoverOpen.length}</strong>
+      <small>${carryoverOpen.length ? "오늘 판단 필요" : "이월 없음"}</small>
+    </article>
+    <article class="pulse-card pulse-coach pulse-${coach.severity}">
+      <span>AI 신호</span>
+      <strong>${escapeHtml(coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정")}</strong>
+      <small>${escapeHtml(coach.title)}</small>
+    </article>
+  `;
+}
+
+function getNextAppointmentSummary(day) {
+  const entries = timeSlots
+    .map((slot, index) => ({ slot, index, text: String(day.appointments?.[slot] || "").trim() }))
+    .filter((entry) => entry.text);
+  if (!entries.length) return { time: "비어 있음", text: "중요업무를 시간표에 배치하세요" };
+  const selectedKey = iso(selectedDate);
+  const todayKey = iso(todayInPlanner());
+  const now = new Date();
+  const anchorMinutes = selectedKey === todayKey ? now.getHours() * 60 + now.getMinutes() : 0;
+  const next = entries.find((entry) => slotToMinutes(entry.slot) >= anchorMinutes) || entries[0];
+  const span = getAppointmentSpan(day, next.slot);
+  const end = span > 1 ? `~${getAppointmentEndLabel(next.index, span)}` : "";
+  return { time: `${next.slot}${end}`, text: next.text };
+}
+
+function slotToMinutes(slot) {
+  const [hours, minutes] = String(slot).split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function renderOnboarding(day) {
+  const node = el("onboardingPanel");
+  if (!node) return;
+  const isToday = iso(selectedDate) === iso(todayInPlanner());
+  const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "1";
+  node.hidden = dismissed || !isToday || hasPlannerContent(state);
 }
 
 function renderCoach() {
@@ -2282,7 +2481,7 @@ function renderTaskBoard(day) {
   add.textContent = "업무 추가";
   add.onclick = () => {
     day.tasks.A.push({ text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
-    saveState();
+    saveState({ fastSync: true });
     renderDay();
   };
   list.appendChild(add);
@@ -2333,7 +2532,7 @@ function renderTaskRow(task, priority, index) {
   const text = row.querySelector("input[type='text']:last-child");
   cycle.onclick = () => {
     cycleTaskMarker(task);
-    saveState();
+    saveState({ fastSync: true });
     renderAll();
   };
   if (prioritySelect) {
@@ -2349,13 +2548,13 @@ function renderTaskRow(task, priority, index) {
   if (delegateInput) {
     delegateInput.oninput = () => {
       task.delegate = delegateInput.value;
-      saveState();
+      saveState({ fastSync: true });
     };
   }
   if (postponeSelect) {
     postponeSelect.onchange = () => {
       task.postponeMode = postponeSelect.value;
-      saveState();
+      saveState({ fastSync: true });
       renderAll();
     };
   }
@@ -2365,7 +2564,7 @@ function renderTaskRow(task, priority, index) {
   text.oninput = () => {
     task.text = text.value;
     task.priorityUnset = false;
-    saveState();
+    saveState({ fastSync: true });
     renderSidebar();
     renderMonthCalendar();
     renderWeek();
@@ -2484,7 +2683,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   if (value === "취소" || value === "연기") {
     task.status = value;
     task.done = false;
-    saveState();
+    saveState({ fastSync: true });
     renderAll();
     return;
   }
@@ -2496,13 +2695,13 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     return;
   }
   task.priorityUnset = true;
-  saveState();
+  saveState({ fastSync: true });
   renderAll();
 }
 
 function moveTaskPriority(fromPriority, index, toPriority) {
   if (fromPriority === toPriority) {
-    saveState();
+    saveState({ fastSync: true });
     renderAll();
     return;
   }
@@ -2510,7 +2709,7 @@ function moveTaskPriority(fromPriority, index, toPriority) {
   const [task] = day.tasks[fromPriority].splice(index, 1);
   if (!task) return;
   day.tasks[toPriority].push(task);
-  saveState();
+  saveState({ fastSync: true });
   renderAll();
 }
 
@@ -2530,14 +2729,16 @@ function schedulePostponedTask(task, priority, targetDate) {
       postponedFrom: task.postponeId,
     });
   }
-  saveState();
+  saveState({ fastSync: true });
   renderAll();
 }
 
 function renderCarryoverTask(task) {
   const row = document.createElement("div");
-  const marker = getTaskMarker(task);
-  row.className = `task-row carryover-row priority-${task.priority === "A" ? "a" : "none"} marker-${marker}`;
+  const selectedKey = iso(selectedDate);
+  const completedHere = isCarryoverCompletedOn(task, selectedKey);
+  const marker = completedHere ? "check" : getTaskMarker(task);
+  row.className = `task-row carryover-row priority-${task.priority === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
   row.innerHTML = `<button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button><div class="task-status-cell" data-status="${escapeAttr(task.priority)}"><select class="priority-select" disabled><option>${task.priority}</option></select></div><input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />`;
   row.querySelector(".task-cycle").onclick = () => {
     updateCarryoverTaskMarker(task);
@@ -2551,8 +2752,15 @@ function renderCarryoverTask(task) {
 function updateCarryoverTaskMarker(taskRef) {
   const source = state.days[taskRef.date]?.tasks?.[taskRef.priority]?.[taskRef.index];
   if (!source) return;
-  cycleTaskMarker(source);
-  saveState();
+  const completedKey = iso(selectedDate);
+  if (isCarryoverCompletedOn(source, completedKey)) {
+    delete source.carryoverDoneDate;
+  } else {
+    source.carryoverDoneDate = completedKey;
+  }
+  source.done = false;
+  if (source.status === "완료") source.status = "미완료";
+  saveState({ fastSync: true });
   renderAll();
 }
 
@@ -2560,7 +2768,7 @@ function updateCarryoverTaskText(taskRef, value) {
   const source = state.days[taskRef.date]?.tasks?.[taskRef.priority]?.[taskRef.index];
   if (!source) return;
   source.text = value;
-  saveState();
+  saveState({ fastSync: true });
   renderSidebar();
   renderMonthCalendar();
   renderWeek();
@@ -2703,7 +2911,15 @@ function renderSheets() {
   const sheet = getCurrentSheet();
   renderSheetList(sheet);
   const board = el("sheetBoard");
-  if (board) board.className = `sheet-board ${sheetDetailOpen ? "is-detail-open" : ""}`;
+  if (board) {
+    board.className = `sheet-board ${sheetDetailOpen && !sheetSlideOpening ? "is-detail-open" : ""}`;
+    if (sheetDetailOpen && sheetSlideOpening) {
+      window.requestAnimationFrame(() => {
+        board.classList.add("is-detail-open");
+        sheetSlideOpening = false;
+      });
+    }
+  }
   el("sheetNameInput").value = sheet.name;
   el("deleteSheetButton").disabled = state.customSheets.items.length <= 1;
   el("removeSheetRowButton").disabled = sheet.rows <= SHEET_MIN_ROWS;
@@ -2773,12 +2989,24 @@ function selectCustomSheet(sheetId, options = {}) {
   selectedSheetId = sheetId;
   selectedSheetCell = "A1";
   state.customSheets.activeId = sheetId;
-  if (options.openDetail) sheetDetailOpen = true;
+  if (options.openDetail) {
+    sheetSlideOpening = !sheetDetailOpen;
+    sheetDetailOpen = true;
+  }
   saveState();
   renderSheets();
 }
 
 function closeSheetDetail() {
+  const board = el("sheetBoard");
+  if (board?.classList.contains("is-detail-open")) {
+    board.classList.remove("is-detail-open");
+    window.setTimeout(() => {
+      sheetDetailOpen = false;
+      renderSheets();
+    }, 320);
+    return;
+  }
   sheetDetailOpen = false;
   renderSheets();
 }
@@ -2800,6 +3028,7 @@ function setupSheetPageSwipe() {
       const dy = event.clientY - startY;
       if (Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
       if (page === "list" && dx < 0 && state.customSheets.items.length) {
+        sheetSlideOpening = !sheetDetailOpen;
         sheetDetailOpen = true;
         sheetSwipeSuppressClick = true;
         renderSheets();
@@ -3147,7 +3376,13 @@ function renderProjectBoard() {
   const node = el("projectBoard");
   if (!node) return;
   node.innerHTML = "";
-  node.className = `project-board ${projectDetailOpen ? "is-detail-open" : ""}`;
+  node.className = `project-board ${projectDetailOpen && !projectSlideOpening ? "is-detail-open" : ""}`;
+  if (projectDetailOpen && projectSlideOpening) {
+    window.requestAnimationFrame(() => {
+      node.classList.add("is-detail-open");
+      projectSlideOpening = false;
+    });
+  }
   const listPanel = document.createElement("article");
   listPanel.className = "panel project-page project-list-panel";
   listPanel.innerHTML = `
@@ -3276,12 +3511,24 @@ function getSelectedProjectIndex() {
 
 function selectProject(projectId, options = {}) {
   state.projects.selectedId = projectId;
-  if (options.openDetail) projectDetailOpen = true;
+  if (options.openDetail) {
+    projectSlideOpening = !projectDetailOpen;
+    projectDetailOpen = true;
+  }
   saveState();
   renderProjects();
 }
 
 function closeProjectDetail() {
+  const node = el("projectBoard");
+  if (node?.classList.contains("is-detail-open")) {
+    node.classList.remove("is-detail-open");
+    window.setTimeout(() => {
+      projectDetailOpen = false;
+      renderProjects();
+    }, 320);
+    return;
+  }
   projectDetailOpen = false;
   renderProjects();
 }
@@ -3299,6 +3546,7 @@ function setupProjectPageSwipe(node, page) {
     const dy = event.clientY - startY;
     if (Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
     if (page === "list" && dx < 0 && state.projects.items.length) {
+      projectSlideOpening = !projectDetailOpen;
       projectDetailOpen = true;
       projectSwipeSuppressClick = true;
       renderProjects();
@@ -3344,6 +3592,7 @@ function addProject() {
   const project = emptyProject("새 프로젝트");
   state.projects.items.push(project);
   state.projects.selectedId = project.id;
+  projectSlideOpening = !projectDetailOpen;
   projectDetailOpen = true;
   saveState();
   renderProjects();
@@ -3759,7 +4008,15 @@ function getCarryoverTasks(date) {
     .filter((key) => key < currentKey)
     .sort()
     .flatMap((key) => getDayTasks(key))
-    .filter((task) => task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status));
+    .filter((task) => {
+      const completedKey = task.carryoverDoneDate || "";
+      if (completedKey && completedKey < currentKey) return false;
+      return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
+    });
+}
+
+function isCarryoverCompletedOn(task, key = iso(selectedDate)) {
+  return Boolean(task?.carryoverDoneDate && task.carryoverDoneDate === key);
 }
 
 function countTasksForDay(key) {
@@ -3963,6 +4220,15 @@ function renderSearch() {
       <strong>AI 답변</strong>
       <small>${escapeAttr(aiSearch.query)}</small>
       <p>${escapeAttr(aiSearch.loading ? "AI가 플래너 내용을 읽고 답변을 준비하고 있습니다." : aiSearch.error || aiSearch.answer)}</p>
+    `;
+    node.appendChild(card);
+  } else if (!searchQuery) {
+    const card = document.createElement("article");
+    card.className = "search-result ai-answer";
+    card.innerHTML = `
+      <strong>AI 답변 대기</strong>
+      <small>검색/질문 칸에 문장으로 질문을 입력하세요.</small>
+      <p>예: “소풍간 날이 언제이지?”처럼 물으면 플래너 기록을 기준으로 답변합니다.</p>
     `;
     node.appendChild(card);
   }
