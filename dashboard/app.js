@@ -76,7 +76,6 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
 
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
-let loadedStateFromAccountCache = false;
 let state = loadState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
@@ -138,6 +137,73 @@ function getAuthSession() {
     };
   } catch {
     return null;
+  }
+}
+
+function isAuthSessionExpired(session, leewaySeconds = 60) {
+  const expiresAt = Number(session?.expiresAt || 0);
+  return Boolean(expiresAt && expiresAt * 1000 <= Date.now() + leewaySeconds * 1000);
+}
+
+async function ensureFreshAuthSession() {
+  const session = getAuthSession();
+  if (!session?.accessToken) return null;
+  if (!isAuthSessionExpired(session)) return session;
+  if (!session.refreshToken) {
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    return null;
+  }
+  try {
+    const response = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "refresh", refreshToken: session.refreshToken }),
+    });
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch {
+      payload = {};
+    }
+    if (!response.ok || !payload.session?.accessToken) {
+      throw new Error(payload.error || "로그인 세션을 갱신할 수 없습니다.");
+    }
+    const user = payload.user || {};
+    const nextSession = {
+      ...session,
+      email: String(user.email || session.email).toLowerCase(),
+      tier: normalizeAccountTier(user.tier || session.tier),
+      name: user.name || session.name || "",
+      provider: "supabase",
+      accessToken: payload.session.accessToken,
+      refreshToken: payload.session.refreshToken || session.refreshToken,
+      expiresAt: payload.session.expiresAt || session.expiresAt || "",
+      refreshedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
+    cacheAuthUser(nextSession);
+    return getAuthSession();
+  } catch {
+    localStorage.removeItem(AUTH_SESSION_KEY);
+    return null;
+  }
+}
+
+function cacheAuthUser(session) {
+  if (!session?.email) return;
+  try {
+    const users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || "{}");
+    users[session.email] = {
+      ...(users[session.email] || {}),
+      email: session.email,
+      name: session.name || users[session.email]?.name || "",
+      tier: normalizeAccountTier(session.tier),
+      provider: "supabase",
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
+  } catch {
+    // Auth cache is only a display helper; DB access depends on the session token.
   }
 }
 
@@ -236,45 +302,7 @@ function normalizeDayTasks(day) {
 }
 
 function loadState() {
-  const accountSaved = localStorage.getItem(plannerStorageKey());
-  if (accountSaved) {
-    loadedStateFromAccountCache = true;
-    return migrateState(JSON.parse(accountSaved));
-  }
-  const legacySaved = localStorage.getItem(STORAGE_KEY);
-  if (legacySaved) return migrateState(JSON.parse(legacySaved));
-  return {
-    foundation: {
-      mission: "",
-      values: Array.from({ length: 6 }, () => ""),
-      roles: defaultRoles.map((role) => ({ role, goal: "", renewal: "" })),
-    },
-    year: {
-      goals: Array.from({ length: 8 }, () => ""),
-      future: Array.from({ length: 8 }, () => ""),
-    },
-    months: {},
-    weeks: {},
-    days: {},
-    repeats: {
-      priorityTasks: emptyRepeatRules(4),
-    },
-    profile: {
-      age: "",
-      job: "",
-      goals: "",
-      strengths: "",
-      risks: "",
-    },
-    notes: {
-      projects: Array.from({ length: 8 }, () => ""),
-      references: Array.from({ length: 8 }, () => ""),
-      freeform: "",
-    },
-    finance: createFinanceState(),
-    projects: createProjectState(),
-    customSheets: createCustomSheetsState(),
-  };
+  return loadEmptyState();
 }
 
 function migrateState(nextState) {
@@ -530,10 +558,12 @@ function saveState(options = {}) {
 async function hydrateServerState() {
   try {
     await hydrateServerConfig();
-    if (!getAuthSession()?.accessToken) {
+    const session = await ensureFreshAuthSession();
+    if (!session?.accessToken) {
       accountSaveReady = false;
       saveStatus.ready = false;
-      saveStatus.message = "로그인이 필요합니다";
+      saveStatus.message = "다시 로그인 필요";
+      logoutPlanner();
       return;
     }
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
@@ -543,9 +573,6 @@ async function hydrateServerState() {
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
       storeStateFromServer(payload, "저장됨");
-    } else if (loadedStateFromAccountCache && hasPlannerContent(state)) {
-      saveStatus.message = "계정 데이터 생성 중";
-      await persistStateToServer({ force: true, bumpUpdatedAt: true });
     } else {
       state = loadEmptyState();
       selectedSheetId = state.customSheets.activeId;
@@ -624,6 +651,15 @@ function scheduleAccountSave(delay = 650) {
 
 async function persistStateToServer(options = {}) {
   if (!accountSaveReady) return;
+  const session = await ensureFreshAuthSession();
+  if (!session?.accessToken) {
+    accountSaveReady = false;
+    saveStatus.saving = false;
+    saveStatus.message = "다시 로그인 필요";
+    renderSidebar();
+    logoutPlanner();
+    return;
+  }
   if (!options.force && !hasPlannerContent(state)) {
     saveStatus.saving = false;
     saveStatus.message = "저장됨";
@@ -662,6 +698,14 @@ async function persistStateToServer(options = {}) {
 
 async function pullServerStateIfNewer(options = {}) {
   if (!accountSaveReady || (!options.force && saveStatus.saving)) return;
+  const session = await ensureFreshAuthSession();
+  if (!session?.accessToken) {
+    accountSaveReady = false;
+    saveStatus.message = "다시 로그인 필요";
+    renderSidebar();
+    logoutPlanner();
+    return;
+  }
   const localMeta = getStateMeta();
   if (!options.force && localMeta.dirty && Date.now() - timestampMs(localMeta.updatedAt) < 3000) return;
   try {
@@ -3132,7 +3176,7 @@ function renderAppointments(day) {
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""}`;
     row.style.setProperty("--slot-span", span);
     const nextIndex = slotIndex + span;
-    const canMerge = nextIndex < timeSlots.length && !value && !day.appointments[timeSlots[nextIndex]];
+    const canMerge = nextIndex < timeSlots.length;
     row.innerHTML = `
       <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}</span>
       <input type="text" value="${escapeAttr(value)}" placeholder="일정" />
@@ -3143,11 +3187,6 @@ function renderAppointments(day) {
       day.appointments[slot] = event.target.value;
       saveState();
       row.classList.toggle("is-filled", Boolean(event.target.value));
-      if (event.target.value) {
-        row.querySelector(".appointment-merge-button")?.remove();
-        const previousButton = row.previousElementSibling?.querySelector?.(".appointment-merge-button");
-        previousButton?.remove();
-      }
       renderSidebar();
     };
     row.querySelector(".split-appointment")?.addEventListener("click", () => {

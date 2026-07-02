@@ -76,7 +76,7 @@ function getUsers() {
 function getSession() {
   try {
     const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || "null");
-    return session?.email && session.provider === "supabase" && session.accessToken ? session : null;
+    return isUsableSupabaseSession(session) ? session : null;
   } catch {
     return null;
   }
@@ -138,6 +138,13 @@ function normalizeTier(tier = "staff") {
   const legacyMap = { basic: "staff", pro: "manager", executive: "director" };
   const normalized = legacyMap[tier] || tier;
   return tiers.includes(normalized) ? normalized : "staff";
+}
+
+function isUsableSupabaseSession(session) {
+  if (!session?.email || session.provider !== "supabase" || !session.accessToken) return false;
+  const expiresAt = Number(session.expiresAt || 0);
+  if (!expiresAt) return true;
+  return expiresAt * 1000 > Date.now() + 60000;
 }
 
 function redirectToDashboard() {

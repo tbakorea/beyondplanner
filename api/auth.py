@@ -15,12 +15,15 @@ class handler(BaseHTTPRequestHandler):
             return
 
         action = str(payload.get("action", "")).strip().lower()
-        if action not in {"signup", "login"}:
+        if action not in {"signup", "login", "refresh"}:
             self.write_json(400, {"error": "지원하지 않는 인증 요청입니다."})
             return
 
         try:
             result = call_supabase_auth(action, payload)
+        except ValueError as exc:
+            self.write_json(400, {"error": str(exc)})
+            return
         except RuntimeError as exc:
             self.write_json(503, {"error": str(exc)})
             return
@@ -58,10 +61,18 @@ def call_supabase_auth(action, payload):
     if not supabase_url or not anon_key:
         raise RuntimeError("Supabase 환경변수가 설정되어 있지 않습니다.")
 
-    email = str(payload.get("email", "")).strip().lower()
-    password = str(payload.get("password", ""))
-    if not email or not password:
-        raise urllib.error.HTTPError("", 400, "이메일과 비밀번호가 필요합니다.", {}, None)
+    if action == "refresh":
+        refresh_token = str(payload.get("refreshToken") or payload.get("refresh_token") or "").strip()
+        if not refresh_token:
+            raise ValueError("갱신 토큰이 필요합니다.")
+        endpoint = f"{supabase_url}/auth/v1/token?grant_type=refresh_token"
+        body = {"refresh_token": refresh_token}
+        email = ""
+    else:
+        email = str(payload.get("email", "")).strip().lower()
+        password = str(payload.get("password", ""))
+        if not email or not password:
+            raise ValueError("이메일과 비밀번호가 필요합니다.")
 
     if action == "signup":
         endpoint = f"{supabase_url}/auth/v1/signup"
@@ -73,7 +84,7 @@ def call_supabase_auth(action, payload):
                 "tier": normalize_tier(str(payload.get("tier", "staff")).strip()),
             },
         }
-    else:
+    elif action == "login":
         endpoint = f"{supabase_url}/auth/v1/token?grant_type=password"
         body = {"email": email, "password": password}
 
