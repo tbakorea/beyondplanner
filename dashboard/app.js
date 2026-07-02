@@ -1,7 +1,7 @@
 const YEAR = 2026;
 const STORAGE_KEY = "franklinClassicPlanner2026.v1";
 const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
-const DEVICE_KEY = "beyondWorkDeviceId";
+const INSTALLATION_KEY = "beyondWorkInstallationId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
 const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
 const PRIVACY_CONFIG_KEY = "beyondWorkPrivacyConfig.v1";
@@ -12,7 +12,7 @@ const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
 requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(plannerStorageKey());
   history.replaceState(null, "", window.location.pathname);
 }
 const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
@@ -76,17 +76,18 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
 
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
+let loadedStateFromAccountCache = false;
 let state = loadState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
-let syncStatus = { enabled: false, environment: "local", message: "이 기기에 저장됨", saving: false };
-let serverSyncReady = false;
-let serverSyncTimer = 0;
-let passiveSyncTimer = 0;
+let saveStatus = { ready: false, environment: "db", message: "저장 확인 중", saving: false };
+let accountSaveReady = false;
+let accountSaveTimer = 0;
+let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
 let daySwipeKey = "";
 let plannerMode = localStorage.getItem("beyondWorkMode") || "";
-const deviceId = getDeviceId();
+const installationId = getInstallationId();
 const dayPanelOrder = ["week", "main", "memo"];
 let currentDayPanel = "main";
 let dateSlideTimer = 0;
@@ -129,7 +130,7 @@ function getAuthSession() {
     const users = JSON.parse(localStorage.getItem(AUTH_USERS_KEY) || "{}");
     const user = session?.email ? users[session.email] : null;
     if (!session?.email) return null;
-    if (!user && session.provider !== "supabase") return null;
+    if (session.provider !== "supabase" || !session.accessToken) return null;
     return {
       ...session,
       tier: normalizeAccountTier(user?.tier || session.tier),
@@ -196,13 +197,19 @@ function daysBetween(a, b) {
   return Math.round((b - a) / 86400000);
 }
 
-function getDeviceId() {
-  let id = localStorage.getItem(DEVICE_KEY);
+function getInstallationId() {
+  let id = localStorage.getItem(INSTALLATION_KEY);
   if (!id) {
-    id = `device-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    localStorage.setItem(DEVICE_KEY, id);
+    id = `installation-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    localStorage.setItem(INSTALLATION_KEY, id);
   }
   return id;
+}
+
+function plannerStorageKey() {
+  const session = getAuthSession();
+  const account = session?.email ? encodeURIComponent(session.email) : "anonymous";
+  return `${STORAGE_KEY}.${account}`;
 }
 
 function newTaskId() {
@@ -229,8 +236,13 @@ function normalizeDayTasks(day) {
 }
 
 function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) return migrateState(JSON.parse(saved));
+  const accountSaved = localStorage.getItem(plannerStorageKey());
+  if (accountSaved) {
+    loadedStateFromAccountCache = true;
+    return migrateState(JSON.parse(accountSaved));
+  }
+  const legacySaved = localStorage.getItem(STORAGE_KEY);
+  if (legacySaved) return migrateState(JSON.parse(legacySaved));
   return {
     foundation: {
       mission: "",
@@ -510,47 +522,78 @@ function normalizeProjectMoney(item) {
 
 function saveState(options = {}) {
   Object.values(state.days || {}).forEach((day) => normalizeDayTasks(day));
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   markLocalStateUpdated();
-  scheduleServerSync(options.fastSync ? 120 : 650);
+  scheduleAccountSave(options.fastSave ? 120 : 650);
 }
 
 async function hydrateServerState() {
   try {
     await hydrateServerConfig();
-    if (syncStatus.environment === "db" && !getAuthSession()?.accessToken) {
-      serverSyncReady = false;
-      syncStatus.enabled = false;
-      syncStatus.message = "DB 동기화용 재로그인 필요";
+    if (!getAuthSession()?.accessToken) {
+      accountSaveReady = false;
+      saveStatus.ready = false;
+      saveStatus.message = "로그인이 필요합니다";
       return;
     }
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
-    if (!response.ok) throw new Error(await extractSyncError(response));
+    if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
-    serverSyncReady = true;
-    syncStatus.enabled = true;
+    accountSaveReady = true;
+    saveStatus.ready = true;
     if (payload.exists && payload.state) {
-      const localUpdatedAt = getStateMeta().updatedAt || "";
-      if (hasPlannerContent(state) && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
-        syncStatus.message = "이 기기 최신본 DB 저장 중";
-        await persistStateToServer({ force: true });
-      } else {
-        storeStateFromServer(payload, "서버 동기화됨");
-      }
+      storeStateFromServer(payload, "저장됨");
+    } else if (loadedStateFromAccountCache && hasPlannerContent(state)) {
+      saveStatus.message = "계정 데이터 생성 중";
+      await persistStateToServer({ force: true, bumpUpdatedAt: true });
     } else {
-      if (hasPlannerContent(state)) {
-        syncStatus.message = "내 기기 데이터 DB 저장 중";
-        await persistStateToServer();
-      } else {
-        syncStatus.message = "DB 저장 준비됨";
-      }
+      state = loadEmptyState();
+      selectedSheetId = state.customSheets.activeId;
+      localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+      saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
+      saveStatus.message = "새 플래너 준비됨";
     }
   } catch (error) {
-    serverSyncReady = false;
-    syncStatus.enabled = false;
-    syncStatus.environment = "local";
-    syncStatus.message = error.message || "이 기기에 저장됨";
+    accountSaveReady = false;
+    saveStatus.ready = false;
+    saveStatus.environment = "db";
+    saveStatus.message = error.message || "저장 연결 실패";
   }
+}
+
+function loadEmptyState() {
+  return {
+    foundation: {
+      mission: "",
+      values: Array.from({ length: 6 }, () => ""),
+      roles: defaultRoles.map((role) => ({ role, goal: "", renewal: "" })),
+    },
+    year: {
+      goals: Array.from({ length: 8 }, () => ""),
+      future: Array.from({ length: 8 }, () => ""),
+    },
+    months: {},
+    weeks: {},
+    days: {},
+    repeats: {
+      priorityTasks: emptyRepeatRules(4),
+    },
+    profile: {
+      age: "",
+      job: "",
+      goals: "",
+      strengths: "",
+      risks: "",
+    },
+    notes: {
+      projects: Array.from({ length: 8 }, () => ""),
+      references: Array.from({ length: 8 }, () => ""),
+      freeform: "",
+    },
+    finance: createFinanceState(),
+    projects: createProjectState(),
+    customSheets: createCustomSheetsState(),
+  };
 }
 
 async function hydrateServerConfig() {
@@ -558,30 +601,32 @@ async function hydrateServerConfig() {
     const response = await fetch("/api/config", { cache: "no-store" });
     if (!response.ok) return;
     const payload = await response.json();
-    syncStatus.environment = payload.storage === "supabase-db" ? "db" : payload.environment || "server";
+    saveStatus.environment = payload.storage === "supabase-db" ? "db" : payload.environment || "server";
   } catch {
-    syncStatus.environment = "server";
+    saveStatus.environment = "db";
   }
 }
 
-function scheduleServerSync(delay = 650) {
-  if (!serverSyncReady) {
-    syncStatus.message = syncStatus.environment === "db" && !getAuthSession()?.accessToken ? "DB 동기화용 재로그인 필요" : "DB 동기화 대기";
+function scheduleAccountSave(delay = 650) {
+  if (!accountSaveReady) {
+    saveStatus.message = getAuthSession()?.accessToken ? "저장 대기" : "로그인이 필요합니다";
+    renderSidebar();
     return;
   }
-  window.clearTimeout(serverSyncTimer);
-  syncStatus.saving = true;
-  syncStatus.message = "서버 저장 중";
-  serverSyncTimer = window.setTimeout(() => {
+  window.clearTimeout(accountSaveTimer);
+  saveStatus.saving = true;
+  saveStatus.message = "저장 중";
+  renderSidebar();
+  accountSaveTimer = window.setTimeout(() => {
     persistStateToServer();
   }, delay);
 }
 
 async function persistStateToServer(options = {}) {
-  if (!serverSyncReady) return;
+  if (!accountSaveReady) return;
   if (!options.force && !hasPlannerContent(state)) {
-    syncStatus.saving = false;
-    syncStatus.message = "저장할 내용 없음";
+    saveStatus.saving = false;
+    saveStatus.message = "저장됨";
     renderSidebar();
     return;
   }
@@ -590,54 +635,45 @@ async function persistStateToServer(options = {}) {
     const response = await fetch("/api/state", {
       method: "POST",
       headers: authStateHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ state, updatedAt, deviceId }),
+      body: JSON.stringify({ state, updatedAt }),
     });
-    if (!response.ok) throw new Error(await extractSyncError(response));
+    if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
     if (payload.stale) {
       lastServerUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
-      syncStatus.enabled = true;
-      syncStatus.saving = false;
-      syncStatus.message = "DB 최신본 우선";
+      saveStatus.ready = true;
+      saveStatus.saving = false;
+      saveStatus.message = "최신 데이터 불러오는 중";
       await pullServerStateIfNewer({ force: true });
       return;
     }
     lastServerUpdatedAt = payload.updatedAt || updatedAt;
-    saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSyncedAt: lastServerUpdatedAt, dirty: false });
-    syncStatus.enabled = true;
-    syncStatus.saving = false;
-    syncStatus.message = "서버 동기화됨";
+    saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
+    saveStatus.ready = true;
+    saveStatus.saving = false;
+    saveStatus.message = "저장됨";
     renderSidebar();
   } catch (error) {
-    syncStatus.saving = false;
-    syncStatus.message = error.message || "서버 저장 실패";
+    saveStatus.saving = false;
+    saveStatus.message = error.message || "저장 실패";
     renderSidebar();
   }
 }
 
 async function pullServerStateIfNewer(options = {}) {
-  if (!serverSyncReady) return;
+  if (!accountSaveReady || (!options.force && saveStatus.saving)) return;
+  const localMeta = getStateMeta();
+  if (!options.force && localMeta.dirty && Date.now() - timestampMs(localMeta.updatedAt) < 3000) return;
   try {
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
-    if (!response.ok) throw new Error(await extractSyncError(response));
+    if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     if (!payload.exists || !payload.state || !payload.updatedAt) return;
-    if (payload.deviceId === deviceId) {
-      lastServerUpdatedAt = payload.updatedAt;
-      saveStateMeta({ updatedAt: payload.updatedAt, lastSyncedAt: payload.updatedAt, dirty: false });
-      return;
-    }
-    const localMeta = getStateMeta();
-    if (!options.force && localMeta.dirty && isTimestampNewer(localMeta.updatedAt, payload.updatedAt)) {
-      syncStatus.message = "이 기기 최신본 DB 저장 중";
-      await persistStateToServer({ force: true });
-      return;
-    }
     if (!options.force && lastServerUpdatedAt && !isTimestampNewer(payload.updatedAt, lastServerUpdatedAt)) return;
-    storeStateFromServer(payload, "다른 기기 변경 반영됨");
+    storeStateFromServer(payload, "저장됨");
     renderAll();
   } catch (error) {
-    syncStatus.message = error.message || "서버 확인 실패";
+    saveStatus.message = error.message || "저장 확인 실패";
     renderSidebar();
   }
 }
@@ -664,16 +700,17 @@ function saveStateMeta(meta) {
 
 function markLocalStateUpdated() {
   const updatedAt = new Date().toISOString();
-  saveStateMeta({ updatedAt, dirty: true, deviceId });
+  saveStateMeta({ updatedAt, dirty: true, accountEmail: getAuthSession()?.email || "" });
   return updatedAt;
 }
 
 function storeStateFromServer(payload, message) {
   state = migrateState(payload.state);
+  selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSyncedAt: lastServerUpdatedAt, dirty: false, sourceDeviceId: payload.deviceId || "" });
-  syncStatus.message = message;
+  localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+  saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
+  saveStatus.message = message;
 }
 
 function isTimestampNewer(left, right) {
@@ -685,102 +722,21 @@ function timestampMs(value) {
   return Number.isFinite(ms) ? ms : 0;
 }
 
-async function extractSyncError(response) {
+async function extractSaveError(response) {
   try {
     const payload = await response.json();
-    return payload.error || payload.message || "DB 동기화 실패";
+    return payload.error || payload.message || "저장 실패";
   } catch {
-    return "DB 동기화 실패";
-  }
-}
-
-async function manualSyncNow() {
-  syncStatus.message = "수동 동기화 중";
-  renderSidebar();
-  if (!serverSyncReady) await hydrateServerState();
-  if (!serverSyncReady) {
-    renderSidebar();
-    return;
-  }
-  if (hasPlannerContent(state)) await persistStateToServer({ force: true });
-  await pullServerStateIfNewer();
-  if (!hasPlannerContent(state)) syncStatus.message = "DB 데이터 없음";
-  renderSidebar();
-}
-
-async function uploadThisDeviceToDb() {
-  if (!hasPlannerContent(state)) {
-    syncStatus.message = "이 기기에 올릴 내용 없음";
-    renderSidebar();
-    window.alert("현재 이 기기에 저장할 플래너 내용이 없습니다.");
-    return;
-  }
-  const ok = window.confirm("현재 이 기기의 내용을 DB 기준 데이터로 저장합니다. 아이폰을 기준으로 삼으려면 아이폰에서 이 버튼을 누르세요.");
-  if (!ok) return;
-  syncStatus.message = "이 기기 기준 DB 저장 중";
-  renderSidebar();
-  const ready = await prepareServerStateApi();
-  if (!ready) {
-    renderSidebar();
-    return;
-  }
-  await persistStateToServer({ force: true, bumpUpdatedAt: true });
-}
-
-async function pullDbToThisDevice() {
-  const ok = !hasPlannerContent(state) || window.confirm("DB 기준 데이터를 이 기기로 불러옵니다. 이 기기의 현재 로컬 내용은 DB 내용으로 바뀝니다.");
-  if (!ok) return;
-  syncStatus.message = "DB에서 불러오는 중";
-  renderSidebar();
-  const ready = await prepareServerStateApi();
-  if (!ready) {
-    renderSidebar();
-    return;
-  }
-  try {
-    const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
-    if (!response.ok) throw new Error(await extractSyncError(response));
-    const payload = await response.json();
-    if (!payload.exists || !payload.state) {
-      syncStatus.message = "DB 데이터 없음";
-      renderSidebar();
-      window.alert("아직 DB에 저장된 플래너 데이터가 없습니다. 기준 기기에서 먼저 기기→DB를 눌러주세요.");
-      return;
-    }
-    storeStateFromServer(payload, "DB 데이터 불러옴");
-    syncStatus.enabled = true;
-    renderAll();
-  } catch (error) {
-    syncStatus.message = error.message || "DB 불러오기 실패";
-    renderSidebar();
+    return "저장 실패";
   }
 }
 
 function queuePassiveServerPull() {
-  if (!serverSyncReady || document.hidden) return;
-  window.clearTimeout(passiveSyncTimer);
-  passiveSyncTimer = window.setTimeout(() => {
+  if (!accountSaveReady || document.hidden) return;
+  window.clearTimeout(passiveRefreshTimer);
+  passiveRefreshTimer = window.setTimeout(() => {
     pullServerStateIfNewer();
   }, 420);
-}
-
-async function prepareServerStateApi() {
-  try {
-    await hydrateServerConfig();
-    if (syncStatus.environment === "db" && !getAuthSession()?.accessToken) {
-      throw new Error("DB 동기화를 위해 다시 로그인하세요.");
-    }
-    const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
-    if (!response.ok && response.status !== 404) throw new Error(await extractSyncError(response));
-    serverSyncReady = true;
-    syncStatus.enabled = true;
-    return true;
-  } catch (error) {
-    serverSyncReady = false;
-    syncStatus.enabled = false;
-    syncStatus.message = error.message || "DB 연결 실패";
-    return false;
-  }
 }
 
 function hasPlannerContent(source = state) {
@@ -965,9 +921,6 @@ function setupSelectors() {
   el("topPrintButton").onclick = () => window.print();
   el("topExportButton").onclick = exportPlanner;
   el("topImportButton").onclick = () => el("importFile").click();
-  el("topSyncButton").onclick = manualSyncNow;
-  el("topUploadDeviceButton").onclick = uploadThisDeviceToDb;
-  el("topPullDbButton").onclick = pullDbToThisDevice;
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
@@ -1319,7 +1272,7 @@ async function registerBiometric() {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         rp: { name: "Beyond Work" },
         user: {
-          id: textToBytes(deviceId).slice(0, 64),
+          id: textToBytes(installationId).slice(0, 64),
           name: "Beyond Work 사용자",
           displayName: "Beyond Work",
         },
@@ -2163,11 +2116,11 @@ function renderSidebar() {
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
   el("topYearProgress").textContent = `연간 ${Math.round((elapsed / 365) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
-  el("topSearchCount").textContent = `검색 ${results.length} · ${syncStatus.environment.toUpperCase()} · ${syncStatus.message}`;
-  const syncButton = el("topSyncButton");
-  if (syncButton) {
-    syncButton.textContent = syncStatus.saving ? "저장 중" : "동기화";
-    syncButton.classList.toggle("is-warning", /실패|대기|필요|준비|없음/.test(syncStatus.message) && syncStatus.message !== "서버 동기화됨");
+  el("topSearchCount").textContent = `검색 ${results.length}`;
+  const saveStatusNode = el("topSaveStatus");
+  if (saveStatusNode) {
+    saveStatusNode.textContent = saveStatus.saving ? "저장 중" : saveStatus.message;
+    saveStatusNode.classList.toggle("is-warning", /실패|대기|필요/.test(saveStatus.message));
   }
   const auth = getAuthSession();
   el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : "로그인 필요";
@@ -2812,7 +2765,7 @@ function renderTaskBoard(day) {
   add.textContent = "업무 추가";
   add.onclick = () => {
     day.tasks.A.push({ text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
-    saveState({ fastSync: true });
+    saveState({ fastSave: true });
     renderDay();
   };
   list.appendChild(add);
@@ -2863,7 +2816,7 @@ function renderTaskRow(task, priority, index) {
   const text = row.querySelector("input[type='text']:last-child");
   cycle.onclick = () => {
     cycleTaskMarker(task);
-    saveState({ fastSync: true });
+    saveState({ fastSave: true });
     renderAll();
   };
   if (prioritySelect) {
@@ -2879,13 +2832,13 @@ function renderTaskRow(task, priority, index) {
   if (delegateInput) {
     delegateInput.oninput = () => {
       task.delegate = delegateInput.value;
-      saveState({ fastSync: true });
+      saveState({ fastSave: true });
     };
   }
   if (postponeSelect) {
     postponeSelect.onchange = () => {
       task.postponeMode = postponeSelect.value;
-      saveState({ fastSync: true });
+      saveState({ fastSave: true });
       renderAll();
     };
   }
@@ -2895,7 +2848,7 @@ function renderTaskRow(task, priority, index) {
   text.oninput = () => {
     task.text = text.value;
     task.priorityUnset = false;
-    saveState({ fastSync: true });
+    saveState({ fastSave: true });
     renderSidebar();
     renderMonthCalendar();
     renderWeek();
@@ -3014,7 +2967,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   if (value === "취소" || value === "연기") {
     task.status = value;
     task.done = false;
-    saveState({ fastSync: true });
+    saveState({ fastSave: true });
     renderAll();
     return;
   }
@@ -3026,13 +2979,13 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     return;
   }
   task.priorityUnset = true;
-  saveState({ fastSync: true });
+  saveState({ fastSave: true });
   renderAll();
 }
 
 function moveTaskPriority(fromPriority, index, toPriority) {
   if (fromPriority === toPriority) {
-    saveState({ fastSync: true });
+    saveState({ fastSave: true });
     renderAll();
     return;
   }
@@ -3040,7 +2993,7 @@ function moveTaskPriority(fromPriority, index, toPriority) {
   const [task] = day.tasks[fromPriority].splice(index, 1);
   if (!task) return;
   day.tasks[toPriority].push(task);
-  saveState({ fastSync: true });
+  saveState({ fastSave: true });
   renderAll();
 }
 
@@ -3060,7 +3013,7 @@ function schedulePostponedTask(task, priority, targetDate) {
       postponedFrom: task.postponeId,
     });
   }
-  saveState({ fastSync: true });
+  saveState({ fastSave: true });
   renderAll();
 }
 
@@ -3139,14 +3092,14 @@ function updateCarryoverTaskMarker(taskRef) {
   }
   source.done = false;
   if (source.status === "완료") source.status = "미완료";
-  saveState({ fastSync: true });
+  saveState({ fastSave: true });
   renderAll();
 }
 
 function updateCarryoverTaskPriority(taskRef, value) {
   const source = moveTaskSourcePriority(taskRef, value);
   if (!source) return;
-  saveState({ fastSync: true });
+  saveState({ fastSave: true });
   renderAll();
 }
 
@@ -3155,7 +3108,7 @@ function updateCarryoverTaskText(taskRef, value) {
   if (!source) return;
   source.text = value;
   source.priorityUnset = !value.trim();
-  saveState({ fastSync: true });
+  saveState({ fastSave: true });
   renderSidebar();
   renderMonthCalendar();
   renderWeek();
@@ -4006,7 +3959,7 @@ function updateProjectField(index, field, value) {
   const project = state.projects.items[index];
   if (!project) return;
   project[field] = value;
-  if (["title", "nextAction", "dueDate", "status"].includes(field)) syncProjectToTask(project);
+  if (["title", "nextAction", "dueDate", "status"].includes(field)) linkProjectToTask(project);
   saveState();
   renderProjectSummary();
   renderProjectCardSummary(index);
@@ -4078,7 +4031,7 @@ function normalizeProbability(value) {
   return Math.max(0, Math.min(100, number)) / 100;
 }
 
-function syncProjectToTask(project) {
+function linkProjectToTask(project) {
   removeProjectLinkedTask(project.id);
   if (!project.dueDate || !project.nextAction?.trim() || project.status === "완료") return;
   const targetDay = ensureDay(project.dueDate);
@@ -4304,8 +4257,8 @@ function removeMoneyRow(rows, index, options = {}) {
 
 function updateMoneyItem(rows, index, field, value, options = {}) {
   rows[index][field] = value;
-  if (options.monthKey) syncMoneyItemToTask(rows[index], options.monthKey);
-  if (options.fixed) syncFixedMoneyItemToTasks(rows[index]);
+  if (options.monthKey) linkMoneyItemToTask(rows[index], options.monthKey);
+  if (options.fixed) linkFixedMoneyItemToTasks(rows[index]);
   saveState();
   renderFinanceSummary();
 }
@@ -4327,7 +4280,7 @@ function renderFinanceSummary() {
   node.textContent = `${monthNumber}월 ${activeOpenRows.length}건 · 수입 ${formatMoneyAmount(incomeTotal)} · 지출 ${formatMoneyAmount(expenseTotal)} · 연간 미확인 ${yearlyOpenRows.length}`;
 }
 
-function syncMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
+function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
   const targetDate = getMoneyItemDate(item, key);
   removeFinanceLinkedTask(linkId);
   if (!targetDate || !item.title?.trim()) {
@@ -4349,11 +4302,11 @@ function syncMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
   item.taskDate = targetDate;
 }
 
-function syncFixedMoneyItemToTasks(item) {
+function linkFixedMoneyItemToTasks(item) {
   removeFinanceLinkedTask(item.id, true);
   if (!item.title?.trim() || !Number(item.dueDay)) return;
   Object.keys(createFinanceMonths()).forEach((key) => {
-    if (isFixedMoneyActiveForMonth(item, key)) syncMoneyItemToTask(item, key, `${item.id}-${key}`, true);
+    if (isFixedMoneyActiveForMonth(item, key)) linkMoneyItemToTask(item, key, `${item.id}-${key}`, true);
   });
 }
 

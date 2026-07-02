@@ -100,20 +100,19 @@ def get_planner_state(token):
         raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
     encoded_user_id = urllib.parse.quote(user_id, safe="")
     request = urllib.request.Request(
-        f"{supabase_url}/rest/v1/planner_states?user_id=eq.{encoded_user_id}&select=state,updated_at,device_id&limit=1",
+        f"{supabase_url}/rest/v1/planner_states?user_id=eq.{encoded_user_id}&select=state,updated_at&limit=1",
         headers={"apikey": anon_key, "Authorization": f"Bearer {token}", "Accept": "application/json"},
         method="GET",
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         rows = json.loads(response.read().decode("utf-8"))
     if not rows:
-        return {"exists": False, "state": None, "updatedAt": "", "deviceId": "", "storage": "supabase-db"}
+        return {"exists": False, "state": None, "updatedAt": "", "storage": "supabase-db"}
     row = rows[0]
     return {
         "exists": True,
         "state": row.get("state"),
         "updatedAt": row.get("updated_at") or "",
-        "deviceId": row.get("device_id") or "",
         "storage": "supabase-db",
     }
 
@@ -133,7 +132,6 @@ def save_planner_state(token, state, payload):
             "user_id": user_id,
             "state": state,
             "updated_at": updated_at,
-            "device_id": str(payload.get("deviceId") or ""),
         }
     ]
     request = urllib.request.Request(

@@ -27,27 +27,10 @@ if (loginForm) loginForm.onsubmit = async (event) => {
     cacheRemoteUser(result.user);
     saveSession(result.user.email, result.user, result.session);
     redirectToDashboard();
-    return;
   } catch (error) {
-    if (isLocalFallbackAllowed(error)) {
-      const localUser = await loginLocalUser(email, password);
-      if (localUser) {
-        saveSession(email, localUser);
-        redirectToDashboard();
-        return;
-      }
-    }
     return showMessage(error.message || "로그인할 수 없습니다.");
   }
 };
-
-async function loginLocalUser(email, password) {
-  const users = getUsers();
-  const user = users[email];
-  if (!user) return null;
-  const passwordHash = await hashPassword(password, user.salt);
-  return passwordHash === user.passwordHash ? user : null;
-}
 
 if (signupForm) signupForm.onsubmit = async (event) => {
   event.preventDefault();
@@ -68,22 +51,8 @@ if (signupForm) signupForm.onsubmit = async (event) => {
     redirectToLogin(result.user.email, "created");
     return;
   } catch (error) {
-    if (!isLocalFallbackAllowed(error)) return showMessage(error.message || "회원가입을 완료할 수 없습니다.");
+    return showMessage(error.message || "회원가입을 완료할 수 없습니다.");
   }
-  const users = getUsers();
-  if (users[email]) return showMessage("이미 가입된 이메일입니다.");
-  const salt = randomId();
-  users[email] = {
-    email,
-    name,
-    tier,
-    salt,
-    passwordHash: await hashPassword(password, salt),
-    createdAt: new Date().toISOString(),
-  };
-  localStorage.setItem(AUTH_USERS_KEY, JSON.stringify(users));
-  clearSignupPasswordFields();
-  redirectToLogin(email, "local");
 };
 
 function setMode(mode) {
@@ -107,22 +76,22 @@ function getUsers() {
 function getSession() {
   try {
     const session = JSON.parse(localStorage.getItem(AUTH_SESSION_KEY) || "null");
-    const users = getUsers();
-    return session?.email && (session.provider === "supabase" || users[session.email]) ? session : null;
+    return session?.email && session.provider === "supabase" && session.accessToken ? session : null;
   } catch {
     return null;
   }
 }
 
 function saveSession(email, user, remoteSession = {}) {
+  if (!remoteSession?.accessToken) throw new Error("서버 로그인 세션을 확인할 수 없습니다.");
   localStorage.setItem(
     AUTH_SESSION_KEY,
     JSON.stringify({
       email,
       tier: normalizeTier(user.tier),
       name: user.name || "",
-      provider: remoteSession?.accessToken ? "supabase" : user.provider || "local",
-      accessToken: remoteSession?.accessToken || "",
+      provider: "supabase",
+      accessToken: remoteSession.accessToken,
       refreshToken: remoteSession?.refreshToken || "",
       expiresAt: remoteSession?.expiresAt || "",
       loginAt: new Date().toISOString(),
@@ -194,9 +163,6 @@ function prefillLoginEmail() {
   if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "created") {
     showMessage("회원가입이 완료되었습니다. 로그인해 주세요.");
   }
-  if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "local") {
-    showMessage("서버 연결 없이 이 기기에만 가입되었습니다. 배포 환경변수를 확인해 주세요.");
-  }
 }
 
 function wireAuthLinks() {
@@ -237,25 +203,7 @@ async function requestAuth(action, payload) {
   return data;
 }
 
-function isLocalFallbackAllowed(error) {
-  return [404, 501, 502, 503].includes(Number(error?.status));
-}
-
 function clearSignupPasswordFields() {
   document.getElementById("signupPassword").value = "";
   document.getElementById("signupPasswordConfirm").value = "";
-}
-
-function randomId() {
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function hashPassword(password, salt) {
-  const source = `${salt}:${password}`;
-  if (!crypto?.subtle) return btoa(unescape(encodeURIComponent(source)));
-  const data = new TextEncoder().encode(source);
-  const digest = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

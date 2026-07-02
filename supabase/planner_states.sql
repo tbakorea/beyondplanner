@@ -1,9 +1,11 @@
 create table if not exists public.planner_states (
   user_id uuid primary key references auth.users(id) on delete cascade,
   state jsonb not null default '{}'::jsonb,
-  updated_at timestamptz not null default now(),
-  device_id text not null default ''
+  updated_at timestamptz not null default now()
 );
+
+alter table public.planner_states
+drop column if exists device_id;
 
 alter table public.planner_states enable row level security;
 
