@@ -92,6 +92,8 @@ let currentDayPanel = "main";
 let dateSlideTimer = 0;
 let dailyCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
+let weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
+let weekCalendarSwipeSuppressClick = false;
 let lockTimer = 0;
 let privacyTimer = 0;
 let isLocked = false;
@@ -177,11 +179,13 @@ function formatCompassDate(date) {
 
 function todayInPlanner() {
   const today = new Date();
+  today.setHours(0, 0, 0, 0);
   return today.getFullYear() === YEAR ? today : new Date(`${YEAR}-01-01T00:00:00`);
 }
 
 function startOfWeek(date) {
   const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
   const day = d.getDay();
   d.setDate(d.getDate() - day);
   return d;
@@ -198,6 +202,29 @@ function getDeviceId() {
     localStorage.setItem(DEVICE_KEY, id);
   }
   return id;
+}
+
+function newTaskId() {
+  return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeTask(task = {}) {
+  task.id ||= newTaskId();
+  task.status ||= task.done ? "완료" : "미완료";
+  task.delegate ||= "";
+  if (!task.text?.trim() && task.status === "미완료" && task.priorityUnset === undefined) {
+    task.priorityUnset = true;
+  }
+  return task;
+}
+
+function normalizeDayTasks(day) {
+  if (!day) return;
+  day.tasks ||= { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) };
+  priorities.forEach(([priority]) => {
+    day.tasks[priority] ||= emptyTasks(5);
+    day.tasks[priority].forEach(normalizeTask);
+  });
 }
 
 function loadState() {
@@ -262,15 +289,7 @@ function migrateState(nextState) {
   Object.values(nextState.days || {}).forEach((day) => {
     day.memo ||= "";
     day.appointmentMerges ||= {};
-    priorities.forEach(([priority]) => {
-      day.tasks?.[priority]?.forEach((task) => {
-        task.status ||= task.done ? "완료" : "미완료";
-        task.delegate ||= "";
-        if (!task.text?.trim() && task.status === "미완료" && task.priorityUnset === undefined) {
-          task.priorityUnset = true;
-        }
-      });
-    });
+    normalizeDayTasks(day);
   });
   return nextState;
 }
@@ -489,6 +508,7 @@ function normalizeProjectMoney(item) {
 }
 
 function saveState(options = {}) {
+  Object.values(state.days || {}).forEach((day) => normalizeDayTasks(day));
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   markLocalStateUpdated();
   scheduleServerSync(options.fastSync ? 120 : 650);
@@ -847,6 +867,7 @@ function ensureDay(key = iso(selectedDate)) {
   };
   state.days[key].memo ||= "";
   state.days[key].appointmentMerges ||= {};
+  normalizeDayTasks(state.days[key]);
   applyRepeatingPriorityTasks(key);
   return state.days[key];
 }
@@ -872,7 +893,7 @@ function compassRoleNames() {
 }
 
 function emptyTasks(count) {
-  return Array.from({ length: count }, () => ({ text: "", status: "미완료", done: false, priorityUnset: true }));
+  return Array.from({ length: count }, () => ({ id: newTaskId(), text: "", status: "미완료", done: false, priorityUnset: true }));
 }
 
 function emptyRepeatRule() {
@@ -920,8 +941,19 @@ function setupSelectors() {
   el("dailyCalendarNextMonth").onclick = () => shiftDailyCalendarMonth(1);
   el("dailyCalendarClose").onclick = () => closeDailyCalendar(true);
   el("dailyCalendarToday").onclick = () => selectDailyCalendarDate(todayInPlanner());
+  el("weekCalendarToggle").onclick = () => {
+    if (weekCalendarSwipeSuppressClick) {
+      weekCalendarSwipeSuppressClick = false;
+      return;
+    }
+    toggleWeekCalendar();
+  };
+  el("weekCalendarPrevMonth").onclick = () => shiftWeekCalendarMonth(-1);
+  el("weekCalendarNextMonth").onclick = () => shiftWeekCalendarMonth(1);
+  el("weekCalendarClose").onclick = () => closeWeekCalendar(true);
   el("dailyTodayButton").onclick = () => {
     closeDailyCalendar();
+    closeWeekCalendar();
     selectedDate = todayInPlanner();
     showView("day");
     renderAll();
@@ -1027,6 +1059,8 @@ function setupSelectors() {
   setupDailyCalendarDismissal();
   setupTopViews();
   setupDailyDateSwipe();
+  setupWeekDateSwipe();
+  setupCalendarMonthSwipe();
   setupDailyPageSwipe();
   setupDaySwipePager();
   setupMobileDayFocus();
@@ -1417,6 +1451,77 @@ function selectDailyCalendarDate(date) {
   animateDateTitle(delta, date);
 }
 
+function toggleWeekCalendar() {
+  const popover = el("weekCalendarPopover");
+  if (!popover) return;
+  if (!popover.hidden) {
+    closeWeekCalendar(true);
+    return;
+  }
+  weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
+  renderWeekCalendar();
+  popover.hidden = false;
+  el("weekCalendarToggle").setAttribute("aria-expanded", "true");
+}
+
+function closeWeekCalendar(restoreFocus = false) {
+  const popover = el("weekCalendarPopover");
+  if (!popover || popover.hidden) return;
+  popover.hidden = true;
+  el("weekCalendarToggle")?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) el("weekCalendarToggle")?.focus();
+}
+
+function shiftWeekCalendarMonth(delta) {
+  const next = new Date(YEAR, weekCalendarMonth.getMonth() + delta, 1);
+  if (next.getFullYear() !== YEAR) return;
+  weekCalendarMonth = next;
+  renderWeekCalendar();
+}
+
+function selectWeekCalendarDate(date) {
+  if (date.getFullYear() !== YEAR) return;
+  closeWeekCalendar();
+  selectedDate = date;
+  showView("week");
+  renderAll();
+}
+
+function shiftWeek(delta) {
+  closeWeekCalendar();
+  const next = new Date(selectedDate);
+  next.setDate(next.getDate() + delta * 7);
+  if (next.getFullYear() !== YEAR) return;
+  selectedDate = next;
+  renderAll();
+}
+
+function getCalendarAnnotation(date) {
+  const key = iso(date);
+  const events = getCalendarEvents(key);
+  const lunarLabel = getLunarDecadeLabel(date);
+  const hasHoliday = events.some((event) => event.type === "holiday" || event.type === "national");
+  return { key, events, lunarLabel, hasHoliday };
+}
+
+function renderCalendarAnnotationMarkup(events, lunarLabel, options = {}) {
+  const limit = options.compact ? 1 : events.length;
+  const visibleEvents = events.slice(0, limit);
+  return [
+    lunarLabel ? `<em class="lunar-mark">음 ${escapeHtml(lunarLabel)}</em>` : "",
+    ...visibleEvents.map((event) => `<small class="calendar-event event-${event.type}">${escapeHtml(event.label)}</small>`),
+  ].join("");
+}
+
+function calendarAriaLabel(date, events, lunarLabel, hasPlans = false) {
+  return [
+    formatDate(date),
+    ...events.map((event) => event.label),
+    lunarLabel ? `음력 ${lunarLabel}` : "",
+    hasPlans ? "기록 있음" : "",
+  ].filter(Boolean).join(", ");
+}
+
 function renderDailyCalendar() {
   const grid = el("dailyCalendarGrid");
   if (!grid) return;
@@ -1446,6 +1551,7 @@ function renderDailyCalendar() {
     const key = iso(date);
     const button = document.createElement("button");
     const hasPlans = Boolean(state.days[key] && dayHasContent(state.days[key]));
+    const annotation = getCalendarAnnotation(date);
     button.type = "button";
     button.className = [
       "daily-calendar-day",
@@ -1453,13 +1559,84 @@ function renderDailyCalendar() {
       key === selectedKey ? "is-selected" : "",
       key === todayKey ? "is-today" : "",
       hasPlans ? "has-plans" : "",
+      annotation.hasHoliday ? "has-holiday" : "",
+      annotation.lunarLabel ? "has-lunar" : "",
     ].filter(Boolean).join(" ");
     button.disabled = date.getFullYear() !== YEAR;
     button.setAttribute("role", "gridcell");
-    button.setAttribute("aria-label", `${formatDate(date)}${hasPlans ? ", 기록 있음" : ""}`);
+    button.setAttribute("aria-label", calendarAriaLabel(date, annotation.events, annotation.lunarLabel, hasPlans));
     button.setAttribute("aria-selected", String(key === selectedKey));
-    button.innerHTML = `<span>${date.getDate()}</span>${hasPlans ? '<i aria-hidden="true"></i>' : ""}`;
-    button.onclick = () => selectDailyCalendarDate(date);
+    button.innerHTML = `
+      <span class="daily-calendar-date-number">${date.getDate()}</span>
+      ${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel, { compact: true })}
+      ${hasPlans ? '<i aria-hidden="true"></i>' : ""}
+    `;
+    button.onclick = () => {
+      if (dailyCalendarSwipeSuppressClick) return;
+      selectDailyCalendarDate(date);
+    };
+    grid.appendChild(button);
+  }
+}
+
+function renderWeekCalendar() {
+  const grid = el("weekCalendarGrid");
+  if (!grid) return;
+  const month = weekCalendarMonth.getMonth();
+  const monthStart = new Date(YEAR, month, 1);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+  const todayKey = iso(todayInPlanner());
+  const weekStart = startOfWeek(selectedDate);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+
+  el("weekCalendarMonthTitle").textContent = `${YEAR}년 ${month + 1}월`;
+  el("weekCalendarPrevMonth").disabled = month === 0;
+  el("weekCalendarNextMonth").disabled = month === 11;
+  grid.innerHTML = "";
+
+  weekdays.forEach((weekday, index) => {
+    const label = document.createElement("span");
+    label.className = `daily-calendar-weekday ${index === 0 ? "is-sunday" : ""} ${index === 6 ? "is-saturday" : ""}`;
+    label.textContent = weekday;
+    label.setAttribute("aria-hidden", "true");
+    grid.appendChild(label);
+  });
+
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const key = iso(date);
+    const hasPlans = Boolean(state.days[key] && dayHasContent(state.days[key]));
+    const annotation = getCalendarAnnotation(date);
+    const isSelectedWeek = date >= weekStart && date <= weekEnd;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = [
+      "daily-calendar-day",
+      "week-calendar-day",
+      date.getMonth() !== month ? "is-outside" : "",
+      isSelectedWeek ? "is-selected-week" : "",
+      key === iso(selectedDate) ? "is-selected" : "",
+      key === todayKey ? "is-today" : "",
+      hasPlans ? "has-plans" : "",
+      annotation.hasHoliday ? "has-holiday" : "",
+      annotation.lunarLabel ? "has-lunar" : "",
+    ].filter(Boolean).join(" ");
+    button.disabled = date.getFullYear() !== YEAR;
+    button.setAttribute("role", "gridcell");
+    button.setAttribute("aria-label", `${calendarAriaLabel(date, annotation.events, annotation.lunarLabel, hasPlans)}, 이 주간 선택`);
+    button.setAttribute("aria-selected", String(isSelectedWeek));
+    button.innerHTML = `
+      <span class="daily-calendar-date-number">${date.getDate()}</span>
+      ${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel, { compact: true })}
+      ${hasPlans ? '<i aria-hidden="true"></i>' : ""}
+    `;
+    button.onclick = () => {
+      if (weekCalendarSwipeSuppressClick) return;
+      selectWeekCalendarDate(date);
+    };
     grid.appendChild(button);
   }
 }
@@ -1471,8 +1648,15 @@ function setupDailyCalendarDismissal() {
     if (event.target.closest("#dailyCalendarPopover") || event.target.closest("#dailyCalendarToggle")) return;
     closeDailyCalendar();
   });
+  document.addEventListener("pointerdown", (event) => {
+    const popover = el("weekCalendarPopover");
+    if (!popover || popover.hidden) return;
+    if (event.target.closest("#weekCalendarPopover") || event.target.closest("#weekCalendarToggle")) return;
+    closeWeekCalendar();
+  });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeDailyCalendar(true);
+    if (event.key === "Escape") closeWeekCalendar(true);
   });
 }
 
@@ -1580,6 +1764,64 @@ function setupDailyDateSwipe() {
     event.preventDefault();
     dailyCalendarSwipeSuppressClick = true;
     shiftDay(dx < 0 ? 1 : -1);
+  });
+}
+
+function setupWeekDateSwipe() {
+  const zone = el("weekCalendarToggle");
+  if (!zone) return;
+  let startX = 0;
+  let startY = 0;
+  zone.addEventListener("pointerdown", (event) => {
+    weekCalendarSwipeSuppressClick = false;
+    startX = event.clientX;
+    startY = event.clientY;
+  });
+  zone.addEventListener("pointerup", (event) => {
+    if (!startX) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    startX = 0;
+    startY = 0;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
+    event.preventDefault();
+    weekCalendarSwipeSuppressClick = true;
+    shiftWeek(dx < 0 ? 1 : -1);
+  });
+}
+
+function setupCalendarMonthSwipe() {
+  const bind = (node, shift, suppressClick) => {
+    if (!node) return;
+    let startX = 0;
+    let startY = 0;
+    node.addEventListener("pointerdown", (event) => {
+      startX = event.clientX;
+      startY = event.clientY;
+    }, { passive: true });
+    node.addEventListener("pointerup", (event) => {
+      if (!startX) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      startX = 0;
+      startY = 0;
+      if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      event.preventDefault();
+      suppressClick();
+      shift(dx < 0 ? 1 : -1);
+    });
+  };
+  bind(el("dailyCalendarPopover"), shiftDailyCalendarMonth, () => {
+    dailyCalendarSwipeSuppressClick = true;
+    window.setTimeout(() => {
+      dailyCalendarSwipeSuppressClick = false;
+    }, 260);
+  });
+  bind(el("weekCalendarPopover"), shiftWeekCalendarMonth, () => {
+    weekCalendarSwipeSuppressClick = true;
+    window.setTimeout(() => {
+      weekCalendarSwipeSuppressClick = false;
+    }, 260);
   });
 }
 
@@ -2055,6 +2297,7 @@ function renderWeek() {
   weekEnd.setDate(weekStart.getDate() + 6);
   const weekRange = `${formatShortDate(weekStart)} ~ ${formatShortDate(weekEnd)}`;
   el("weekTitle").textContent = `주간 일정 (${weekRange})`;
+  el("weekCalendarToggle").setAttribute("aria-label", `주간 일정 ${weekRange}, 달력에서 주간 선택`);
 
   const days = el("weekDays");
   days.innerHTML = "";
@@ -2063,9 +2306,14 @@ function renderWeek() {
     date.setDate(weekStart.getDate() + i);
     const key = iso(date);
     const tasks = getDayTasks(key).filter((task) => task.text);
+    const annotation = getCalendarAnnotation(date);
     const card = document.createElement("div");
-    card.className = "week-day";
-    card.innerHTML = `<strong>${weekdays[i]} · ${date.getDate()}</strong><small>${tasks.length ? tasks.slice(0, 3).map((task) => `${task.priority}. ${task.text}`).join("<br>") : "일간 페이지에 업무를 입력하세요."}</small>`;
+    card.className = `week-day ${annotation.hasHoliday ? "has-holiday" : ""} ${annotation.lunarLabel ? "has-lunar" : ""}`.trim();
+    card.innerHTML = `
+      <strong>${weekdays[i]} · ${date.getDate()}</strong>
+      <div class="week-day-marks">${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel)}</div>
+      <small>${tasks.length ? tasks.slice(0, 3).map((task) => `${task.priority}. ${task.text}`).join("<br>") : "일간 페이지에 업무를 입력하세요."}</small>
+    `;
     card.onclick = () => {
       selectedDate = date;
       showView("day");
@@ -2073,6 +2321,7 @@ function renderWeek() {
     };
     days.appendChild(card);
   }
+  if (!el("weekCalendarPopover").hidden) renderWeekCalendar();
 }
 
 function renderDay() {
@@ -2776,15 +3025,62 @@ function schedulePostponedTask(task, priority, targetDate) {
   renderAll();
 }
 
+function findTaskSource(taskRef) {
+  const day = state.days[taskRef.date];
+  if (!day) return null;
+  normalizeDayTasks(day);
+  if (taskRef.id) {
+    for (const [priority] of priorities) {
+      const index = day.tasks[priority].findIndex((task) => task.id === taskRef.id);
+      if (index >= 0) return { day, task: day.tasks[priority][index], priority, index };
+    }
+  }
+  const fallback = day.tasks?.[taskRef.priority]?.[taskRef.index];
+  if (!fallback) return null;
+  normalizeTask(fallback);
+  return { day, task: fallback, priority: taskRef.priority, index: taskRef.index };
+}
+
+function moveTaskSourcePriority(taskRef, toPriority) {
+  if (!["A", "B", "C"].includes(toPriority)) return null;
+  const source = findTaskSource(taskRef);
+  if (!source) return null;
+  source.task.priorityUnset = false;
+  if (source.priority === toPriority) return source;
+  const fromList = source.day.tasks[source.priority];
+  const index = fromList.indexOf(source.task);
+  if (index < 0) return null;
+  const [task] = fromList.splice(index, 1);
+  source.day.tasks[toPriority].push(task);
+  return {
+    day: source.day,
+    task,
+    priority: toPriority,
+    index: source.day.tasks[toPriority].length - 1,
+  };
+}
+
 function renderCarryoverTask(task) {
   const row = document.createElement("div");
   const selectedKey = iso(selectedDate);
   const completedHere = isCarryoverCompletedOn(task, selectedKey);
   const marker = completedHere ? "check" : getTaskMarker(task);
-  row.className = `task-row carryover-row priority-${task.priority === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
-  row.innerHTML = `<button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button><div class="task-status-cell" data-status="${escapeAttr(task.priority)}"><select class="priority-select" disabled><option>${task.priority}</option></select></div><input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />`;
+  const priority = ["A", "B", "C"].includes(task.priority) ? task.priority : "A";
+  row.className = `task-row carryover-row priority-${priority === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
+  row.innerHTML = `
+    <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
+    <div class="task-status-cell" data-status="${escapeAttr(priority)}">
+      <select class="priority-select carryover-priority-select" aria-label="이월업무 중요도 선택">
+        ${["A", "B", "C"].map((value) => `<option value="${value}" ${priority === value ? "selected" : ""}>${value}</option>`).join("")}
+      </select>
+    </div>
+    <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
+  `;
   row.querySelector(".task-cycle").onclick = () => {
     updateCarryoverTaskMarker(task);
+  };
+  row.querySelector(".carryover-priority-select").onchange = (event) => {
+    updateCarryoverTaskPriority(task, event.target.value);
   };
   row.querySelector(".task-text-input").oninput = (event) => {
     updateCarryoverTaskText(task, event.target.value);
@@ -2793,7 +3089,8 @@ function renderCarryoverTask(task) {
 }
 
 function updateCarryoverTaskMarker(taskRef) {
-  const source = state.days[taskRef.date]?.tasks?.[taskRef.priority]?.[taskRef.index];
+  const sourceRef = findTaskSource(taskRef);
+  const source = sourceRef?.task;
   if (!source) return;
   const completedKey = iso(selectedDate);
   if (isCarryoverCompletedOn(source, completedKey)) {
@@ -2807,10 +3104,18 @@ function updateCarryoverTaskMarker(taskRef) {
   renderAll();
 }
 
+function updateCarryoverTaskPriority(taskRef, value) {
+  const source = moveTaskSourcePriority(taskRef, value);
+  if (!source) return;
+  saveState({ fastSync: true });
+  renderAll();
+}
+
 function updateCarryoverTaskText(taskRef, value) {
-  const source = state.days[taskRef.date]?.tasks?.[taskRef.priority]?.[taskRef.index];
+  const source = findTaskSource(taskRef)?.task;
   if (!source) return;
   source.text = value;
+  source.priorityUnset = !value.trim();
   saveState({ fastSync: true });
   renderSidebar();
   renderMonthCalendar();
@@ -3062,14 +3367,18 @@ function setupSheetPageSwipe() {
     node.dataset.sheetSwipeReady = "true";
     let startX = 0;
     let startY = 0;
-    node.addEventListener("pointerdown", (event) => {
-      startX = event.clientX;
-      startY = event.clientY;
-    }, { passive: true });
-    node.addEventListener("pointerup", (event) => {
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
+    let lastSwipeAt = 0;
+    const markStart = (x, y) => {
+      startX = x;
+      startY = y;
+    };
+    const finishSwipe = (x, y) => {
+      const dx = x - startX;
+      const dy = y - startY;
       if (Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      const now = Date.now();
+      if (now - lastSwipeAt < 280) return;
+      lastSwipeAt = now;
       if (page === "list" && dx < 0 && state.customSheets.items.length) {
         sheetSlideOpening = !sheetDetailOpen;
         sheetDetailOpen = true;
@@ -3082,6 +3391,18 @@ function setupSheetPageSwipe() {
       if (page === "detail" && dx > 0) {
         closeSheetDetail();
       }
+    };
+    node.addEventListener("pointerdown", (event) => {
+      markStart(event.clientX, event.clientY);
+    }, { passive: true });
+    node.addEventListener("pointerup", (event) => finishSwipe(event.clientX, event.clientY), { passive: true });
+    node.addEventListener("touchstart", (event) => {
+      const touch = event.touches?.[0];
+      if (touch) markStart(touch.clientX, touch.clientY);
+    }, { passive: true });
+    node.addEventListener("touchend", (event) => {
+      const touch = event.changedTouches?.[0];
+      if (touch) finishSwipe(touch.clientX, touch.clientY);
     }, { passive: true });
   };
   bind(listPage, "list");
@@ -4042,6 +4363,7 @@ function formatMoneyAmount(value) {
 function getDayTasks(key) {
   const day = state.days[key];
   if (!day) return [];
+  normalizeDayTasks(day);
   return priorities.flatMap(([priority]) => day.tasks[priority].map((task, index) => ({ ...task, priority, date: key, index })));
 }
 
@@ -4086,6 +4408,7 @@ function showView(name) {
   if (name === "projects" && previousView !== "projects") projectDetailOpen = false;
   if (name === "sheets" && previousView !== "sheets") sheetDetailOpen = false;
   if (name !== "day") closeDailyCalendar();
+  if (name !== "week") closeWeekCalendar();
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
   document.querySelectorAll("[data-top-view]").forEach((item) => item.classList.toggle("is-active", item.dataset.topView === name));
   document.querySelectorAll(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${name}`));

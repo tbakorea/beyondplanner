@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260702c" />
+    <link rel="stylesheet" href="./styles.css?v=20260702f" />
   </head>
   <body>
     <header class="app-header">
@@ -193,9 +193,23 @@
         </section>
 
         <section class="view" id="view-week">
-          <div class="page-title">
-            <p class="eyebrow">Weekly Schedule</p>
-            <h2 id="weekTitle">주간 일정</h2>
+          <div class="page-title week-title">
+            <div class="week-heading">
+              <p class="eyebrow">Weekly Schedule</p>
+              <button class="week-date-button" id="weekCalendarToggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="달력에서 주간 선택">
+                <span id="weekTitle">주간 일정</span>
+                <span class="daily-date-calendar-mark" aria-hidden="true">▦</span>
+              </button>
+              <section class="daily-calendar-popover week-calendar-popover" id="weekCalendarPopover" role="dialog" aria-label="주간 일정 선택" hidden>
+                <div class="daily-calendar-toolbar">
+                  <button class="daily-calendar-nav" id="weekCalendarPrevMonth" type="button" aria-label="이전 달">‹</button>
+                  <strong id="weekCalendarMonthTitle">2026년 1월</strong>
+                  <button class="daily-calendar-nav" id="weekCalendarNextMonth" type="button" aria-label="다음 달">›</button>
+                  <button class="icon-close daily-calendar-close" id="weekCalendarClose" type="button" aria-label="달력 닫기">×</button>
+                </div>
+                <div class="daily-calendar-grid" id="weekCalendarGrid" role="grid" aria-label="주간 날짜"></div>
+              </section>
+            </div>
           </div>
           <div class="week-layout">
             <article class="panel span-12">
@@ -299,9 +313,11 @@
           <div class="page-title">
             <div>
               <p class="eyebrow">AI Coaching</p>
-              <h2>오늘의 코칭</h2>
+              <div class="coach-title-line">
+                <h2>오늘의 코칭</h2>
+                <button class="icon-close page-close" id="closeCoachButton" type="button" aria-label="코칭 닫기">×</button>
+              </div>
             </div>
-            <button class="icon-close page-close" id="closeCoachButton" type="button" aria-label="코칭 닫기">×</button>
           </div>
           <div class="coach-layout">
             <article class="panel span-7">
@@ -512,6 +528,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260702c"></script>
+    <script src="./app.js?v=20260702f"></script>
   </body>
 </html>

@@ -878,6 +878,48 @@ body.is-privacy-blind .app-shell {
   line-height: 1.1;
 }
 
+.week-title {
+  position: sticky;
+  top: var(--app-header-height);
+  z-index: 22;
+  align-items: flex-start;
+  border: 1px solid rgba(221, 216, 203, 0.84);
+  border-radius: 8px;
+  background: rgba(247, 245, 239, 0.96);
+  padding: 9px 12px;
+  backdrop-filter: blur(12px) saturate(1.04);
+}
+
+.week-heading {
+  position: relative;
+  min-width: 0;
+}
+
+.week-date-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 39px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.week-date-button #weekTitle {
+  margin: 4px 0 0;
+  font-size: clamp(22px, 2.15vw, 32px);
+  line-height: 1.1;
+}
+
+.week-calendar-popover {
+  top: calc(100% + 8px);
+  left: 0;
+  right: auto;
+}
+
 .daily-title {
   position: sticky;
   top: var(--app-header-height);
@@ -1048,7 +1090,9 @@ body.is-privacy-blind .app-shell {
 .daily-calendar-day {
   position: relative;
   display: grid;
-  place-items: center;
+  align-content: center;
+  justify-items: center;
+  gap: 1px;
   aspect-ratio: 1;
   min-width: 0;
   border: 1px solid transparent;
@@ -1058,6 +1102,33 @@ body.is-privacy-blind .app-shell {
   cursor: pointer;
   font-size: 12px;
   font-weight: 680;
+}
+
+.daily-calendar-date-number {
+  font-size: 12px;
+  font-weight: 820;
+  line-height: 1;
+}
+
+.daily-calendar-day .lunar-mark,
+.daily-calendar-day .calendar-event {
+  max-width: 100%;
+  font-size: 7.4px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.daily-calendar-day.has-holiday:not(.is-selected) {
+  background: rgba(217, 229, 234, 0.36);
+}
+
+.daily-calendar-day.has-holiday:not(.is-selected) .daily-calendar-date-number {
+  color: #a23b35;
+}
+
+.daily-calendar-day.is-selected-week:not(.is-selected) {
+  border-color: rgba(95, 118, 104, 0.36);
+  background: rgba(174, 191, 177, 0.22);
 }
 
 .daily-calendar-day:hover,
@@ -1078,6 +1149,12 @@ body.is-privacy-blind .app-shell {
 .daily-calendar-day.is-selected {
   border-color: var(--forest);
   background: var(--forest);
+  color: #fff;
+}
+
+.daily-calendar-day.is-selected .lunar-mark,
+.daily-calendar-day.is-selected .calendar-event,
+.daily-calendar-day.is-selected .daily-calendar-date-number {
   color: #fff;
 }
 
@@ -2279,6 +2356,21 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   margin-bottom: 8px;
 }
 
+.week-day.has-holiday {
+  background: rgba(217, 229, 234, 0.32);
+}
+
+.week-day.has-holiday strong {
+  color: #a23b35;
+}
+
+.week-day-marks {
+  display: grid;
+  gap: 2px;
+  min-height: 14px;
+  margin: -3px 0 6px;
+}
+
 .week-day small {
   display: block;
   color: var(--muted);
@@ -2866,11 +2958,25 @@ input[type="checkbox"]:checked::after {
 
 #view-coach .page-title {
   align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.coach-title-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.coach-title-line h2 {
+  margin: 4px 0 0;
 }
 
 #closeCoachButton {
-  align-self: start;
-  margin-top: 2px;
+  align-self: center;
+  flex: 0 0 auto;
+  margin-top: 4px;
 }
 
 .icon-close {
@@ -5098,10 +5204,34 @@ body.smartphone-device .privacy-blind-screen {
 
 .sheet-detail-panel {
   padding-left: 12px;
+  touch-action: pan-y;
 }
 
 .sheet-detail-close {
   margin-left: auto;
+}
+
+.sheet-document-actions .sheet-detail-close {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid rgba(95, 118, 104, 0.3);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.96);
+  color: var(--forest);
+  padding: 0;
+  font-size: 20px;
+  font-weight: 880;
+  line-height: 1;
+  box-shadow: 0 8px 20px rgba(38, 60, 52, 0.08);
+}
+
+.sheet-document-actions .sheet-detail-close:hover,
+.sheet-document-actions .sheet-detail-close:focus-visible {
+  border-color: rgba(38, 60, 52, 0.48);
+  background: rgba(174, 191, 177, 0.18);
+  color: var(--forest);
 }
 
 .sheet-detail-sticky {
