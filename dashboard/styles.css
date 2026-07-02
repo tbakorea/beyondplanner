@@ -1018,6 +1018,7 @@ body.is-privacy-blind .app-shell {
   border-radius: 8px;
   background: rgba(255, 253, 248, 0.99);
   box-shadow: 0 18px 44px rgba(36, 45, 42, 0.18);
+  touch-action: pan-y;
 }
 
 .daily-calendar-popover[hidden] {
@@ -1036,6 +1037,8 @@ body.is-privacy-blind .app-shell {
   color: var(--forest);
   font-size: 15px;
   text-align: center;
+  cursor: grab;
+  user-select: none;
 }
 
 .daily-calendar-nav,
@@ -4288,6 +4291,7 @@ body.ceo-mode .day-main-panel .panel {
     grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
     gap: 3px;
     padding: calc(var(--daily-title-height) + var(--daily-title-height) + 8px) 5px 0;
+    transition: grid-template-columns 190ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .panel {
@@ -4301,6 +4305,8 @@ body.ceo-mode .day-main-panel .panel {
     min-width: 0;
     overflow-x: hidden;
     border-color: rgba(221, 216, 203, 0.96);
+    transition: opacity 170ms ease, transform 190ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: opacity, transform;
   }
 
   .day-swipe .panel > h3 {
@@ -5043,6 +5049,7 @@ body.smartphone-device .privacy-blind-screen {
     min-width: 0;
     max-width: 100%;
     overflow-x: hidden;
+    animation: mobileFocusPanelIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .day-main-panel.is-focus-tasks .day-schedule-panel,
@@ -5064,9 +5071,36 @@ body.smartphone-device .privacy-blind-screen {
     grid-template-columns: 31px minmax(0, 1fr);
   }
 
+  .day-main-panel.is-focus-restoring .day-task-panel,
+  .day-main-panel.is-focus-restoring .day-schedule-panel {
+    animation: mobileFocusPanelRestore 210ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
   .appointment-time.range b {
     font-size: inherit;
     font-weight: inherit;
+  }
+}
+
+@keyframes mobileFocusPanelIn {
+  from {
+    opacity: 0.88;
+    transform: translateY(5px) scale(0.994);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes mobileFocusPanelRestore {
+  from {
+    opacity: 0.9;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

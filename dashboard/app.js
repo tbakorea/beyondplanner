@@ -94,6 +94,7 @@ let dailyCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
 let weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
+let mobileDayFocusResetTimer = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
 let isLocked = false;
@@ -1415,10 +1416,7 @@ function shiftDay(delta, animate = true) {
 function toggleDailyCalendar() {
   const popover = el("dailyCalendarPopover");
   if (!popover) return;
-  if (!popover.hidden) {
-    closeDailyCalendar(true);
-    return;
-  }
+  if (!popover.hidden) return;
   dailyCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
   renderDailyCalendar();
   popover.hidden = false;
@@ -1440,6 +1438,11 @@ function shiftDailyCalendarMonth(delta) {
   renderDailyCalendar();
 }
 
+function isDailyCalendarOpen() {
+  const popover = el("dailyCalendarPopover");
+  return Boolean(popover && !popover.hidden);
+}
+
 function selectDailyCalendarDate(date) {
   if (date.getFullYear() !== YEAR) return;
   closeDailyCalendar();
@@ -1454,10 +1457,7 @@ function selectDailyCalendarDate(date) {
 function toggleWeekCalendar() {
   const popover = el("weekCalendarPopover");
   if (!popover) return;
-  if (!popover.hidden) {
-    closeWeekCalendar(true);
-    return;
-  }
+  if (!popover.hidden) return;
   weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
   renderWeekCalendar();
   popover.hidden = false;
@@ -1477,6 +1477,11 @@ function shiftWeekCalendarMonth(delta) {
   if (next.getFullYear() !== YEAR) return;
   weekCalendarMonth = next;
   renderWeekCalendar();
+}
+
+function isWeekCalendarOpen() {
+  const popover = el("weekCalendarPopover");
+  return Boolean(popover && !popover.hidden);
 }
 
 function selectWeekCalendarDate(date) {
@@ -1763,6 +1768,13 @@ function setupDailyDateSwipe() {
     if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
     event.preventDefault();
     dailyCalendarSwipeSuppressClick = true;
+    if (isDailyCalendarOpen()) {
+      shiftDailyCalendarMonth(dx < 0 ? 1 : -1);
+      window.setTimeout(() => {
+        dailyCalendarSwipeSuppressClick = false;
+      }, 260);
+      return;
+    }
     shiftDay(dx < 0 ? 1 : -1);
   });
 }
@@ -1786,6 +1798,13 @@ function setupWeekDateSwipe() {
     if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.25) return;
     event.preventDefault();
     weekCalendarSwipeSuppressClick = true;
+    if (isWeekCalendarOpen()) {
+      shiftWeekCalendarMonth(dx < 0 ? 1 : -1);
+      window.setTimeout(() => {
+        weekCalendarSwipeSuppressClick = false;
+      }, 260);
+      return;
+    }
     shiftWeek(dx < 0 ? 1 : -1);
   });
 }
@@ -1915,8 +1934,15 @@ function isEditingDailyField() {
   );
 }
 
-function resetMobileDayFocusToSplit() {
+function resetMobileDayFocusToSplit(options = {}) {
   if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+  if (options.blur && isEditingDailyField()) document.activeElement.blur();
+  const panel = document.querySelector(".day-main-panel");
+  panel?.classList.add("is-focus-restoring");
+  window.clearTimeout(mobileDayFocusResetTimer);
+  mobileDayFocusResetTimer = window.setTimeout(() => {
+    panel?.classList.remove("is-focus-restoring");
+  }, 240);
   setMobileDayFocusMode("split");
 }
 
@@ -1932,16 +1958,24 @@ function setupMobileDayFocus() {
   const resetOnVerticalSwipe = (node) => {
     let startX = 0;
     let startY = 0;
+    const maybeReset = (x, y) => {
+      if (!isSmartphoneLayout() || mobileDayFocusMode === "split" || !startX) return;
+      const dx = x - startX;
+      const dy = y - startY;
+      if (Math.abs(dy) < 34 || Math.abs(dy) < Math.abs(dx) * 1.08) return;
+      startX = 0;
+      startY = 0;
+      resetMobileDayFocusToSplit({ blur: true });
+    };
     node.addEventListener("pointerdown", (event) => {
       startX = event.clientX;
       startY = event.clientY;
     }, { passive: true });
-    node.addEventListener("pointerup", (event) => {
-      if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
-      const dx = event.clientX - startX;
-      const dy = event.clientY - startY;
-      if (Math.abs(dy) < 52 || Math.abs(dy) < Math.abs(dx) * 1.25) return;
-      if (!isEditingDailyField()) resetMobileDayFocusToSplit();
+    node.addEventListener("pointermove", (event) => maybeReset(event.clientX, event.clientY), { passive: true });
+    node.addEventListener("pointerup", (event) => maybeReset(event.clientX, event.clientY), { passive: true });
+    node.addEventListener("pointercancel", () => {
+      startX = 0;
+      startY = 0;
     }, { passive: true });
   };
   const resetOnScrollIntent = (node) => {
@@ -1956,7 +1990,12 @@ function setupMobileDayFocus() {
       window.clearTimeout(scrollTimer);
       scrollTimer = window.setTimeout(() => {
         if (!isEditingDailyField()) resetMobileDayFocusToSplit();
-      }, 90);
+      }, 34);
+    }, { passive: true });
+    node.addEventListener("wheel", (event) => {
+      if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+      if (Math.abs(event.deltaY) < 12 || Math.abs(event.deltaY) < Math.abs(event.deltaX) * 1.1) return;
+      resetMobileDayFocusToSplit({ blur: true });
     }, { passive: true });
   };
   let lastWindowTop = window.scrollY || 0;
@@ -1970,7 +2009,7 @@ function setupMobileDayFocus() {
     window.clearTimeout(windowScrollTimer);
     windowScrollTimer = window.setTimeout(() => {
       if (!isEditingDailyField()) resetMobileDayFocusToSplit();
-    }, 90);
+    }, 34);
   }, { passive: true });
   taskPanel.addEventListener("pointerdown", expandOnInteraction("tasks"), { passive: true });
   taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
