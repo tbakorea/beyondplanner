@@ -4920,6 +4920,12 @@ body.smartphone-device .privacy-blind-screen {
 
   .day-main-panel.is-focus-tasks,
   .day-main-panel.is-focus-schedule {
+    box-sizing: border-box;
+    flex: 0 0 100%;
+    width: 100%;
+    min-width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
@@ -4928,11 +4934,28 @@ body.smartphone-device .privacy-blind-screen {
     display: block;
     grid-column: 1 / -1;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .day-main-panel.is-focus-tasks .day-schedule-panel,
   .day-main-panel.is-focus-schedule .day-task-panel {
     display: none;
+  }
+
+  .day-main-panel.is-focus-tasks .task-board,
+  .day-main-panel.is-focus-schedule .appointment-list,
+  .day-main-panel.is-focus-tasks .task-row,
+  .day-main-panel.is-focus-schedule .appointment-row {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-row {
+    grid-template-columns: 31px minmax(0, 1fr);
   }
 
   .appointment-time.range b {

@@ -1665,6 +1665,19 @@ function isSmartphoneDevice() {
   return /iPhone|iPod|Windows Phone|Android.+Mobile/i.test(navigator.userAgent || "");
 }
 
+function isEditingDailyField() {
+  const active = document.activeElement;
+  return Boolean(
+    active?.matches?.("input, select, textarea") &&
+    active.closest(".day-task-panel, .day-schedule-panel")
+  );
+}
+
+function resetMobileDayFocusToSplit() {
+  if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+  setMobileDayFocusMode("split");
+}
+
 function setupMobileDayFocus() {
   const panel = document.querySelector(".day-main-panel");
   const taskPanel = panel?.querySelector(".day-task-panel");
@@ -1686,15 +1699,45 @@ function setupMobileDayFocus() {
       const dx = event.clientX - startX;
       const dy = event.clientY - startY;
       if (Math.abs(dy) < 52 || Math.abs(dy) < Math.abs(dx) * 1.25) return;
-      setMobileDayFocusMode("split");
+      if (!isEditingDailyField()) resetMobileDayFocusToSplit();
     }, { passive: true });
   };
+  const resetOnScrollIntent = (node) => {
+    let lastTop = node.scrollTop || 0;
+    let scrollTimer = 0;
+    node.addEventListener("scroll", () => {
+      if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+      const currentTop = node.scrollTop || 0;
+      const delta = Math.abs(currentTop - lastTop);
+      lastTop = currentTop;
+      if (delta < 6) return;
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => {
+        if (!isEditingDailyField()) resetMobileDayFocusToSplit();
+      }, 90);
+    }, { passive: true });
+  };
+  let lastWindowTop = window.scrollY || 0;
+  let windowScrollTimer = 0;
+  window.addEventListener("scroll", () => {
+    if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+    const currentTop = window.scrollY || 0;
+    const delta = Math.abs(currentTop - lastWindowTop);
+    lastWindowTop = currentTop;
+    if (delta < 6) return;
+    window.clearTimeout(windowScrollTimer);
+    windowScrollTimer = window.setTimeout(() => {
+      if (!isEditingDailyField()) resetMobileDayFocusToSplit();
+    }, 90);
+  }, { passive: true });
   taskPanel.addEventListener("pointerdown", expandOnInteraction("tasks"), { passive: true });
   taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
   schedulePanel.addEventListener("pointerdown", expandOnInteraction("schedule"), { passive: true });
   schedulePanel.addEventListener("focusin", expandOnInteraction("schedule"));
   resetOnVerticalSwipe(taskPanel);
   resetOnVerticalSwipe(schedulePanel);
+  resetOnScrollIntent(taskPanel);
+  resetOnScrollIntent(schedulePanel);
   applyMobileDayFocusMode();
 }
 
