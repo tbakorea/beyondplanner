@@ -99,6 +99,7 @@ let weekCalendarSwipeSuppressClick = false;
 let monthCalendarSwipeSuppressClick = false;
 let monthDateTap = { key: "", at: 0 };
 let mobileDayFocusResetTimer = 0;
+let dailyFieldEditingUntil = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
 let isLocked = false;
@@ -2046,9 +2047,17 @@ function isSmartphoneDevice() {
   return /iPhone|iPod|Windows Phone|Android.+Mobile/i.test(navigator.userAgent || "");
 }
 
+function markDailyFieldEditing(duration = 900) {
+  dailyFieldEditingUntil = Date.now() + duration;
+}
+
+function isDailyFieldEditingRecent() {
+  return Date.now() < dailyFieldEditingUntil;
+}
+
 function isEditingDailyField() {
   const active = document.activeElement;
-  return Boolean(
+  return isDailyFieldEditingRecent() || Boolean(
     active?.matches?.("input, select, textarea") &&
     active.closest(".day-task-panel, .day-schedule-panel")
   );
@@ -2080,6 +2089,7 @@ function setupMobileDayFocus() {
     let startY = 0;
     const maybeReset = (x, y) => {
       if (!isSmartphoneLayout() || mobileDayFocusMode === "split" || !startX) return;
+      if (isEditingDailyField()) return;
       const dx = x - startX;
       const dy = y - startY;
       if (Math.abs(dy) < 34 || Math.abs(dy) < Math.abs(dx) * 1.08) return;
@@ -2114,6 +2124,7 @@ function setupMobileDayFocus() {
     }, { passive: true });
     node.addEventListener("wheel", (event) => {
       if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+      if (isEditingDailyField()) return;
       if (Math.abs(event.deltaY) < 12 || Math.abs(event.deltaY) < Math.abs(event.deltaX) * 1.1) return;
       resetMobileDayFocusToSplit({ blur: true });
     }, { passive: true });
@@ -2135,6 +2146,11 @@ function setupMobileDayFocus() {
   taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
   schedulePanel.addEventListener("pointerdown", expandOnInteraction("schedule"), { passive: true });
   schedulePanel.addEventListener("focusin", expandOnInteraction("schedule"));
+  document.addEventListener("pointerdown", (event) => {
+    if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+    if (event.target.closest(".day-task-panel input, .day-task-panel select, .day-task-panel textarea, .day-task-panel button, .day-schedule-panel input, .day-schedule-panel select, .day-schedule-panel textarea, .day-schedule-panel button")) return;
+    window.setTimeout(() => resetMobileDayFocusToSplit({ blur: true }), 0);
+  }, { passive: true });
   resetOnVerticalSwipe(taskPanel);
   resetOnVerticalSwipe(schedulePanel);
   resetOnScrollIntent(taskPanel);
@@ -3169,7 +3185,9 @@ function renderTaskRow(task, priority, index) {
   if (postponeDate) {
     postponeDate.onchange = () => schedulePostponedTask(task, priority, postponeDate.value);
   }
+  bindDailyTaskTextInput(text);
   text.oninput = () => {
+    markDailyFieldEditing();
     task.text = text.value;
     task.priorityUnset = false;
     saveState({ fastSave: true });
@@ -3179,6 +3197,19 @@ function renderTaskRow(task, priority, index) {
   };
   deleteButton.onclick = () => deleteTask(priority, index);
   return row;
+}
+
+function bindDailyTaskTextInput(input) {
+  if (!input) return;
+  input.onfocus = () => markDailyFieldEditing(1500);
+  input.oncompositionstart = () => markDailyFieldEditing(3000);
+  input.oncompositionend = () => markDailyFieldEditing(900);
+  input.onkeydown = (event) => {
+    markDailyFieldEditing();
+    if (event.key !== "Enter" || event.isComposing) return;
+    event.preventDefault();
+    resetMobileDayFocusToSplit({ blur: true });
+  };
 }
 
 function getTaskStatusLabel(task, menuValue) {
@@ -3413,7 +3444,10 @@ function renderCarryoverTask(task) {
   row.querySelector(".carryover-priority-select").onchange = (event) => {
     updateCarryoverTaskPriority(task, event.target.value);
   };
-  row.querySelector(".task-text-input").oninput = (event) => {
+  const textInput = row.querySelector(".task-text-input");
+  bindDailyTaskTextInput(textInput);
+  textInput.oninput = (event) => {
+    markDailyFieldEditing();
     updateCarryoverTaskText(task, event.target.value);
   };
   row.querySelector(".task-delete").onclick = () => deleteCarryoverTask(task);
