@@ -289,6 +289,7 @@ function normalizeTask(task = {}) {
   task.id ||= newTaskId();
   task.status ||= task.done ? "완료" : "미완료";
   task.delegate ||= "";
+  task.carryoverDeletedFrom ||= "";
   if (!task.text?.trim() && task.status === "미완료" && task.priorityUnset === undefined) {
     task.priorityUnset = true;
   }
@@ -2121,8 +2122,10 @@ function applyMobileDayFocusMode() {
   const panel = document.querySelector(".day-main-panel");
   if (!panel) return;
   const activeMode = isSmartphoneLayout() ? mobileDayFocusMode : "split";
+  const swipe = el("daySwipe");
   panel.classList.toggle("is-focus-tasks", activeMode === "tasks");
   panel.classList.toggle("is-focus-schedule", activeMode === "schedule");
+  swipe?.classList.toggle("is-mobile-focus-active", activeMode !== "split");
 }
 
 function isSwipeInteractiveTarget(target) {
@@ -3376,10 +3379,12 @@ function deleteCarryoverTask(taskRef) {
   const source = findTaskSource(taskRef);
   if (!source) return;
   if (source.task.repeatId) {
-    source.day.deletedRepeatIds ||= [];
-    if (!source.day.deletedRepeatIds.includes(source.task.repeatId)) source.day.deletedRepeatIds.push(source.task.repeatId);
+    const selectedKey = iso(selectedDate);
+    const day = ensureDay(selectedKey);
+    day.deletedRepeatIds ||= [];
+    if (!day.deletedRepeatIds.includes(source.task.repeatId)) day.deletedRepeatIds.push(source.task.repeatId);
   }
-  source.day.tasks[source.priority].splice(source.index, 1);
+  source.task.carryoverDeletedFrom = iso(selectedDate);
   saveState({ fastSave: true });
   renderAll();
 }
@@ -4666,6 +4671,8 @@ function getCarryoverTasks(date) {
     .flatMap((key) => getDayTasks(key))
     .filter((task) => {
       const completedKey = task.carryoverDoneDate || "";
+      const deletedFrom = task.carryoverDeletedFrom || "";
+      if (deletedFrom && deletedFrom <= currentKey) return false;
       if (completedKey && completedKey < currentKey) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });
