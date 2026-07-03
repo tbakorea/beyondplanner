@@ -863,6 +863,7 @@ function ensureDay(key = iso(selectedDate)) {
     tasks: { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) },
     appointments: Object.fromEntries(timeSlots.map((slot) => [slot, ""])),
     appointmentMerges: {},
+    deletedRepeatIds: [],
     memo: "",
     record: "",
     wins: "",
@@ -871,6 +872,7 @@ function ensureDay(key = iso(selectedDate)) {
   };
   state.days[key].memo ||= "";
   state.days[key].appointmentMerges ||= {};
+  state.days[key].deletedRepeatIds ||= [];
   normalizeDayTasks(state.days[key]);
   applyRepeatingPriorityTasks(key);
   return state.days[key];
@@ -1123,6 +1125,7 @@ function toggleTopSearch() {
   const input = el("headerSearch");
   if (!popover || !input) return;
   popover.hidden = !popover.hidden;
+  el("topSearchToggle")?.classList.toggle("is-active", !popover.hidden);
   if (!popover.hidden) {
     showView("search");
     renderSearch();
@@ -1133,6 +1136,7 @@ function toggleTopSearch() {
 function closeTopSearch() {
   const popover = el("topSearchPopover");
   if (popover) popover.hidden = true;
+  el("topSearchToggle")?.classList.remove("is-active");
 }
 
 function runHeaderSearch() {
@@ -1140,7 +1144,7 @@ function runHeaderSearch() {
   const popover = el("topSearchPopover");
   if (!input) return;
   updateSearch(input.value);
-  if (popover && input.value.trim()) popover.hidden = true;
+  if (popover && input.value.trim()) closeTopSearch();
   requestAiSearchAnswer(input.value);
 }
 
@@ -2652,6 +2656,7 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
     if (!shouldRepeatOnDate(rule, date)) return;
     const priority = ["A", "B", "C"].includes(rule.priority) ? rule.priority : "A";
     const repeatId = `repeat-${index}-${key}`;
+    if (Array.isArray(day.deletedRepeatIds) && day.deletedRepeatIds.includes(repeatId)) return;
     let existingPriority = "";
     let existingTask = null;
     priorities.some(([candidate]) => {
@@ -2695,6 +2700,7 @@ function renderRepeatPriorityList() {
         ${repeatFrequencies.map(([value, label]) => `<option value="${value}" ${rule.frequency === value ? "selected" : ""}>${label}</option>`).join("")}
       </select>
       <div class="repeat-target-cell">${renderRepeatTargetControl(rule)}</div>
+      <button class="repeat-delete" type="button" aria-label="반복 우선업무 삭제">×</button>
     `;
     const active = row.querySelector(".repeat-active");
     const priority = row.querySelector(".repeat-priority");
@@ -2736,6 +2742,11 @@ function renderRepeatPriorityList() {
       saveState();
       renderAll();
     });
+    row.querySelector(".repeat-delete").onclick = () => {
+      state.repeats.priorityTasks.splice(index, 1);
+      saveState();
+      renderDay();
+    };
     node.appendChild(row);
   });
   const add = document.createElement("button");
@@ -2948,13 +2959,15 @@ function renderTaskRow(task, priority, index) {
     <button class="task-cycle" type="button" aria-label="완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" placeholder="업무 내용" />
+    <button class="task-delete" type="button" aria-label="우선업무 삭제">×</button>
   `;
   const cycle = row.querySelector(".task-cycle");
   const prioritySelect = row.querySelector(".priority-select");
   const delegateInput = row.querySelector(".delegate-input");
   const postponeSelect = row.querySelector(".postpone-select");
   const postponeDate = row.querySelector(".postpone-date");
-  const text = row.querySelector("input[type='text']:last-child");
+  const text = row.querySelector(".task-text-input");
+  const deleteButton = row.querySelector(".task-delete");
   cycle.onclick = () => {
     cycleTaskMarker(task);
     saveState({ fastSave: true });
@@ -2994,6 +3007,7 @@ function renderTaskRow(task, priority, index) {
     renderMonthCalendar();
     renderWeek();
   };
+  deleteButton.onclick = () => deleteTask(priority, index);
   return row;
 }
 
@@ -3138,6 +3152,19 @@ function moveTaskPriority(fromPriority, index, toPriority) {
   renderAll();
 }
 
+function deleteTask(priority, index) {
+  const day = ensureDay();
+  const task = day.tasks?.[priority]?.[index];
+  if (!task) return;
+  if (task.repeatId) {
+    day.deletedRepeatIds ||= [];
+    if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
+  }
+  day.tasks[priority].splice(index, 1);
+  saveState({ fastSave: true });
+  renderAll();
+}
+
 function schedulePostponedTask(task, priority, targetDate) {
   if (!targetDate || parseDate(targetDate).getFullYear() !== YEAR) return;
   task.postponeDate = targetDate;
@@ -3208,6 +3235,7 @@ function renderCarryoverTask(task) {
       </select>
     </div>
     <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
+    <button class="task-delete" type="button" aria-label="이월 우선업무 삭제">×</button>
   `;
   row.querySelector(".task-cycle").onclick = () => {
     updateCarryoverTaskMarker(task);
@@ -3218,7 +3246,20 @@ function renderCarryoverTask(task) {
   row.querySelector(".task-text-input").oninput = (event) => {
     updateCarryoverTaskText(task, event.target.value);
   };
+  row.querySelector(".task-delete").onclick = () => deleteCarryoverTask(task);
   return row;
+}
+
+function deleteCarryoverTask(taskRef) {
+  const source = findTaskSource(taskRef);
+  if (!source) return;
+  if (source.task.repeatId) {
+    source.day.deletedRepeatIds ||= [];
+    if (!source.day.deletedRepeatIds.includes(source.task.repeatId)) source.day.deletedRepeatIds.push(source.task.repeatId);
+  }
+  source.day.tasks[source.priority].splice(source.index, 1);
+  saveState({ fastSave: true });
+  renderAll();
 }
 
 function updateCarryoverTaskMarker(taskRef) {

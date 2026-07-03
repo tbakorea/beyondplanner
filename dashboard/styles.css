@@ -332,28 +332,34 @@ body.ceo-mode .day-main-panel {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   max-width: 100%;
   overflow-x: auto;
-  padding-bottom: 2px;
+  padding: 3px;
+  border: 1px solid rgba(221, 216, 203, 0.68);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.58);
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .quick-strip button {
   flex: 0 0 auto;
-  min-height: 31px;
-  border: 1px solid var(--line);
+  min-height: 34px;
+  border: 1px solid transparent;
   border-radius: 999px;
-  background: rgba(255, 253, 248, 0.86);
+  background: transparent;
   color: var(--ink);
-  padding: 6px 11px;
+  padding: 7px 12px;
   font-size: 13px;
-  font-weight: 760;
+  font-weight: 820;
   cursor: pointer;
+  white-space: nowrap;
+  touch-action: manipulation;
 }
 
 .quick-strip button:hover {
-  background: var(--stone);
+  background: rgba(235, 231, 220, 0.7);
 }
 
 .quick-strip button.is-active {
@@ -369,6 +375,17 @@ body.ceo-mode .day-main-panel {
 
 .top-search-toggle {
   min-width: 74px;
+  border-color: rgba(95, 118, 104, 0.18) !important;
+  background: rgba(255, 253, 248, 0.86) !important;
+}
+
+.top-search-toggle:hover {
+  background: var(--stone) !important;
+}
+
+.top-search-toggle.is-active {
+  background: var(--forest) !important;
+  color: #fff;
 }
 
 .top-search {
@@ -2404,7 +2421,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .task-row {
   display: grid;
-  grid-template-columns: 22px 30px minmax(0, 1fr);
+  grid-template-columns: 22px 30px minmax(0, 1fr) 22px;
   column-gap: 6px;
   row-gap: 0;
   align-items: center;
@@ -2416,7 +2433,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .carryover-row {
-  grid-template-columns: 22px 30px minmax(0, 1fr);
+  grid-template-columns: 22px 30px minmax(0, 1fr) 22px;
 }
 
 .carryover-date {
@@ -2650,6 +2667,31 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   text-decoration-thickness: 3px;
 }
 
+.task-delete,
+.repeat-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  border: 1px solid rgba(185, 179, 167, 0.78);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.8);
+  color: #8c2d27;
+  padding: 0;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.task-delete:hover,
+.repeat-delete:hover {
+  border-color: rgba(215, 55, 47, 0.38);
+  background: rgba(215, 55, 47, 0.08);
+}
+
 .add-row {
   border: 1px dashed var(--line);
   border-radius: 7px;
@@ -2874,14 +2916,19 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .repeat-list {
-  padding: 0 10px 10px;
+  overflow-x: auto;
+  padding: 0 10px 18px;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scroll-padding-inline: 10px;
 }
 
 .repeat-rule-row {
   display: grid;
-  grid-template-columns: 22px 42px minmax(110px, 1fr) 68px minmax(58px, auto);
+  grid-template-columns: 22px 42px minmax(150px, 1fr) 74px minmax(92px, auto) 24px;
   gap: 6px;
   align-items: center;
+  width: max(100%, 560px);
   padding: 7px;
 }
 
@@ -2941,7 +2988,9 @@ input[type="checkbox"]:checked::after {
 }
 
 .repeat-add {
+  min-width: 180px;
   width: 100%;
+  margin-bottom: 12px;
 }
 
 .closeout-grid {
@@ -3185,7 +3234,7 @@ input[type="checkbox"]:checked::after {
   }
 
   .task-row {
-    grid-template-columns: 24px 56px minmax(0, 1fr);
+    grid-template-columns: 24px 56px minmax(0, 1fr) 24px;
   }
 
   .appointment-row {
@@ -3193,7 +3242,8 @@ input[type="checkbox"]:checked::after {
   }
 
   .repeat-rule-row {
-    grid-template-columns: 22px 44px minmax(130px, 1fr) 74px minmax(62px, auto);
+    grid-template-columns: 22px 44px minmax(150px, 1fr) 74px minmax(92px, auto) 24px;
+    width: max(100%, 570px);
   }
 }
 
@@ -3325,13 +3375,13 @@ input[type="checkbox"]:checked::after {
   }
 
   .task-row {
-    grid-template-columns: 24px 56px minmax(0, 1fr);
+    grid-template-columns: 24px 56px minmax(0, 1fr) 24px;
     gap: 5px;
     padding: 7px 6px;
   }
 
   .carryover-row {
-    grid-template-columns: 28px 38px 46px minmax(0, 1fr);
+    grid-template-columns: 28px 38px minmax(0, 1fr) 24px;
   }
 
   .appointment-row {
@@ -3579,7 +3629,7 @@ input[type="checkbox"]:checked::after {
   }
 
   .task-row {
-    grid-template-columns: 22px 28px minmax(0, 1fr);
+    grid-template-columns: 22px 28px minmax(0, 1fr) 22px;
     column-gap: 6px;
     row-gap: 0;
     min-height: 32px;
@@ -3587,7 +3637,7 @@ input[type="checkbox"]:checked::after {
   }
 
   .carryover-row {
-    grid-template-columns: 22px 28px minmax(0, 1fr);
+    grid-template-columns: 22px 28px minmax(0, 1fr) 22px;
   }
 
   .carryover-date {
@@ -4007,7 +4057,7 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .task-row {
-    grid-template-columns: 20px 24px minmax(0, 1fr);
+    grid-template-columns: 20px 24px minmax(0, 1fr) 20px;
     column-gap: 4px;
     min-height: 29px;
     padding: 1px;
@@ -4018,6 +4068,13 @@ body.ceo-mode .day-main-panel .panel {
     height: 20px;
     min-height: 20px;
     border-radius: 5px;
+    font-size: 13px;
+  }
+
+  .task-delete {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
     font-size: 13px;
   }
 
@@ -4351,7 +4408,7 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .task-row {
-    grid-template-columns: 18px 22px minmax(0, 1fr);
+    grid-template-columns: 18px 22px minmax(0, 1fr) 18px;
     column-gap: 2px;
     min-height: var(--mobile-row-height);
     min-width: 0;
@@ -4819,7 +4876,7 @@ button {
   }
 
   .task-row {
-    grid-template-columns: 20px 28px minmax(0, 1fr);
+    grid-template-columns: 20px 28px minmax(0, 1fr) 20px;
     column-gap: 2px;
     min-height: var(--mobile-row-height);
     padding-left: 1px;
@@ -4924,27 +4981,31 @@ button {
   }
 
   .header-tools {
-    overflow: visible;
+    width: 100%;
+    overflow: hidden;
   }
 
   .quick-strip {
     display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    overflow: visible;
-    scroll-snap-type: none;
-    padding: 1px 0 0;
+    flex-wrap: nowrap;
+    gap: 4px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    padding: 2px;
+    scrollbar-width: none;
   }
 
   .quick-strip button,
   .top-search-toggle {
-    min-height: 25px;
-    padding: 3px 6px;
-    font-size: 9.2px;
+    scroll-snap-align: start;
+    min-height: 31px;
+    padding: 5px 9px;
+    font-size: 10.5px;
   }
 
   .quick-strip button.is-active {
-    padding-inline: 8px;
+    padding-inline: 10px;
   }
 
   .quick-strip [data-top-view="notes"] {
