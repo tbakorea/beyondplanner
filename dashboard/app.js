@@ -605,6 +605,14 @@ function flushDailyTaskRelatedRefresh() {
   refreshDailyTaskRelatedViews();
 }
 
+function renderSidebarAfterDailyInput() {
+  if (dailyTextEditingActive || isDailyFieldEditingRecent()) {
+    scheduleDailyTaskRelatedRefresh(700);
+    return;
+  }
+  renderSidebar();
+}
+
 async function hydrateServerState() {
   try {
     await hydrateServerConfig();
@@ -709,13 +717,13 @@ async function hydrateServerConfig() {
 function scheduleAccountSave(delay = 650) {
   if (!accountSaveReady) {
     saveStatus.message = getAuthSession()?.accessToken ? "저장 대기" : "로그인이 필요합니다";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
     return;
   }
   window.clearTimeout(accountSaveTimer);
   saveStatus.saving = true;
   saveStatus.message = "저장 중";
-  renderSidebar();
+  renderSidebarAfterDailyInput();
   accountSaveTimer = window.setTimeout(() => {
     persistStateToServer();
   }, delay);
@@ -728,14 +736,14 @@ async function persistStateToServer(options = {}) {
     accountSaveReady = false;
     saveStatus.saving = false;
     saveStatus.message = "다시 로그인 필요";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
     logoutPlanner();
     return;
   }
   if (!options.force && !hasPlannerContent(state)) {
     saveStatus.saving = false;
     saveStatus.message = "저장됨";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
     return;
   }
   const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : getStateMeta().updatedAt || markLocalStateUpdated();
@@ -760,11 +768,11 @@ async function persistStateToServer(options = {}) {
     saveStatus.ready = true;
     saveStatus.saving = false;
     saveStatus.message = "저장됨";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
   } catch (error) {
     saveStatus.saving = false;
     saveStatus.message = error.message || "저장 실패";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
   }
 }
 
@@ -774,12 +782,17 @@ async function pullServerStateIfNewer(options = {}) {
   if (!session?.accessToken) {
     accountSaveReady = false;
     saveStatus.message = "다시 로그인 필요";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
     logoutPlanner();
     return;
   }
   const localMeta = getStateMeta();
   if (!options.force && localMeta.dirty && Date.now() - timestampMs(localMeta.updatedAt) < 3000) return;
+  if (dailyTextEditingActive || isDailyFieldEditingRecent()) {
+    saveStatus.message = "입력 완료 후 최신 확인";
+    renderSidebarAfterDailyInput();
+    return;
+  }
   try {
     const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
     if (!response.ok) throw new Error(await extractSaveError(response));
@@ -790,7 +803,7 @@ async function pullServerStateIfNewer(options = {}) {
     renderAll();
   } catch (error) {
     saveStatus.message = error.message || "저장 확인 실패";
-    renderSidebar();
+    renderSidebarAfterDailyInput();
   }
 }
 
