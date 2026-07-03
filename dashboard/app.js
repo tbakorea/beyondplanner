@@ -96,6 +96,7 @@ let dailyCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
 let weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
+let monthCalendarSwipeSuppressClick = false;
 let mobileDayFocusResetTimer = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
@@ -316,6 +317,8 @@ function migrateState(nextState) {
   normalizeCustomSheetsState(nextState.customSheets);
   nextState.notes ||= { projects: Array.from({ length: 8 }, () => ""), references: Array.from({ length: 8 }, () => ""), freeform: "" };
   nextState.profile ||= { age: "", job: "", goals: "", strengths: "", risks: "" };
+  nextState.calendar ||= {};
+  nextState.calendar.events ||= [];
   nextState.repeats ||= {};
   nextState.repeats.priorityTasks ||= emptyRepeatRules(4);
   while (nextState.repeats.priorityTasks.length < 4) nextState.repeats.priorityTasks.push(emptyRepeatRule());
@@ -623,6 +626,9 @@ function loadEmptyState() {
     finance: createFinanceState(),
     projects: createProjectState(),
     customSheets: createCustomSheetsState(),
+    calendar: {
+      events: [],
+    },
   };
 }
 
@@ -800,6 +806,7 @@ function hasPlannerContent(source = state) {
   if ((source.notes?.projects || []).some(hasText) || (source.notes?.references || []).some(hasText) || hasText(source.notes?.freeform)) return true;
   if (financeHasContent(source.finance)) return true;
   if ((source.customSheets?.items || []).some((sheet) => Object.values(sheet.cells || {}).some(hasText))) return true;
+  if ((source.calendar?.events || []).some((event) => hasText(event.title))) return true;
   return (source.projects?.items || []).some(projectHasUserContent);
 }
 
@@ -1064,6 +1071,12 @@ function setupSelectors() {
       mergeAppointmentRange(ensureDay(), button.dataset.mergeRange);
     };
   });
+  el("addAnniversaryButton").onclick = addAnniversaryEvent;
+  el("anniversaryTitle").onkeydown = (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addAnniversaryEvent();
+  };
   document.querySelectorAll("[data-settings-view]").forEach((button) => {
     button.onclick = () => {
       showView(button.dataset.settingsView);
@@ -1096,6 +1109,7 @@ function setupSelectors() {
   setupDaySwipePager();
   setupMobileDayFocus();
   setupWheelDayNavigation();
+  setupMonthCalendarWheel();
   setupFinanceMonthSwipe();
   setupSheetPageSwipe();
   setupAutoLock();
@@ -1531,6 +1545,49 @@ function shiftWeek(delta) {
   if (next.getFullYear() !== YEAR) return;
   selectedDate = next;
   renderAll();
+}
+
+function shiftMonth(delta) {
+  const next = new Date(selectedDate);
+  next.setMonth(next.getMonth() + delta, 1);
+  if (next.getFullYear() !== YEAR) return;
+  selectedDate = next;
+  renderAll();
+}
+
+function setupMonthCalendarWheel() {
+  const node = el("monthCalendar");
+  if (!node) return;
+  let wheelLock = false;
+  let startX = 0;
+  let startY = 0;
+  node.addEventListener("pointerdown", (event) => {
+    startX = event.clientX;
+    startY = event.clientY;
+  }, { passive: true });
+  node.addEventListener("pointerup", (event) => {
+    if (!startY) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    startX = 0;
+    startY = 0;
+    if (Math.abs(dy) < 54 || Math.abs(dy) < Math.abs(dx) * 1.2) return;
+    event.preventDefault();
+    monthCalendarSwipeSuppressClick = true;
+    shiftMonth(dy < 0 ? 1 : -1);
+    window.setTimeout(() => {
+      monthCalendarSwipeSuppressClick = false;
+    }, 260);
+  });
+  node.addEventListener("wheel", (event) => {
+    if (Math.abs(event.deltaY) < 42 || Math.abs(event.deltaY) < Math.abs(event.deltaX) * 1.2 || wheelLock) return;
+    event.preventDefault();
+    wheelLock = true;
+    shiftMonth(event.deltaY > 0 ? 1 : -1);
+    window.setTimeout(() => {
+      wheelLock = false;
+    }, 360);
+  }, { passive: false });
 }
 
 function getCalendarAnnotation(date) {
@@ -2304,7 +2361,10 @@ function renderYear() {
 }
 
 function getCalendarEvents(key) {
-  return koreanCalendarEvents[key] || [];
+  const customEvents = (state.calendar?.events || [])
+    .filter((event) => event.date === key && event.title?.trim())
+    .map((event) => ({ label: event.title.trim(), type: "anniversary", id: event.id }));
+  return [...(koreanCalendarEvents[key] || []), ...customEvents];
 }
 
 function getLunarDecadeLabel(date) {
@@ -2330,6 +2390,7 @@ function renderMonth() {
     saveState();
   };
   renderEditableList(el("monthProjects"), current.projects, "월간 프로젝트", () => saveState());
+  renderAnniversaryList();
   renderMonthCalendar();
 }
 
@@ -2351,15 +2412,76 @@ function renderMonthCalendar() {
     date.setDate(start.getDate() + i);
     const key = iso(date);
     const count = countTasksForDay(key);
+    const annotation = getCalendarAnnotation(date);
     const cell = document.createElement("div");
-    cell.className = `month-cell ${date.getMonth() !== month ? "is-muted" : ""} ${key === iso(selectedDate) ? "is-selected" : ""}`;
-    cell.innerHTML = `<strong>${date.getDate()}</strong>${count ? `<span class="count-pill">${count} tasks</span>` : ""}`;
+    cell.className = [
+      "month-cell",
+      date.getMonth() !== month ? "is-muted" : "",
+      key === iso(selectedDate) ? "is-selected" : "",
+      annotation.hasHoliday ? "has-holiday" : "",
+      annotation.lunarLabel ? "has-lunar" : "",
+    ].filter(Boolean).join(" ");
+    cell.innerHTML = `
+      <strong>${date.getDate()}</strong>
+      ${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel)}
+      ${count ? `<span class="count-pill">${count} tasks</span>` : ""}
+    `;
+    cell.title = calendarAriaLabel(date, annotation.events, annotation.lunarLabel, Boolean(count));
     cell.onclick = () => {
+      if (monthCalendarSwipeSuppressClick) return;
       selectedDate = date;
       renderAll();
     };
     node.appendChild(cell);
   }
+}
+
+function addAnniversaryEvent() {
+  const dateInput = el("anniversaryDate");
+  const titleInput = el("anniversaryTitle");
+  const date = dateInput?.value || iso(selectedDate);
+  const title = titleInput?.value.trim() || "";
+  if (!date || parseDate(date).getFullYear() !== YEAR || !title) return;
+  state.calendar ||= { events: [] };
+  state.calendar.events ||= [];
+  state.calendar.events.push({
+    id: `anniversary-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    date,
+    title,
+  });
+  if (titleInput) titleInput.value = "";
+  if (dateInput) dateInput.value = date;
+  saveState({ fastSave: true });
+  renderAll();
+}
+
+function renderAnniversaryList() {
+  const node = el("anniversaryList");
+  const dateInput = el("anniversaryDate");
+  if (!node) return;
+  state.calendar ||= { events: [] };
+  state.calendar.events ||= [];
+  if (dateInput && !dateInput.value) dateInput.value = iso(selectedDate);
+  const month = selectedDate.getMonth();
+  const events = state.calendar.events
+    .filter((event) => parseDate(event.date).getMonth() === month)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  node.innerHTML = events.length
+    ? events.map((event) => `
+      <div class="anniversary-item">
+        <span>${formatCompactMonthDay(event.date)}</span>
+        <strong>${escapeHtml(event.title)}</strong>
+        <button type="button" data-anniversary-delete="${escapeAttr(event.id)}" aria-label="기념일 삭제">×</button>
+      </div>
+    `).join("")
+    : `<p class="empty-hint">이 달의 기념일을 추가하세요.</p>`;
+  node.querySelectorAll("[data-anniversary-delete]").forEach((button) => {
+    button.onclick = () => {
+      state.calendar.events = state.calendar.events.filter((event) => event.id !== button.dataset.anniversaryDelete);
+      saveState({ fastSave: true });
+      renderAll();
+    };
+  });
 }
 
 function renderWeek() {
