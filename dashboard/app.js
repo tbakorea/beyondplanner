@@ -78,6 +78,7 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
 
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
+let hasInitialDeviceCache = hasCachedPlannerState();
 let state = loadState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
@@ -283,6 +284,14 @@ function plannerStorageKey() {
   return `${STORAGE_KEY}.${account}`;
 }
 
+function hasCachedPlannerState() {
+  try {
+    return Boolean(localStorage.getItem(plannerStorageKey()));
+  } catch {
+    return false;
+  }
+}
+
 function newTaskId() {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -308,6 +317,14 @@ function normalizeDayTasks(day) {
 }
 
 function loadState() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(plannerStorageKey()) || "null");
+    if (cached && typeof cached === "object") {
+      return migrateState(cached);
+    }
+  } catch {
+    // Fall back to a blank planner if the local device cache is unreadable.
+  }
   return loadEmptyState();
 }
 
@@ -581,13 +598,32 @@ async function hydrateServerState() {
     accountSaveReady = true;
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
-      storeStateFromServer(payload, "저장됨");
+      const localMeta = getStateMeta();
+      const localUpdatedAt = localMeta.updatedAt || "";
+      lastServerUpdatedAt = payload.updatedAt || "";
+      if (!localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt)) {
+        setBootMessage("최신 서버 데이터를 반영하는 중");
+        storeStateFromServer(payload, "최신 데이터 반영됨");
+      } else {
+        saveStatus.message = localMeta.dirty ? "기기 작업 유지 중" : "기기 캐시 최신";
+        if (isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
+          setBootMessage("기기 작업을 서버에 맞추는 중");
+          await persistStateToServer({ force: true });
+        }
+      }
     } else {
-      state = loadEmptyState();
+      const hadLocalContent = hasPlannerContent(state);
+      if (!hadLocalContent) state = loadEmptyState();
       selectedSheetId = state.customSheets.activeId;
       localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
-      saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
-      saveStatus.message = "새 플래너 준비됨";
+      if (!getStateMeta().updatedAt) saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
+      if (hadLocalContent) {
+        saveStatus.message = "기기 캐시 서버 반영 중";
+        setBootMessage("기기 작업을 서버에 저장하는 중");
+        await persistStateToServer({ force: true });
+      } else {
+        saveStatus.message = "새 플래너 준비됨";
+      }
     }
   } catch (error) {
     accountSaveReady = false;
@@ -995,8 +1031,9 @@ function setupSelectors() {
   el("weekCalendarPrevMonth").onclick = () => shiftWeekCalendarMonth(-1);
   el("weekCalendarNextMonth").onclick = () => shiftWeekCalendarMonth(1);
   el("weekCalendarClose").onclick = () => closeWeekCalendar(true);
-  el("monthPrevButton").onclick = () => shiftMonth(-1);
-  el("monthNextButton").onclick = () => shiftMonth(1);
+  el("monthPrevButton").onclick = () => shiftMonthWithAnimation(-1);
+  el("monthNextButton").onclick = () => shiftMonthWithAnimation(1);
+  el("monthPickerToggle").onclick = () => toggleMonthPicker();
   el("dailyTodayButton").onclick = () => {
     closeDailyCalendar();
     closeWeekCalendar();
@@ -1561,6 +1598,87 @@ function shiftMonth(delta) {
   renderAll();
 }
 
+function shiftMonthWithAnimation(delta) {
+  const next = new Date(selectedDate);
+  next.setMonth(next.getMonth() + delta, 1);
+  if (next.getFullYear() !== YEAR) return;
+  closeMonthPicker();
+  animateMonthTurn(delta, () => {
+    selectedDate = next;
+    renderAll();
+  });
+}
+
+function animateMonthTurn(delta, update) {
+  const title = el("monthTitle");
+  const calendar = el("monthCalendar");
+  const direction = delta > 0 ? "next" : "prev";
+  [title, calendar].forEach((node) => node?.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev"));
+  title?.classList.add(`slide-out-${direction}`);
+  calendar?.classList.add(`slide-out-${direction}`);
+  window.setTimeout(() => {
+    update();
+    const refreshedTitle = el("monthTitle");
+    const refreshedCalendar = el("monthCalendar");
+    refreshedTitle?.classList.add(`slide-in-${direction}`);
+    refreshedCalendar?.classList.add(`slide-in-${direction}`);
+    window.setTimeout(() => {
+      refreshedTitle?.classList.remove(`slide-in-${direction}`);
+      refreshedCalendar?.classList.remove(`slide-in-${direction}`);
+    }, 240);
+  }, 140);
+}
+
+function toggleMonthPicker() {
+  const popover = el("monthPickerPopover");
+  if (!popover) return;
+  if (!popover.hidden) {
+    closeMonthPicker(true);
+    return;
+  }
+  renderMonthPicker();
+  popover.hidden = false;
+  el("monthPickerToggle")?.setAttribute("aria-expanded", "true");
+}
+
+function closeMonthPicker(restoreFocus = false) {
+  const popover = el("monthPickerPopover");
+  if (!popover || popover.hidden) return;
+  popover.hidden = true;
+  el("monthPickerToggle")?.setAttribute("aria-expanded", "false");
+  if (restoreFocus) el("monthPickerToggle")?.focus();
+}
+
+function renderMonthPicker() {
+  const grid = el("monthPickerGrid");
+  if (!grid) return;
+  const currentMonth = selectedDate.getMonth();
+  grid.innerHTML = monthNames.map((name, index) => `
+    <button type="button" data-month-index="${index}" class="${index === currentMonth ? "is-active" : ""}">
+      ${name}
+    </button>
+  `).join("");
+  grid.querySelectorAll("[data-month-index]").forEach((button) => {
+    button.onclick = () => selectMonth(Number(button.dataset.monthIndex));
+  });
+}
+
+function selectMonth(monthIndex) {
+  if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) return;
+  const current = selectedDate.getMonth();
+  if (monthIndex === current) {
+    closeMonthPicker(true);
+    return;
+  }
+  const next = new Date(selectedDate);
+  next.setMonth(monthIndex, 1);
+  closeMonthPicker();
+  animateMonthTurn(monthIndex > current ? 1 : -1, () => {
+    selectedDate = next;
+    renderAll();
+  });
+}
+
 function setupMonthDateSwipe() {
   const zones = [el("monthSwipeZone"), el("monthCalendar")].filter(Boolean);
   zones.forEach((zone) => {
@@ -1579,7 +1697,7 @@ function setupMonthDateSwipe() {
       if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.18) return;
       event.preventDefault();
       monthCalendarSwipeSuppressClick = true;
-      shiftMonth(dx < 0 ? 1 : -1);
+      shiftMonthWithAnimation(dx < 0 ? 1 : -1);
       window.setTimeout(() => {
         monthCalendarSwipeSuppressClick = false;
       }, 260);
@@ -1606,7 +1724,7 @@ function setupMonthCalendarWheel() {
     if (Math.abs(dy) < 54 || Math.abs(dy) < Math.abs(dx) * 1.2) return;
     event.preventDefault();
     monthCalendarSwipeSuppressClick = true;
-    shiftMonth(dy < 0 ? 1 : -1);
+    shiftMonthWithAnimation(dy < 0 ? 1 : -1);
     window.setTimeout(() => {
       monthCalendarSwipeSuppressClick = false;
     }, 260);
@@ -1615,7 +1733,7 @@ function setupMonthCalendarWheel() {
     if (Math.abs(event.deltaY) < 42 || Math.abs(event.deltaY) < Math.abs(event.deltaX) * 1.2 || wheelLock) return;
     event.preventDefault();
     wheelLock = true;
-    shiftMonth(event.deltaY > 0 ? 1 : -1);
+    shiftMonthWithAnimation(event.deltaY > 0 ? 1 : -1);
     window.setTimeout(() => {
       wheelLock = false;
     }, 360);
@@ -2433,6 +2551,7 @@ function getLunarDecadeLabel(date) {
 function renderMonth() {
   const current = ensureMonth();
   el("monthTitle").textContent = `${YEAR}년 ${monthNames[selectedDate.getMonth()]} 월간 계획`;
+  if (!el("monthPickerPopover")?.hidden) renderMonthPicker();
   document.querySelector("[data-month-field='focus']").value = current.focus || "";
   document.querySelector("[data-month-field='focus']").oninput = (event) => {
     current.focus = event.target.value;
@@ -4786,6 +4905,7 @@ function showView(name) {
   if (name === "sheets" && previousView !== "sheets") sheetDetailOpen = false;
   if (name !== "day") closeDailyCalendar();
   if (name !== "week") closeWeekCalendar();
+  if (name !== "month") closeMonthPicker();
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
   document.querySelectorAll("[data-top-view]").forEach((item) => item.classList.toggle("is-active", item.dataset.topView === name));
   document.querySelectorAll(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${name}`));
@@ -5045,6 +5165,20 @@ function renderAll() {
   updateStickyPanelTop();
 }
 
+function setBootMessage(message) {
+  const node = el("bootMessage");
+  if (node) node.textContent = message;
+}
+
+function hideBootScreen(delay = 120) {
+  const boot = el("bootScreen");
+  if (!boot || boot.classList.contains("is-hidden")) return;
+  window.setTimeout(() => {
+    boot.classList.add("is-hidden");
+    window.setTimeout(() => boot.remove(), 360);
+  }, delay);
+}
+
 async function setup() {
   setupSelectors();
   setupTabs();
@@ -5052,8 +5186,12 @@ async function setup() {
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
+  setBootMessage(hasInitialDeviceCache ? "이 기기의 마지막 작업을 여는 중" : "최신 플래너를 불러오는 중");
+  renderAll();
+  if (hasInitialDeviceCache) hideBootScreen(80);
   await hydrateServerState();
   renderAll();
+  hideBootScreen(hasInitialDeviceCache ? 0 : 120);
   positionDaySwipe("main", true);
   window.setTimeout(() => positionDaySwipe("main", true), 180);
   window.setInterval(pullServerStateIfNewer, 15000);

@@ -58,6 +58,61 @@ body::before {
   mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.42), transparent 44%);
 }
 
+.boot-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(180deg, rgba(251, 248, 240, 0.96), rgba(247, 245, 239, 0.94)),
+    var(--paper);
+  color: var(--forest);
+  transition: opacity 260ms ease, visibility 260ms ease;
+}
+
+.boot-screen.is-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.boot-card {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 22px 26px;
+  border: 1px solid rgba(221, 216, 203, 0.72);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.86);
+  box-shadow: 0 18px 42px rgba(38, 50, 56, 0.08);
+  text-align: center;
+}
+
+.boot-mark {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid rgba(95, 118, 104, 0.32);
+  border-radius: 14px;
+  background: rgba(174, 191, 177, 0.16);
+  color: var(--forest);
+  font-size: 14px;
+  font-weight: 920;
+}
+
+.boot-card strong {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.boot-card small {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
 h1,
 h2,
 h3,
@@ -926,6 +981,7 @@ body.is-privacy-blind .app-shell {
 }
 
 .month-title-nav {
+  position: relative;
   display: inline-grid;
   grid-template-columns: 34px minmax(0, auto) 34px;
   align-items: center;
@@ -935,10 +991,71 @@ body.is-privacy-blind .app-shell {
   user-select: none;
 }
 
-.month-title-nav h2 {
+.month-title-button {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--forest);
+  padding: 2px 4px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.month-title-button:focus-visible {
+  outline: 2px solid rgba(95, 118, 104, 0.28);
+  border-radius: 8px;
+}
+
+.month-title-button span {
+  display: inline-block;
   min-width: 0;
   margin: 0;
+  font-size: clamp(24px, 2.4vw, 36px);
+  font-weight: 840;
+  line-height: 1.1;
   white-space: nowrap;
+}
+
+.month-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 34;
+  width: min(330px, calc(100vw - 24px));
+  transform: translateX(-50%);
+  border: 1px solid rgba(221, 216, 203, 0.92);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.97);
+  box-shadow: 0 18px 44px rgba(38, 50, 56, 0.14);
+  padding: 10px;
+  backdrop-filter: blur(14px) saturate(1.05);
+}
+
+.month-picker-popover[hidden] {
+  display: none;
+}
+
+.month-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.month-picker-grid button {
+  min-height: 34px;
+  border: 1px solid rgba(221, 216, 203, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.86);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.month-picker-grid button.is-active {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: #fff;
 }
 
 .month-nav-button {
@@ -954,6 +1071,54 @@ body.is-privacy-blind .app-shell {
 
 .month-nav-button:hover {
   background: rgba(174, 191, 177, 0.16);
+}
+
+#monthTitle.slide-out-next,
+#monthCalendar.slide-out-next {
+  animation: monthSlideOutNext 150ms ease both;
+}
+
+#monthTitle.slide-in-next,
+#monthCalendar.slide-in-next {
+  animation: monthSlideInNext 210ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+#monthTitle.slide-out-prev,
+#monthCalendar.slide-out-prev {
+  animation: monthSlideOutPrev 150ms ease both;
+}
+
+#monthTitle.slide-in-prev,
+#monthCalendar.slide-in-prev {
+  animation: monthSlideInPrev 210ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes monthSlideOutNext {
+  to {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
+@keyframes monthSlideInNext {
+  from {
+    opacity: 0;
+    transform: translateX(32px);
+  }
+}
+
+@keyframes monthSlideOutPrev {
+  to {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes monthSlideInPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-32px);
+  }
 }
 
 .week-heading {
@@ -1552,6 +1717,14 @@ body.is-privacy-blind .app-shell {
 
 .span-12 {
   grid-column: span 12;
+}
+
+body.ceo-mode #view-month .month-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+body.ceo-mode #view-month .month-layout > .panel {
+  grid-column: 1 / -1;
 }
 
 .value-list,
@@ -4805,6 +4978,14 @@ button {
     padding-right: max(122px, env(safe-area-inset-right));
   }
 
+  #view-month .month-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #view-month .month-layout > .panel {
+    grid-column: 1 / -1;
+  }
+
   .top-status {
     gap: 5px;
   }
@@ -6328,7 +6509,7 @@ body.ceo-mode .sheet-grid-wrap {
     width: 100%;
   }
 
-  .month-title-nav h2 {
+  .month-title-button span {
     text-align: center;
     font-size: clamp(19px, 5vw, 25px);
   }
@@ -6337,6 +6518,10 @@ body.ceo-mode .sheet-grid-wrap {
     width: 31px;
     min-height: 33px;
     font-size: 23px;
+  }
+
+  .month-picker-popover {
+    width: min(320px, calc(100vw - 18px));
   }
 }
 
@@ -6403,7 +6588,7 @@ body.ceo-mode .sheet-grid-wrap {
     gap: 5px;
   }
 
-  .month-title-nav h2 {
+  .month-title-button span {
     font-size: 18px;
   }
 
@@ -6412,5 +6597,22 @@ body.ceo-mode .sheet-grid-wrap {
     min-height: 30px;
     border-radius: 6px;
     font-size: 21px;
+  }
+
+  .month-picker-popover {
+    left: 0;
+    width: calc(100vw - 16px);
+    transform: none;
+    padding: 8px;
+  }
+
+  .month-picker-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  .month-picker-grid button {
+    min-height: 32px;
+    font-size: 11px;
   }
 }
