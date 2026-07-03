@@ -981,6 +981,7 @@ function emptyRepeatRule() {
     weekday: baseDate.getDay(),
     monthday: baseDate.getDate(),
     month: baseDate.getMonth() + 1,
+    startDate: iso(baseDate),
     active: true,
   };
 }
@@ -998,8 +999,16 @@ function normalizeRepeatRule(rule = {}) {
   rule.weekday = clampNumber(rule.weekday, 0, 6, baseDate.getDay());
   rule.monthday = clampNumber(rule.monthday, 1, 31, baseDate.getDate());
   rule.month = clampNumber(rule.month, 1, 12, baseDate.getMonth() + 1);
+  rule.startDate = isValidIsoDate(rule.startDate) ? rule.startDate : `${YEAR}-01-01`;
+  rule.deletedFrom = isValidIsoDate(rule.deletedFrom) ? rule.deletedFrom : "";
+  rule.removed = rule.removed === true;
   rule.active = rule.active !== false;
   return rule;
+}
+
+function isValidIsoDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
+  return !Number.isNaN(parseDate(value).getTime());
 }
 
 function clampNumber(value, min, max, fallback) {
@@ -2970,11 +2979,65 @@ function applyMemoPrompt() {
 function shouldRepeatOnDate(rule, date) {
   normalizeRepeatRule(rule);
   if (!rule.active || !rule.text?.trim()) return false;
+  const key = iso(date);
+  if (key < rule.startDate) return false;
+  if (rule.deletedFrom && key >= rule.deletedFrom) return false;
   if (rule.frequency === "daily") return true;
   if (rule.frequency === "weekly") return Number(rule.weekday) === date.getDay();
   if (rule.frequency === "monthly") return Number(rule.monthday) === date.getDate();
   if (rule.frequency === "yearly") return Number(rule.month) === date.getMonth() + 1 && Number(rule.monthday) === date.getDate();
   return false;
+}
+
+function nextRepeatDateAfter(rule, fromKey) {
+  normalizeRepeatRule(rule);
+  const start = parseDate(fromKey);
+  if (Number.isNaN(start.getTime())) return "";
+  const candidate = new Date(start);
+  candidate.setDate(candidate.getDate() + 1);
+  const limit = new Date(start);
+  limit.setFullYear(limit.getFullYear() + 5);
+  while (candidate <= limit) {
+    if (shouldRepeatOnDate(rule, candidate)) return iso(candidate);
+    candidate.setDate(candidate.getDate() + 1);
+  }
+  return "";
+}
+
+function repeatRuleForTask(task) {
+  const match = String(task?.repeatId || "").match(/^repeat-(\d+)-\d{4}-\d{2}-\d{2}$/);
+  if (!match) return null;
+  const index = Number(match[1]);
+  const rule = state.repeats?.priorityTasks?.[index];
+  return rule ? normalizeRepeatRule(rule) : null;
+}
+
+function shouldCarryRepeatTask(task, currentKey) {
+  if (!task?.repeatId) return true;
+  const sourceKey = task.repeatSourceDate || task.date || String(task.repeatId).match(/^repeat-\d+-(\d{4}-\d{2}-\d{2})$/)?.[1] || "";
+  const rule = repeatRuleForTask(task);
+  if (!sourceKey || !rule) return true;
+  if (rule.deletedFrom && currentKey >= rule.deletedFrom) return false;
+  const nextKey = nextRepeatDateAfter(rule, sourceKey);
+  return !nextKey || currentKey < nextKey;
+}
+
+function resetFutureRepeatOccurrences(ruleIndex, fromKey = iso(selectedDate)) {
+  Object.entries(state.days || {}).forEach(([key, day]) => {
+    if (key < fromKey) return;
+    normalizeDayTasks(day);
+    priorities.forEach(([priority]) => {
+      day.tasks[priority] = day.tasks[priority].filter((task) => task.repeatId !== `repeat-${ruleIndex}-${key}`);
+    });
+    day.deletedRepeatIds = (day.deletedRepeatIds || []).filter((id) => id !== `repeat-${ruleIndex}-${key}`);
+  });
+}
+
+function markRepeatRuleChanged(rule, index) {
+  const key = iso(selectedDate || todayInPlanner());
+  rule.startDate = key;
+  rule.deletedFrom = "";
+  resetFutureRepeatOccurrences(index, key);
 }
 
 function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
@@ -2995,11 +3058,6 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
       return Boolean(existingTask);
     });
     if (existingTask) {
-      existingTask.text = rule.text.trim();
-      if (existingPriority && existingPriority !== priority) {
-        day.tasks[existingPriority] = day.tasks[existingPriority].filter((task) => task.repeatId !== repeatId);
-        day.tasks[priority].push(existingTask);
-      }
       return;
     }
     day.tasks[priority].push({
@@ -3007,6 +3065,9 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
       status: "미완료",
       done: false,
       repeatId,
+      repeatStartDate: rule.startDate,
+      repeatSourceDate: key,
+      priorityUnset: false,
     });
   });
 }
@@ -3018,6 +3079,7 @@ function renderRepeatPriorityList() {
   node.innerHTML = "";
   state.repeats.priorityTasks.forEach((rule, index) => {
     normalizeRepeatRule(rule);
+    if (rule.removed) return;
     const row = document.createElement("div");
     row.className = "repeat-rule-row";
     row.innerHTML = `
@@ -3038,42 +3100,58 @@ function renderRepeatPriorityList() {
     const frequency = row.querySelector(".repeat-frequency");
     active.onchange = () => {
       rule.active = active.checked;
+      if (rule.active) markRepeatRuleChanged(rule, index);
+      if (!rule.active) {
+        rule.deletedFrom = iso(selectedDate || todayInPlanner());
+        resetFutureRepeatOccurrences(index, rule.deletedFrom);
+      }
       saveState();
       renderAll();
     };
     priority.onchange = () => {
+      markRepeatRuleChanged(rule, index);
       rule.priority = priority.value;
       saveState();
       renderAll();
     };
     text.oninput = () => {
+      const wasBlank = !rule.text?.trim();
+      if (!wasBlank && rule.text !== text.value) markRepeatRuleChanged(rule, index);
       rule.text = text.value;
+      if (wasBlank && rule.text.trim()) rule.startDate = iso(selectedDate || todayInPlanner());
       saveState();
     };
     text.onchange = () => renderAll();
     frequency.onchange = () => {
+      markRepeatRuleChanged(rule, index);
       rule.frequency = frequency.value;
       setRepeatAnchorToSelectedDate(rule);
       saveState();
       renderAll();
     };
     row.querySelector(".repeat-weekday")?.addEventListener("change", (event) => {
+      markRepeatRuleChanged(rule, index);
       rule.weekday = Number(event.target.value);
       saveState();
       renderAll();
     });
     row.querySelector(".repeat-monthday")?.addEventListener("change", (event) => {
+      markRepeatRuleChanged(rule, index);
       rule.monthday = Number(event.target.value);
       saveState();
       renderAll();
     });
     row.querySelector(".repeat-month")?.addEventListener("change", (event) => {
+      markRepeatRuleChanged(rule, index);
       rule.month = Number(event.target.value);
       saveState();
       renderAll();
     });
     row.querySelector(".repeat-delete").onclick = () => {
-      state.repeats.priorityTasks.splice(index, 1);
+      rule.active = false;
+      rule.deletedFrom = iso(selectedDate || todayInPlanner());
+      rule.removed = true;
+      resetFutureRepeatOccurrences(index, rule.deletedFrom);
       saveState();
       renderDay();
     };
@@ -3579,6 +3657,47 @@ function moveTaskSourcePriority(taskRef, toPriority) {
   };
 }
 
+function carryoverForkKey(taskRef, source) {
+  return source.task.id || `${taskRef.date}-${source.priority}-${source.index}`;
+}
+
+function materializeCarryoverTask(taskRef) {
+  const selectedKey = iso(selectedDate);
+  const source = findTaskSource(taskRef);
+  if (!source) return null;
+  if (taskRef.date === selectedKey) return source;
+  const day = ensureDay(selectedKey);
+  const forkKey = carryoverForkKey(taskRef, source);
+  let targetPriority = source.priority;
+  let targetTask = null;
+  priorities.some(([priority]) => {
+    targetTask = day.tasks[priority].find((task) => task.carryoverForkFrom === forkKey);
+    targetPriority = targetTask ? priority : targetPriority;
+    return Boolean(targetTask);
+  });
+  if (!targetTask) {
+    targetTask = {
+      ...source.task,
+      id: newTaskId(),
+      done: false,
+      carryoverDoneDate: "",
+      carryoverDeletedFrom: "",
+      carryoverForkFrom: forkKey,
+      carryoverSourceDate: taskRef.date,
+      repeatSourceDate: source.task.repeatSourceDate || taskRef.date,
+    };
+    day.tasks[targetPriority].push(targetTask);
+    targetPriority = source.priority;
+  }
+  source.task.carryoverDeletedFrom = selectedKey;
+  return {
+    day,
+    task: targetTask,
+    priority: targetPriority,
+    index: day.tasks[targetPriority].indexOf(targetTask),
+  };
+}
+
 function renderCarryoverTask(task) {
   const row = document.createElement("div");
   const selectedKey = iso(selectedDate);
@@ -3662,7 +3781,7 @@ function updateCarryoverTaskMarker(taskRef) {
 }
 
 function updateCarryoverTaskPriority(taskRef, value) {
-  const source = findTaskSource(taskRef);
+  const source = materializeCarryoverTask(taskRef);
   if (!source) return;
   if (value === "취소" || value === "연기") {
     source.task.status = value;
@@ -3674,7 +3793,11 @@ function updateCarryoverTaskPriority(taskRef, value) {
   source.task.status = source.task.status === "취소" || source.task.status === "연기" ? "미완료" : source.task.status;
   source.task.done = source.task.status === "완료";
   if (["A", "B", "C"].includes(value)) {
-    moveTaskSourcePriority(taskRef, value);
+    source.task.priorityUnset = false;
+    if (source.priority !== value) {
+      source.day.tasks[source.priority] = source.day.tasks[source.priority].filter((task) => task !== source.task);
+      source.day.tasks[value].push(source.task);
+    }
     saveState({ fastSave: true });
     renderAll();
     return;
@@ -3685,14 +3808,14 @@ function updateCarryoverTaskPriority(taskRef, value) {
 }
 
 function updateCarryoverDelegate(taskRef, value) {
-  const source = findTaskSource(taskRef)?.task;
+  const source = materializeCarryoverTask(taskRef)?.task;
   if (!source) return;
   source.delegate = value;
   saveState({ fastSave: true });
 }
 
 function updateCarryoverPostponeMode(taskRef, value) {
-  const source = findTaskSource(taskRef)?.task;
+  const source = materializeCarryoverTask(taskRef)?.task;
   if (!source) return;
   source.postponeMode = value;
   saveState({ fastSave: true });
@@ -3700,13 +3823,13 @@ function updateCarryoverPostponeMode(taskRef, value) {
 }
 
 function scheduleCarryoverPostponedTask(taskRef, targetDate) {
-  const source = findTaskSource(taskRef);
+  const source = materializeCarryoverTask(taskRef);
   if (!source) return;
   schedulePostponedTask(source.task, source.priority, targetDate);
 }
 
 function updateCarryoverTaskText(taskRef, value) {
-  const source = findTaskSource(taskRef)?.task;
+  const source = materializeCarryoverTask(taskRef)?.task;
   if (!source) return;
   source.text = value;
   saveState({ fastSave: true });
@@ -4963,6 +5086,7 @@ function getCarryoverTasks(date) {
       const deletedFrom = task.carryoverDeletedFrom || "";
       if (deletedFrom && deletedFrom <= currentKey) return false;
       if (completedKey && completedKey < currentKey) return false;
+      if (!shouldCarryRepeatTask(task, currentKey)) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });
 }
