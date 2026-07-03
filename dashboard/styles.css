@@ -810,6 +810,104 @@ body.is-privacy-blind .app-shell {
   color: var(--ink);
 }
 
+.daily-opening-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 760;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 30% 18%, rgba(174, 191, 177, 0.24), transparent 34%),
+    rgba(38, 50, 56, 0.18);
+  backdrop-filter: blur(10px) saturate(1.04);
+}
+
+.daily-opening-screen[hidden] {
+  display: none;
+}
+
+.daily-opening-card {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(520px, calc(100vw - 28px));
+  padding: 24px;
+  border: 1px solid rgba(221, 216, 203, 0.94);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(247, 245, 239, 0.97)),
+    var(--sheet);
+  box-shadow: 0 24px 70px rgba(38, 50, 56, 0.18);
+}
+
+.daily-opening-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 0;
+}
+
+.daily-opening-card h2 {
+  max-width: calc(100% - 34px);
+  color: var(--forest);
+  font-size: clamp(25px, 4.8vw, 34px);
+  line-height: 1.08;
+}
+
+.daily-opening-card p:not(.eyebrow) {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 680;
+  line-height: 1.7;
+}
+
+.daily-opening-card ul {
+  display: grid;
+  gap: 7px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daily-opening-card li {
+  border-left: 3px solid rgba(95, 118, 104, 0.48);
+  padding-left: 9px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.daily-opening-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.daily-opening-actions button {
+  min-height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.94);
+  color: var(--ink);
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 840;
+}
+
+.daily-opening-actions button:first-child {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: #fffefa;
+}
+
 .lock-screen {
   position: fixed;
   inset: 0;

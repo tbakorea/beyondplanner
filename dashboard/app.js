@@ -8,6 +8,7 @@ const PRIVACY_CONFIG_KEY = "beyondWorkPrivacyConfig.v1";
 const AUTH_USERS_KEY = "beyondWorkAuthUsers.v1";
 const AUTH_SESSION_KEY = "beyondWorkAuthSession.v1";
 const ONBOARDING_DISMISSED_KEY = "beyondWorkOnboardingDismissed.v1";
+const DAILY_OPENING_SEEN_KEY = "beyondWorkDailyOpeningSeen.v1";
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
 requirePlannerAuth();
@@ -1144,6 +1145,13 @@ function setupSelectors() {
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
   el("revealPrivacyButton").onclick = deactivatePrivacyBlind;
   el("lockFromPrivacyButton").onclick = () => lockPlanner("보안모드에서 완전 잠금으로 전환되었습니다.");
+  el("dailyOpeningClose").onclick = closeDailyOpeningMessage;
+  el("dailyOpeningStart").onclick = closeDailyOpeningMessage;
+  el("dailyOpeningCoach").onclick = () => {
+    closeDailyOpeningMessage();
+    showView("coach");
+    renderAll();
+  };
   el("financePrevMonth").onclick = () => shiftFinanceMonth(-1);
   el("financeNextMonth").onclick = () => shiftFinanceMonth(1);
   el("financeMonthTitle").onclick = () => {
@@ -2880,6 +2888,111 @@ function renderOnboarding(day) {
   const isToday = iso(selectedDate) === iso(todayInPlanner());
   const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "1";
   node.hidden = dismissed || !isToday || hasPlannerContent(state);
+}
+
+function maybeShowDailyOpeningMessage() {
+  const node = el("dailyOpeningScreen");
+  if (!node || isLocked || isPrivacyBlind) return;
+  const todayKey = iso(todayInPlanner());
+  if (localStorage.getItem(DAILY_OPENING_SEEN_KEY) === todayKey) return;
+  const note = buildDailyOpeningNote(todayKey);
+  el("dailyOpeningTitle").textContent = note.title;
+  el("dailyOpeningMessage").textContent = note.message;
+  el("dailyOpeningSignals").innerHTML = note.signals.map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
+  node.hidden = false;
+}
+
+function closeDailyOpeningMessage() {
+  const node = el("dailyOpeningScreen");
+  if (node) node.hidden = true;
+  localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
+}
+
+function buildDailyOpeningNote(key = iso(todayInPlanner())) {
+  const date = parseDate(key);
+  const day = ensureDay(key);
+  const tasks = getDayTasks(key).filter((task) => task.text?.trim());
+  const openTasks = tasks.filter((task) => !shouldStrikeTask(task));
+  const carryovers = getCarryoverTasks(date).filter((task) => !isCarryoverCompletedOn(task, key));
+  const appointments = Object.values(day.appointments || {}).filter((value) => String(value || "").trim());
+  const season = getSeasonalContext(date);
+  const goals = [state.profile?.goals, state.foundation?.mission, ...(state.year?.goals || [])]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const hash = hashString(`${key}:${tasks.length}:${carryovers.length}:${appointments.length}:${goals.slice(0, 42)}`);
+  const praise = pickByHash(
+    [
+      "당신은 이미 오늘을 계획 앞에 세워 둔 사람입니다.",
+      "어제의 무게가 남아 있어도 오늘의 첫 선택은 새롭습니다.",
+      "일을 적는 손은 작아 보여도, 방향을 정하는 힘은 큽니다.",
+      "바쁜 형편 속에서도 기록을 붙드는 태도는 충분히 칭찬받을 일입니다.",
+    ],
+    hash,
+  );
+  const challenge = dailyChallengeText(openTasks, carryovers, appointments, goals, hash);
+  return {
+    title: `${season.label} 아침의 작은 용기`,
+    message: `${praise} ${season.tone} 프랭클린식으로 말하자면, 오늘의 장부에는 큰 결심보다 작은 실행을 먼저 적으십시오. ${challenge}`,
+    signals: [
+      season.signal,
+      `${appointments.length ? `시간표에 ${appointments.length}개의 일정이 있습니다.` : "시간표가 비어 있으니 중요한 일 하나를 먼저 고정할 수 있습니다."}`,
+      `${carryovers.length ? `이월 ${carryovers.length}개는 탓할 짐이 아니라 오늘 결단할 재료입니다.` : "이월이 적습니다. 오늘은 새 추진력을 만들기 좋습니다."}`,
+    ],
+  };
+}
+
+function getSeasonalContext(date) {
+  const month = date.getMonth() + 1;
+  if ([3, 4, 5].includes(month)) {
+    return {
+      label: "봄",
+      tone: "새싹이 조용히 뿌리를 밀어 올리듯, 오늘도 보이지 않는 준비가 성과를 만듭니다.",
+      signal: "계절 감안: 봄의 리듬처럼 작게 시작해 꾸준히 밀고 가기 좋은 날입니다.",
+    };
+  }
+  if ([6, 7, 8].includes(month)) {
+    return {
+      label: "여름",
+      tone: "더운 계절에는 의욕보다 질서가 오래 갑니다.",
+      signal: "계절 감안: 여름의 열기에는 일을 줄이고 핵심을 선명히 하는 편이 유리합니다.",
+    };
+  }
+  if ([9, 10, 11].includes(month)) {
+    return {
+      label: "가을",
+      tone: "수확의 계절은 한 번의 도약보다 매일의 손질을 기억합니다.",
+      signal: "계절 감안: 가을의 공기처럼 정리와 수확을 함께 생각하기 좋은 날입니다.",
+    };
+  }
+  return {
+    label: "겨울",
+    tone: "차가운 계절일수록 따뜻한 원칙 하나가 하루를 붙듭니다.",
+    signal: "계절 감안: 겨울의 속도처럼 차분히, 그러나 멈추지 않는 실행이 필요합니다.",
+  };
+}
+
+function dailyChallengeText(openTasks, carryovers, appointments, goals, hash) {
+  if (carryovers.length >= 5) return "오늘의 도전은 더 많이 하는 것이 아니라, 남길 것과 보낼 것을 분명히 가르는 일입니다.";
+  if (openTasks.length >= 8) return "오늘의 도전은 용감하게 줄이는 것입니다. A업무 두 개만 남겨도 하루의 품격은 올라갑니다.";
+  if (!appointments.length && openTasks.length) return "오늘의 도전은 마음속 결심을 시간표 위 한 칸에 앉히는 것입니다.";
+  if (goals) return "오늘의 도전은 목표와 닿아 있는 작은 행동 하나를 끝까지 완성하는 것입니다.";
+  return pickByHash(
+    [
+      "오늘의 도전은 첫 20분을 성실히 여는 것입니다.",
+      "오늘의 도전은 말보다 기록, 걱정보다 실행을 택하는 것입니다.",
+      "오늘의 도전은 가장 쉬운 일보다 가장 의미 있는 일을 먼저 대하는 것입니다.",
+    ],
+    hash + 7,
+  );
+}
+
+function pickByHash(items, hash) {
+  return items[Math.abs(hash) % items.length];
+}
+
+function hashString(value) {
+  return Array.from(String(value)).reduce((hash, char) => (hash * 31 + char.charCodeAt(0)) | 0, 0);
 }
 
 function renderCoach() {
@@ -5464,6 +5577,7 @@ async function setup() {
   await hydrateServerState();
   renderAll();
   hideBootScreen(hasInitialDeviceCache ? 0 : 120);
+  window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   positionDaySwipe("main", true);
   window.setTimeout(() => positionDaySwipe("main", true), 180);
   window.setInterval(pullServerStateIfNewer, 15000);
