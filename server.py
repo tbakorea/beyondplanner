@@ -159,7 +159,7 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
 
         action = str(payload.get("action", "")).strip().lower()
-        if action not in {"signup", "login", "refresh"}:
+        if action not in {"signup", "login", "refresh", "update_password"}:
             self.write_json(400, {"error": "지원하지 않는 인증 요청입니다."})
             return
 
@@ -288,11 +288,24 @@ def call_supabase_auth(action: str, payload: dict) -> dict:
         endpoint = f"{supabase_url}/auth/v1/token?grant_type=refresh_token"
         request_payload = {"refresh_token": refresh_token}
         email = ""
+        method = "POST"
+    elif action == "update_password":
+        access_token = str(payload.get("accessToken") or payload.get("access_token") or "").strip()
+        password = str(payload.get("password", ""))
+        if not access_token:
+            raise ValueError("로그인 세션이 필요합니다.")
+        if len(password) < 6:
+            raise ValueError("비밀번호는 6자리 이상으로 설정하세요.")
+        endpoint = f"{supabase_url}/auth/v1/user"
+        request_payload = {"password": password}
+        email = ""
+        method = "PUT"
     else:
         email = str(payload.get("email", "")).strip().lower()
         password = str(payload.get("password", ""))
         if not email or not password:
             raise ValueError("이메일과 비밀번호가 필요합니다.")
+        method = "POST"
 
     if action == "signup":
         name = str(payload.get("name", "")).strip()
@@ -308,10 +321,10 @@ def call_supabase_auth(action: str, payload: dict) -> dict:
         data=json.dumps(request_payload, ensure_ascii=False).encode("utf-8"),
         headers={
             "apikey": anon_key,
-            "Authorization": f"Bearer {anon_key}",
+            "Authorization": f"Bearer {access_token if action == 'update_password' else anon_key}",
             "Content-Type": "application/json",
         },
-        method="POST",
+        method=method,
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         data = json.loads(response.read().decode("utf-8"))
@@ -331,6 +344,7 @@ def call_supabase_auth(action: str, payload: dict) -> dict:
             "refreshToken": data.get("refresh_token") or "",
             "expiresAt": data.get("expires_at") or "",
         },
+        "message": "비밀번호가 변경되었습니다." if action == "update_password" else "",
     }
 
 

@@ -221,6 +221,49 @@ function logoutPlanner() {
   window.location.href = `../login/?next=${next}`;
 }
 
+async function updateAccountPassword() {
+  const message = el("accountPasswordMessage");
+  const passwordInput = el("accountNewPassword");
+  const confirmInput = el("accountNewPasswordConfirm");
+  const button = el("accountPasswordButton");
+  const nextPassword = passwordInput?.value || "";
+  const confirmPassword = confirmInput?.value || "";
+  if (message) message.textContent = "";
+  if (nextPassword.length < 6) {
+    if (message) message.textContent = "6자리 이상으로 설정하세요.";
+    passwordInput?.focus();
+    return;
+  }
+  if (nextPassword !== confirmPassword) {
+    if (message) message.textContent = "확인 비밀번호가 일치하지 않습니다.";
+    confirmInput?.focus();
+    return;
+  }
+  const session = await ensureFreshAuthSession();
+  if (!session?.accessToken) {
+    if (message) message.textContent = "다시 로그인 후 변경하세요.";
+    return;
+  }
+  try {
+    if (button) button.disabled = true;
+    if (message) message.textContent = "변경 중입니다...";
+    const response = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "update_password", accessToken: session.accessToken, password: nextPassword }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "비밀번호를 변경하지 못했습니다.");
+    passwordInput.value = "";
+    confirmInput.value = "";
+    if (message) message.textContent = "비밀번호가 변경되었습니다.";
+  } catch (error) {
+    if (message) message.textContent = error.message || "비밀번호 변경 실패";
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 function pad(value) {
   return String(value).padStart(2, "0");
 }
@@ -1095,6 +1138,7 @@ function setupSelectors() {
   el("topImportButton").onclick = () => el("importFile").click();
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
+  el("accountPasswordButton").onclick = updateAccountPassword;
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));

@@ -129,6 +129,7 @@ textarea {
 
 textarea,
 input[type="text"],
+input[type="password"],
 input[type="date"],
 select {
   width: 100%;
@@ -145,6 +146,7 @@ textarea {
 }
 
 input[type="text"],
+input[type="password"],
 input[type="date"],
 select {
   min-height: 38px;
@@ -591,6 +593,41 @@ body.ceo-mode .day-main-panel {
 .top-more-panel button {
   width: 100%;
   min-width: 0;
+}
+
+.password-change-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid rgba(221, 216, 203, 0.86);
+}
+
+.password-change-panel strong,
+.password-change-panel small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 840;
+}
+
+.password-change-panel input {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.password-change-panel button {
+  min-height: 32px;
+}
+
+.password-change-panel small {
+  min-height: 14px;
+  color: #7a4b13;
 }
 
 .top-status .is-warning {
@@ -6306,6 +6343,10 @@ body.ceo-mode .sheet-grid-wrap {
     right: 0;
     grid-template-columns: minmax(0, 1fr);
     width: min(220px, calc(100vw - 20px));
+  }
+
+  .password-change-panel {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
