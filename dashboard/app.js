@@ -101,6 +101,8 @@ let monthCalendarSwipeSuppressClick = false;
 let monthDateTap = { key: "", at: 0 };
 let mobileDayFocusResetTimer = 0;
 let dailyFieldEditingUntil = 0;
+let dailyTextEditingActive = false;
+let dailyTaskRefreshTimer = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
 let isLocked = false;
@@ -579,6 +581,28 @@ function saveState(options = {}) {
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   markLocalStateUpdated();
   scheduleAccountSave(options.fastSave ? 120 : 650);
+}
+
+function refreshDailyTaskRelatedViews() {
+  renderSidebar();
+  renderMonthCalendar();
+  renderWeek();
+}
+
+function scheduleDailyTaskRelatedRefresh(delay = 180) {
+  window.clearTimeout(dailyTaskRefreshTimer);
+  dailyTaskRefreshTimer = window.setTimeout(() => {
+    if (dailyTextEditingActive || isDailyFieldEditingRecent()) {
+      scheduleDailyTaskRelatedRefresh(700);
+      return;
+    }
+    refreshDailyTaskRelatedViews();
+  }, delay);
+}
+
+function flushDailyTaskRelatedRefresh() {
+  window.clearTimeout(dailyTaskRefreshTimer);
+  refreshDailyTaskRelatedViews();
 }
 
 async function hydrateServerState() {
@@ -2175,7 +2199,7 @@ function isDailyFieldEditingRecent() {
 
 function isEditingDailyField() {
   const active = document.activeElement;
-  return isDailyFieldEditingRecent() || Boolean(
+  return dailyTextEditingActive || isDailyFieldEditingRecent() || Boolean(
     active?.matches?.("input, select, textarea") &&
     active.closest(".day-task-panel, .day-schedule-panel")
   );
@@ -2183,6 +2207,7 @@ function isEditingDailyField() {
 
 function resetMobileDayFocusToSplit(options = {}) {
   if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+  dailyTextEditingActive = false;
   if (options.blur && isEditingDailyField()) document.activeElement.blur();
   const panel = document.querySelector(".day-main-panel");
   panel?.classList.add("is-focus-restoring");
@@ -2880,7 +2905,7 @@ function generateTaskSuggestions(openTasks, goals) {
 
 function addSuggestedTask(text) {
   const day = ensureDay();
-  day.tasks.A.push({ text, status: "미완료", done: false, priorityUnset: false });
+  day.tasks.A.push({ text, status: "미완료", done: false, priorityUnset: true });
   saveState();
   showView("day");
   renderAll();
@@ -3306,13 +3331,10 @@ function renderTaskRow(task, priority, index) {
   }
   bindDailyTaskTextInput(text);
   text.oninput = () => {
-    markDailyFieldEditing();
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
     task.text = text.value;
-    task.priorityUnset = false;
     saveState({ fastSave: true });
-    renderSidebar();
-    renderMonthCalendar();
-    renderWeek();
   };
   deleteButton.onclick = () => deleteTask(priority, index);
   return row;
@@ -3320,14 +3342,31 @@ function renderTaskRow(task, priority, index) {
 
 function bindDailyTaskTextInput(input) {
   if (!input) return;
-  input.onfocus = () => markDailyFieldEditing(1500);
-  input.oncompositionstart = () => markDailyFieldEditing(3000);
-  input.oncompositionend = () => markDailyFieldEditing(900);
+  input.onfocus = () => {
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
+  };
+  input.oncompositionstart = () => {
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
+  };
+  input.oncompositionend = () => {
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
+  };
   input.onkeydown = (event) => {
-    markDailyFieldEditing();
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
     if (event.key !== "Enter" || event.isComposing) return;
     event.preventDefault();
+    dailyTextEditingActive = false;
+    flushDailyTaskRelatedRefresh();
     resetMobileDayFocusToSplit({ blur: true });
+  };
+  input.onblur = () => {
+    dailyTextEditingActive = false;
+    markDailyFieldEditing(0);
+    scheduleDailyTaskRelatedRefresh(60);
   };
 }
 
@@ -3430,7 +3469,7 @@ function cycleTaskMarker(task) {
 
 function getPriorityMenuValue(task, priority) {
   if (task.status === "취소" || task.status === "연기") return task.status;
-  if (task.priorityUnset && !task.text?.trim()) return "선택";
+  if (task.priorityUnset) return "선택";
   return ["A", "B", "C"].includes(priority) ? priority : "선택";
 }
 
@@ -3546,27 +3585,46 @@ function renderCarryoverTask(task) {
   const completedHere = isCarryoverCompletedOn(task, selectedKey);
   const marker = completedHere ? "check" : getTaskMarker(task);
   const priority = ["A", "B", "C"].includes(task.priority) ? task.priority : "A";
-  row.className = `task-row carryover-row priority-${priority === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
+  const menuValue = getPriorityMenuValue(task, priority);
+  const statusControl = getTaskStatusControl(task, menuValue);
+  row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
-    <div class="task-status-cell" data-status="${escapeAttr(priority)}">
-      <select class="priority-select carryover-priority-select" aria-label="이월업무 중요도 선택">
-        ${["A", "B", "C"].map((value) => `<option value="${value}" ${priority === value ? "selected" : ""}>${value}</option>`).join("")}
-      </select>
-    </div>
+    <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
     <button class="task-delete" type="button" aria-label="이월 우선업무 삭제">×</button>
   `;
+  const prioritySelect = row.querySelector(".priority-select");
+  const delegateInput = row.querySelector(".delegate-input");
+  const postponeSelect = row.querySelector(".postpone-select");
+  const postponeDate = row.querySelector(".postpone-date");
   row.querySelector(".task-cycle").onclick = () => {
     updateCarryoverTaskMarker(task);
   };
-  row.querySelector(".carryover-priority-select").onchange = (event) => {
-    updateCarryoverTaskPriority(task, event.target.value);
-  };
+  if (prioritySelect) {
+    let handledValue = "";
+    const applyPrioritySelection = () => {
+      if (handledValue === prioritySelect.value) return;
+      handledValue = prioritySelect.value;
+      updateCarryoverTaskPriority(task, prioritySelect.value);
+    };
+    prioritySelect.oninput = applyPrioritySelection;
+    prioritySelect.onchange = applyPrioritySelection;
+  }
+  if (delegateInput) {
+    delegateInput.oninput = () => updateCarryoverDelegate(task, delegateInput.value);
+  }
+  if (postponeSelect) {
+    postponeSelect.onchange = () => updateCarryoverPostponeMode(task, postponeSelect.value);
+  }
+  if (postponeDate) {
+    postponeDate.onchange = () => scheduleCarryoverPostponedTask(task, postponeDate.value);
+  }
   const textInput = row.querySelector(".task-text-input");
   bindDailyTaskTextInput(textInput);
   textInput.oninput = (event) => {
-    markDailyFieldEditing();
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
     updateCarryoverTaskText(task, event.target.value);
   };
   row.querySelector(".task-delete").onclick = () => deleteCarryoverTask(task);
@@ -3604,21 +3662,54 @@ function updateCarryoverTaskMarker(taskRef) {
 }
 
 function updateCarryoverTaskPriority(taskRef, value) {
-  const source = moveTaskSourcePriority(taskRef, value);
+  const source = findTaskSource(taskRef);
   if (!source) return;
+  if (value === "취소" || value === "연기") {
+    source.task.status = value;
+    source.task.done = false;
+    saveState({ fastSave: true });
+    renderAll();
+    return;
+  }
+  source.task.status = source.task.status === "취소" || source.task.status === "연기" ? "미완료" : source.task.status;
+  source.task.done = source.task.status === "완료";
+  if (["A", "B", "C"].includes(value)) {
+    moveTaskSourcePriority(taskRef, value);
+    saveState({ fastSave: true });
+    renderAll();
+    return;
+  }
+  source.task.priorityUnset = true;
   saveState({ fastSave: true });
   renderAll();
+}
+
+function updateCarryoverDelegate(taskRef, value) {
+  const source = findTaskSource(taskRef)?.task;
+  if (!source) return;
+  source.delegate = value;
+  saveState({ fastSave: true });
+}
+
+function updateCarryoverPostponeMode(taskRef, value) {
+  const source = findTaskSource(taskRef)?.task;
+  if (!source) return;
+  source.postponeMode = value;
+  saveState({ fastSave: true });
+  renderAll();
+}
+
+function scheduleCarryoverPostponedTask(taskRef, targetDate) {
+  const source = findTaskSource(taskRef);
+  if (!source) return;
+  schedulePostponedTask(source.task, source.priority, targetDate);
 }
 
 function updateCarryoverTaskText(taskRef, value) {
   const source = findTaskSource(taskRef)?.task;
   if (!source) return;
   source.text = value;
-  source.priorityUnset = !value.trim();
   saveState({ fastSave: true });
-  renderSidebar();
-  renderMonthCalendar();
-  renderWeek();
 }
 
 function formatCarryoverDate(value) {
