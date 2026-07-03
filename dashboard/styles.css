@@ -5217,11 +5217,13 @@ body.smartphone-device .privacy-blind-screen {
     min-width: 100%;
     max-width: 100%;
     overflow-x: hidden;
+    contain: layout paint;
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
   .day-main-panel.is-focus-tasks .day-task-panel,
   .day-main-panel.is-focus-schedule .day-schedule-panel {
+    box-sizing: border-box;
     display: block;
     grid-column: 1 / -1;
     width: 100%;
@@ -5237,6 +5239,7 @@ body.smartphone-device .privacy-blind-screen {
   }
 
   .day-main-panel.is-focus-tasks .task-board,
+  .day-main-panel.is-focus-tasks .task-list,
   .day-main-panel.is-focus-schedule .appointment-list,
   .day-main-panel.is-focus-tasks .task-row,
   .day-main-panel.is-focus-schedule .appointment-row {
@@ -5244,6 +5247,39 @@ body.smartphone-device .privacy-blind-screen {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+  }
+
+  .day-main-panel.is-focus-tasks .task-row,
+  .day-main-panel.is-focus-tasks .carryover-row {
+    grid-template-columns: 20px minmax(24px, 28px) minmax(0, 1fr) 20px;
+    column-gap: 3px;
+    padding-inline: 1px;
+  }
+
+  .day-main-panel.is-focus-tasks .task-row > *,
+  .day-main-panel.is-focus-tasks .carryover-row > *,
+  .day-main-panel.is-focus-tasks .task-text-input,
+  .day-main-panel.is-focus-tasks .task-row input[type="text"] {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .day-main-panel.is-focus-tasks .repeat-manager,
+  .day-main-panel.is-focus-tasks .repeat-list {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .day-main-panel.is-focus-tasks .repeat-list {
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .day-main-panel.is-focus-tasks .repeat-rule-row {
+    min-width: 520px;
+    width: max(100%, 520px);
   }
 
   .day-main-panel.is-focus-schedule .appointment-row {
