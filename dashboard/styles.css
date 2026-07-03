@@ -2615,6 +2615,16 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   content: none !important;
 }
 
+.task-status-cell:has(.task-status-label) .priority-select,
+.task-status-cell:has(.task-status-label) .postpone-select {
+  color: transparent;
+}
+
+.task-status-cell:has(.task-status-label) .priority-select option,
+.task-status-cell:has(.task-status-label) .postpone-select option {
+  color: var(--slate);
+}
+
 .priority-select,
 .postpone-select {
   min-width: 0;
