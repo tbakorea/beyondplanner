@@ -921,6 +921,41 @@ body.is-privacy-blind .app-shell {
   backdrop-filter: blur(12px) saturate(1.04);
 }
 
+.month-title {
+  align-items: flex-start;
+}
+
+.month-title-nav {
+  display: inline-grid;
+  grid-template-columns: 34px minmax(0, auto) 34px;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.month-title-nav h2 {
+  min-width: 0;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.month-nav-button {
+  width: 34px;
+  min-height: 36px;
+  border-width: 1.5px;
+  border-color: rgba(95, 118, 104, 0.28);
+  color: var(--forest);
+  font-size: 25px;
+  font-weight: 940;
+  line-height: 0.8;
+}
+
+.month-nav-button:hover {
+  background: rgba(174, 191, 177, 0.16);
+}
+
 .week-heading {
   position: relative;
   min-width: 0;
@@ -6283,6 +6318,26 @@ body.ceo-mode .sheet-grid-wrap {
     padding: 5px 9px;
     font-size: 10.5px;
   }
+
+  .month-title {
+    gap: 6px;
+  }
+
+  .month-title-nav {
+    grid-template-columns: 31px minmax(0, 1fr) 31px;
+    width: 100%;
+  }
+
+  .month-title-nav h2 {
+    text-align: center;
+    font-size: clamp(19px, 5vw, 25px);
+  }
+
+  .month-nav-button {
+    width: 31px;
+    min-height: 33px;
+    font-size: 23px;
+  }
 }
 
 @media screen and (max-width: 430px) {
@@ -6331,5 +6386,31 @@ body.ceo-mode .sheet-grid-wrap {
   .quick-strip {
     border-radius: 12px;
     background: rgba(255, 253, 248, 0.36);
+  }
+
+  .month-title {
+    display: grid;
+    gap: 3px;
+    align-items: start;
+  }
+
+  .month-title .eyebrow {
+    display: none;
+  }
+
+  .month-title-nav {
+    grid-template-columns: 28px minmax(0, 1fr) 28px;
+    gap: 5px;
+  }
+
+  .month-title-nav h2 {
+    font-size: 18px;
+  }
+
+  .month-nav-button {
+    width: 28px;
+    min-height: 30px;
+    border-radius: 6px;
+    font-size: 21px;
   }
 }

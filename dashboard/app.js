@@ -97,6 +97,7 @@ let dailyCalendarSwipeSuppressClick = false;
 let weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
 let monthCalendarSwipeSuppressClick = false;
+let monthDateTap = { key: "", at: 0 };
 let mobileDayFocusResetTimer = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
@@ -993,6 +994,8 @@ function setupSelectors() {
   el("weekCalendarPrevMonth").onclick = () => shiftWeekCalendarMonth(-1);
   el("weekCalendarNextMonth").onclick = () => shiftWeekCalendarMonth(1);
   el("weekCalendarClose").onclick = () => closeWeekCalendar(true);
+  el("monthPrevButton").onclick = () => shiftMonth(-1);
+  el("monthNextButton").onclick = () => shiftMonth(1);
   el("dailyTodayButton").onclick = () => {
     closeDailyCalendar();
     closeWeekCalendar();
@@ -1105,6 +1108,7 @@ function setupSelectors() {
   setupTopViews();
   setupDailyDateSwipe();
   setupWeekDateSwipe();
+  setupMonthDateSwipe();
   setupCalendarMonthSwipe();
   setupDailyPageSwipe();
   setupDaySwipePager();
@@ -1554,6 +1558,32 @@ function shiftMonth(delta) {
   if (next.getFullYear() !== YEAR) return;
   selectedDate = next;
   renderAll();
+}
+
+function setupMonthDateSwipe() {
+  const zones = [el("monthSwipeZone"), el("monthCalendar")].filter(Boolean);
+  zones.forEach((zone) => {
+    let startX = 0;
+    let startY = 0;
+    zone.addEventListener("pointerdown", (event) => {
+      startX = event.clientX;
+      startY = event.clientY;
+    }, { passive: true });
+    zone.addEventListener("pointerup", (event) => {
+      if (!startX) return;
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      startX = 0;
+      startY = 0;
+      if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.18) return;
+      event.preventDefault();
+      monthCalendarSwipeSuppressClick = true;
+      shiftMonth(dx < 0 ? 1 : -1);
+      window.setTimeout(() => {
+        monthCalendarSwipeSuppressClick = false;
+      }, 260);
+    });
+  });
 }
 
 function setupMonthCalendarWheel() {
@@ -2432,7 +2462,22 @@ function renderMonthCalendar() {
     cell.title = calendarAriaLabel(date, annotation.events, annotation.lunarLabel, Boolean(count));
     cell.onclick = () => {
       if (monthCalendarSwipeSuppressClick) return;
+      const now = Date.now();
+      if (monthDateTap.key === key && now - monthDateTap.at < 420) {
+        monthDateTap = { key: "", at: 0 };
+        selectedDate = date;
+        showView("day");
+        renderAll();
+        return;
+      }
+      monthDateTap = { key, at: now };
       selectedDate = date;
+      renderAll();
+    };
+    cell.ondblclick = () => {
+      if (monthCalendarSwipeSuppressClick) return;
+      selectedDate = date;
+      showView("day");
       renderAll();
     };
     node.appendChild(cell);
