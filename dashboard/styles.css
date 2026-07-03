@@ -2879,7 +2879,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .repeat-rule-row {
   display: grid;
-  grid-template-columns: 22px 42px minmax(110px, 1fr) 68px 52px;
+  grid-template-columns: 22px 42px minmax(110px, 1fr) 68px minmax(58px, auto);
   gap: 6px;
   align-items: center;
   padding: 7px;
@@ -2911,6 +2911,33 @@ input[type="checkbox"]:checked::after {
   min-height: 30px;
   padding: 5px 6px;
   font-size: 12px;
+}
+
+.repeat-target-cell {
+  min-width: 0;
+}
+
+.repeat-target-cell select {
+  width: 100%;
+}
+
+.repeat-target-static {
+  display: inline-flex;
+  width: 100%;
+  min-height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.repeat-yearly-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 4px;
 }
 
 .repeat-add {
@@ -3166,7 +3193,7 @@ input[type="checkbox"]:checked::after {
   }
 
   .repeat-rule-row {
-    grid-template-columns: 22px 44px minmax(130px, 1fr) 74px 58px;
+    grid-template-columns: 22px 44px minmax(130px, 1fr) 74px minmax(62px, auto);
   }
 }
 

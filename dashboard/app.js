@@ -54,6 +54,8 @@ const priorities = [
 const repeatFrequencies = [
   ["daily", "매일"],
   ["weekly", "매주"],
+  ["monthly", "매월"],
+  ["yearly", "매년"],
 ];
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
@@ -317,6 +319,7 @@ function migrateState(nextState) {
   nextState.repeats ||= {};
   nextState.repeats.priorityTasks ||= emptyRepeatRules(4);
   while (nextState.repeats.priorityTasks.length < 4) nextState.repeats.priorityTasks.push(emptyRepeatRule());
+  nextState.repeats.priorityTasks.forEach(normalizeRepeatRule);
   Object.entries(nextState.weeks || {}).forEach(([key, week]) => {
     week.priorities ||= createWeeklyPriorities(key, nextState);
     while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
@@ -898,11 +901,39 @@ function emptyTasks(count) {
 }
 
 function emptyRepeatRule() {
-  return { text: "", priority: "A", frequency: "daily", weekday: 1, active: true };
+  const baseDate = selectedDate || todayInPlanner();
+  return {
+    text: "",
+    priority: "A",
+    frequency: "daily",
+    weekday: baseDate.getDay(),
+    monthday: baseDate.getDate(),
+    month: baseDate.getMonth() + 1,
+    active: true,
+  };
 }
 
 function emptyRepeatRules(count) {
   return Array.from({ length: count }, () => emptyRepeatRule());
+}
+
+function normalizeRepeatRule(rule = {}) {
+  const baseDate = selectedDate || todayInPlanner();
+  const frequencyValues = repeatFrequencies.map(([value]) => value);
+  rule.text ||= "";
+  rule.priority = ["A", "B", "C"].includes(rule.priority) ? rule.priority : "A";
+  rule.frequency = frequencyValues.includes(rule.frequency) ? rule.frequency : "daily";
+  rule.weekday = clampNumber(rule.weekday, 0, 6, baseDate.getDay());
+  rule.monthday = clampNumber(rule.monthday, 1, 31, baseDate.getDate());
+  rule.month = clampNumber(rule.month, 1, 12, baseDate.getMonth() + 1);
+  rule.active = rule.active !== false;
+  return rule;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const next = Number(value);
+  if (!Number.isFinite(next)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(next)));
 }
 
 function setPath(path, value) {
@@ -2603,9 +2634,12 @@ function applyMemoPrompt() {
 }
 
 function shouldRepeatOnDate(rule, date) {
+  normalizeRepeatRule(rule);
   if (!rule.active || !rule.text?.trim()) return false;
   if (rule.frequency === "daily") return true;
   if (rule.frequency === "weekly") return Number(rule.weekday) === date.getDay();
+  if (rule.frequency === "monthly") return Number(rule.monthday) === date.getDate();
+  if (rule.frequency === "yearly") return Number(rule.month) === date.getMonth() + 1 && Number(rule.monthday) === date.getDate();
   return false;
 }
 
@@ -2648,22 +2682,24 @@ function renderRepeatPriorityList() {
   state.repeats ||= { priorityTasks: emptyRepeatRules(4) };
   node.innerHTML = "";
   state.repeats.priorityTasks.forEach((rule, index) => {
+    normalizeRepeatRule(rule);
     const row = document.createElement("div");
     row.className = "repeat-rule-row";
     row.innerHTML = `
-      <input type="checkbox" ${rule.active ? "checked" : ""} aria-label="반복 사용" />
-      <select aria-label="중요도">
+      <input class="repeat-active" type="checkbox" ${rule.active ? "checked" : ""} aria-label="반복 사용" />
+      <select class="repeat-priority" aria-label="중요도">
         ${["A", "B", "C"].map((priority) => `<option value="${priority}" ${rule.priority === priority ? "selected" : ""}>${priority}</option>`).join("")}
       </select>
-      <input type="text" value="${escapeAttr(rule.text)}" placeholder="반복 업무" />
-      <select aria-label="반복 주기">
+      <input class="repeat-text" type="text" value="${escapeAttr(rule.text)}" placeholder="반복 업무" />
+      <select class="repeat-frequency" aria-label="반복 주기">
         ${repeatFrequencies.map(([value, label]) => `<option value="${value}" ${rule.frequency === value ? "selected" : ""}>${label}</option>`).join("")}
       </select>
-      <select aria-label="요일" ${rule.frequency === "daily" ? "disabled" : ""}>
-        ${weekdays.map((day, dayIndex) => `<option value="${dayIndex}" ${Number(rule.weekday) === dayIndex ? "selected" : ""}>${day}</option>`).join("")}
-      </select>
+      <div class="repeat-target-cell">${renderRepeatTargetControl(rule)}</div>
     `;
-    const [active, priority, text, frequency, weekday] = row.querySelectorAll("input, select");
+    const active = row.querySelector(".repeat-active");
+    const priority = row.querySelector(".repeat-priority");
+    const text = row.querySelector(".repeat-text");
+    const frequency = row.querySelector(".repeat-frequency");
     active.onchange = () => {
       rule.active = active.checked;
       saveState();
@@ -2681,14 +2717,25 @@ function renderRepeatPriorityList() {
     text.onchange = () => renderAll();
     frequency.onchange = () => {
       rule.frequency = frequency.value;
+      setRepeatAnchorToSelectedDate(rule);
       saveState();
       renderAll();
     };
-    weekday.onchange = () => {
-      rule.weekday = Number(weekday.value);
+    row.querySelector(".repeat-weekday")?.addEventListener("change", (event) => {
+      rule.weekday = Number(event.target.value);
       saveState();
       renderAll();
-    };
+    });
+    row.querySelector(".repeat-monthday")?.addEventListener("change", (event) => {
+      rule.monthday = Number(event.target.value);
+      saveState();
+      renderAll();
+    });
+    row.querySelector(".repeat-month")?.addEventListener("change", (event) => {
+      rule.month = Number(event.target.value);
+      saveState();
+      renderAll();
+    });
     node.appendChild(row);
   });
   const add = document.createElement("button");
@@ -2701,6 +2748,56 @@ function renderRepeatPriorityList() {
     renderDay();
   };
   node.appendChild(add);
+}
+
+function setRepeatAnchorToSelectedDate(rule) {
+  const baseDate = selectedDate || todayInPlanner();
+  if (rule.frequency === "weekly") rule.weekday = baseDate.getDay();
+  if (rule.frequency === "monthly") rule.monthday = baseDate.getDate();
+  if (rule.frequency === "yearly") {
+    rule.month = baseDate.getMonth() + 1;
+    rule.monthday = baseDate.getDate();
+  }
+  normalizeRepeatRule(rule);
+}
+
+function renderRepeatTargetControl(rule) {
+  if (rule.frequency === "weekly") {
+    return `
+      <select class="repeat-weekday" aria-label="반복 요일">
+        ${weekdays.map((day, dayIndex) => `<option value="${dayIndex}" ${Number(rule.weekday) === dayIndex ? "selected" : ""}>${day}</option>`).join("")}
+      </select>
+    `;
+  }
+  if (rule.frequency === "monthly") {
+    return `
+      <select class="repeat-monthday" aria-label="반복 일자">
+        ${Array.from({ length: 31 }, (_, index) => {
+          const day = index + 1;
+          return `<option value="${day}" ${Number(rule.monthday) === day ? "selected" : ""}>${day}일</option>`;
+        }).join("")}
+      </select>
+    `;
+  }
+  if (rule.frequency === "yearly") {
+    return `
+      <div class="repeat-yearly-controls">
+        <select class="repeat-month" aria-label="반복 월">
+          ${Array.from({ length: 12 }, (_, index) => {
+            const month = index + 1;
+            return `<option value="${month}" ${Number(rule.month) === month ? "selected" : ""}>${month}월</option>`;
+          }).join("")}
+        </select>
+        <select class="repeat-monthday" aria-label="반복 일자">
+          ${Array.from({ length: 31 }, (_, index) => {
+            const day = index + 1;
+            return `<option value="${day}" ${Number(rule.monthday) === day ? "selected" : ""}>${day}일</option>`;
+          }).join("")}
+        </select>
+      </div>
+    `;
+  }
+  return `<span class="repeat-target-static">매일</span>`;
 }
 
 function renderDayCompass() {
