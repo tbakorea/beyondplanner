@@ -6118,6 +6118,12 @@ body.smartphone-device .privacy-blind-screen {
   color: white;
 }
 
+.sheet-header-tools button.is-active {
+  border-color: rgba(38, 60, 52, 0.44);
+  background: var(--forest);
+  color: white;
+}
+
 .sheet-fill-picker {
   display: flex;
   align-items: center;
@@ -6196,6 +6202,7 @@ body.smartphone-device .privacy-blind-screen {
 }
 
 .custom-sheet-grid {
+  --sheet-row-header-width: 42px;
   width: max-content;
   min-width: 100%;
   border-spacing: 0;
@@ -6289,9 +6296,9 @@ body.smartphone-device .privacy-blind-screen {
   position: sticky;
   left: 0;
   z-index: 3;
-  min-width: 42px;
-  width: 42px;
-  max-width: 42px;
+  min-width: var(--sheet-row-header-width);
+  width: var(--sheet-row-header-width);
+  max-width: var(--sheet-row-header-width);
   background: #eeece5;
   color: var(--muted);
   font-size: 10px;
@@ -6301,7 +6308,47 @@ body.smartphone-device .privacy-blind-screen {
 
 .custom-sheet-grid .sheet-corner {
   top: 0;
-  z-index: 6;
+  z-index: 9;
+}
+
+.custom-sheet-grid.has-title-column thead th[data-sheet-column="0"] {
+  position: sticky;
+  left: var(--sheet-row-header-width);
+  z-index: 7;
+  box-shadow: 1px 0 0 #d6d1c6;
+}
+
+.custom-sheet-grid.has-title-row tbody tr:first-child > th,
+.custom-sheet-grid.has-title-row tbody tr:first-child > td {
+  position: sticky;
+  top: 30px;
+  z-index: 5;
+  background: #f4f1e9;
+  box-shadow: 0 1px 0 #d6d1c6;
+}
+
+.custom-sheet-grid.has-title-row tbody tr:first-child > th {
+  left: 0;
+  z-index: 8;
+}
+
+.custom-sheet-grid.has-title-column tbody td:first-of-type {
+  position: sticky;
+  left: var(--sheet-row-header-width);
+  z-index: 4;
+  background: #f8f6f0;
+  box-shadow: 1px 0 0 #d6d1c6;
+}
+
+.custom-sheet-grid.has-title-row.has-title-column tbody tr:first-child > td:first-of-type {
+  z-index: 7;
+  background: #efece3;
+}
+
+.custom-sheet-grid .sheet-cell.is-title-row .sheet-cell-input,
+.custom-sheet-grid .sheet-cell.is-title-column .sheet-cell-input {
+  color: var(--forest);
+  font-weight: 820;
 }
 
 .sheet-cell {
@@ -6312,6 +6359,11 @@ body.smartphone-device .privacy-blind-screen {
 .sheet-cell.is-selected {
   z-index: 2;
   box-shadow: inset 0 0 0 2px var(--sage-dark);
+}
+
+.custom-sheet-grid.has-title-row .sheet-cell.is-selected.is-title-row,
+.custom-sheet-grid.has-title-column .sheet-cell.is-selected.is-title-column {
+  z-index: 8;
 }
 
 .sheet-cell.fill-yellow {
@@ -6500,11 +6552,15 @@ body.ceo-mode .sheet-grid-wrap {
     min-width: 0;
   }
 
+  .custom-sheet-grid {
+    --sheet-row-header-width: 36px;
+  }
+
   .custom-sheet-grid .sheet-corner,
   .custom-sheet-grid .sheet-row-number {
-    min-width: 36px;
-    width: 36px;
-    max-width: 36px;
+    min-width: var(--sheet-row-header-width);
+    width: var(--sheet-row-header-width);
+    max-width: var(--sheet-row-header-width);
   }
 }
 

@@ -432,6 +432,8 @@ function createCustomSheet(name = "새 시트", template = "blank") {
     formats: {},
     columnWidths: [],
     rowHeights: [],
+    titleRows: 0,
+    titleColumns: 0,
   };
   applySheetTemplate(sheet, template);
   return sheet;
@@ -449,6 +451,8 @@ function normalizeCustomSheetsState(customSheets) {
     sheet.formats = sheet.formats && typeof sheet.formats === "object" ? sheet.formats : {};
     sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
     sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
+    sheet.titleRows = clampNumber(sheet.titleRows, 0, 1, 0);
+    sheet.titleColumns = clampNumber(sheet.titleColumns, 0, 1, 0);
   });
   if (!customSheets.items.some((sheet) => sheet.id === customSheets.activeId)) {
     customSheets.activeId = customSheets.items[0].id;
@@ -1192,6 +1196,10 @@ function setupSelectors() {
   el("sheetColumnWidthInput").onchange = (event) => updateSelectedSheetColumnWidth(event.target.value);
   el("sheetRowHeightInput").onchange = (event) => updateSelectedSheetRowHeight(event.target.value);
   el("sheetAutoFitButton").onclick = autoFitSelectedSheetCell;
+  el("sheetAllColumnWidthInput").onchange = (event) => updateAllSheetColumnWidths(event.target.value);
+  el("sheetAllRowHeightInput").onchange = (event) => updateAllSheetRowHeights(event.target.value);
+  el("sheetTitleRowButton").onclick = () => toggleSheetTitleAxis("row");
+  el("sheetTitleColumnButton").onclick = () => toggleSheetTitleAxis("column");
   el("sheetNameInput").oninput = (event) => renameCurrentSheet(event.target.value);
   el("sheetCellType").onchange = (event) => updateSelectedSheetCellFormat("type", event.target.value);
   el("sheetCellAlign").onchange = (event) => updateSelectedSheetCellFormat("align", event.target.value);
@@ -4404,8 +4412,13 @@ function pruneSheetOutsideBounds(sheet) {
 
 function renderSheetGrid(sheet) {
   const table = el("customSheetGrid");
+  table.className = [
+    "custom-sheet-grid",
+    sheet.titleRows ? "has-title-row" : "",
+    sheet.titleColumns ? "has-title-column" : "",
+  ].filter(Boolean).join(" ");
   const colgroup = `
-    <col class="sheet-row-header-col" style="width: 42px" />
+    <col class="sheet-row-header-col" style="width: var(--sheet-row-header-width, 42px)" />
     ${Array.from({ length: sheet.columns }, (_, column) => `<col data-sheet-col-index="${column}" style="width: ${getSheetColumnWidth(sheet, column)}px" />`).join("")}
   `;
   const header = Array.from(
@@ -4440,6 +4453,8 @@ function renderSheetCellMarkup(sheet, row, column) {
   const format = getSheetCellFormat(sheet, reference);
   const classes = [
     "sheet-cell",
+    row < (sheet.titleRows || 0) ? "is-title-row" : "",
+    column < (sheet.titleColumns || 0) ? "is-title-column" : "",
     `fill-${format.fill}`,
     `align-${format.align}`,
     format.bold ? "is-bold" : "",
@@ -4628,11 +4643,24 @@ function renderSelectedSheetCellControls(sheet) {
   el("sheetCellAlign").value = format.align;
   el("sheetColumnWidthInput").value = String(getSheetColumnWidth(sheet, position.column));
   el("sheetRowHeightInput").value = String(getSheetRowHeight(sheet, position.row));
+  el("sheetAllColumnWidthInput").value = commonSheetSizeValue(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH);
+  el("sheetAllRowHeightInput").value = commonSheetSizeValue(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT);
+  el("sheetTitleRowButton").classList.toggle("is-active", Boolean(sheet.titleRows));
+  el("sheetTitleColumnButton").classList.toggle("is-active", Boolean(sheet.titleColumns));
+  el("sheetTitleRowButton").setAttribute("aria-pressed", String(Boolean(sheet.titleRows)));
+  el("sheetTitleColumnButton").setAttribute("aria-pressed", String(Boolean(sheet.titleColumns)));
   el("sheetBoldButton").classList.toggle("is-active", format.bold);
   el("sheetBoldButton").setAttribute("aria-pressed", String(format.bold));
   document.querySelectorAll("[data-sheet-fill]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.sheetFill === format.fill);
   });
+}
+
+function commonSheetSizeValue(values, count, fallback) {
+  const normalized = Array.isArray(values) && values.length ? values.slice(0, count) : Array.from({ length: count }, () => fallback);
+  if (!normalized.length) return "";
+  const first = Number(normalized[0]) || fallback;
+  return normalized.every((value) => Number(value) === first) ? String(first) : "";
 }
 
 function updateSelectedSheetColumnWidth(value) {
@@ -4651,6 +4679,36 @@ function updateSelectedSheetRowHeight(value) {
   const position = parseSheetCellReference(selectedSheetCell);
   if (!position) return;
   setSheetRowHeight(sheet, position.row, value);
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function updateAllSheetColumnWidths(value) {
+  const sheet = getCurrentSheet();
+  const width = clampNumber(value, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH, SHEET_DEFAULT_COLUMN_WIDTH);
+  sheet.columnWidths = Array.from({ length: sheet.columns }, () => width);
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function updateAllSheetRowHeights(value) {
+  const sheet = getCurrentSheet();
+  const height = clampNumber(value, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT, SHEET_DEFAULT_ROW_HEIGHT);
+  sheet.rowHeights = Array.from({ length: sheet.rows }, () => height);
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function toggleSheetTitleAxis(axis) {
+  const sheet = getCurrentSheet();
+  if (axis === "row") sheet.titleRows = sheet.titleRows ? 0 : 1;
+  if (axis === "column") sheet.titleColumns = sheet.titleColumns ? 0 : 1;
   saveState({ fastSave: true });
   renderSheetGrid(sheet);
   renderSelectedSheetCellControls(sheet);
