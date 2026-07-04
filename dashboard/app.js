@@ -5039,14 +5039,18 @@ function setupProjectPageSwipe(node, page) {
   if (!node) return;
   let startX = 0;
   let startY = 0;
-  node.addEventListener("pointerdown", (event) => {
-    startX = event.clientX;
-    startY = event.clientY;
-  }, { passive: true });
-  node.addEventListener("pointerup", (event) => {
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
+  let lastSwipeAt = 0;
+  const markStart = (x, y) => {
+    startX = x;
+    startY = y;
+  };
+  const finishSwipe = (x, y) => {
+    const dx = x - startX;
+    const dy = y - startY;
     if (Math.abs(dx) < 58 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    const now = Date.now();
+    if (now - lastSwipeAt < 280) return;
+    lastSwipeAt = now;
     if (page === "list" && dx < 0 && state.projects.items.length) {
       projectSlideOpening = !projectDetailOpen;
       projectDetailOpen = true;
@@ -5056,9 +5060,22 @@ function setupProjectPageSwipe(node, page) {
         projectSwipeSuppressClick = false;
       }, 260);
     }
-    if (page === "detail") {
+    if (page === "detail" && dx > 0) {
       closeProjectDetail();
     }
+  };
+  node.addEventListener("pointerdown", (event) => {
+    startX = event.clientX;
+    startY = event.clientY;
+  }, { passive: true });
+  node.addEventListener("pointerup", (event) => finishSwipe(event.clientX, event.clientY), { passive: true });
+  node.addEventListener("touchstart", (event) => {
+    const touch = event.touches?.[0];
+    if (touch) markStart(touch.clientX, touch.clientY);
+  }, { passive: true });
+  node.addEventListener("touchend", (event) => {
+    const touch = event.changedTouches?.[0];
+    if (touch) finishSwipe(touch.clientX, touch.clientY);
   }, { passive: true });
 }
 

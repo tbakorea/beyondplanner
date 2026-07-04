@@ -1946,6 +1946,7 @@ body.ceo-mode #view-month .month-layout > .panel {
 }
 
 .project-page {
+  box-sizing: border-box;
   flex: 0 0 100%;
   min-width: 100%;
   height: 100%;
@@ -1970,6 +1971,12 @@ body.ceo-mode #view-month .month-layout > .panel {
   background: rgba(255, 253, 248, 0.96);
   padding: 12px 14px 10px;
   backdrop-filter: blur(12px) saturate(1.04);
+}
+
+.project-page-sticky .panel-title-row > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .project-list-panel .project-page-sticky {
@@ -2074,7 +2081,19 @@ body.ceo-mode #view-month .month-layout > .panel {
 }
 
 .project-detail-close {
+  position: relative;
+  z-index: 15;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   margin-left: auto;
+  border-color: rgba(38, 60, 52, 0.3);
+  background: rgba(255, 253, 248, 0.98);
+  color: var(--forest);
+  font-size: 22px;
+  box-shadow: 0 8px 18px rgba(38, 60, 52, 0.12);
 }
 
 .project-empty-message {
@@ -5260,7 +5279,7 @@ button {
 
   .project-page-sticky {
     margin: -6px -6px 8px;
-    padding: 7px 6px 6px;
+    padding: 7px max(8px, env(safe-area-inset-right)) 6px 8px;
   }
 
   .project-list-panel .project-page-sticky {
@@ -5277,6 +5296,18 @@ button {
 
   .project-card {
     gap: 7px;
+  }
+
+  .project-detail-panel {
+    padding-left: 0;
+  }
+
+  .project-detail-close {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    font-size: 23px;
   }
 
   .project-card-head,
@@ -6827,5 +6858,253 @@ body.ceo-mode .sheet-grid-wrap {
   .month-picker-grid button {
     min-height: 32px;
     font-size: 11px;
+  }
+}
+
+/* Mobile readability pass: slightly larger type and touch targets without changing the planner structure. */
+@media (max-width: 640px) {
+  :root {
+    --mobile-row-height: 34px;
+  }
+
+  body {
+    font-size: 15px;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font-size: 15px;
+  }
+
+  .quick-strip button,
+  .top-search-toggle,
+  .top-status button,
+  .top-status select,
+  .mini-action,
+  .add-row,
+  .sheet-document-actions button,
+  .sheet-toolbar button,
+  .sheet-toolbar select,
+  .finance-month-tabs button,
+  .month-picker-grid button {
+    min-height: 34px;
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .quick-strip {
+    gap: 6px;
+    padding-block: 4px 5px;
+  }
+
+  .brand-top .eyebrow {
+    font-size: 9px;
+  }
+
+  .brand-row h1 {
+    font-size: clamp(21px, 6vw, 28px);
+  }
+
+  .daily-date-button {
+    min-height: 36px;
+  }
+
+  #dailyPrevDay,
+  #dailyNextDay {
+    width: 28px;
+    min-height: 36px;
+    font-size: 25px;
+  }
+
+  .today-jump {
+    min-width: 48px;
+    min-height: 38px;
+    font-size: 13px;
+  }
+
+  #dayTitle {
+    font-size: clamp(17px, 4.7vw, 20px);
+  }
+
+  .daily-score span {
+    font-size: 10px;
+  }
+
+  .daily-score strong {
+    font-size: 19px;
+  }
+
+  .day-swipe .panel > h3,
+  .task-section h4,
+  .panel-title-row {
+    font-size: 15px;
+  }
+
+  .task-row {
+    grid-template-columns: 23px 27px minmax(0, 1fr) 23px;
+    column-gap: 3px;
+    min-height: var(--mobile-row-height);
+  }
+
+  .task-cycle {
+    width: 22px;
+    height: 22px;
+    min-height: 22px;
+    font-size: 14px;
+  }
+
+  .task-row.marker-dot .task-cycle {
+    font-size: 28px;
+  }
+
+  .task-row.marker-delegate .task-cycle,
+  .task-row.marker-postpone .task-cycle {
+    width: 22px;
+    font-size: 8px;
+  }
+
+  .task-status-cell,
+  .priority-select,
+  .postpone-select,
+  .postpone-date {
+    width: 27px;
+    max-width: 27px;
+    min-height: 27px;
+  }
+
+  .task-status-cell:has(select)::before {
+    font-size: 13px;
+  }
+
+  .task-text-input,
+  .task-row input[type="text"],
+  .appointment-row input[type="text"] {
+    min-height: 27px;
+    font-size: 13px;
+    line-height: 1.2;
+  }
+
+  .postpone-date-label {
+    font-size: 9.5px;
+  }
+
+  .task-delete {
+    width: 23px;
+    min-height: 23px;
+    font-size: 15px;
+  }
+
+  .appointment-row {
+    grid-template-columns: 42px minmax(0, 1fr);
+    min-height: calc(var(--mobile-row-height) * var(--slot-span, 1));
+  }
+
+  .appointment-row span,
+  .appointment-time {
+    font-size: 12px;
+  }
+
+  .appointment-row.is-merged input[type="text"],
+  .appointment-time.range {
+    min-height: calc(27px + (var(--slot-span, 1) - 1) * var(--mobile-row-height));
+  }
+
+  .appointment-merge-button {
+    width: 24px;
+    height: 22px;
+    min-height: 22px;
+    font-size: 16px;
+  }
+
+  .split-appointment,
+  .icon-close,
+  .sheet-document-actions .sheet-detail-close,
+  .project-detail-close {
+    min-width: 36px;
+    width: 36px;
+    min-height: 36px;
+    height: 36px;
+    font-size: 20px;
+  }
+
+  .project-list-title,
+  .sheet-list-title {
+    font-size: 15px;
+  }
+
+  .project-list-item small,
+  .sheet-list-item small {
+    font-size: 12px;
+  }
+
+  .project-card input,
+  .project-card select,
+  .project-card textarea,
+  .project-money-row input,
+  .project-money-row select,
+  #sheetNameInput,
+  #sheetFormulaInput,
+  .sheet-cell-input {
+    min-height: 34px;
+    font-size: 14px;
+  }
+
+  .custom-sheet-grid thead th,
+  .custom-sheet-grid .sheet-row-number {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 430px) {
+  .quick-strip button,
+  .top-search-toggle {
+    min-height: 33px;
+    padding-inline: 9px;
+    font-size: 11.5px;
+  }
+
+  .day-main-panel {
+    gap: 4px;
+  }
+
+  .panel {
+    padding: 7px;
+  }
+
+  .day-swipe .panel > h3 {
+    margin: -7px -7px 6px;
+    padding: 7px;
+    font-size: 14px;
+  }
+
+  #dayTitle {
+    font-size: clamp(16px, 4.55vw, 19px);
+  }
+
+  .task-text-input,
+  .task-row input[type="text"],
+  .appointment-row input[type="text"] {
+    font-size: 12.5px;
+  }
+
+  .appointment-row span,
+  .appointment-time {
+    font-size: 11.5px;
+  }
+
+  .project-title-input {
+    min-height: 36px;
+    font-size: 16px;
+  }
+
+  .project-money-row input,
+  .project-money-row select,
+  .project-card input,
+  .project-card select,
+  .project-card textarea {
+    min-height: 33px;
+    font-size: 13px;
   }
 }
