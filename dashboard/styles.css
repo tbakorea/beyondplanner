@@ -6225,6 +6225,13 @@ body.smartphone-device .privacy-blind-screen {
   overflow: visible;
 }
 
+.custom-sheet-grid thead th.is-header-selected,
+.custom-sheet-grid .sheet-row-number.is-header-selected {
+  background: rgba(174, 191, 177, 0.32);
+  color: var(--forest);
+  box-shadow: inset 0 0 0 2px rgba(38, 60, 52, 0.42);
+}
+
 .custom-sheet-grid thead th[data-sheet-column] > span,
 .custom-sheet-grid .sheet-row-number > span {
   pointer-events: none;
@@ -6301,10 +6308,17 @@ body.smartphone-device .privacy-blind-screen {
 
 .custom-sheet-grid th:hover .sheet-column-resize,
 .custom-sheet-grid th:hover .sheet-row-resize,
+.custom-sheet-grid th.is-header-selected .sheet-column-resize,
+.custom-sheet-grid th.is-header-selected .sheet-row-resize,
 .sheet-column-resize:focus-visible,
 .sheet-row-resize:focus-visible {
   opacity: 1;
   background: rgba(95, 118, 104, 0.1);
+}
+
+.custom-sheet-grid th.is-header-selected .sheet-column-resize::after,
+.custom-sheet-grid th.is-header-selected .sheet-row-resize::after {
+  background: rgba(38, 60, 52, 0.76);
 }
 
 @media (pointer: coarse) {

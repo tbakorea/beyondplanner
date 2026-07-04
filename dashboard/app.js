@@ -121,6 +121,7 @@ let projectSlideOpening = false;
 let projectSwipeSuppressClick = false;
 let selectedSheetId = state.customSheets.activeId;
 let selectedSheetCell = "A1";
+let selectedSheetHeader = null;
 let sheetDetailOpen = false;
 let sheetSlideOpening = false;
 let sheetSwipeSuppressClick = false;
@@ -4193,6 +4194,8 @@ function getCurrentSheet() {
   selectedSheetId = sheet.id;
   state.customSheets.activeId = sheet.id;
   selectedSheetCell = clampSheetCellReference(selectedSheetCell, sheet);
+  if (selectedSheetHeader?.axis === "column" && selectedSheetHeader.index >= sheet.columns) selectedSheetHeader = null;
+  if (selectedSheetHeader?.axis === "row" && selectedSheetHeader.index >= sheet.rows) selectedSheetHeader = null;
   return sheet;
 }
 
@@ -4277,6 +4280,7 @@ function selectCustomSheet(sheetId, options = {}) {
   if (!state.customSheets.items.some((sheet) => sheet.id === sheetId)) return;
   selectedSheetId = sheetId;
   selectedSheetCell = "A1";
+  selectedSheetHeader = null;
   state.customSheets.activeId = sheetId;
   if (options.openDetail) {
     sheetSlideOpening = !sheetDetailOpen;
@@ -4392,6 +4396,8 @@ function resizeCurrentSheet(axis, delta) {
   sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
   pruneSheetOutsideBounds(sheet);
   selectedSheetCell = clampSheetCellReference(selectedSheetCell, sheet);
+  if (selectedSheetHeader?.axis === "column" && selectedSheetHeader.index >= sheet.columns) selectedSheetHeader = null;
+  if (selectedSheetHeader?.axis === "row" && selectedSheetHeader.index >= sheet.rows) selectedSheetHeader = null;
   saveState();
   renderSheets();
 }
@@ -4420,7 +4426,7 @@ function renderSheetGrid(sheet) {
   const header = Array.from(
     { length: sheet.columns },
     (_, column) => `
-      <th scope="col" data-sheet-column="${column}">
+      <th scope="col" data-sheet-column="${column}" class="${selectedSheetHeader?.axis === "column" && selectedSheetHeader.index === column ? "is-header-selected" : ""}">
         <span>${sheetColumnLabel(column)}</span>
         <button class="sheet-column-resize" type="button" aria-label="${sheetColumnLabel(column)} 열 폭 조절"></button>
       </th>
@@ -4430,7 +4436,7 @@ function renderSheetGrid(sheet) {
     const cells = Array.from({ length: sheet.columns }, (_, column) => renderSheetCellMarkup(sheet, row, column)).join("");
     return `
       <tr data-sheet-row-index="${row}" style="height: ${getSheetRowHeight(sheet, row)}px">
-        <th class="sheet-row-number" scope="row" data-sheet-row="${row}">
+        <th class="sheet-row-number ${selectedSheetHeader?.axis === "row" && selectedSheetHeader.index === row ? "is-header-selected" : ""}" scope="row" data-sheet-row="${row}">
           <span>${row + 1}</span>
           <button class="sheet-row-resize" type="button" aria-label="${row + 1}행 높이 조절"></button>
         </th>
@@ -4522,16 +4528,14 @@ function bindSheetResizeHandles(table, sheet) {
     header.onclick = () => {
       const column = Number(header.dataset.sheetColumn);
       if (!Number.isInteger(column)) return;
-      const current = parseSheetCellReference(selectedSheetCell) || { row: 0 };
-      selectSheetCell(`${sheetColumnLabel(column)}${current.row + 1}`);
+      selectSheetHeader("column", column);
     };
   });
   table.querySelectorAll("[data-sheet-row]").forEach((header) => {
     header.onclick = () => {
       const row = Number(header.dataset.sheetRow);
       if (!Number.isInteger(row)) return;
-      const current = parseSheetCellReference(selectedSheetCell) || { column: 0 };
-      selectSheetCell(`${sheetColumnLabel(current.column)}${row + 1}`);
+      selectSheetHeader("row", row);
     };
   });
 }
@@ -4540,8 +4544,7 @@ function startSheetColumnResize(event, table, sheet, column) {
   if (!Number.isInteger(column)) return;
   event.preventDefault();
   event.stopPropagation();
-  const current = parseSheetCellReference(selectedSheetCell) || { row: 0 };
-  selectSheetCell(`${sheetColumnLabel(column)}${current.row + 1}`);
+  selectSheetHeader("column", column);
   const startX = event.clientX;
   const startWidth = getSheetColumnWidth(sheet, column);
   const col = table.querySelector(`col[data-sheet-col-index="${column}"]`);
@@ -4564,8 +4567,7 @@ function startSheetRowResize(event, table, sheet, row) {
   if (!Number.isInteger(row)) return;
   event.preventDefault();
   event.stopPropagation();
-  const current = parseSheetCellReference(selectedSheetCell) || { column: 0 };
-  selectSheetCell(`${sheetColumnLabel(current.column)}${row + 1}`);
+  selectSheetHeader("row", row);
   const startY = event.clientY;
   const startHeight = getSheetRowHeight(sheet, row);
   const tr = table.querySelector(`tr[data-sheet-row-index="${row}"]`);
@@ -4657,17 +4659,49 @@ function bindSheetCell(cell, sheet) {
   };
 }
 
-function selectSheetCell(reference) {
+function selectSheetCell(reference, options = {}) {
   const sheet = getCurrentSheet();
+  if (!options.keepHeader) selectedSheetHeader = null;
   selectedSheetCell = clampSheetCellReference(reference, sheet);
   el("customSheetGrid").querySelectorAll("[data-sheet-cell]").forEach((cell) => {
     cell.classList.toggle("is-selected", cell.dataset.sheetCell === selectedSheetCell);
   });
+  updateSheetHeaderSelection();
   renderSelectedSheetCellControls(sheet);
+}
+
+function selectSheetHeader(axis, index) {
+  const sheet = getCurrentSheet();
+  const current = parseSheetCellReference(selectedSheetCell) || { row: 0, column: 0 };
+  selectedSheetHeader = { axis, index };
+  if (axis === "column") {
+    selectedSheetCell = clampSheetCellReference(`${sheetColumnLabel(index)}${current.row + 1}`, sheet);
+  } else {
+    selectedSheetCell = clampSheetCellReference(`${sheetColumnLabel(current.column)}${index + 1}`, sheet);
+  }
+  el("customSheetGrid").querySelectorAll("[data-sheet-cell]").forEach((cell) => {
+    cell.classList.toggle("is-selected", cell.dataset.sheetCell === selectedSheetCell);
+  });
+  updateSheetHeaderSelection();
+  renderSelectedSheetCellControls(sheet);
+}
+
+function updateSheetHeaderSelection() {
+  const table = el("customSheetGrid");
+  if (!table) return;
+  table.querySelectorAll("[data-sheet-column]").forEach((header) => {
+    const column = Number(header.dataset.sheetColumn);
+    header.classList.toggle("is-header-selected", selectedSheetHeader?.axis === "column" && selectedSheetHeader.index === column);
+  });
+  table.querySelectorAll("[data-sheet-row]").forEach((header) => {
+    const row = Number(header.dataset.sheetRow);
+    header.classList.toggle("is-header-selected", selectedSheetHeader?.axis === "row" && selectedSheetHeader.index === row);
+  });
 }
 
 function moveSheetSelection(rowDelta, columnDelta, sheet = getCurrentSheet()) {
   const current = parseSheetCellReference(selectedSheetCell) || { row: 0, column: 0 };
+  selectedSheetHeader = null;
   const row = Math.max(0, Math.min(sheet.rows - 1, current.row + rowDelta));
   const column = Math.max(0, Math.min(sheet.columns - 1, current.column + columnDelta));
   selectedSheetCell = `${sheetColumnLabel(column)}${row + 1}`;
