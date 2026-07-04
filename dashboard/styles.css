@@ -3490,20 +3490,62 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   background: rgba(174, 191, 177, 0.12);
 }
 
-.repeat-manager {
-  margin-top: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: rgba(247, 245, 239, 0.62);
-  overflow: hidden;
+.repeat-manager-open {
+  width: 100%;
+  min-height: 38px;
+  margin-top: 10px;
+  font-size: 14px;
+  font-weight: 850;
 }
 
-.repeat-manager summary {
-  cursor: pointer;
-  padding: 10px 11px;
-  color: var(--forest);
+.repeat-manager-dialog {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgba(37, 48, 42, 0.24);
+  backdrop-filter: blur(10px);
+}
+
+.repeat-manager-dialog[hidden] {
+  display: none;
+}
+
+.repeat-manager-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(980px, calc(100vw - 24px));
+  max-height: min(82vh, 760px);
+  overflow: hidden;
+  border: 1px solid rgba(213, 209, 197, 0.92);
+  border-radius: 16px;
+  background: #fffefa;
+  box-shadow: 0 22px 72px rgba(28, 36, 31, 0.2);
+}
+
+.repeat-manager-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.repeat-manager-header h2 {
+  margin: 2px 0 3px;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.repeat-manager-header small {
+  display: block;
+  color: var(--muted);
   font-size: 13px;
-  font-weight: 820;
+  line-height: 1.45;
 }
 
 .repeat-list {
@@ -3514,6 +3556,12 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   scroll-padding-inline: 10px;
 }
 
+.repeat-list-dialog {
+  overflow: auto;
+  padding: 10px 12px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+
 .repeat-rule-row {
   display: grid;
   grid-template-columns: 22px 42px minmax(150px, 1fr) 74px minmax(128px, auto) 24px;
@@ -3521,6 +3569,45 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   align-items: center;
   width: max(100%, 560px);
   padding: 7px;
+}
+
+.repeat-list-dialog .repeat-rule-row {
+  grid-template-columns: 22px 46px minmax(230px, 1fr) 82px minmax(180px, auto) 118px 92px 118px 32px;
+  width: max(100%, 1080px);
+}
+
+@media (max-width: 640px) {
+  .repeat-manager-dialog {
+    align-items: end;
+    padding: max(10px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  }
+
+  .repeat-manager-card {
+    width: min(100%, 720px);
+    max-height: 86vh;
+    border-radius: 14px;
+  }
+
+  .repeat-manager-header {
+    padding: 13px 13px 11px;
+  }
+
+  .repeat-manager-header h2 {
+    font-size: 21px;
+  }
+
+  .repeat-manager-header small {
+    font-size: 12px;
+  }
+
+  .repeat-list-dialog {
+    padding: 7px 8px 16px;
+  }
+
+  .repeat-list-dialog .repeat-rule-row {
+    grid-template-columns: 22px 42px minmax(190px, 1fr) 76px minmax(170px, auto) 112px 88px 112px 30px;
+    width: 920px;
+  }
 }
 
 input[type="checkbox"] {
@@ -3549,6 +3636,20 @@ input[type="checkbox"]:checked::after {
   min-height: 30px;
   padding: 5px 6px;
   font-size: 12px;
+}
+
+.repeat-date-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+}
+
+.repeat-date-field span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+  white-space: nowrap;
 }
 
 .repeat-target-cell {
@@ -5848,7 +5949,7 @@ body.smartphone-device .privacy-blind-screen {
     max-width: 100%;
   }
 
-  .day-main-panel.is-focus-tasks .repeat-manager,
+  .day-main-panel.is-focus-tasks .repeat-manager-open,
   .day-main-panel.is-focus-tasks .repeat-list {
     box-sizing: border-box;
     width: 100%;

@@ -69,6 +69,8 @@ const repeatFrequencies = [
   ["monthly", "매월"],
   ["yearly", "매년"],
 ];
+const repeatFrequencySortOrder = { yearly: 0, monthly: 1, weekly: 2, daily: 3 };
+const REPEAT_PRIORITY_MIN_ROWS = 12;
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
 const moneyStatuses = ["예정", "확인", "보류", "완료"];
@@ -430,8 +432,8 @@ function migrateState(nextState) {
   nextState.calendar.events ||= [];
   nextState.scheduleUnitChanges = normalizeScheduleUnitChanges(nextState.scheduleUnitChanges);
   nextState.repeats ||= {};
-  nextState.repeats.priorityTasks ||= emptyRepeatRules(4);
-  while (nextState.repeats.priorityTasks.length < 4) nextState.repeats.priorityTasks.push(emptyRepeatRule());
+  nextState.repeats.priorityTasks ||= emptyRepeatRules(REPEAT_PRIORITY_MIN_ROWS);
+  while (nextState.repeats.priorityTasks.length < REPEAT_PRIORITY_MIN_ROWS) nextState.repeats.priorityTasks.push(emptyRepeatRule());
   nextState.repeats.priorityTasks.forEach(normalizeRepeatRule);
   Object.entries(nextState.weeks || {}).forEach(([key, week]) => {
     week.priorities ||= createWeeklyPriorities(key, nextState);
@@ -857,7 +859,7 @@ function loadEmptyState() {
     weeks: {},
     days: {},
     repeats: {
-      priorityTasks: emptyRepeatRules(4),
+      priorityTasks: emptyRepeatRules(REPEAT_PRIORITY_MIN_ROWS),
     },
     scheduleUnitChanges: [],
     profile: { ...defaultProfileFields },
@@ -1249,12 +1251,21 @@ function emptyRepeatRule() {
     monthday: baseDate.getDate(),
     month: baseDate.getMonth() + 1,
     startDate: iso(baseDate),
+    endMode: "none",
+    endDate: "",
     active: true,
   };
 }
 
 function emptyRepeatRules(count) {
   return Array.from({ length: count }, () => emptyRepeatRule());
+}
+
+function ensureRepeatPriorityRows(minRows = REPEAT_PRIORITY_MIN_ROWS) {
+  state.repeats ||= { priorityTasks: [] };
+  state.repeats.priorityTasks ||= [];
+  while (state.repeats.priorityTasks.length < minRows) state.repeats.priorityTasks.push(emptyRepeatRule());
+  state.repeats.priorityTasks.forEach(normalizeRepeatRule);
 }
 
 function normalizeRepeatRule(rule = {}) {
@@ -1270,6 +1281,9 @@ function normalizeRepeatRule(rule = {}) {
   rule.monthday = clampNumber(rule.monthday, 1, 31, baseDate.getDate());
   rule.month = clampNumber(rule.month, 1, 12, baseDate.getMonth() + 1);
   rule.startDate = isValidIsoDate(rule.startDate) ? rule.startDate : iso(baseDate);
+  rule.endMode = rule.endMode === "date" ? "date" : "none";
+  rule.endDate = isValidIsoDate(rule.endDate) ? rule.endDate : "";
+  if (rule.endMode !== "date") rule.endDate = "";
   rule.deletedFrom = isValidIsoDate(rule.deletedFrom) ? rule.deletedFrom : "";
   rule.removed = rule.removed === true;
   rule.active = rule.active !== false;
@@ -1279,6 +1293,10 @@ function normalizeRepeatRule(rule = {}) {
 function isValidIsoDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ""))) return false;
   return !Number.isNaN(parseDate(value).getTime());
+}
+
+function earliestIsoDate(...values) {
+  return values.filter(isValidIsoDate).sort()[0] || iso(selectedDate || todayInPlanner());
 }
 
 function clampNumber(value, min, max, fallback) {
@@ -1353,6 +1371,11 @@ function setupSelectors() {
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
   el("accountPasswordButton").onclick = updateAccountPassword;
+  el("openRepeatManagerButton").onclick = openRepeatManager;
+  el("closeRepeatManagerButton").onclick = closeRepeatManager;
+  el("repeatManagerDialog").addEventListener("click", (event) => {
+    if (event.target.id === "repeatManagerDialog") closeRepeatManager();
+  });
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
@@ -2210,8 +2233,11 @@ function setupDailyCalendarDismissal() {
     closeWeekCalendar();
   });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeDailyCalendar(true);
-    if (event.key === "Escape") closeWeekCalendar(true);
+    if (event.key === "Escape") {
+      closeDailyCalendar(true);
+      closeWeekCalendar(true);
+      closeRepeatManager();
+    }
   });
 }
 
@@ -3593,6 +3619,7 @@ function shouldRepeatOnDate(rule, date) {
   if (!rule.active || !rule.text?.trim()) return false;
   const key = iso(date);
   if (key < rule.startDate) return false;
+  if (rule.endMode === "date" && rule.endDate && key > rule.endDate) return false;
   if (rule.deletedFrom && key >= rule.deletedFrom) return false;
   if (rule.frequency === "daily") return rule.weekdays.includes(date.getDay());
   if (rule.frequency === "weekly") return Number(rule.weekday) === date.getDay();
@@ -3647,16 +3674,16 @@ function resetFutureRepeatOccurrences(ruleIndex, fromKey = iso(selectedDate)) {
 
 function markRepeatRuleChanged(rule, index) {
   const key = iso(selectedDate || todayInPlanner());
-  rule.startDate = key;
+  if (!isValidIsoDate(rule.startDate)) rule.startDate = key;
   rule.deletedFrom = "";
-  resetFutureRepeatOccurrences(index, key);
+  resetFutureRepeatOccurrences(index, earliestIsoDate(rule.startDate, key));
 }
 
 function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
   const day = state.days[key];
   if (!day) return;
   const date = parseDate(key);
-  state.repeats ||= { priorityTasks: emptyRepeatRules(4) };
+  ensureRepeatPriorityRows();
   state.repeats.priorityTasks.forEach((rule, index) => {
     if (!shouldRepeatOnDate(rule, date)) return;
     const priority = ["A", "B", "C"].includes(rule.priority) ? rule.priority : "A";
@@ -3687,11 +3714,9 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
 function renderRepeatPriorityList() {
   const node = el("repeatPriorityList");
   if (!node) return;
-  state.repeats ||= { priorityTasks: emptyRepeatRules(4) };
+  ensureRepeatPriorityRows();
   node.innerHTML = "";
-  state.repeats.priorityTasks.forEach((rule, index) => {
-    normalizeRepeatRule(rule);
-    if (rule.removed) return;
+  getSortedRepeatRuleEntries().forEach(({ rule, index }) => {
     const row = document.createElement("div");
     row.className = "repeat-rule-row";
     row.innerHTML = `
@@ -3704,12 +3729,24 @@ function renderRepeatPriorityList() {
         ${repeatFrequencies.map(([value, label]) => `<option value="${value}" ${rule.frequency === value ? "selected" : ""}>${label}</option>`).join("")}
       </select>
       <div class="repeat-target-cell">${renderRepeatTargetControl(rule)}</div>
+      <label class="repeat-date-field">
+        <span>시작</span>
+        <input class="repeat-start-date" type="date" value="${escapeAttr(rule.startDate)}" aria-label="반복 시작일" />
+      </label>
+      <select class="repeat-end-mode" aria-label="반복 종료 설정">
+        <option value="none" ${rule.endMode !== "date" ? "selected" : ""}>종료없음</option>
+        <option value="date" ${rule.endMode === "date" ? "selected" : ""}>종료일</option>
+      </select>
+      <input class="repeat-end-date" type="date" value="${escapeAttr(rule.endDate)}" ${rule.endMode === "date" ? "" : "disabled"} aria-label="반복 종료일" />
       <button class="repeat-delete" type="button" aria-label="반복 우선업무 삭제">×</button>
     `;
     const active = row.querySelector(".repeat-active");
     const priority = row.querySelector(".repeat-priority");
     const text = row.querySelector(".repeat-text");
     const frequency = row.querySelector(".repeat-frequency");
+    const startDate = row.querySelector(".repeat-start-date");
+    const endMode = row.querySelector(".repeat-end-mode");
+    const endDate = row.querySelector(".repeat-end-date");
     active.onchange = () => {
       if (!active.checked && !confirmDelete("이 반복 우선업무를 비활성화할까요? 오늘 이후 자동 생성이 중단됩니다.")) {
         active.checked = true;
@@ -3773,6 +3810,29 @@ function renderRepeatPriorityList() {
       saveState();
       renderAll();
     });
+    startDate.onchange = () => {
+      const previousStart = rule.startDate;
+      rule.startDate = isValidIsoDate(startDate.value) ? startDate.value : previousStart;
+      resetFutureRepeatOccurrences(index, earliestIsoDate(previousStart, rule.startDate, iso(selectedDate || todayInPlanner())));
+      saveState();
+      renderAll();
+    };
+    endMode.onchange = () => {
+      const resetFrom = iso(selectedDate || todayInPlanner());
+      rule.endMode = endMode.value === "date" ? "date" : "none";
+      if (rule.endMode === "date" && !isValidIsoDate(rule.endDate)) rule.endDate = rule.startDate;
+      if (rule.endMode !== "date") rule.endDate = "";
+      resetFutureRepeatOccurrences(index, resetFrom);
+      saveState();
+      renderAll();
+    };
+    endDate.onchange = () => {
+      rule.endDate = isValidIsoDate(endDate.value) ? endDate.value : "";
+      if (rule.endDate) rule.endMode = "date";
+      resetFutureRepeatOccurrences(index, iso(selectedDate || todayInPlanner()));
+      saveState();
+      renderAll();
+    };
     row.querySelector(".repeat-delete").onclick = () => {
       if (!confirmDelete("이 반복 우선업무를 삭제할까요? 이전 기록은 유지되고 오늘 이후 반복만 중단됩니다.")) return;
       rule.active = false;
@@ -3780,6 +3840,7 @@ function renderRepeatPriorityList() {
       rule.removed = true;
       resetFutureRepeatOccurrences(index, rule.deletedFrom);
       saveState();
+      renderRepeatPriorityList();
       renderDay();
     };
     node.appendChild(row);
@@ -3791,9 +3852,39 @@ function renderRepeatPriorityList() {
   add.onclick = () => {
     state.repeats.priorityTasks.push(emptyRepeatRule());
     saveState();
-    renderDay();
+    renderRepeatPriorityList();
   };
   node.appendChild(add);
+}
+
+function getSortedRepeatRuleEntries() {
+  return (state.repeats?.priorityTasks || [])
+    .map((rule, index) => ({ rule: normalizeRepeatRule(rule), index }))
+    .filter(({ rule }) => !rule.removed)
+    .sort((a, b) => {
+      const aFilled = Boolean(a.rule.text?.trim());
+      const bFilled = Boolean(b.rule.text?.trim());
+      if (aFilled !== bFilled) return aFilled ? -1 : 1;
+      if (aFilled && bFilled) {
+        const frequencyDelta = (repeatFrequencySortOrder[a.rule.frequency] ?? 9) - (repeatFrequencySortOrder[b.rule.frequency] ?? 9);
+        if (frequencyDelta) return frequencyDelta;
+      }
+      return a.index - b.index;
+    });
+}
+
+function openRepeatManager() {
+  ensureRepeatPriorityRows();
+  renderRepeatPriorityList();
+  const dialog = el("repeatManagerDialog");
+  if (dialog) dialog.hidden = false;
+}
+
+function closeRepeatManager() {
+  const dialog = el("repeatManagerDialog");
+  if (!dialog || dialog.hidden) return;
+  dialog.hidden = true;
+  renderDay();
 }
 
 function setRepeatAnchorToSelectedDate(rule) {

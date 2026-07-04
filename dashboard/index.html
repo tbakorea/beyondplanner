@@ -314,10 +314,7 @@
                 </h3>
                 <div class="ai-suggest-popover" id="taskSuggestPopover" hidden></div>
                 <div class="task-board" id="taskBoard"></div>
-                <details class="repeat-manager">
-                  <summary>반복 우선업무</summary>
-                  <div class="repeat-list" id="repeatPriorityList"></div>
-                </details>
+                <button class="add-row repeat-manager-open" id="openRepeatManagerButton" type="button">반복 우선업무 관리</button>
               </article>
               <article class="panel day-schedule-panel">
                 <h3 class="panel-title-row">
@@ -565,6 +562,20 @@
           <button id="dailyOpeningStart" type="button">오늘 시작</button>
           <button id="dailyOpeningCoach" type="button">코칭 보기</button>
         </div>
+      </div>
+    </section>
+
+    <section class="repeat-manager-dialog" id="repeatManagerDialog" hidden role="dialog" aria-modal="true" aria-label="반복 우선업무 관리">
+      <div class="repeat-manager-card">
+        <header class="repeat-manager-header">
+          <div>
+            <p class="eyebrow">Recurring Priorities</p>
+            <h2>반복 우선업무</h2>
+            <small>내용이 입력된 항목은 연간, 월간, 주간, 매일 순으로 정렬됩니다.</small>
+          </div>
+          <button class="icon-close" id="closeRepeatManagerButton" type="button" aria-label="반복 우선업무 닫기">×</button>
+        </header>
+        <div class="repeat-list repeat-list-dialog" id="repeatPriorityList"></div>
       </div>
     </section>
 
