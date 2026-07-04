@@ -3068,6 +3068,18 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   pointer-events: none;
 }
 
+.postpone-date-label::after {
+  content: "/";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: currentColor;
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+  transform: translate(-50%, -50%) rotate(-12deg);
+}
+
 .postpone-date-label b {
   display: block;
   font: inherit;
@@ -3075,8 +3087,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .postpone-date-label b:first-child {
   min-width: 12px;
-  border-bottom: 1px solid currentColor;
-  padding-bottom: 1px;
+  padding-bottom: 2px;
   text-align: center;
 }
 

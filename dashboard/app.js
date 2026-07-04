@@ -1,4 +1,3 @@
-const YEAR = 2026;
 const STORAGE_KEY = "franklinClassicPlanner2026.v1";
 const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
 const INSTALLATION_KEY = "beyondWorkInstallationId";
@@ -41,6 +40,18 @@ const koreanCalendarEvents = {
   "2026-10-05": [{ label: "개천절 대체", type: "holiday" }],
   "2026-10-09": [{ label: "한글날", type: "national" }],
   "2026-12-25": [{ label: "성탄절", type: "holiday" }],
+};
+const recurringSolarEvents = {
+  "01-01": [{ label: "신정", type: "holiday" }],
+  "03-01": [{ label: "삼일절", type: "national" }],
+  "05-01": [{ label: "노동절", type: "holiday" }],
+  "05-05": [{ label: "어린이날", type: "holiday" }],
+  "06-06": [{ label: "현충일", type: "holiday" }],
+  "07-17": [{ label: "제헌절", type: "national" }],
+  "08-15": [{ label: "광복절", type: "national" }],
+  "10-03": [{ label: "개천절", type: "national" }],
+  "10-09": [{ label: "한글날", type: "national" }],
+  "12-25": [{ label: "성탄절", type: "holiday" }],
 };
 const lunarDateFormatter = new Intl.DateTimeFormat("ko-KR-u-ca-chinese", {
   timeZone: "Asia/Seoul",
@@ -100,9 +111,9 @@ const installationId = getInstallationId();
 const dayPanelOrder = ["week", "main", "memo"];
 let currentDayPanel = "main";
 let dateSlideTimer = 0;
-let dailyCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
+let dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
-let weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
+let weekCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
 let monthCalendarSwipeSuppressClick = false;
 let monthDateTap = { key: "", at: 0 };
@@ -285,7 +296,7 @@ function iso(date) {
 }
 
 function monthKey(date = selectedDate) {
-  return `${YEAR}-${pad(date.getMonth() + 1)}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 
 function weekKey(date = selectedDate) {
@@ -311,7 +322,7 @@ function formatCompassDate(date) {
 function todayInPlanner() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  return today.getFullYear() === YEAR ? today : new Date(`${YEAR}-01-01T00:00:00`);
+  return today;
 }
 
 function startOfWeek(date) {
@@ -469,24 +480,81 @@ function normalizeSheetSizes(values, count, fallback, min, max) {
 function applySheetTemplate(sheet, template) {
   const templates = {
     checklist: {
-      columns: 5,
-      headers: ["완료", "항목", "담당", "기한", "메모"],
-      types: ["checkbox", "general", "general", "date", "general"],
+      columns: 6,
+      headers: ["완료", "중요도", "점검 항목", "담당", "확인일", "메모"],
+      types: ["checkbox", "general", "general", "general", "date", "general"],
+      widths: [70, 76, 220, 110, 118, 220],
+      samples: [
+        ["FALSE", "A", "오늘 반드시 확인할 점검 항목", "나", "", "기준과 결과를 짧게 기록"],
+        ["FALSE", "B", "정기 확인 항목", "", "", ""],
+      ],
     },
     finance: {
-      columns: 6,
-      headers: ["구분", "내용", "예정일", "수입", "지출", "메모"],
-      types: ["general", "general", "date", "currency", "currency", "general"],
+      columns: 7,
+      headers: ["확인", "구분", "내용", "예정일", "수입", "지출", "메모"],
+      types: ["checkbox", "general", "general", "date", "currency", "currency", "general"],
+      widths: [68, 86, 210, 118, 120, 120, 220],
+      samples: [
+        ["FALSE", "지출", "카드대금", "", "", "", "우선업무 반영 필요"],
+        ["FALSE", "수입", "계약금", "", "", "", "입금 확인"],
+      ],
     },
-    project: {
-      columns: 6,
-      headers: ["업무", "담당", "시작일", "마감일", "진행률", "상태"],
-      types: ["general", "general", "date", "date", "number", "general"],
+    projectAction: {
+      columns: 8,
+      headers: ["상태", "프로젝트", "다음 행동", "담당", "시작일", "마감일", "리스크", "메모"],
+      types: ["general", "general", "general", "general", "date", "date", "general", "general"],
+      widths: [86, 190, 240, 110, 118, 118, 180, 220],
+      samples: [
+        ["진행", "신규 프로젝트", "이번 주 첫 실행 행동", "나", "", "", "의사결정 지연", "오늘 우선업무로 연결"],
+        ["대기", "운영 개선", "자료 확인", "", "", "", "", ""],
+      ],
+    },
+    meeting: {
+      columns: 7,
+      headers: ["일시", "회의명", "참석자", "결정사항", "후속업무", "담당", "기한"],
+      types: ["date", "general", "general", "general", "general", "general", "date"],
+      widths: [118, 180, 170, 260, 240, 110, 118],
+      samples: [
+        ["", "주간 회의", "참석자", "결정된 내용", "다음 행동", "담당자", ""],
+      ],
+    },
+    goalTracker: {
+      columns: 8,
+      headers: ["목표", "역할/영역", "지표", "현재", "목표값", "달성률", "다음 액션", "점검일"],
+      types: ["general", "general", "general", "number", "number", "number", "general", "date"],
+      widths: [210, 130, 130, 92, 92, 92, 240, 118],
+      samples: [
+        ["핵심 목표", "일", "완료 건수", "", "", "", "오늘 할 첫 행동", ""],
+        ["성장 목표", "성장", "학습 시간", "", "", "", "", ""],
+      ],
+    },
+    client: {
+      columns: 8,
+      headers: ["구분", "이름/회사", "연락처", "관계", "최근 접촉", "다음 연락", "관심/이슈", "메모"],
+      types: ["general", "general", "general", "general", "date", "date", "general", "general"],
+      widths: [86, 170, 150, 110, 118, 118, 220, 220],
+      samples: [
+        ["고객", "거래처명", "", "핵심", "", "", "관심 이슈", "다음 연락 내용을 기록"],
+      ],
+    },
+    profitSim: {
+      columns: 8,
+      headers: ["항목", "구분", "예상수입", "예상비용", "확률", "예상손익", "시점", "메모"],
+      types: ["general", "general", "currency", "currency", "number", "currency", "date", "general"],
+      widths: [180, 90, 120, 120, 80, 130, 118, 220],
+      samples: [
+        ["프로젝트 A", "수입", "", "", "80", "=C2*E2/100-D2", "", "확률 반영 손익"],
+        ["외주 비용", "비용", "", "", "100", "=C3*E3/100-D3", "", ""],
+      ],
     },
   };
+  templates.project = templates.projectAction;
   const preset = templates[template];
   if (!preset) return;
   sheet.columns = preset.columns;
+  sheet.titleRows = 1;
+  sheet.titleColumns = 0;
+  sheet.columnWidths = normalizeSheetSizes(preset.widths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
   preset.headers.forEach((header, index) => {
     const reference = `${sheetColumnLabel(index)}1`;
     sheet.cells[reference] = header;
@@ -495,6 +563,12 @@ function applySheetTemplate(sheet, template) {
       const cellReference = `${sheetColumnLabel(index)}${row}`;
       if (preset.types[index] !== "general") sheet.formats[cellReference] = { type: preset.types[index] };
     }
+  });
+  (preset.samples || []).forEach((rowValues, rowIndex) => {
+    rowValues.forEach((value, columnIndex) => {
+      const reference = `${sheetColumnLabel(columnIndex)}${rowIndex + 2}`;
+      sheet.cells[reference] = value;
+    });
   });
 }
 
@@ -523,7 +597,8 @@ function emptyMoneyItem(type = "지출") {
 }
 
 function financeMonthKeys() {
-  return Array.from({ length: 12 }, (_, index) => `${YEAR}-${pad(index + 1)}`);
+  const year = Number(String(selectedFinanceMonth || monthKey(selectedDate)).split("-")[0]) || selectedDate.getFullYear();
+  return Array.from({ length: 12 }, (_, index) => `${year}-${pad(index + 1)}`);
 }
 
 function createFinanceMonths() {
@@ -549,6 +624,15 @@ function normalizeFinanceState(finance) {
     finance.months[key] = finance.months[key].map((item) => normalizeMoneyItem(item));
   });
   finance.fixed = finance.fixed.map((item) => normalizeMoneyItem(item, "지출"));
+}
+
+function ensureFinanceMonth(key = selectedFinanceMonth) {
+  state.finance ||= createFinanceState();
+  state.finance.months ||= {};
+  state.finance.months[key] ||= Array.from({ length: 5 }, () => emptyMoneyItem());
+  while (state.finance.months[key].length < 5) state.finance.months[key].push(emptyMoneyItem());
+  state.finance.months[key] = state.finance.months[key].map((item) => normalizeMoneyItem(item));
+  return state.finance.months[key];
 }
 
 function normalizeMoneyItem(item, fallbackType = "지출") {
@@ -1043,7 +1127,7 @@ function previousWeekKey(key) {
   const date = parseDate(key);
   if (Number.isNaN(date.getTime())) return "";
   date.setDate(date.getDate() - 7);
-  return date.getFullYear() === YEAR ? iso(date) : "";
+  return iso(date);
 }
 
 function compassRoleNames() {
@@ -1081,7 +1165,7 @@ function normalizeRepeatRule(rule = {}) {
   rule.weekday = clampNumber(rule.weekday, 0, 6, baseDate.getDay());
   rule.monthday = clampNumber(rule.monthday, 1, 31, baseDate.getDate());
   rule.month = clampNumber(rule.month, 1, 12, baseDate.getMonth() + 1);
-  rule.startDate = isValidIsoDate(rule.startDate) ? rule.startDate : `${YEAR}-01-01`;
+  rule.startDate = isValidIsoDate(rule.startDate) ? rule.startDate : iso(baseDate);
   rule.deletedFrom = isValidIsoDate(rule.deletedFrom) ? rule.deletedFrom : "";
   rule.removed = rule.removed === true;
   rule.active = rule.active !== false;
@@ -1620,7 +1704,6 @@ function shiftDay(delta, animate = true) {
   closeDailyCalendar();
   const next = new Date(selectedDate);
   next.setDate(next.getDate() + delta);
-  if (next.getFullYear() !== YEAR) return;
   if (animate) {
     animateDateTitle(delta, next);
     return;
@@ -1633,7 +1716,7 @@ function toggleDailyCalendar() {
   const popover = el("dailyCalendarPopover");
   if (!popover) return;
   if (!popover.hidden) return;
-  dailyCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
+  dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
   renderDailyCalendar();
   popover.hidden = false;
   el("dailyCalendarToggle").setAttribute("aria-expanded", "true");
@@ -1648,8 +1731,7 @@ function closeDailyCalendar(restoreFocus = false) {
 }
 
 function shiftDailyCalendarMonth(delta) {
-  const next = new Date(YEAR, dailyCalendarMonth.getMonth() + delta, 1);
-  if (next.getFullYear() !== YEAR) return;
+  const next = new Date(dailyCalendarMonth.getFullYear(), dailyCalendarMonth.getMonth() + delta, 1);
   dailyCalendarMonth = next;
   renderDailyCalendar();
 }
@@ -1660,7 +1742,6 @@ function isDailyCalendarOpen() {
 }
 
 function selectDailyCalendarDate(date) {
-  if (date.getFullYear() !== YEAR) return;
   closeDailyCalendar();
   const delta = daysBetween(selectedDate, date);
   if (!delta) {
@@ -1674,7 +1755,7 @@ function toggleWeekCalendar() {
   const popover = el("weekCalendarPopover");
   if (!popover) return;
   if (!popover.hidden) return;
-  weekCalendarMonth = new Date(YEAR, selectedDate.getMonth(), 1);
+  weekCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
   renderWeekCalendar();
   popover.hidden = false;
   el("weekCalendarToggle").setAttribute("aria-expanded", "true");
@@ -1689,8 +1770,7 @@ function closeWeekCalendar(restoreFocus = false) {
 }
 
 function shiftWeekCalendarMonth(delta) {
-  const next = new Date(YEAR, weekCalendarMonth.getMonth() + delta, 1);
-  if (next.getFullYear() !== YEAR) return;
+  const next = new Date(weekCalendarMonth.getFullYear(), weekCalendarMonth.getMonth() + delta, 1);
   weekCalendarMonth = next;
   renderWeekCalendar();
 }
@@ -1701,7 +1781,6 @@ function isWeekCalendarOpen() {
 }
 
 function selectWeekCalendarDate(date) {
-  if (date.getFullYear() !== YEAR) return;
   closeWeekCalendar();
   selectedDate = date;
   showView("week");
@@ -1712,7 +1791,6 @@ function shiftWeek(delta) {
   closeWeekCalendar();
   const next = new Date(selectedDate);
   next.setDate(next.getDate() + delta * 7);
-  if (next.getFullYear() !== YEAR) return;
   selectedDate = next;
   renderAll();
 }
@@ -1720,7 +1798,6 @@ function shiftWeek(delta) {
 function shiftMonth(delta) {
   const next = new Date(selectedDate);
   next.setMonth(next.getMonth() + delta, 1);
-  if (next.getFullYear() !== YEAR) return;
   selectedDate = next;
   renderAll();
 }
@@ -1728,7 +1805,6 @@ function shiftMonth(delta) {
 function shiftMonthWithAnimation(delta) {
   const next = new Date(selectedDate);
   next.setMonth(next.getMonth() + delta, 1);
-  if (next.getFullYear() !== YEAR) return;
   closeMonthPicker();
   animateMonthTurn(delta, () => {
     selectedDate = next;
@@ -1896,16 +1972,17 @@ function calendarAriaLabel(date, events, lunarLabel, hasPlans = false) {
 function renderDailyCalendar() {
   const grid = el("dailyCalendarGrid");
   if (!grid) return;
+  const year = dailyCalendarMonth.getFullYear();
   const month = dailyCalendarMonth.getMonth();
-  const monthStart = new Date(YEAR, month, 1);
+  const monthStart = new Date(year, month, 1);
   const gridStart = new Date(monthStart);
   gridStart.setDate(monthStart.getDate() - monthStart.getDay());
   const todayKey = iso(todayInPlanner());
   const selectedKey = iso(selectedDate);
 
-  el("dailyCalendarMonthTitle").textContent = `${YEAR}년 ${month + 1}월`;
-  el("dailyCalendarPrevMonth").disabled = month === 0;
-  el("dailyCalendarNextMonth").disabled = month === 11;
+  el("dailyCalendarMonthTitle").textContent = `${year}년 ${month + 1}월`;
+  el("dailyCalendarPrevMonth").disabled = false;
+  el("dailyCalendarNextMonth").disabled = false;
   grid.innerHTML = "";
 
   weekdays.forEach((weekday, index) => {
@@ -1933,7 +2010,7 @@ function renderDailyCalendar() {
       annotation.hasHoliday ? "has-holiday" : "",
       annotation.lunarLabel ? "has-lunar" : "",
     ].filter(Boolean).join(" ");
-    button.disabled = date.getFullYear() !== YEAR;
+    button.disabled = false;
     button.setAttribute("role", "gridcell");
     button.setAttribute("aria-label", calendarAriaLabel(date, annotation.events, annotation.lunarLabel, hasPlans));
     button.setAttribute("aria-selected", String(key === selectedKey));
@@ -1953,8 +2030,9 @@ function renderDailyCalendar() {
 function renderWeekCalendar() {
   const grid = el("weekCalendarGrid");
   if (!grid) return;
+  const year = weekCalendarMonth.getFullYear();
   const month = weekCalendarMonth.getMonth();
-  const monthStart = new Date(YEAR, month, 1);
+  const monthStart = new Date(year, month, 1);
   const gridStart = new Date(monthStart);
   gridStart.setDate(monthStart.getDate() - monthStart.getDay());
   const todayKey = iso(todayInPlanner());
@@ -1962,9 +2040,9 @@ function renderWeekCalendar() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
 
-  el("weekCalendarMonthTitle").textContent = `${YEAR}년 ${month + 1}월`;
-  el("weekCalendarPrevMonth").disabled = month === 0;
-  el("weekCalendarNextMonth").disabled = month === 11;
+  el("weekCalendarMonthTitle").textContent = `${year}년 ${month + 1}월`;
+  el("weekCalendarPrevMonth").disabled = false;
+  el("weekCalendarNextMonth").disabled = false;
   grid.innerHTML = "";
 
   weekdays.forEach((weekday, index) => {
@@ -1995,7 +2073,7 @@ function renderWeekCalendar() {
       annotation.hasHoliday ? "has-holiday" : "",
       annotation.lunarLabel ? "has-lunar" : "",
     ].filter(Boolean).join(" ");
-    button.disabled = date.getFullYear() !== YEAR;
+    button.disabled = false;
     button.setAttribute("role", "gridcell");
     button.setAttribute("aria-label", `${calendarAriaLabel(date, annotation.events, annotation.lunarLabel, hasPlans)}, 이 주간 선택`);
     button.setAttribute("aria-selected", String(isSelectedWeek));
@@ -2529,23 +2607,26 @@ function setupTabs() {
 }
 
 function renderSidebar() {
-  const yearStart = new Date(`${YEAR}-01-01T00:00:00`);
-  const elapsed = Math.max(0, Math.min(365, daysBetween(yearStart, selectedDate) + 1));
+  const activeYear = selectedDate.getFullYear();
+  const yearStart = new Date(`${activeYear}-01-01T00:00:00`);
+  const yearEnd = new Date(`${activeYear}-12-31T00:00:00`);
+  const totalDays = daysBetween(yearStart, yearEnd) + 1;
+  const elapsed = Math.max(0, Math.min(totalDays, daysBetween(yearStart, selectedDate) + 1));
   el("selectedDateLabel").textContent = formatDate(selectedDate);
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekEnd.getDate() + 6);
   const weekRange = `${formatShortDate(weekStart)} ~ ${formatShortDate(weekEnd)}`;
   el("selectedWeekLabel").textContent = weekRange;
-  el("yearProgress").textContent = `${Math.round((elapsed / 365) * 100)}%`;
-  el("yearProgressText").textContent = `${elapsed} / 365`;
+  el("yearProgress").textContent = `${Math.round((elapsed / totalDays) * 100)}%`;
+  el("yearProgressText").textContent = `${elapsed} / ${totalDays}`;
   el("carryoverCount").textContent = getCarryoverTasks(selectedDate).length;
   const results = searchQuery ? collectSearchResults(searchQuery) : [];
   el("searchCount").textContent = results.length;
   el("searchHint").textContent = searchQuery ? `${searchQuery}` : "검색어를 입력하세요";
   if (el("plannerSearch").value !== searchQuery) el("plannerSearch").value = searchQuery;
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
-  el("topYearProgress").textContent = `연간 ${Math.round((elapsed / 365) * 100)}%`;
+  el("topYearProgress").textContent = `연간 ${Math.round((elapsed / totalDays) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
   el("topSearchCount").textContent = `검색 ${results.length}`;
   const saveStatusNode = el("topSaveStatus");
@@ -2613,17 +2694,20 @@ function updateRole(index, field, value) {
 function renderYear() {
   const grid = el("yearGrid");
   grid.innerHTML = "";
+  const activeYear = selectedDate.getFullYear();
+  const title = el("yearPageTitle");
+  if (title) title.textContent = `${activeYear} 연간 계획`;
   for (let month = 0; month < 12; month += 1) {
     const box = document.createElement("section");
     box.className = "mini-month";
     box.innerHTML = `<h4>${monthNames[month]}</h4><div class="mini-days"></div>`;
     const days = box.querySelector(".mini-days");
-    const first = new Date(YEAR, month, 1);
+    const first = new Date(activeYear, month, 1);
     const offset = first.getDay();
     for (let i = 0; i < offset; i += 1) days.appendChild(document.createElement("span"));
-    for (let day = 1; day <= new Date(YEAR, month + 1, 0).getDate(); day += 1) {
+    for (let day = 1; day <= new Date(activeYear, month + 1, 0).getDate(); day += 1) {
       const cell = document.createElement("span");
-      const date = new Date(YEAR, month, day);
+      const date = new Date(activeYear, month, day);
       const key = iso(date);
       const count = countTasksForDay(key);
       const events = getCalendarEvents(key);
@@ -2656,10 +2740,14 @@ function renderYear() {
 }
 
 function getCalendarEvents(key) {
+  const solarKey = String(key || "").slice(5);
+  const fixedEvents = recurringSolarEvents[solarKey] || [];
+  const datedEvents = koreanCalendarEvents[key] || [];
+  const baseEvents = datedEvents.length ? datedEvents : fixedEvents;
   const customEvents = (state.calendar?.events || [])
     .filter((event) => event.date === key && event.title?.trim())
     .map((event) => ({ label: event.title.trim(), type: "anniversary", id: event.id }));
-  return [...(koreanCalendarEvents[key] || []), ...customEvents];
+  return [...baseEvents, ...customEvents];
 }
 
 function getLunarDecadeLabel(date) {
@@ -2678,7 +2766,7 @@ function getLunarDecadeLabel(date) {
 
 function renderMonth() {
   const current = ensureMonth();
-  el("monthTitle").textContent = `${YEAR}년 ${monthNames[selectedDate.getMonth()]} 월간 계획`;
+  el("monthTitle").textContent = `${selectedDate.getFullYear()}년 ${monthNames[selectedDate.getMonth()]} 월간 계획`;
   if (!el("monthPickerPopover")?.hidden) renderMonthPicker();
   document.querySelector("[data-month-field='focus']").value = current.focus || "";
   document.querySelector("[data-month-field='focus']").oninput = (event) => {
@@ -2699,8 +2787,9 @@ function renderMonthCalendar() {
     cell.textContent = day;
     node.appendChild(cell);
   });
+  const year = selectedDate.getFullYear();
   const month = selectedDate.getMonth();
-  const first = new Date(YEAR, month, 1);
+  const first = new Date(year, month, 1);
   const start = new Date(first);
   start.setDate(first.getDate() - first.getDay());
   for (let i = 0; i < 42; i += 1) {
@@ -2752,7 +2841,7 @@ function addAnniversaryEvent() {
   const titleInput = el("anniversaryTitle");
   const date = dateInput?.value || iso(selectedDate);
   const title = titleInput?.value.trim() || "";
-  if (!date || parseDate(date).getFullYear() !== YEAR || !title) return;
+  if (!date || Number.isNaN(parseDate(date).getTime()) || !title) return;
   state.calendar ||= { events: [] };
   state.calendar.events ||= [];
   state.calendar.events.push({
@@ -3809,23 +3898,55 @@ function deleteTask(priority, index) {
 }
 
 function schedulePostponedTask(task, priority, targetDate) {
-  if (!targetDate || parseDate(targetDate).getFullYear() !== YEAR) return;
+  if (!targetDate || Number.isNaN(parseDate(targetDate).getTime())) return;
   task.postponeDate = targetDate;
   task.postponeId ||= `postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  task.carryoverDeletedFrom = targetDate;
   const targetDay = ensureDay(targetDate);
   const targetPriority = ["A", "B", "C"].includes(priority) ? priority : "A";
-  const exists = targetDay.tasks[targetPriority].some((item) => item.postponedFrom === task.postponeId);
-  if (!exists && task.text?.trim()) {
-    targetDay.tasks[targetPriority].push({
+  removePostponedTaskOccurrence(task.postponeId, targetDate);
+  let existingTask = null;
+  let existingPriority = "";
+  priorities.some(([candidate]) => {
+    existingTask = targetDay.tasks[candidate].find((item) => item.postponedFrom === task.postponeId);
+    existingPriority = existingTask ? candidate : "";
+    return Boolean(existingTask);
+  });
+  if (!existingTask && task.text?.trim()) {
+    existingTask = {
       text: task.text.trim(),
       status: "미완료",
       done: false,
       priorityUnset: false,
       postponedFrom: task.postponeId,
-    });
+      postponedSourceDate: iso(selectedDate),
+      originalPriority: targetPriority,
+    };
+    targetDay.tasks[targetPriority].push(existingTask);
+  } else if (existingTask) {
+    existingTask.text = task.text.trim();
+    existingTask.status = "미완료";
+    existingTask.done = false;
+    existingTask.priorityUnset = false;
+    existingTask.originalPriority = targetPriority;
+    if (existingPriority && existingPriority !== targetPriority) {
+      targetDay.tasks[existingPriority] = targetDay.tasks[existingPriority].filter((item) => item !== existingTask);
+      targetDay.tasks[targetPriority].push(existingTask);
+    }
   }
   saveState({ fastSave: true });
   renderAll();
+}
+
+function removePostponedTaskOccurrence(postponeId, keepDate = "") {
+  if (!postponeId) return;
+  Object.entries(state.days || {}).forEach(([key, day]) => {
+    if (key === keepDate) return;
+    normalizeDayTasks(day);
+    priorities.forEach(([priority]) => {
+      day.tasks[priority] = day.tasks[priority].filter((item) => item.postponedFrom !== postponeId);
+    });
+  });
 }
 
 function findTaskSource(taskRef) {
@@ -4266,8 +4387,12 @@ function addCustomSheet(template = "blank") {
   const templateNames = {
     blank: "새 시트",
     checklist: "체크리스트",
-    finance: "자금표",
-    project: "프로젝트표",
+    finance: "자금 체크표",
+    projectAction: "프로젝트 실행표",
+    meeting: "회의 기록표",
+    goalTracker: "목표 추적표",
+    client: "고객 관리표",
+    profitSim: "손익 시뮬레이션",
   };
   const count = state.customSheets.items.length + 1;
   const sheet = createCustomSheet(`${templateNames[template] || "새 시트"} ${count}`, template);
@@ -5359,8 +5484,9 @@ function removeProjectLinkedTask(projectId) {
 function renderFinanceMonthNav() {
   const title = el("financeMonthTitle");
   if (title) {
+    const yearNumber = Number(selectedFinanceMonth.split("-")[0]);
     const monthNumber = Number(selectedFinanceMonth.split("-")[1]);
-    title.textContent = `${YEAR}년 ${monthNumber}월 자금 체크`;
+    title.textContent = `${yearNumber}년 ${monthNumber}월 자금 체크`;
   }
   renderFinanceMonthTabs(false);
 }
@@ -5394,13 +5520,14 @@ function renderFinanceYearRows() {
   if (!node) return;
   node.innerHTML = "";
   const key = selectedFinanceMonth;
-  const rows = state.finance.months[key] || [];
+  const rows = ensureFinanceMonth(key);
   const monthPanel = document.createElement("section");
   monthPanel.className = "finance-month-card";
+  const yearNumber = Number(key.split("-")[0]);
   const monthNumber = Number(key.split("-")[1]);
   monthPanel.innerHTML = `
     <h4>
-      <span>2026년 ${monthNumber}월 자금 체크</span>
+      <span>${yearNumber}년 ${monthNumber}월 자금 체크</span>
       <small>${monthNumber}월 예정 수입·지출·이자·카드대금</small>
     </h4>
     <div class="finance-grid"></div>
@@ -5417,11 +5544,10 @@ function renderFinanceYearRows() {
 }
 
 function shiftFinanceMonth(delta) {
-  const keys = financeMonthKeys();
-  const index = keys.indexOf(selectedFinanceMonth);
-  const nextIndex = Math.max(0, Math.min(keys.length - 1, index + delta));
-  if (nextIndex === index) return;
-  selectedFinanceMonth = keys[nextIndex];
+  const [year, month] = selectedFinanceMonth.split("-").map(Number);
+  const next = new Date(year || selectedDate.getFullYear(), (month || selectedDate.getMonth() + 1) - 1 + delta, 1);
+  selectedFinanceMonth = monthKey(next);
+  ensureFinanceMonth(selectedFinanceMonth);
   financeTurnDirection = delta;
   renderNotes();
 }
@@ -5675,6 +5801,7 @@ function getCarryoverTasks(date) {
       const deletedFrom = task.carryoverDeletedFrom || "";
       if (deletedFrom && deletedFrom <= currentKey) return false;
       if (completedKey && completedKey < currentKey) return false;
+      if (task.status === "연기" && task.postponeMode === "date" && task.postponeDate) return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });
@@ -5926,7 +6053,7 @@ function exportPlanner() {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `beyond-planner-${YEAR}.json`;
+  link.download = `beyond-planner-${selectedDate.getFullYear()}.json`;
   link.click();
   URL.revokeObjectURL(url);
 }

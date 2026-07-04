@@ -164,7 +164,7 @@
         <section class="view" id="view-year">
           <div class="page-title">
             <p class="eyebrow">Year At A Glance</p>
-            <h2>2026 연간 계획</h2>
+            <h2 id="yearPageTitle">연간 계획</h2>
           </div>
           <div class="year-layout">
             <article class="panel span-12">
@@ -431,9 +431,13 @@
                 <div class="sheet-create-controls">
                   <select id="sheetTemplateSelect" aria-label="새 시트 양식">
                     <option value="blank">빈 시트</option>
+                    <option value="projectAction">프로젝트 실행표</option>
+                    <option value="finance">자금 체크표</option>
+                    <option value="meeting">회의 기록표</option>
                     <option value="checklist">체크리스트</option>
-                    <option value="finance">간단 자금표</option>
-                    <option value="project">프로젝트 현황표</option>
+                    <option value="goalTracker">목표 추적표</option>
+                    <option value="client">고객/거래처 관리표</option>
+                    <option value="profitSim">손익 시뮬레이션</option>
                   </select>
                   <button class="add-row sheet-add-inline" id="addSheetButton" type="button">새 시트 열기</button>
                 </div>
@@ -572,6 +576,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260704h"></script>
+    <script src="./app.js?v=20260704j"></script>
   </body>
 </html>
