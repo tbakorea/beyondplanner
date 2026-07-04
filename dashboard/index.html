@@ -150,12 +150,24 @@
             </article>
             <article class="panel span-12">
               <h3>사용자 정보</h3>
+              <p class="profile-benefit-note">구체적으로 적을수록 AI가 목표, 역할, 건강 리듬, 에너지 흐름, 부담 요인을 함께 읽어 더 개인화된 업무·일정·코칭을 제안합니다.</p>
               <div class="profile-grid compact-profile">
                 <label><span class="row-label">나이</span><input data-profile-field="age" type="text" placeholder="예: 42" /></label>
                 <label><span class="row-label">직업</span><input data-profile-field="job" type="text" placeholder="예: 대표, 센터장, 관리자" /></label>
+                <label><span class="row-label">현재 역할</span><textarea data-profile-field="roles" rows="3" placeholder="예: 경영자, 부모, 리더, 투자자, 코치"></textarea></label>
                 <label><span class="row-label">핵심 목표</span><textarea data-profile-field="goals" rows="3" placeholder="목표를 추가하거나 수정한 뒤 Enter/Return으로 코칭에 반영합니다."></textarea></label>
+                <label><span class="row-label">의사결정 기준</span><textarea data-profile-field="decisionPrinciples" rows="3" placeholder="예: 장기 신뢰, 현금흐름, 가족시간, 성장성"></textarea></label>
+                <label><span class="row-label">현재 과제</span><textarea data-profile-field="currentChallenges" rows="3" placeholder="요즘 가장 부담되는 일, 해결해야 할 병목"></textarea></label>
                 <label><span class="row-label">강점</span><textarea data-profile-field="strengths" rows="3" placeholder="잘하는 방식, 에너지 나는 일"></textarea></label>
                 <label><span class="row-label">주의할 패턴</span><textarea data-profile-field="risks" rows="3" placeholder="미루는 일, 과부하, 반복되는 병목"></textarea></label>
+                <label><span class="row-label">에너지 시간대</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 집중형, 오후 미팅형" /></label>
+                <label><span class="row-label">코칭 방식</span><input data-profile-field="coachingStyle" type="text" placeholder="예: 단호하게, 격려 중심, 숫자 중심" /></label>
+                <label><span class="row-label">건강 상태</span><textarea data-profile-field="healthStatus" rows="3" placeholder="예: 허리 통증, 혈압 관리, 피로 누적 등"></textarea></label>
+                <label><span class="row-label">투약/관리</span><textarea data-profile-field="medications" rows="3" placeholder="복용 약, 정기검진, 관리 중인 항목"></textarea></label>
+                <label><span class="row-label">운동 제한</span><textarea data-profile-field="exerciseLimits" rows="3" placeholder="피해야 할 동작, 의사에게 들은 주의사항"></textarea></label>
+                <label><span class="row-label">활동 수준</span><input data-profile-field="activityLevel" type="text" placeholder="예: 거의 앉아 있음, 주 2회 걷기" /></label>
+                <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기, 근력 회복" /></label>
+                <label><span class="row-label">수면/회복</span><input data-profile-field="recoveryPattern" type="text" placeholder="예: 6시간 수면, 오후 피로 큼" /></label>
               </div>
             </article>
           </div>
@@ -319,6 +331,7 @@
                     <button class="mini-action" data-merge-range="pm" type="button">오후</button>
                   </span>
                 </div>
+                <div class="ai-suggest-popover" id="scheduleSuggestPopover" hidden></div>
                 <div class="appointment-list" id="appointmentList"></div>
               </article>
             </section>

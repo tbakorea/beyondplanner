@@ -3339,6 +3339,37 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   align-items: center;
 }
 
+.ai-schedule-choice {
+  display: grid;
+  grid-template-columns: minmax(62px, 0.34fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(221, 216, 203, 0.95);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.98);
+  color: var(--ink);
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.ai-schedule-choice b {
+  color: var(--sage);
+  font-size: 0.78rem;
+}
+
+.ai-schedule-choice span {
+  min-width: 0;
+}
+
+.ai-schedule-choice:hover,
+.ai-schedule-choice:focus-visible {
+  border-color: rgba(95, 118, 104, 0.55);
+  box-shadow: 0 8px 18px rgba(31, 43, 38, 0.08);
+  outline: none;
+}
+
 .profile-grid,
 .coach-suggestions {
   display: grid;
@@ -3348,6 +3379,13 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 .profile-grid label {
   display: grid;
   gap: 6px;
+}
+
+.profile-benefit-note {
+  margin: -2px 0 14px;
+  color: var(--muted);
+  font-size: 0.92rem;
+  line-height: 1.55;
 }
 
 .coach-card {

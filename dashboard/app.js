@@ -94,6 +94,25 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
 
+const defaultProfileFields = {
+  age: "",
+  job: "",
+  roles: "",
+  goals: "",
+  decisionPrinciples: "",
+  currentChallenges: "",
+  strengths: "",
+  risks: "",
+  energyWindow: "",
+  coachingStyle: "",
+  healthStatus: "",
+  medications: "",
+  exerciseLimits: "",
+  activityLevel: "",
+  exerciseGoal: "",
+  recoveryPattern: "",
+};
+
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
 let hasInitialDeviceCache = hasCachedPlannerState();
@@ -404,7 +423,7 @@ function migrateState(nextState) {
   nextState.customSheets ||= createCustomSheetsState();
   normalizeCustomSheetsState(nextState.customSheets);
   nextState.notes ||= { projects: Array.from({ length: 8 }, () => ""), references: Array.from({ length: 8 }, () => ""), freeform: "" };
-  nextState.profile ||= { age: "", job: "", goals: "", strengths: "", risks: "" };
+  nextState.profile = { ...defaultProfileFields, ...(nextState.profile || {}) };
   nextState.calendar ||= {};
   nextState.calendar.events ||= [];
   nextState.repeats ||= {};
@@ -835,13 +854,7 @@ function loadEmptyState() {
     repeats: {
       priorityTasks: emptyRepeatRules(4),
     },
-    profile: {
-      age: "",
-      job: "",
-      goals: "",
-      strengths: "",
-      risks: "",
-    },
+    profile: { ...defaultProfileFields },
     notes: {
       projects: Array.from({ length: 8 }, () => ""),
       references: Array.from({ length: 8 }, () => ""),
@@ -1307,7 +1320,7 @@ function setupSelectors() {
   };
   el("refreshCoach").onclick = () => renderCoach();
   el("aiTaskSuggest").onclick = () => renderTaskSuggestionPopover();
-  el("aiScheduleSuggest").onclick = () => applyScheduleSuggestion();
+  el("aiScheduleSuggest").onclick = () => renderScheduleSuggestionPopover();
   el("aiMemoSuggest").onclick = () => applyMemoPrompt();
   el("closeSearchButton").onclick = closeSearch;
   el("closeCoachButton").onclick = closeCoach;
@@ -3122,9 +3135,9 @@ function renderCoach() {
   const analysis = buildCoachAnalysis();
   message.className = `coach-card severity-${analysis.severity}`;
   message.innerHTML = `
-    <strong>${analysis.title}</strong>
-    <p>${analysis.message}</p>
-    <small>${analysis.detail}</small>
+    <strong>${escapeHtml(analysis.title)}</strong>
+    <p>${escapeHtml(analysis.message)}</p>
+    <small>${escapeHtml(analysis.detail)}</small>
   `;
   suggestions.innerHTML = "";
   analysis.suggestions.forEach((text) => {
@@ -3159,54 +3172,178 @@ function bindProfileFields() {
 }
 
 function buildCoachAnalysis() {
-  const day = ensureDay();
-  const tasks = getDayTasks(iso(selectedDate));
-  const openTasks = tasks.filter((task) => task.text && !task.done);
-  const doneTasks = tasks.filter((task) => task.text && task.done);
-  const appointments = Object.values(day.appointments).filter(Boolean).length;
-  const goals = [state.profile?.goals, state.foundation.mission, ...state.year.goals].filter(Boolean).join(" ");
+  const context = buildPlannerContext();
+  const { openTasks, doneTasks, carryovers, appointmentEntries, goals, trend, freeSlots, highPriorityOpen, identitySummary, coachingStyle, currentChallenges, healthSummary, exerciseLimits } = context;
   let severity = "calm";
   let title = "오늘의 선택을 또렷하게 만들 시간입니다.";
   let message = "역할, 목표, 오늘의 우선업무가 서로 이어지도록 한 가지 중요한 결과를 먼저 고르세요.";
-  if (openTasks.length >= 8) {
+  if (carryovers.length >= 4 || openTasks.length >= 8) {
     severity = "alert";
-    title = "업무가 과밀합니다.";
-    message = "오늘은 A 업무를 1-2개로 좁히고, 나머지는 위임·연기·취소 중 한 가지로 정리하는 편이 좋겠습니다.";
-  } else if (appointments === 0 && openTasks.length > 0) {
+    title = "업무가 과밀합니다. 오늘은 줄이는 결단이 성과입니다.";
+    message = `열린 업무 ${openTasks.length}개, 이월 ${carryovers.length}개가 보입니다. A업무 1-2개만 시간표에 고정하고 나머지는 연기·위임·취소로 정리하세요.`;
+  } else if (!appointmentEntries.length && openTasks.length > 0) {
     severity = "warm";
     title = "업무는 있지만 시간이 비어 있습니다.";
-    message = "중요업무 한 개를 시간별 일정에 실제 블록으로 배치해 실행 가능성을 높이세요.";
+    message = "중요업무 한 개를 시간별 일정에 실제 블록으로 배치하면 오늘의 실행 확률이 크게 올라갑니다.";
+  } else if (!highPriorityOpen && goals) {
+    severity = "warm";
+    title = "목표와 직접 연결된 A업무가 필요합니다.";
+    message = "바쁜 일보다 방향을 만드는 일을 하나 고르세요. 오늘의 작은 A업무가 주간 흐름을 바꿉니다.";
   } else if (doneTasks.length >= 3) {
     title = "좋은 추진력이 보입니다.";
-    message = "완료 흐름이 생겼습니다. 다음 업무를 추가하기 전에 기록란에 배운 점을 짧게 남기면 패턴 학습에 도움이 됩니다.";
+    message = `최근 흐름까지 보면 완료율이 ${trend.completionRate}%입니다. 지금은 새 일을 늘리기보다 마감 기록과 다음 첫 행동을 정리하기 좋은 타이밍입니다.`;
+  } else if (freeSlots.length >= 5) {
+    title = "오늘은 깊게 일할 여지가 있습니다.";
+    message = "비어 있는 시간대가 있습니다. 중요한 업무 하나를 60-90분 블록으로 묶어 집중 시간을 만드세요.";
   }
-  const suggestions = generateTaskSuggestions(openTasks, goals);
+  if (currentChallenges && severity !== "alert") {
+    message += ` 지금 적어 둔 현재 과제는 '${currentChallenges.slice(0, 28)}'입니다. 오늘의 선택 하나가 이 부담을 조금 줄이는 방향이면 좋겠습니다.`;
+  }
+  if (healthSummary) {
+    message += exerciseLimits
+      ? " 건강 정보가 있으므로 오늘 활동은 무리보다 안전한 지속성을 우선으로 잡겠습니다."
+      : " 건강 리듬도 함께 보겠습니다. 짧은 신체 활동을 시간표에 넣으면 집중 회복에 도움이 됩니다.";
+  }
+  if (/단호|직설|강하게/.test(coachingStyle)) {
+    message += " 결론은 단순합니다. 덜 중요한 일은 과감히 뒤로 보내고, 가장 중요한 한 칸을 반드시 지키세요.";
+  } else if (/격려|따뜻|칭찬/.test(coachingStyle)) {
+    message += " 이미 기록하고 조정하려는 태도 자체가 좋은 출발입니다. 오늘은 작아도 끝나는 승리를 만드세요.";
+  } else if (/숫자|데이터|분석/.test(coachingStyle)) {
+    message += ` 현재 지표는 완료 ${doneTasks.length}개, 열린 업무 ${openTasks.length}개, 일정 ${appointmentEntries.length}개입니다.`;
+  }
+  const suggestions = generateTaskSuggestions(context);
   return {
     severity,
     title,
     message,
-    detail: "코칭은 입력된 프로필, 목표, 업무 완료 흐름, 일정 배치를 바탕으로 로컬에서 생성됩니다.",
+    detail: `${identitySummary || "사용자 정보"}${healthSummary ? ` · 건강: ${healthSummary}` : ""} · 최근 7일 완료율 ${trend.completionRate}% · 오늘 일정 ${appointmentEntries.length}개 · 이월 ${carryovers.length}개를 종합했습니다.`,
     suggestions,
   };
 }
 
-function generateTaskSuggestions(openTasks, goals) {
+function buildPlannerContext(key = iso(selectedDate)) {
+  const date = parseDate(key);
+  const day = ensureDay(key);
+  const tasks = getDayTasks(key).filter((task) => task.text?.trim());
+  const carryovers = getCarryoverTasks(date).filter((task) => !isCarryoverCompletedOn(task, key));
+  const openTasks = [...tasks.filter((task) => !shouldStrikeTask(task)), ...carryovers];
+  const doneTasks = tasks.filter((task) => shouldStrikeTask(task));
+  const appointmentEntries = timeSlots
+    .filter((slot) => !isCoveredAppointmentSlot(day, slot))
+    .map((slot) => ({ slot, text: String(day.appointments?.[slot] || "").trim(), span: getAppointmentSpan(day, slot) }))
+    .filter((entry) => entry.text);
+  const freeSlots = timeSlots.filter((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot));
+  const profileText = Object.values(state.profile || {}).filter(Boolean).join(" ");
+  const goals = [state.profile?.goals, state.foundation?.mission, ...(state.year?.goals || [])].filter(Boolean).join(" ");
+  const weeklyFocus = ensureWeek(weekKey(date)).priorities?.filter((item) => item?.text && !item.done).map((item) => item.text) || [];
+  const trend = getRecentTaskTrend(date);
+  const identitySummary = summarizeProfileIdentity(state.profile);
+  return {
+    key,
+    date,
+    day,
+    tasks,
+    carryovers,
+    openTasks,
+    doneTasks,
+    appointmentEntries,
+    freeSlots,
+    profileText,
+    goals,
+    weeklyFocus,
+    trend,
+    identitySummary,
+    coachingStyle: state.profile?.coachingStyle || "",
+    currentChallenges: state.profile?.currentChallenges || "",
+    energyWindow: state.profile?.energyWindow || "",
+    decisionPrinciples: state.profile?.decisionPrinciples || "",
+    healthSummary: summarizeHealthProfile(state.profile),
+    healthStatus: state.profile?.healthStatus || "",
+    medications: state.profile?.medications || "",
+    exerciseLimits: state.profile?.exerciseLimits || "",
+    activityLevel: state.profile?.activityLevel || "",
+    exerciseGoal: state.profile?.exerciseGoal || "",
+    recoveryPattern: state.profile?.recoveryPattern || "",
+    highPriorityOpen: openTasks.some((task) => task.priority === "A"),
+  };
+}
+
+function summarizeProfileIdentity(profile = {}) {
+  const parts = [
+    profile.job && `${profile.job}`,
+    profile.roles && `역할: ${profile.roles.slice(0, 22)}`,
+    profile.goals && `목표: ${profile.goals.slice(0, 22)}`,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function summarizeHealthProfile(profile = {}) {
+  const parts = [
+    profile.healthStatus && profile.healthStatus.slice(0, 18),
+    profile.activityLevel && `활동 ${profile.activityLevel.slice(0, 12)}`,
+    profile.exerciseGoal && `목표 ${profile.exerciseGoal.slice(0, 12)}`,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
+function getRecentTaskTrend(anchorDate) {
+  let total = 0;
+  let done = 0;
+  let carryover = 0;
+  for (let offset = 0; offset < 7; offset += 1) {
+    const date = new Date(anchorDate);
+    date.setDate(anchorDate.getDate() - offset);
+    const key = iso(date);
+    const tasks = getDayTasks(key).filter((task) => task.text?.trim());
+    total += tasks.length;
+    done += tasks.filter((task) => shouldStrikeTask(task)).length;
+    carryover += getCarryoverTasks(date).length;
+  }
+  return {
+    total,
+    done,
+    carryover,
+    completionRate: total ? Math.round((done / total) * 100) : 0,
+  };
+}
+
+function generateTaskSuggestions(context = buildPlannerContext()) {
+  const { openTasks, carryovers, goals, weeklyFocus, appointmentEntries, trend, profileText, decisionPrinciples, currentChallenges, energyWindow, healthStatus, medications, exerciseLimits, activityLevel, exerciseGoal, recoveryPattern } = context;
   const suggestions = [];
   const profileGoal = state.profile?.goals?.trim();
-  if (profileGoal) suggestions.push(`목표 점검: ${profileGoal.slice(0, 24)} 실행 단계 1개 정하기`);
-  if (openTasks.length) suggestions.push(`가장 부담되는 업무 1개를 20분 실행 단위로 쪼개기`);
-  if (!Object.values(ensureDay().appointments).some(Boolean)) suggestions.push("A업무 한 개를 오전 시간표에 고정하기");
-  if (goals && !openTasks.some((task) => task.priority === "A")) suggestions.push("올해 목표와 연결되는 A업무 1개 추가하기");
-  suggestions.push("오늘 끝내지 않을 일을 취소/연기/위임으로 정리하기");
+  if (profileGoal) suggestions.push(`목표 연결: ${profileGoal.slice(0, 22)}의 다음 행동 1개 완료하기`);
+  if (decisionPrinciples) suggestions.push(`기준 점검: ${decisionPrinciples.slice(0, 18)}에 맞는 선택 1개 정리하기`);
+  if (currentChallenges) suggestions.push(`현재 과제: ${currentChallenges.slice(0, 20)}를 20분 실행으로 쪼개기`);
+  if (exerciseGoal) suggestions.push(`건강 실행: ${exerciseGoal.slice(0, 18)}를 오늘 일정에 넣기`);
+  if (activityLevel && /앉|좌식|부족|거의/.test(activityLevel)) suggestions.push("신체 리셋: 10분 걷기 또는 가벼운 스트레칭 넣기");
+  if (recoveryPattern && /피로|수면부족|부족|불면/.test(recoveryPattern)) suggestions.push("회복 관리: 무리한 추가업무 대신 휴식 15분 확보하기");
+  if (healthStatus || medications || exerciseLimits) suggestions.push("건강 체크: 투약·통증·운동 제한사항을 확인하고 활동 강도 조절하기");
+  if (weeklyFocus.length) suggestions.push(`주간 초점: ${weeklyFocus[0].slice(0, 22)}를 오늘 실행 단위로 만들기`);
+  if (carryovers.length) suggestions.push(`이월 정리: ${carryovers[0].text.slice(0, 18)}을 완료·연기·위임 중 하나로 결정하기`);
+  if (openTasks.length) suggestions.push(`집중 실행: ${openTasks[0].text.slice(0, 22)}을 25분 단위로 착수하기`);
+  if (!openTasks.some((task) => task.priority === "A") && goals) suggestions.push("목표와 직접 연결되는 A업무 1개 추가하기");
+  if (!appointmentEntries.length && openTasks.length) suggestions.push("가장 중요한 업무 1개를 오전 시간표에 고정하기");
+  if (/오전/.test(energyWindow)) suggestions.push("오전 집중 시간에 가장 어려운 A업무 먼저 배치하기");
+  if (/오후/.test(energyWindow)) suggestions.push("오전에는 정리, 오후 집중 시간에 핵심 실행 배치하기");
+  if (trend.completionRate < 45 && trend.total >= 4) suggestions.push("오늘 업무 수를 줄이고 끝낼 수 있는 3개만 남기기");
+  if (/대표|CEO|경영|사업|관리|컨설팅/i.test(profileText)) suggestions.push("의사결정 필요한 안건 1개를 먼저 검토하기");
+  suggestions.push("오늘 끝내지 않을 일을 취소·연기·위임으로 정리하기");
   return [...new Set(suggestions)].slice(0, 5);
 }
 
 function addSuggestedTask(text) {
   const day = ensureDay();
-  day.tasks.A.push({ text, status: "미완료", done: false, priorityUnset: true });
+  const priority = suggestedTaskPriority(text);
+  day.tasks[priority].push({ text, status: "미완료", done: false, priorityUnset: false });
   saveState();
   showView("day");
   renderAll();
+}
+
+function suggestedTaskPriority(text = "") {
+  if (/목표|A업무|집중|의사결정|주간 초점/.test(text)) return "A";
+  if (/이월|정리|위임|연기|검토|건강|회복|신체|운동|투약/.test(text)) return "B";
+  return "C";
 }
 
 function updateCoachBubble() {
@@ -3221,7 +3358,7 @@ function updateCoachBubble() {
 function renderTaskSuggestionPopover() {
   const node = el("taskSuggestPopover");
   if (!node) return;
-  const suggestions = generateTaskSuggestions(getDayTasks(iso(selectedDate)).filter((task) => task.text && !task.done), state.profile?.goals || "").slice(0, 3);
+  const suggestions = generateTaskSuggestions(buildPlannerContext()).slice(0, 4);
   node.hidden = false;
   node.innerHTML = `
     <div class="ai-suggest-header">
@@ -3247,19 +3384,87 @@ function renderTaskSuggestionPopover() {
   });
 }
 
-function applyScheduleSuggestion() {
+function renderScheduleSuggestionPopover() {
+  const node = el("scheduleSuggestPopover");
+  if (!node) return;
+  const suggestions = generateScheduleSuggestions(buildPlannerContext()).slice(0, 4);
+  node.hidden = false;
+  node.innerHTML = `
+    <div class="ai-suggest-header">
+      <strong>AI 일정 배분</strong>
+      <button class="icon-close ai-suggest-close" type="button" aria-label="AI 일정 추천 닫기">×</button>
+    </div>
+    ${suggestions.map((item, index) => `
+      <button class="ai-schedule-choice" type="button" data-suggestion-index="${index}">
+        <b>${escapeHtml(item.slot)}</b>
+        <span>${escapeHtml(item.text)}</span>
+      </button>
+    `).join("")}
+  `;
+  node.querySelector(".ai-suggest-close").onclick = () => {
+    node.hidden = true;
+  };
+  node.querySelectorAll(".ai-schedule-choice").forEach((button) => {
+    button.onclick = () => {
+      applyScheduleSuggestion(suggestions[Number(button.dataset.suggestionIndex)]);
+      node.hidden = true;
+    };
+  });
+}
+
+function generateScheduleSuggestions(context = buildPlannerContext()) {
+  const { openTasks, freeSlots, appointmentEntries, carryovers, energyWindow, exerciseGoal, exerciseLimits, recoveryPattern } = context;
+  const firstA = openTasks.find((task) => task.priority === "A") || openTasks[0];
+  const preferredStart = /오후/.test(energyWindow) ? "13:00" : /저녁/.test(energyWindow) ? "16:00" : "09:00";
+  const firstFree = freeSlots.find((slot) => slot >= preferredStart) || freeSlots.find((slot) => slot >= "09:00") || freeSlots[0] || "09:00";
+  const secondFree = freeSlots.find((slot) => slot > firstFree && slot >= "13:00") || freeSlots.find((slot) => slot > firstFree) || "14:00";
+  const suggestions = [];
+  if (firstA) {
+    suggestions.push({ slot: `${firstFree} 집중`, text: `${firstA.text.slice(0, 28)} 실행 블록` });
+  }
+  if (energyWindow) {
+    suggestions.push({ slot: "에너지 맞춤", text: `${energyWindow.slice(0, 18)} 리듬에 맞춰 가장 어려운 일을 먼저 배치` });
+  }
+  if (exerciseGoal) {
+    suggestions.push({ slot: "활동", text: exerciseLimits ? "무리 없는 강도의 건강 활동 또는 회복 시간 확보" : `${exerciseGoal.slice(0, 18)} 실행 시간 확보` });
+  } else if (recoveryPattern) {
+    suggestions.push({ slot: "회복", text: "짧은 산책, 스트레칭, 눈 휴식 중 하나를 일정에 배치" });
+  }
+  if (carryovers.length) {
+    suggestions.push({ slot: `${secondFree} 정리`, text: `이월 ${carryovers.length}개 검토와 연기·위임 판단` });
+  }
+  if (appointmentEntries.length >= 4) {
+    suggestions.push({ slot: "오전 15분", text: "일정 사이 완충시간과 준비물 확인" });
+  } else {
+    suggestions.push({ slot: "오전", text: "A업무 60분, B업무 30분, 기록 10분 순서로 배치" });
+  }
+  suggestions.push({ slot: "마감 전", text: "완료 체크, 내일 첫 행동, 배운 점 1줄 기록" });
+  return [...new Map(suggestions.map((item) => [`${item.slot}:${item.text}`, item])).values()];
+}
+
+function applyScheduleSuggestion(suggestion) {
+  if (!suggestion) return;
   const day = ensureDay();
-  const firstOpen = getDayTasks(iso(selectedDate)).find((task) => task.text && !task.done);
-  if (!firstOpen) return;
-  const target = day.appointments["09:00"] ? "10:00" : "09:00";
-  day.appointments[target] ||= firstOpen.text;
+  const target = pickScheduleTargetSlot(day, suggestion.slot);
+  day.appointments[target] ||= suggestion.text;
   saveState();
   renderDay();
 }
 
+function pickScheduleTargetSlot(day, label = "") {
+  const preferred = label.includes("오후") || label.includes("마감") ? ["16:00", "15:00", "14:00"] : label.includes("정리") ? ["13:30", "14:00", "15:00"] : ["09:00", "09:30", "10:00", "08:30"];
+  return preferred.find((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot)) || timeSlots.find((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot)) || "09:00";
+}
+
 function applyMemoPrompt() {
   const day = ensureDay();
-  const prompt = "오늘 관찰: 가장 중요한 일, 막힌 지점, 내일의 첫 행동을 각각 한 줄로 적습니다.";
+  const context = buildPlannerContext();
+  const prompt = [
+    "AI 기록 질문:",
+    `1. 오늘 가장 중요한 선택은 무엇이었나요? (${context.openTasks.length}개 열린 업무 중 핵심 1개)`,
+    `2. 일정 배분에서 막힌 시간대는 어디였나요? (${context.appointmentEntries.length}개 일정 기준)`,
+    "3. 내일 아침 첫 20분에 바로 시작할 행동은 무엇인가요?",
+  ].join("\n");
   day.memo = day.memo ? `${day.memo}\n${prompt}` : prompt;
   saveState();
   renderDay();
