@@ -6060,6 +6060,23 @@ body.smartphone-device .privacy-blind-screen {
   min-width: 74px;
 }
 
+.sheet-size-tools label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 820;
+  white-space: nowrap;
+}
+
+.sheet-size-tools input {
+  width: 64px;
+  min-height: 28px;
+  padding: 4px 6px;
+  text-align: right;
+}
+
 .sheet-format-toggle {
   width: 31px;
 }
@@ -6157,9 +6174,8 @@ body.smartphone-device .privacy-blind-screen {
 
 .custom-sheet-grid th,
 .custom-sheet-grid td {
-  height: 36px;
-  min-width: 132px;
-  max-width: 132px;
+  height: inherit;
+  min-width: 0;
   padding: 0;
   border-right: 1px solid #dedbd2;
   border-bottom: 1px solid #dedbd2;
@@ -6170,12 +6186,71 @@ body.smartphone-device .privacy-blind-screen {
   top: 0;
   z-index: 4;
   height: 30px;
-  min-width: 132px;
   background: #eeece5;
   color: var(--muted);
   font-size: 11px;
   font-weight: 760;
   text-align: center;
+}
+
+.custom-sheet-grid thead th[data-sheet-column],
+.custom-sheet-grid .sheet-row-number {
+  position: sticky;
+}
+
+.custom-sheet-grid thead th[data-sheet-column] {
+  overflow: visible;
+}
+
+.custom-sheet-grid thead th[data-sheet-column] > span,
+.custom-sheet-grid .sheet-row-number > span {
+  pointer-events: none;
+}
+
+.sheet-column-resize,
+.sheet-row-resize {
+  position: absolute;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  opacity: 0;
+  z-index: 7;
+}
+
+.sheet-column-resize {
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  min-height: 0;
+  cursor: col-resize;
+}
+
+.sheet-row-resize {
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  width: 100%;
+  height: 8px;
+  min-height: 0;
+  cursor: row-resize;
+}
+
+.custom-sheet-grid th:hover .sheet-column-resize,
+.custom-sheet-grid th:hover .sheet-row-resize,
+.sheet-column-resize:focus-visible,
+.sheet-row-resize:focus-visible {
+  opacity: 1;
+  background: rgba(95, 118, 104, 0.18);
+}
+
+@media (pointer: coarse) {
+  .sheet-column-resize,
+  .sheet-row-resize {
+    opacity: 0.42;
+    background: rgba(95, 118, 104, 0.08);
+  }
 }
 
 .custom-sheet-grid .sheet-corner,
@@ -6223,7 +6298,7 @@ body.smartphone-device .privacy-blind-screen {
 .sheet-cell-input {
   width: 100%;
   height: 100%;
-  min-height: 35px;
+  min-height: 100%;
   padding: 5px 8px;
   overflow: hidden;
   border: 0 !important;
@@ -6391,8 +6466,7 @@ body.ceo-mode .sheet-grid-wrap {
   .custom-sheet-grid th,
   .custom-sheet-grid td,
   .custom-sheet-grid thead th {
-    min-width: 112px;
-    max-width: 112px;
+    min-width: 0;
   }
 
   .custom-sheet-grid .sheet-corner,

@@ -70,6 +70,12 @@ const SHEET_MIN_ROWS = 6;
 const SHEET_MAX_ROWS = 100;
 const SHEET_MIN_COLUMNS = 3;
 const SHEET_MAX_COLUMNS = 12;
+const SHEET_DEFAULT_COLUMN_WIDTH = 132;
+const SHEET_MIN_COLUMN_WIDTH = 64;
+const SHEET_MAX_COLUMN_WIDTH = 360;
+const SHEET_DEFAULT_ROW_HEIGHT = 36;
+const SHEET_MIN_ROW_HEIGHT = 28;
+const SHEET_MAX_ROW_HEIGHT = 160;
 const defaultRoles = ["개인", "가족", "일", "성장", "공헌", "건강", "관계"];
 const isMacEnvironment = /Mac|iPhone|iPad/.test(navigator.platform || "") || /Macintosh|iPhone|iPad/.test(navigator.userAgent || "");
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
@@ -122,6 +128,10 @@ let mobileDayFocusMode = "split";
 
 function el(id) {
   return document.getElementById(id);
+}
+
+function confirmDelete(message = "삭제할까요? 이 작업은 되돌리기 어렵습니다.") {
+  return window.confirm(message);
 }
 
 function requirePlannerAuth() {
@@ -420,6 +430,8 @@ function createCustomSheet(name = "새 시트", template = "blank") {
     columns: 6,
     cells: {},
     formats: {},
+    columnWidths: [],
+    rowHeights: [],
   };
   applySheetTemplate(sheet, template);
   return sheet;
@@ -435,10 +447,18 @@ function normalizeCustomSheetsState(customSheets) {
     sheet.columns = Math.max(SHEET_MIN_COLUMNS, Math.min(SHEET_MAX_COLUMNS, Number(sheet.columns) || 6));
     sheet.cells = sheet.cells && typeof sheet.cells === "object" ? sheet.cells : {};
     sheet.formats = sheet.formats && typeof sheet.formats === "object" ? sheet.formats : {};
+    sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
+    sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
   });
   if (!customSheets.items.some((sheet) => sheet.id === customSheets.activeId)) {
     customSheets.activeId = customSheets.items[0].id;
   }
+}
+
+function normalizeSheetSizes(values, count, fallback, min, max) {
+  const next = Array.isArray(values) ? values.slice(0, count) : [];
+  while (next.length < count) next.push(fallback);
+  return next.map((value) => clampNumber(value, min, max, fallback));
 }
 
 function applySheetTemplate(sheet, template) {
@@ -1169,6 +1189,9 @@ function setupSelectors() {
   el("removeSheetRowButton").onclick = () => resizeCurrentSheet("row", -1);
   el("addSheetColumnButton").onclick = () => resizeCurrentSheet("column", 1);
   el("removeSheetColumnButton").onclick = () => resizeCurrentSheet("column", -1);
+  el("sheetColumnWidthInput").onchange = (event) => updateSelectedSheetColumnWidth(event.target.value);
+  el("sheetRowHeightInput").onchange = (event) => updateSelectedSheetRowHeight(event.target.value);
+  el("sheetAutoFitButton").onclick = autoFitSelectedSheetCell;
   el("sheetNameInput").oninput = (event) => renameCurrentSheet(event.target.value);
   el("sheetCellType").onchange = (event) => updateSelectedSheetCellFormat("type", event.target.value);
   el("sheetCellAlign").onchange = (event) => updateSelectedSheetCellFormat("align", event.target.value);
@@ -1178,6 +1201,7 @@ function setupSelectors() {
     if (event.key !== "Enter") return;
     event.preventDefault();
     updateSelectedSheetCellValue(event.target.value);
+    moveSheetSelection(1, 0);
   };
   document.querySelectorAll("[data-sheet-fill]").forEach((button) => {
     button.onclick = () => updateSelectedSheetCellFormat("fill", button.dataset.sheetFill);
@@ -2759,6 +2783,7 @@ function renderAnniversaryList() {
     : `<p class="empty-hint">이 달의 기념일을 추가하세요.</p>`;
   node.querySelectorAll("[data-anniversary-delete]").forEach((button) => {
     button.onclick = () => {
+      if (!confirmDelete("이 기념일을 삭제할까요? 일간·주간·월간 달력 반영도 함께 사라집니다.")) return;
       state.calendar.events = state.calendar.events.filter((event) => event.id !== button.dataset.anniversaryDelete);
       saveState({ fastSave: true });
       renderAll();
@@ -3269,6 +3294,10 @@ function renderRepeatPriorityList() {
     const text = row.querySelector(".repeat-text");
     const frequency = row.querySelector(".repeat-frequency");
     active.onchange = () => {
+      if (!active.checked && !confirmDelete("이 반복 우선업무를 비활성화할까요? 오늘 이후 자동 생성이 중단됩니다.")) {
+        active.checked = true;
+        return;
+      }
       rule.active = active.checked;
       if (rule.active) markRepeatRuleChanged(rule, index);
       if (!rule.active) {
@@ -3318,6 +3347,7 @@ function renderRepeatPriorityList() {
       renderAll();
     });
     row.querySelector(".repeat-delete").onclick = () => {
+      if (!confirmDelete("이 반복 우선업무를 삭제할까요? 이전 기록은 유지되고 오늘 이후 반복만 중단됩니다.")) return;
       rule.active = false;
       rule.deletedFrom = iso(selectedDate || todayInPlanner());
       rule.removed = true;
@@ -3763,6 +3793,7 @@ function deleteTask(priority, index) {
   const day = ensureDay();
   const task = day.tasks?.[priority]?.[index];
   if (!task) return;
+  if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
   if (task.repeatId) {
     day.deletedRepeatIds ||= [];
     if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
@@ -3923,6 +3954,7 @@ function renderCarryoverTask(task) {
 function deleteCarryoverTask(taskRef) {
   const source = findTaskSource(taskRef);
   if (!source) return;
+  if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘 이후 이월에서 제외됩니다.")) return;
   if (source.task.repeatId) {
     const selectedKey = iso(selectedDate);
     const day = ensureDay(selectedKey);
@@ -4030,11 +4062,38 @@ function renderAppointments(day) {
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
     `;
-    row.querySelector("input").oninput = (event) => {
-      day.appointments[slot] = event.target.value;
+    const input = row.querySelector("input");
+    let valueBeforeEdit = value;
+    input.onfocus = () => {
+      valueBeforeEdit = day.appointments[slot] || "";
+    };
+    input.oninput = (event) => {
+      const nextValue = event.target.value;
+      if (!nextValue.trim() && valueBeforeEdit.trim()) {
+        row.classList.remove("is-filled");
+        return;
+      }
+      day.appointments[slot] = nextValue;
       saveState();
-      row.classList.toggle("is-filled", Boolean(event.target.value));
+      row.classList.toggle("is-filled", Boolean(nextValue.trim()));
       renderSidebar();
+    };
+    input.onblur = () => {
+      const nextValue = input.value;
+      if (!nextValue.trim() && valueBeforeEdit.trim()) {
+        if (!confirmDelete(`${slot} 일정 '${valueBeforeEdit}'을 삭제할까요?`)) {
+          input.value = valueBeforeEdit;
+          day.appointments[slot] = valueBeforeEdit;
+          row.classList.add("is-filled");
+          renderSidebar();
+          return;
+        }
+        day.appointments[slot] = "";
+        saveState();
+        row.classList.remove("is-filled");
+        renderSidebar();
+        valueBeforeEdit = "";
+      }
     };
     row.querySelector(".split-appointment")?.addEventListener("click", () => {
       delete day.appointmentMerges[slot];
@@ -4306,7 +4365,7 @@ function duplicateCurrentSheet() {
 function deleteCurrentSheet() {
   if (state.customSheets.items.length <= 1) return;
   const sheet = getCurrentSheet();
-  if (!window.confirm(`'${sheet.name}' 시트를 삭제할까요?`)) return;
+  if (!confirmDelete(`'${sheet.name}' 시트를 삭제할까요? 이 시트의 모든 셀 내용이 사라집니다.`)) return;
   const index = state.customSheets.items.findIndex((item) => item.id === sheet.id);
   state.customSheets.items.splice(index, 1);
   const next = state.customSheets.items[Math.max(0, index - 1)] || state.customSheets.items[0];
@@ -4319,8 +4378,14 @@ function deleteCurrentSheet() {
 
 function resizeCurrentSheet(axis, delta) {
   const sheet = getCurrentSheet();
+  if (delta < 0) {
+    const label = axis === "row" ? "마지막 행" : "마지막 열";
+    if (!confirmDelete(`${label}을 삭제할까요? 해당 영역의 셀 내용도 함께 삭제될 수 있습니다.`)) return;
+  }
   if (axis === "row") sheet.rows = Math.max(SHEET_MIN_ROWS, Math.min(SHEET_MAX_ROWS, sheet.rows + delta));
   if (axis === "column") sheet.columns = Math.max(SHEET_MIN_COLUMNS, Math.min(SHEET_MAX_COLUMNS, sheet.columns + delta));
+  sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
+  sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
   pruneSheetOutsideBounds(sheet);
   selectedSheetCell = clampSheetCellReference(selectedSheetCell, sheet);
   saveState();
@@ -4339,13 +4404,34 @@ function pruneSheetOutsideBounds(sheet) {
 
 function renderSheetGrid(sheet) {
   const table = el("customSheetGrid");
-  const header = Array.from({ length: sheet.columns }, (_, column) => `<th scope="col">${sheetColumnLabel(column)}</th>`).join("");
+  const colgroup = `
+    <col class="sheet-row-header-col" style="width: 42px" />
+    ${Array.from({ length: sheet.columns }, (_, column) => `<col data-sheet-col-index="${column}" style="width: ${getSheetColumnWidth(sheet, column)}px" />`).join("")}
+  `;
+  const header = Array.from(
+    { length: sheet.columns },
+    (_, column) => `
+      <th scope="col" data-sheet-column="${column}">
+        <span>${sheetColumnLabel(column)}</span>
+        <button class="sheet-column-resize" type="button" aria-label="${sheetColumnLabel(column)} 열 폭 조절"></button>
+      </th>
+    `,
+  ).join("");
   const body = Array.from({ length: sheet.rows }, (_, row) => {
     const cells = Array.from({ length: sheet.columns }, (_, column) => renderSheetCellMarkup(sheet, row, column)).join("");
-    return `<tr><th class="sheet-row-number" scope="row">${row + 1}</th>${cells}</tr>`;
+    return `
+      <tr data-sheet-row-index="${row}" style="height: ${getSheetRowHeight(sheet, row)}px">
+        <th class="sheet-row-number" scope="row" data-sheet-row="${row}">
+          <span>${row + 1}</span>
+          <button class="sheet-row-resize" type="button" aria-label="${row + 1}행 높이 조절"></button>
+        </th>
+        ${cells}
+      </tr>
+    `;
   }).join("");
-  table.innerHTML = `<thead><tr><th class="sheet-corner" aria-label="전체 시트"></th>${header}</tr></thead><tbody>${body}</tbody>`;
+  table.innerHTML = `<colgroup>${colgroup}</colgroup><thead><tr><th class="sheet-corner" aria-label="전체 시트"></th>${header}</tr></thead><tbody>${body}</tbody>`;
   table.querySelectorAll("[data-sheet-cell]").forEach((cell) => bindSheetCell(cell, sheet));
+  bindSheetResizeHandles(table, sheet);
 }
 
 function renderSheetCellMarkup(sheet, row, column) {
@@ -4365,6 +4451,111 @@ function renderSheetCellMarkup(sheet, row, column) {
   }
   const display = formatSheetCellDisplay(sheet, reference);
   return `<td class="${classes}" data-sheet-cell="${reference}"><input class="sheet-cell-input" type="text" aria-label="${reference}" value="${escapeAttr(display)}" title="${escapeAttr(raw.startsWith("=") ? raw : "")}" /></td>`;
+}
+
+function getSheetColumnWidth(sheet, column) {
+  return clampNumber(sheet.columnWidths?.[column], SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH, SHEET_DEFAULT_COLUMN_WIDTH);
+}
+
+function getSheetRowHeight(sheet, row) {
+  return clampNumber(sheet.rowHeights?.[row], SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT, SHEET_DEFAULT_ROW_HEIGHT);
+}
+
+function setSheetColumnWidth(sheet, column, width) {
+  sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
+  sheet.columnWidths[column] = clampNumber(width, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH, SHEET_DEFAULT_COLUMN_WIDTH);
+}
+
+function setSheetRowHeight(sheet, row, height) {
+  sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
+  sheet.rowHeights[row] = clampNumber(height, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT, SHEET_DEFAULT_ROW_HEIGHT);
+}
+
+function bindSheetResizeHandles(table, sheet) {
+  table.querySelectorAll(".sheet-column-resize").forEach((handle) => {
+    const column = Number(handle.closest("[data-sheet-column]")?.dataset.sheetColumn);
+    handle.addEventListener("pointerdown", (event) => startSheetColumnResize(event, table, sheet, column));
+    handle.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      autoFitSheetColumn(sheet, column);
+    });
+  });
+  table.querySelectorAll(".sheet-row-resize").forEach((handle) => {
+    const row = Number(handle.closest("[data-sheet-row]")?.dataset.sheetRow);
+    handle.addEventListener("pointerdown", (event) => startSheetRowResize(event, table, sheet, row));
+    handle.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      autoFitSheetRow(sheet, row);
+    });
+  });
+  table.querySelectorAll("[data-sheet-column]").forEach((header) => {
+    header.onclick = () => {
+      const column = Number(header.dataset.sheetColumn);
+      if (!Number.isInteger(column)) return;
+      const current = parseSheetCellReference(selectedSheetCell) || { row: 0 };
+      selectSheetCell(`${sheetColumnLabel(column)}${current.row + 1}`);
+    };
+  });
+  table.querySelectorAll("[data-sheet-row]").forEach((header) => {
+    header.onclick = () => {
+      const row = Number(header.dataset.sheetRow);
+      if (!Number.isInteger(row)) return;
+      const current = parseSheetCellReference(selectedSheetCell) || { column: 0 };
+      selectSheetCell(`${sheetColumnLabel(current.column)}${row + 1}`);
+    };
+  });
+}
+
+function startSheetColumnResize(event, table, sheet, column) {
+  if (!Number.isInteger(column)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const current = parseSheetCellReference(selectedSheetCell) || { row: 0 };
+  selectSheetCell(`${sheetColumnLabel(column)}${current.row + 1}`);
+  const startX = event.clientX;
+  const startWidth = getSheetColumnWidth(sheet, column);
+  const col = table.querySelector(`col[data-sheet-col-index="${column}"]`);
+  const move = (moveEvent) => {
+    const width = Math.max(SHEET_MIN_COLUMN_WIDTH, Math.min(SHEET_MAX_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX));
+    setSheetColumnWidth(sheet, column, width);
+    if (col) col.style.width = `${sheet.columnWidths[column]}px`;
+    el("sheetColumnWidthInput").value = String(sheet.columnWidths[column]);
+  };
+  const stop = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", stop);
+    saveState({ fastSave: true });
+    renderSheetList(sheet);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", stop, { once: true });
+}
+
+function startSheetRowResize(event, table, sheet, row) {
+  if (!Number.isInteger(row)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const current = parseSheetCellReference(selectedSheetCell) || { column: 0 };
+  selectSheetCell(`${sheetColumnLabel(current.column)}${row + 1}`);
+  const startY = event.clientY;
+  const startHeight = getSheetRowHeight(sheet, row);
+  const tr = table.querySelector(`tr[data-sheet-row-index="${row}"]`);
+  const move = (moveEvent) => {
+    const height = Math.max(SHEET_MIN_ROW_HEIGHT, Math.min(SHEET_MAX_ROW_HEIGHT, startHeight + moveEvent.clientY - startY));
+    setSheetRowHeight(sheet, row, height);
+    if (tr) tr.style.height = `${sheet.rowHeights[row]}px`;
+    el("sheetRowHeightInput").value = String(sheet.rowHeights[row]);
+  };
+  const stop = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", stop);
+    saveState({ fastSave: true });
+    renderSheetList(sheet);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", stop, { once: true });
 }
 
 function bindSheetCell(cell, sheet) {
@@ -4392,11 +4583,19 @@ function bindSheetCell(cell, sheet) {
   };
   input.onblur = () => renderSheetGrid(sheet);
   input.onkeydown = (event) => {
-    if (event.key !== "Enter") return;
+    const moves = {
+      Enter: [1, 0],
+      Tab: [0, event.shiftKey ? -1 : 1],
+      ArrowDown: [1, 0],
+      ArrowUp: [-1, 0],
+      ArrowRight: [0, 1],
+      ArrowLeft: [0, -1],
+    };
+    if (!moves[event.key]) return;
     event.preventDefault();
     sheet.cells[reference] = input.value;
     saveState();
-    moveSheetSelection(1, 0, sheet);
+    moveSheetSelection(moves[event.key][0], moves[event.key][1], sheet);
   };
 }
 
@@ -4421,16 +4620,77 @@ function moveSheetSelection(rowDelta, columnDelta, sheet = getCurrentSheet()) {
 
 function renderSelectedSheetCellControls(sheet) {
   const reference = clampSheetCellReference(selectedSheetCell, sheet);
+  const position = parseSheetCellReference(reference) || { row: 0, column: 0 };
   const format = getSheetCellFormat(sheet, reference);
   el("sheetCellReference").textContent = reference;
   el("sheetFormulaInput").value = String(sheet.cells[reference] ?? "");
   el("sheetCellType").value = format.type;
   el("sheetCellAlign").value = format.align;
+  el("sheetColumnWidthInput").value = String(getSheetColumnWidth(sheet, position.column));
+  el("sheetRowHeightInput").value = String(getSheetRowHeight(sheet, position.row));
   el("sheetBoldButton").classList.toggle("is-active", format.bold);
   el("sheetBoldButton").setAttribute("aria-pressed", String(format.bold));
   document.querySelectorAll("[data-sheet-fill]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.sheetFill === format.fill);
   });
+}
+
+function updateSelectedSheetColumnWidth(value) {
+  const sheet = getCurrentSheet();
+  const position = parseSheetCellReference(selectedSheetCell);
+  if (!position) return;
+  setSheetColumnWidth(sheet, position.column, value);
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function updateSelectedSheetRowHeight(value) {
+  const sheet = getCurrentSheet();
+  const position = parseSheetCellReference(selectedSheetCell);
+  if (!position) return;
+  setSheetRowHeight(sheet, position.row, value);
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function autoFitSelectedSheetCell() {
+  const sheet = getCurrentSheet();
+  const position = parseSheetCellReference(selectedSheetCell);
+  if (!position) return;
+  autoFitSheetColumn(sheet, position.column, { render: false });
+  autoFitSheetRow(sheet, position.row, { render: false });
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function autoFitSheetColumn(sheet, column, options = {}) {
+  if (!Number.isInteger(column)) return;
+  const columnValues = Array.from({ length: sheet.rows }, (_, row) => String(sheet.cells[`${sheetColumnLabel(column)}${row + 1}`] || ""));
+  const longestColumn = Math.max(sheetColumnLabel(column).length, ...columnValues.map((value) => value.length));
+  setSheetColumnWidth(sheet, column, Math.min(SHEET_MAX_COLUMN_WIDTH, Math.max(SHEET_DEFAULT_COLUMN_WIDTH, longestColumn * 9 + 34)));
+  if (options.render === false) return;
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function autoFitSheetRow(sheet, row, options = {}) {
+  if (!Number.isInteger(row)) return;
+  const rowValues = Array.from({ length: sheet.columns }, (_, column) => String(sheet.cells[`${sheetColumnLabel(column)}${row + 1}`] || ""));
+  const longestRow = Math.max(...rowValues.map((value) => value.length), 1);
+  setSheetRowHeight(sheet, row, Math.min(SHEET_MAX_ROW_HEIGHT, Math.max(SHEET_DEFAULT_ROW_HEIGHT, Math.ceil(longestRow / 22) * 18 + 22)));
+  if (options.render === false) return;
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
 }
 
 function updateSelectedSheetCellValue(value) {
@@ -5134,6 +5394,7 @@ function addMoneyRow(rows, options = {}) {
 }
 
 function removeMoneyRow(rows, index, options = {}) {
+  if (!confirmDelete("이 자금 항목을 삭제할까요? 연결된 우선업무도 함께 정리됩니다.")) return;
   const [removed] = rows.splice(index, 1);
   if (removed?.id) removeFinanceLinkedTask(removed.id, Boolean(options.fixed));
   if (!rows.length) rows.push(emptyMoneyItem(options.fixed ? "지출" : "지출"));
