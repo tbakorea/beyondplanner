@@ -3245,6 +3245,30 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   background: rgba(217, 229, 234, 0.24);
 }
 
+.appointment-row.is-current-time {
+  background: rgba(255, 241, 138, 0.24);
+  box-shadow: inset 3px 0 0 #d7372f;
+}
+
+.appointment-row.is-current-time .appointment-time {
+  color: #8c2d27;
+  font-weight: 900;
+}
+
+.appointment-time em {
+  display: inline-flex;
+  width: fit-content;
+  margin-top: 2px;
+  border-radius: 999px;
+  background: #d7372f;
+  color: white;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 900;
+  line-height: 1.3;
+}
+
 .appointment-row input[type="text"] {
   border: 0;
   border-radius: 0;
@@ -3309,6 +3333,35 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   background: rgba(255, 253, 248, 0.96);
   border-bottom: 1px solid rgba(235, 230, 218, 0.8);
   backdrop-filter: blur(10px);
+}
+
+.schedule-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.schedule-unit-toggle {
+  display: inline-flex;
+  gap: 3px;
+  padding: 2px;
+  border: 1px solid rgba(221, 216, 203, 0.95);
+  border-radius: 999px;
+  background: rgba(247, 245, 239, 0.86);
+}
+
+.schedule-unit-toggle .mini-action {
+  min-height: 24px;
+  padding: 3px 8px;
+  border-color: transparent;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.schedule-unit-toggle .mini-action.is-active {
+  background: var(--forest);
+  color: white;
 }
 
 .ai-suggest-popover {
@@ -3463,7 +3516,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .repeat-rule-row {
   display: grid;
-  grid-template-columns: 22px 42px minmax(150px, 1fr) 74px minmax(92px, auto) 24px;
+  grid-template-columns: 22px 42px minmax(150px, 1fr) 74px minmax(128px, auto) 24px;
   gap: 6px;
   align-items: center;
   width: max(100%, 560px);
@@ -3504,6 +3557,47 @@ input[type="checkbox"]:checked::after {
 
 .repeat-target-cell select {
   width: 100%;
+}
+
+.repeat-weekdays {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 30px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.repeat-weekdays::-webkit-scrollbar {
+  display: none;
+}
+
+.repeat-weekdays label {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  min-height: 28px;
+  padding: 2px 5px;
+  border: 1px solid rgba(221, 216, 203, 0.9);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.92);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.repeat-weekdays input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  border-width: 1.5px;
+  border-radius: 3px;
+}
+
+.repeat-weekdays input[type="checkbox"]:checked::after {
+  inset: -6px 0 0 1px;
+  font-size: 14px;
 }
 
 .repeat-target-static {
@@ -6272,6 +6366,8 @@ body.smartphone-device .privacy-blind-screen {
 
 .custom-sheet-grid thead th[data-sheet-column] {
   overflow: visible;
+  cursor: default;
+  user-select: none;
 }
 
 .custom-sheet-grid thead th.is-header-selected,
@@ -6279,6 +6375,38 @@ body.smartphone-device .privacy-blind-screen {
   background: rgba(174, 191, 177, 0.32);
   color: var(--forest);
   box-shadow: inset 0 0 0 2px rgba(38, 60, 52, 0.42);
+}
+
+.custom-sheet-grid thead th[data-sheet-column]::before,
+.custom-sheet-grid .sheet-row-number::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.custom-sheet-grid thead th[data-sheet-column]::before {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  border-right: 2px solid rgba(95, 118, 104, 0.32);
+}
+
+.custom-sheet-grid .sheet-row-number::before {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 10px;
+  border-bottom: 2px solid rgba(95, 118, 104, 0.32);
+}
+
+.custom-sheet-grid thead th[data-sheet-column]:hover::before,
+.custom-sheet-grid .sheet-row-number:hover::before,
+.custom-sheet-grid thead th.is-header-selected::before,
+.custom-sheet-grid .sheet-row-number.is-header-selected::before {
+  opacity: 1;
 }
 
 .custom-sheet-grid thead th[data-sheet-column] > span,
@@ -6316,8 +6444,8 @@ body.smartphone-device .privacy-blind-screen {
 
 .sheet-column-resize {
   top: 0;
-  right: -5px;
-  width: 10px;
+  right: -8px;
+  width: 16px;
   height: 100%;
   min-height: 0;
   cursor: col-resize;
@@ -6327,7 +6455,7 @@ body.smartphone-device .privacy-blind-screen {
   content: "";
   position: absolute;
   top: 6px;
-  right: 4px;
+  right: 7px;
   bottom: 6px;
   width: 2px;
   border-radius: 999px;
@@ -6337,9 +6465,9 @@ body.smartphone-device .privacy-blind-screen {
 .sheet-row-resize {
   left: 0;
   right: 0;
-  bottom: -5px;
+  bottom: -8px;
   width: 100%;
-  height: 10px;
+  height: 16px;
   min-height: 0;
   cursor: row-resize;
 }
@@ -6348,7 +6476,7 @@ body.smartphone-device .privacy-blind-screen {
   content: "";
   position: absolute;
   right: 6px;
-  bottom: 4px;
+  bottom: 7px;
   left: 6px;
   height: 2px;
   border-radius: 999px;
@@ -6368,6 +6496,24 @@ body.smartphone-device .privacy-blind-screen {
 .custom-sheet-grid th.is-header-selected .sheet-column-resize::after,
 .custom-sheet-grid th.is-header-selected .sheet-row-resize::after {
   background: rgba(38, 60, 52, 0.76);
+}
+
+body.is-resizing-sheet-column,
+body.is-resizing-sheet-column * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}
+
+body.is-resizing-sheet-row,
+body.is-resizing-sheet-row * {
+  cursor: row-resize !important;
+  user-select: none !important;
+}
+
+body.is-resizing-sheet-all,
+body.is-resizing-sheet-all * {
+  cursor: nwse-resize !important;
+  user-select: none !important;
 }
 
 @media (pointer: coarse) {

@@ -93,6 +93,7 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
   const minutes = 8 * 60 + i * 30;
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
+const hourlyTimeSlots = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
 
 const defaultProfileFields = {
   age: "",
@@ -155,6 +156,7 @@ let selectedSheetHeader = null;
 let sheetDetailOpen = false;
 let sheetSlideOpening = false;
 let sheetSwipeSuppressClick = false;
+let sheetHeaderResizeSuppressClick = false;
 let mobileDayFocusMode = "split";
 
 function el(id) {
@@ -426,6 +428,7 @@ function migrateState(nextState) {
   nextState.profile = { ...defaultProfileFields, ...(nextState.profile || {}) };
   nextState.calendar ||= {};
   nextState.calendar.events ||= [];
+  nextState.scheduleUnitChanges = normalizeScheduleUnitChanges(nextState.scheduleUnitChanges);
   nextState.repeats ||= {};
   nextState.repeats.priorityTasks ||= emptyRepeatRules(4);
   while (nextState.repeats.priorityTasks.length < 4) nextState.repeats.priorityTasks.push(emptyRepeatRule());
@@ -443,6 +446,8 @@ function migrateState(nextState) {
   Object.values(nextState.days || {}).forEach((day) => {
     day.memo ||= "";
     day.appointmentMerges ||= {};
+    day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
+    ensureAppointmentSlots(day, day.scheduleUnit);
     normalizeDayTasks(day);
   });
   return nextState;
@@ -854,6 +859,7 @@ function loadEmptyState() {
     repeats: {
       priorityTasks: emptyRepeatRules(4),
     },
+    scheduleUnitChanges: [],
     profile: { ...defaultProfileFields },
     notes: {
       projects: Array.from({ length: 8 }, () => ""),
@@ -1108,10 +1114,12 @@ function ensureWeek(key = weekKey()) {
 }
 
 function ensureDay(key = iso(selectedDate)) {
+  const scheduleUnit = getEffectiveScheduleUnit(key);
   state.days[key] ||= {
     tasks: { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) },
-    appointments: Object.fromEntries(timeSlots.map((slot) => [slot, ""])),
+    appointments: Object.fromEntries(getScheduleSlotsForUnit(scheduleUnit).map((slot) => [slot, ""])),
     appointmentMerges: {},
+    scheduleUnit,
     deletedRepeatIds: [],
     memo: "",
     record: "",
@@ -1120,11 +1128,90 @@ function ensureDay(key = iso(selectedDate)) {
     lesson: "",
   };
   state.days[key].memo ||= "";
+  state.days[key].scheduleUnit = normalizeScheduleUnit(state.days[key].scheduleUnit || scheduleUnit);
   state.days[key].appointmentMerges ||= {};
   state.days[key].deletedRepeatIds ||= [];
+  ensureAppointmentSlots(state.days[key]);
   normalizeDayTasks(state.days[key]);
   applyRepeatingPriorityTasks(key);
   return state.days[key];
+}
+
+function normalizeScheduleUnit(value) {
+  return value === "60" ? "60" : "30";
+}
+
+function normalizeScheduleUnitChanges(changes = []) {
+  if (!Array.isArray(changes)) return [];
+  return changes
+    .filter((change) => isValidIsoDate(change?.date))
+    .map((change) => ({ date: change.date, unit: normalizeScheduleUnit(change.unit) }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function getEffectiveScheduleUnit(key = iso(selectedDate)) {
+  state.scheduleUnitChanges = normalizeScheduleUnitChanges(state.scheduleUnitChanges);
+  const change = [...state.scheduleUnitChanges].reverse().find((item) => item.date <= key);
+  return normalizeScheduleUnit(change?.unit || "30");
+}
+
+function setScheduleUnitFromDate(unit, key = iso(selectedDate)) {
+  const nextUnit = normalizeScheduleUnit(unit);
+  state.scheduleUnitChanges = normalizeScheduleUnitChanges(state.scheduleUnitChanges).filter((change) => change.date !== key);
+  const previousUnit = getEffectiveScheduleUnit(previousDayKey(key));
+  if (nextUnit !== previousUnit) state.scheduleUnitChanges.push({ date: key, unit: nextUnit });
+  state.scheduleUnitChanges = normalizeScheduleUnitChanges(state.scheduleUnitChanges);
+  const nextChangeDate = state.scheduleUnitChanges.find((change) => change.date > key)?.date || "";
+  Object.entries(state.days || {}).forEach(([dayKey, day]) => {
+    if (dayKey < key) return;
+    if (nextChangeDate && dayKey >= nextChangeDate) return;
+    convertAppointmentUnit(day, day.scheduleUnit || getEffectiveScheduleUnit(dayKey), nextUnit);
+    day.scheduleUnit = nextUnit;
+    ensureAppointmentSlots(day, nextUnit);
+  });
+  const day = ensureDay(key);
+  convertAppointmentUnit(day, day.scheduleUnit || getEffectiveScheduleUnit(key), nextUnit);
+  day.scheduleUnit = nextUnit;
+  ensureAppointmentSlots(day, nextUnit);
+  saveState();
+  renderDay();
+}
+
+function previousDayKey(key) {
+  const date = parseDate(key);
+  if (Number.isNaN(date.getTime())) return "";
+  date.setDate(date.getDate() - 1);
+  return iso(date);
+}
+
+function getScheduleSlotsForUnit(unit = "30") {
+  return normalizeScheduleUnit(unit) === "60" ? hourlyTimeSlots : timeSlots;
+}
+
+function getScheduleSlotsForDay(day = ensureDay()) {
+  return getScheduleSlotsForUnit(day.scheduleUnit || getEffectiveScheduleUnit(iso(selectedDate)));
+}
+
+function ensureAppointmentSlots(day, unit = day?.scheduleUnit || "30") {
+  if (!day) return;
+  day.appointments ||= {};
+  getScheduleSlotsForUnit(unit).forEach((slot) => {
+    if (day.appointments[slot] === undefined) day.appointments[slot] = "";
+  });
+}
+
+function convertAppointmentUnit(day, fromUnit, toUnit) {
+  const previousUnit = normalizeScheduleUnit(fromUnit);
+  const nextUnit = normalizeScheduleUnit(toUnit);
+  if (!day?.appointments || previousUnit === nextUnit) return;
+  if (previousUnit === "30" && nextUnit === "60") {
+    hourlyTimeSlots.forEach((slot) => {
+      const halfSlot = `${slot.slice(0, 3)}30`;
+      const texts = [day.appointments[slot], day.appointments[halfSlot]].map((value) => String(value || "").trim()).filter(Boolean);
+      if (texts.length) day.appointments[slot] = [...new Set(texts)].join(" ");
+    });
+  }
+  day.appointmentMerges = {};
 }
 
 function createWeeklyPriorities(key, sourceState = null) {
@@ -1158,6 +1245,7 @@ function emptyRepeatRule() {
     priority: "A",
     frequency: "daily",
     weekday: baseDate.getDay(),
+    weekdays: weekdays.map((_, index) => index),
     monthday: baseDate.getDate(),
     month: baseDate.getMonth() + 1,
     startDate: iso(baseDate),
@@ -1176,6 +1264,9 @@ function normalizeRepeatRule(rule = {}) {
   rule.priority = ["A", "B", "C"].includes(rule.priority) ? rule.priority : "A";
   rule.frequency = frequencyValues.includes(rule.frequency) ? rule.frequency : "daily";
   rule.weekday = clampNumber(rule.weekday, 0, 6, baseDate.getDay());
+  rule.weekdays = Array.isArray(rule.weekdays) ? rule.weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [];
+  if (!rule.weekdays.length) rule.weekdays = rule.frequency === "daily" ? weekdays.map((_, index) => index) : [rule.weekday];
+  rule.weekdays = [...new Set(rule.weekdays)].sort((a, b) => a - b);
   rule.monthday = clampNumber(rule.monthday, 1, 31, baseDate.getDate());
   rule.month = clampNumber(rule.month, 1, 12, baseDate.getMonth() + 1);
   rule.startDate = isValidIsoDate(rule.startDate) ? rule.startDate : iso(baseDate);
@@ -1321,6 +1412,8 @@ function setupSelectors() {
   el("refreshCoach").onclick = () => renderCoach();
   el("aiTaskSuggest").onclick = () => renderTaskSuggestionPopover();
   el("aiScheduleSuggest").onclick = () => renderScheduleSuggestionPopover();
+  el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
+  el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
   el("aiMemoSuggest").onclick = () => applyMemoPrompt();
   el("closeSearchButton").onclick = closeSearch;
   el("closeCoachButton").onclick = closeCoach;
@@ -2947,6 +3040,7 @@ function renderDay() {
   renderDayCompass();
   renderTaskBoard(day);
   renderRepeatPriorityList();
+  renderScheduleUnitControls(day);
   renderAppointments(day);
   renderCoach();
   document.querySelectorAll("[data-day-field]").forEach((field) => {
@@ -2958,6 +3052,14 @@ function renderDay() {
   });
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   positionDaySwipe();
+}
+
+function renderScheduleUnitControls(day = ensureDay()) {
+  const unit = normalizeScheduleUnit(day.scheduleUnit || getEffectiveScheduleUnit(iso(selectedDate)));
+  el("scheduleUnit30")?.classList.toggle("is-active", unit === "30");
+  el("scheduleUnit60")?.classList.toggle("is-active", unit === "60");
+  el("scheduleUnit30")?.setAttribute("aria-pressed", String(unit === "30"));
+  el("scheduleUnit60")?.setAttribute("aria-pressed", String(unit === "60"));
 }
 
 function renderDailyPulse(day, tasks, carryovers, completion) {
@@ -2995,7 +3097,8 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
 }
 
 function getNextAppointmentSummary(day) {
-  const entries = timeSlots
+  const slots = getScheduleSlotsForDay(day);
+  const entries = slots
     .map((slot, index) => ({ slot, index, text: String(day.appointments?.[slot] || "").trim() }))
     .filter((entry) => entry.text);
   if (!entries.length) return { time: "비어 있음", text: "중요업무를 시간표에 배치하세요" };
@@ -3003,9 +3106,18 @@ function getNextAppointmentSummary(day) {
   const todayKey = iso(todayInPlanner());
   const now = new Date();
   const anchorMinutes = selectedKey === todayKey ? now.getHours() * 60 + now.getMinutes() : 0;
-  const next = entries.find((entry) => slotToMinutes(entry.slot) >= anchorMinutes) || entries[0];
+  const next = entries.find((entry) => {
+    const span = getAppointmentSpan(day, entry.slot);
+    const endMinutes = slotToMinutes(entry.slot) + span * getScheduleSlotIntervalMinutes(slots);
+    return selectedKey === todayKey ? endMinutes > anchorMinutes : slotToMinutes(entry.slot) >= anchorMinutes;
+  });
+  if (!next) {
+    return selectedKey === todayKey
+      ? { time: "완료", text: "남은 시간표 일정이 없습니다" }
+      : { time: "비어 있음", text: "이 날짜의 다음 일정을 선택하세요" };
+  }
   const span = getAppointmentSpan(day, next.slot);
-  const end = span > 1 ? `~${getAppointmentEndLabel(next.index, span)}` : "";
+  const end = span > 1 ? `~${getAppointmentEndLabel(next.index, span, slots)}` : "";
   return { time: `${next.slot}${end}`, text: next.text };
 }
 
@@ -3065,7 +3177,7 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
   const challenge = dailyChallengeText(openTasks, carryovers, appointments, goals, hash);
   return {
     title: `${season.label} 아침의 작은 용기`,
-    message: `${praise} ${season.tone} 프랭클린식으로 말하자면, 오늘의 장부에는 큰 결심보다 작은 실행을 먼저 적으십시오. ${challenge}`,
+    message: `${praise} ${season.shortTone} 오늘은 큰 결심보다 작은 실행 하나면 충분합니다. ${challenge}`,
     signals: [
       season.signal,
       `${appointments.length ? `시간표에 ${appointments.length}개의 일정이 있습니다.` : "시간표가 비어 있으니 중요한 일 하나를 먼저 고정할 수 있습니다."}`,
@@ -3080,6 +3192,7 @@ function getSeasonalContext(date) {
     return {
       label: "봄",
       tone: "새싹이 조용히 뿌리를 밀어 올리듯, 오늘도 보이지 않는 준비가 성과를 만듭니다.",
+      shortTone: "작게 시작해도 흐름은 자랍니다.",
       signal: "계절 감안: 봄의 리듬처럼 작게 시작해 꾸준히 밀고 가기 좋은 날입니다.",
     };
   }
@@ -3087,6 +3200,7 @@ function getSeasonalContext(date) {
     return {
       label: "여름",
       tone: "더운 계절에는 의욕보다 질서가 오래 갑니다.",
+      shortTone: "오늘은 의욕보다 질서가 오래 갑니다.",
       signal: "계절 감안: 여름의 열기에는 일을 줄이고 핵심을 선명히 하는 편이 유리합니다.",
     };
   }
@@ -3094,26 +3208,28 @@ function getSeasonalContext(date) {
     return {
       label: "가을",
       tone: "수확의 계절은 한 번의 도약보다 매일의 손질을 기억합니다.",
+      shortTone: "정리한 만큼 성과가 또렷해집니다.",
       signal: "계절 감안: 가을의 공기처럼 정리와 수확을 함께 생각하기 좋은 날입니다.",
     };
   }
   return {
     label: "겨울",
     tone: "차가운 계절일수록 따뜻한 원칙 하나가 하루를 붙듭니다.",
+    shortTone: "차분한 원칙 하나가 오늘을 붙듭니다.",
     signal: "계절 감안: 겨울의 속도처럼 차분히, 그러나 멈추지 않는 실행이 필요합니다.",
   };
 }
 
 function dailyChallengeText(openTasks, carryovers, appointments, goals, hash) {
-  if (carryovers.length >= 5) return "오늘의 도전은 더 많이 하는 것이 아니라, 남길 것과 보낼 것을 분명히 가르는 일입니다.";
-  if (openTasks.length >= 8) return "오늘의 도전은 용감하게 줄이는 것입니다. A업무 두 개만 남겨도 하루의 품격은 올라갑니다.";
-  if (!appointments.length && openTasks.length) return "오늘의 도전은 마음속 결심을 시간표 위 한 칸에 앉히는 것입니다.";
-  if (goals) return "오늘의 도전은 목표와 닿아 있는 작은 행동 하나를 끝까지 완성하는 것입니다.";
+  if (carryovers.length >= 5) return "남길 일과 보낼 일을 분명히 나누세요.";
+  if (openTasks.length >= 8) return "A업무 두 개만 남겨도 충분히 강합니다.";
+  if (!appointments.length && openTasks.length) return "중요한 일 하나를 시간표에 앉히세요.";
+  if (goals) return "목표와 닿은 작은 행동 하나를 끝내세요.";
   return pickByHash(
     [
-      "오늘의 도전은 첫 20분을 성실히 여는 것입니다.",
-      "오늘의 도전은 말보다 기록, 걱정보다 실행을 택하는 것입니다.",
-      "오늘의 도전은 가장 쉬운 일보다 가장 의미 있는 일을 먼저 대하는 것입니다.",
+      "첫 20분을 성실히 여세요.",
+      "걱정보다 실행을 택하세요.",
+      "가장 의미 있는 일을 먼저 대하세요.",
     ],
     hash + 7,
   );
@@ -3228,11 +3344,12 @@ function buildPlannerContext(key = iso(selectedDate)) {
   const carryovers = getCarryoverTasks(date).filter((task) => !isCarryoverCompletedOn(task, key));
   const openTasks = [...tasks.filter((task) => !shouldStrikeTask(task)), ...carryovers];
   const doneTasks = tasks.filter((task) => shouldStrikeTask(task));
-  const appointmentEntries = timeSlots
-    .filter((slot) => !isCoveredAppointmentSlot(day, slot))
+  const scheduleSlots = getScheduleSlotsForDay(day);
+  const appointmentEntries = scheduleSlots
+    .filter((slot) => !isCoveredAppointmentSlot(day, slot, scheduleSlots))
     .map((slot) => ({ slot, text: String(day.appointments?.[slot] || "").trim(), span: getAppointmentSpan(day, slot) }))
     .filter((entry) => entry.text);
-  const freeSlots = timeSlots.filter((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot));
+  const freeSlots = scheduleSlots.filter((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot, scheduleSlots));
   const profileText = Object.values(state.profile || {}).filter(Boolean).join(" ");
   const goals = [state.profile?.goals, state.foundation?.mission, ...(state.year?.goals || [])].filter(Boolean).join(" ");
   const weeklyFocus = ensureWeek(weekKey(date)).priorities?.filter((item) => item?.text && !item.done).map((item) => item.text) || [];
@@ -3452,8 +3569,9 @@ function applyScheduleSuggestion(suggestion) {
 }
 
 function pickScheduleTargetSlot(day, label = "") {
+  const slots = getScheduleSlotsForDay(day);
   const preferred = label.includes("오후") || label.includes("마감") ? ["16:00", "15:00", "14:00"] : label.includes("정리") ? ["13:30", "14:00", "15:00"] : ["09:00", "09:30", "10:00", "08:30"];
-  return preferred.find((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot)) || timeSlots.find((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot)) || "09:00";
+  return preferred.find((slot) => slots.includes(slot) && !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot, slots)) || slots.find((slot) => !day.appointments?.[slot] && !isCoveredAppointmentSlot(day, slot, slots)) || slots[0] || "09:00";
 }
 
 function applyMemoPrompt() {
@@ -3476,7 +3594,7 @@ function shouldRepeatOnDate(rule, date) {
   const key = iso(date);
   if (key < rule.startDate) return false;
   if (rule.deletedFrom && key >= rule.deletedFrom) return false;
-  if (rule.frequency === "daily") return true;
+  if (rule.frequency === "daily") return rule.weekdays.includes(date.getDay());
   if (rule.frequency === "weekly") return Number(rule.weekday) === date.getDay();
   if (rule.frequency === "monthly") return Number(rule.monthday) === date.getDate();
   if (rule.frequency === "yearly") return Number(rule.month) === date.getMonth() + 1 && Number(rule.monthday) === date.getDate();
@@ -3633,6 +3751,16 @@ function renderRepeatPriorityList() {
       saveState();
       renderAll();
     });
+    row.querySelectorAll(".repeat-weekdays input[type='checkbox']").forEach((checkbox) => {
+      checkbox.addEventListener("change", () => {
+        const selected = Array.from(row.querySelectorAll(".repeat-weekdays input[type='checkbox']:checked")).map((item) => Number(item.value));
+        rule.weekdays = selected.length ? selected : [Number(checkbox.value)];
+        if (!selected.length) checkbox.checked = true;
+        markRepeatRuleChanged(rule, index);
+        saveState();
+        renderAll();
+      });
+    });
     row.querySelector(".repeat-monthday")?.addEventListener("change", (event) => {
       markRepeatRuleChanged(rule, index);
       rule.monthday = Number(event.target.value);
@@ -3670,6 +3798,7 @@ function renderRepeatPriorityList() {
 
 function setRepeatAnchorToSelectedDate(rule) {
   const baseDate = selectedDate || todayInPlanner();
+  if (rule.frequency === "daily") rule.weekdays = weekdays.map((_, index) => index);
   if (rule.frequency === "weekly") rule.weekday = baseDate.getDay();
   if (rule.frequency === "monthly") rule.monthday = baseDate.getDate();
   if (rule.frequency === "yearly") {
@@ -3680,6 +3809,19 @@ function setRepeatAnchorToSelectedDate(rule) {
 }
 
 function renderRepeatTargetControl(rule) {
+  if (rule.frequency === "daily") {
+    const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : weekdays.map((_, index) => index);
+    return `
+      <div class="repeat-weekdays" aria-label="반복 요일 선택">
+        ${weekdays.map((day, dayIndex) => `
+          <label>
+            <input type="checkbox" value="${dayIndex}" ${selected.includes(dayIndex) ? "checked" : ""} />
+            <span>${day}</span>
+          </label>
+        `).join("")}
+      </div>
+    `;
+  }
   if (rule.frequency === "weekly") {
     return `
       <select class="repeat-weekday" aria-label="반복 요일">
@@ -4377,18 +4519,21 @@ function formatCarryoverDate(value) {
 function renderAppointments(day) {
   const node = el("appointmentList");
   node.innerHTML = "";
-  timeSlots.forEach((slot, slotIndex) => {
-    if (isCoveredAppointmentSlot(day, slot)) return;
+  const slots = getScheduleSlotsForDay(day);
+  ensureAppointmentSlots(day, day.scheduleUnit);
+  slots.forEach((slot, slotIndex) => {
+    if (isCoveredAppointmentSlot(day, slot, slots)) return;
     const span = getAppointmentSpan(day, slot);
-    const endSlot = getAppointmentEndLabel(slotIndex, span);
+    const endSlot = getAppointmentEndLabel(slotIndex, span, slots);
     const row = document.createElement("div");
     const value = day.appointments[slot] || "";
-    row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""}`;
+    const isCurrent = isCurrentAppointmentSlot(slotIndex, span, slots);
+    row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
     row.style.setProperty("--slot-span", span);
     const nextIndex = slotIndex + span;
-    const canMerge = nextIndex < timeSlots.length;
+    const canMerge = nextIndex < slots.length;
     row.innerHTML = `
-      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}</span>
+      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}${isCurrent ? `<em>지금</em>` : ""}</span>
       <input type="text" value="${escapeAttr(value)}" placeholder="일정" />
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
@@ -4436,31 +4581,48 @@ function renderAppointments(day) {
   });
 }
 
+function isCurrentAppointmentSlot(slotIndex, span, slots = timeSlots) {
+  if (iso(selectedDate) !== iso(todayInPlanner())) return false;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
+  const end = start + span * getScheduleSlotIntervalMinutes(slots);
+  return currentMinutes >= start && currentMinutes < end;
+}
+
 function getAppointmentSpan(day, slot) {
   return Math.max(1, Number(day.appointmentMerges?.[slot] || 1));
 }
 
-function isCoveredAppointmentSlot(day, slot) {
-  const index = timeSlots.indexOf(slot);
-  return timeSlots.some((start, startIndex) => {
+function isCoveredAppointmentSlot(day, slot, slots = getScheduleSlotsForDay(day)) {
+  const index = slots.indexOf(slot);
+  return slots.some((start, startIndex) => {
     if (start === slot || startIndex >= index) return false;
     const span = getAppointmentSpan(day, start);
     return startIndex + span > index;
   });
 }
 
-function getAppointmentEndLabel(slotIndex, span) {
-  const minutes = 8 * 60 + (slotIndex + span) * 30;
+function getAppointmentEndLabel(slotIndex, span, slots = timeSlots) {
+  const start = slotToMinutes(slots[slotIndex] || slots[0] || "08:00");
+  const minutes = start + span * getScheduleSlotIntervalMinutes(slots);
+  if (minutes >= 1440) return "24:00";
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 }
 
+function getScheduleSlotIntervalMinutes(slots = timeSlots) {
+  if (slots.length < 2) return 30;
+  return Math.max(30, slotToMinutes(slots[1]) - slotToMinutes(slots[0]));
+}
+
 function mergeAppointmentSlot(day, slot) {
-  const startIndex = timeSlots.indexOf(slot);
+  const slots = getScheduleSlotsForDay(day);
+  const startIndex = slots.indexOf(slot);
   if (startIndex < 0) return;
   const span = getAppointmentSpan(day, slot);
   const nextIndex = startIndex + span;
-  if (nextIndex >= timeSlots.length) return;
-  const nextSlot = timeSlots[nextIndex];
+  if (nextIndex >= slots.length) return;
+  const nextSlot = slots[nextIndex];
   const nextSpan = getAppointmentSpan(day, nextSlot);
   const currentText = day.appointments[slot] || "";
   const nextText = day.appointments[nextSlot] || "";
@@ -4474,14 +4636,14 @@ function mergeAppointmentSlot(day, slot) {
 }
 
 function mergeAppointmentRange(day, range) {
-  const ranges = {
-    all: [0, timeSlots.length],
-    am: [0, 8],
-    pm: [8, timeSlots.length - 8],
-  };
+  const slots = getScheduleSlotsForDay(day);
+  const isHourly = normalizeScheduleUnit(day.scheduleUnit) === "60";
+  const ranges = isHourly
+    ? { all: [0, slots.length], am: [0, 12], pm: [12, 12] }
+    : { all: [0, slots.length], am: [0, 8], pm: [8, slots.length - 8] };
   const [startIndex, span] = ranges[range] || ranges.all;
-  const startSlot = timeSlots[startIndex];
-  const covered = timeSlots.slice(startIndex, startIndex + span);
+  const startSlot = slots[startIndex];
+  const covered = slots.slice(startIndex, startIndex + span);
   const mergedText = covered.map((slot) => day.appointments[slot]).filter(Boolean).join(" ");
   covered.forEach((slot) => {
     if (slot !== startSlot) {
@@ -4855,14 +5017,50 @@ function bindSheetResizeHandles(table, sheet) {
     });
   });
   table.querySelectorAll("[data-sheet-column]").forEach((header) => {
+    header.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".sheet-column-resize")) return;
+      const column = Number(header.dataset.sheetColumn);
+      if (!Number.isInteger(column)) return;
+      if (!isNearSheetHeaderEdge(event, header, "column")) return;
+      sheetHeaderResizeSuppressClick = true;
+      startSheetColumnResize(event, table, sheet, column);
+    });
+    header.addEventListener("dblclick", (event) => {
+      const column = Number(header.dataset.sheetColumn);
+      if (!Number.isInteger(column) || !isNearSheetHeaderEdge(event, header, "column")) return;
+      event.preventDefault();
+      autoFitSheetColumn(sheet, column);
+    });
     header.onclick = () => {
+      if (sheetHeaderResizeSuppressClick) {
+        sheetHeaderResizeSuppressClick = false;
+        return;
+      }
       const column = Number(header.dataset.sheetColumn);
       if (!Number.isInteger(column)) return;
       selectSheetHeader("column", column);
     };
   });
   table.querySelectorAll("[data-sheet-row]").forEach((header) => {
+    header.addEventListener("pointerdown", (event) => {
+      if (event.target.closest(".sheet-row-resize")) return;
+      const row = Number(header.dataset.sheetRow);
+      if (!Number.isInteger(row)) return;
+      if (!isNearSheetHeaderEdge(event, header, "row")) return;
+      sheetHeaderResizeSuppressClick = true;
+      startSheetRowResize(event, table, sheet, row);
+    });
+    header.addEventListener("dblclick", (event) => {
+      const row = Number(header.dataset.sheetRow);
+      if (!Number.isInteger(row) || !isNearSheetHeaderEdge(event, header, "row")) return;
+      event.preventDefault();
+      autoFitSheetRow(sheet, row);
+    });
     header.onclick = () => {
+      if (sheetHeaderResizeSuppressClick) {
+        sheetHeaderResizeSuppressClick = false;
+        return;
+      }
       const row = Number(header.dataset.sheetRow);
       if (!Number.isInteger(row)) return;
       selectSheetHeader("row", row);
@@ -4870,10 +5068,18 @@ function bindSheetResizeHandles(table, sheet) {
   });
 }
 
+function isNearSheetHeaderEdge(event, header, axis) {
+  const rect = header.getBoundingClientRect();
+  const edgeSize = window.matchMedia("(pointer: coarse)").matches ? 18 : 10;
+  if (axis === "column") return rect.right - event.clientX <= edgeSize;
+  return rect.bottom - event.clientY <= edgeSize;
+}
+
 function startSheetColumnResize(event, table, sheet, column) {
   if (!Number.isInteger(column)) return;
   event.preventDefault();
   event.stopPropagation();
+  document.body.classList.add("is-resizing-sheet-column");
   selectSheetHeader("column", column);
   const startX = event.clientX;
   const startWidth = getSheetColumnWidth(sheet, column);
@@ -4886,8 +5092,12 @@ function startSheetColumnResize(event, table, sheet, column) {
   const stop = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", stop);
+    document.body.classList.remove("is-resizing-sheet-column");
     saveState({ fastSave: true });
     renderSheetList(sheet);
+    window.setTimeout(() => {
+      sheetHeaderResizeSuppressClick = false;
+    }, 80);
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", stop, { once: true });
@@ -4897,6 +5107,7 @@ function startSheetRowResize(event, table, sheet, row) {
   if (!Number.isInteger(row)) return;
   event.preventDefault();
   event.stopPropagation();
+  document.body.classList.add("is-resizing-sheet-row");
   selectSheetHeader("row", row);
   const startY = event.clientY;
   const startHeight = getSheetRowHeight(sheet, row);
@@ -4909,8 +5120,12 @@ function startSheetRowResize(event, table, sheet, row) {
   const stop = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", stop);
+    document.body.classList.remove("is-resizing-sheet-row");
     saveState({ fastSave: true });
     renderSheetList(sheet);
+    window.setTimeout(() => {
+      sheetHeaderResizeSuppressClick = false;
+    }, 80);
   };
   window.addEventListener("pointermove", move);
   window.addEventListener("pointerup", stop, { once: true });
@@ -4919,6 +5134,7 @@ function startSheetRowResize(event, table, sheet, row) {
 function startSheetAllResize(event, table, sheet) {
   event.preventDefault();
   event.stopPropagation();
+  document.body.classList.add("is-resizing-sheet-all");
   selectSheetCell("A1");
   const startX = event.clientX;
   const startY = event.clientY;
@@ -4939,6 +5155,7 @@ function startSheetAllResize(event, table, sheet) {
   const stop = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", stop);
+    document.body.classList.remove("is-resizing-sheet-all");
     saveState({ fastSave: true });
     renderSheetGrid(sheet);
     renderSelectedSheetCellControls(sheet);
