@@ -1193,11 +1193,7 @@ function setupSelectors() {
   el("removeSheetRowButton").onclick = () => resizeCurrentSheet("row", -1);
   el("addSheetColumnButton").onclick = () => resizeCurrentSheet("column", 1);
   el("removeSheetColumnButton").onclick = () => resizeCurrentSheet("column", -1);
-  el("sheetColumnWidthInput").onchange = (event) => updateSelectedSheetColumnWidth(event.target.value);
-  el("sheetRowHeightInput").onchange = (event) => updateSelectedSheetRowHeight(event.target.value);
   el("sheetAutoFitButton").onclick = autoFitSelectedSheetCell;
-  el("sheetAllColumnWidthInput").onchange = (event) => updateAllSheetColumnWidths(event.target.value);
-  el("sheetAllRowHeightInput").onchange = (event) => updateAllSheetRowHeights(event.target.value);
   el("sheetTitleRowButton").onclick = () => toggleSheetTitleAxis("row");
   el("sheetTitleColumnButton").onclick = () => toggleSheetTitleAxis("column");
   el("sheetNameInput").oninput = (event) => renameCurrentSheet(event.target.value);
@@ -4442,7 +4438,18 @@ function renderSheetGrid(sheet) {
       </tr>
     `;
   }).join("");
-  table.innerHTML = `<colgroup>${colgroup}</colgroup><thead><tr><th class="sheet-corner" aria-label="전체 시트"></th>${header}</tr></thead><tbody>${body}</tbody>`;
+  table.innerHTML = `
+    <colgroup>${colgroup}</colgroup>
+    <thead>
+      <tr>
+        <th class="sheet-corner" aria-label="전체 시트">
+          <button class="sheet-all-resize" type="button" aria-label="전체 셀 폭과 높이 조절"></button>
+        </th>
+        ${header}
+      </tr>
+    </thead>
+    <tbody>${body}</tbody>
+  `;
   table.querySelectorAll("[data-sheet-cell]").forEach((cell) => bindSheetCell(cell, sheet));
   bindSheetResizeHandles(table, sheet);
 }
@@ -4487,6 +4494,12 @@ function setSheetRowHeight(sheet, row, height) {
 }
 
 function bindSheetResizeHandles(table, sheet) {
+  table.querySelector(".sheet-all-resize")?.addEventListener("pointerdown", (event) => startSheetAllResize(event, table, sheet));
+  table.querySelector(".sheet-all-resize")?.addEventListener("dblclick", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    autoFitAllSheetCells(sheet);
+  });
   table.querySelectorAll(".sheet-column-resize").forEach((handle) => {
     const column = Number(handle.closest("[data-sheet-column]")?.dataset.sheetColumn);
     handle.addEventListener("pointerdown", (event) => startSheetColumnResize(event, table, sheet, column));
@@ -4536,7 +4549,6 @@ function startSheetColumnResize(event, table, sheet, column) {
     const width = Math.max(SHEET_MIN_COLUMN_WIDTH, Math.min(SHEET_MAX_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX));
     setSheetColumnWidth(sheet, column, width);
     if (col) col.style.width = `${sheet.columnWidths[column]}px`;
-    el("sheetColumnWidthInput").value = String(sheet.columnWidths[column]);
   };
   const stop = () => {
     window.removeEventListener("pointermove", move);
@@ -4561,12 +4573,43 @@ function startSheetRowResize(event, table, sheet, row) {
     const height = Math.max(SHEET_MIN_ROW_HEIGHT, Math.min(SHEET_MAX_ROW_HEIGHT, startHeight + moveEvent.clientY - startY));
     setSheetRowHeight(sheet, row, height);
     if (tr) tr.style.height = `${sheet.rowHeights[row]}px`;
-    el("sheetRowHeightInput").value = String(sheet.rowHeights[row]);
   };
   const stop = () => {
     window.removeEventListener("pointermove", move);
     window.removeEventListener("pointerup", stop);
     saveState({ fastSave: true });
+    renderSheetList(sheet);
+  };
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", stop, { once: true });
+}
+
+function startSheetAllResize(event, table, sheet) {
+  event.preventDefault();
+  event.stopPropagation();
+  selectSheetCell("A1");
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const startWidth = getSheetColumnWidth(sheet, 0);
+  const startHeight = getSheetRowHeight(sheet, 0);
+  const move = (moveEvent) => {
+    const width = Math.max(SHEET_MIN_COLUMN_WIDTH, Math.min(SHEET_MAX_COLUMN_WIDTH, startWidth + moveEvent.clientX - startX));
+    const height = Math.max(SHEET_MIN_ROW_HEIGHT, Math.min(SHEET_MAX_ROW_HEIGHT, startHeight + moveEvent.clientY - startY));
+    sheet.columnWidths = Array.from({ length: sheet.columns }, () => width);
+    sheet.rowHeights = Array.from({ length: sheet.rows }, () => height);
+    table.querySelectorAll("col[data-sheet-col-index]").forEach((col) => {
+      col.style.width = `${width}px`;
+    });
+    table.querySelectorAll("tr[data-sheet-row-index]").forEach((row) => {
+      row.style.height = `${height}px`;
+    });
+  };
+  const stop = () => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", stop);
+    saveState({ fastSave: true });
+    renderSheetGrid(sheet);
+    renderSelectedSheetCellControls(sheet);
     renderSheetList(sheet);
   };
   window.addEventListener("pointermove", move);
@@ -4641,10 +4684,6 @@ function renderSelectedSheetCellControls(sheet) {
   el("sheetFormulaInput").value = String(sheet.cells[reference] ?? "");
   el("sheetCellType").value = format.type;
   el("sheetCellAlign").value = format.align;
-  el("sheetColumnWidthInput").value = String(getSheetColumnWidth(sheet, position.column));
-  el("sheetRowHeightInput").value = String(getSheetRowHeight(sheet, position.row));
-  el("sheetAllColumnWidthInput").value = commonSheetSizeValue(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH);
-  el("sheetAllRowHeightInput").value = commonSheetSizeValue(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT);
   el("sheetTitleRowButton").classList.toggle("is-active", Boolean(sheet.titleRows));
   el("sheetTitleColumnButton").classList.toggle("is-active", Boolean(sheet.titleColumns));
   el("sheetTitleRowButton").setAttribute("aria-pressed", String(Boolean(sheet.titleRows)));
@@ -4654,13 +4693,6 @@ function renderSelectedSheetCellControls(sheet) {
   document.querySelectorAll("[data-sheet-fill]").forEach((button) => {
     button.classList.toggle("is-active", button.dataset.sheetFill === format.fill);
   });
-}
-
-function commonSheetSizeValue(values, count, fallback) {
-  const normalized = Array.isArray(values) && values.length ? values.slice(0, count) : Array.from({ length: count }, () => fallback);
-  if (!normalized.length) return "";
-  const first = Number(normalized[0]) || fallback;
-  return normalized.every((value) => Number(value) === first) ? String(first) : "";
 }
 
 function updateSelectedSheetColumnWidth(value) {
@@ -4745,6 +4777,23 @@ function autoFitSheetRow(sheet, row, options = {}) {
   const longestRow = Math.max(...rowValues.map((value) => value.length), 1);
   setSheetRowHeight(sheet, row, Math.min(SHEET_MAX_ROW_HEIGHT, Math.max(SHEET_DEFAULT_ROW_HEIGHT, Math.ceil(longestRow / 22) * 18 + 22)));
   if (options.render === false) return;
+  saveState({ fastSave: true });
+  renderSheetGrid(sheet);
+  renderSelectedSheetCellControls(sheet);
+  renderSheetList(sheet);
+}
+
+function autoFitAllSheetCells(sheet) {
+  sheet.columnWidths = Array.from({ length: sheet.columns }, (_, column) => {
+    const values = Array.from({ length: sheet.rows }, (_, row) => String(sheet.cells[`${sheetColumnLabel(column)}${row + 1}`] || ""));
+    const longest = Math.max(sheetColumnLabel(column).length, ...values.map((value) => value.length));
+    return Math.min(SHEET_MAX_COLUMN_WIDTH, Math.max(SHEET_DEFAULT_COLUMN_WIDTH, longest * 9 + 34));
+  });
+  sheet.rowHeights = Array.from({ length: sheet.rows }, (_, row) => {
+    const values = Array.from({ length: sheet.columns }, (_, column) => String(sheet.cells[`${sheetColumnLabel(column)}${row + 1}`] || ""));
+    const longest = Math.max(...values.map((value) => value.length), 1);
+    return Math.min(SHEET_MAX_ROW_HEIGHT, Math.max(SHEET_DEFAULT_ROW_HEIGHT, Math.ceil(longest / 22) * 18 + 22));
+  });
   saveState({ fastSave: true });
   renderSheetGrid(sheet);
   renderSelectedSheetCellControls(sheet);

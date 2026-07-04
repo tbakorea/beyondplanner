@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260704f" />
+    <link rel="stylesheet" href="./styles.css?v=20260704g" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -458,18 +458,10 @@
                     <button id="addSheetColumnButton" type="button" title="마지막에 열 추가">+ 열</button>
                     <button id="removeSheetColumnButton" type="button" title="마지막 열 삭제">− 열</button>
                   </div>
-                  <div class="sheet-tool-group sheet-size-tools" aria-label="셀 크기">
-                    <label>폭 <input id="sheetColumnWidthInput" type="number" min="64" max="360" step="4" aria-label="선택 열 폭" /></label>
-                    <label>높이 <input id="sheetRowHeightInput" type="number" min="28" max="160" step="2" aria-label="선택 행 높이" /></label>
-                    <button id="sheetAutoFitButton" type="button" title="선택 셀 내용에 맞춰 폭과 높이 조정">자동맞춤</button>
-                  </div>
-                  <div class="sheet-tool-group sheet-size-tools" aria-label="전체 셀 크기">
-                    <label>전체폭 <input id="sheetAllColumnWidthInput" type="number" min="64" max="360" step="4" aria-label="전체 열 폭" /></label>
-                    <label>전체높이 <input id="sheetAllRowHeightInput" type="number" min="28" max="160" step="2" aria-label="전체 행 높이" /></label>
-                  </div>
                   <div class="sheet-tool-group sheet-header-tools" aria-label="제목 고정">
                     <button id="sheetTitleRowButton" type="button" aria-pressed="false" title="첫 행을 제목행으로 고정">제목행</button>
                     <button id="sheetTitleColumnButton" type="button" aria-pressed="false" title="첫 열을 제목열로 고정">제목열</button>
+                    <button id="sheetAutoFitButton" type="button" title="선택 셀 내용에 맞춰 폭과 높이 조정">맞춤</button>
                   </div>
                   <div class="sheet-tool-group">
                     <select id="sheetCellType" aria-label="셀 형식">
@@ -580,6 +572,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260704f"></script>
+    <script src="./app.js?v=20260704g"></script>
   </body>
 </html>
