@@ -4619,12 +4619,13 @@ function renderAppointments(day) {
     const row = document.createElement("div");
     const value = day.appointments[slot] || "";
     const isCurrent = isCurrentAppointmentSlot(slotIndex, span, slots);
+    const currentSegment = span > 1 && isCurrent ? getCurrentAppointmentSegmentLabel(slotIndex, span, slots) : "";
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
     row.style.setProperty("--slot-span", span);
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
     row.innerHTML = `
-      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}${isCurrent ? `<em>지금</em>` : ""}</span>
+      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentSegment ? `<em class="appointment-current-segment">${currentSegment}</em>` : ""}<b>${endSlot}</b>` : slot}${isCurrent && !currentSegment ? `<em>지금</em>` : ""}</span>
       <input type="text" value="${escapeAttr(value)}" placeholder="일정" />
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
@@ -4681,6 +4682,24 @@ function isCurrentAppointmentSlot(slotIndex, span, slots = timeSlots) {
   return currentMinutes >= start && currentMinutes < end;
 }
 
+function getCurrentAppointmentSegmentLabel(slotIndex, span, slots = timeSlots) {
+  if (iso(selectedDate) !== iso(todayInPlanner())) return "";
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
+  const end = start + span * getScheduleSlotIntervalMinutes(slots);
+  if (currentMinutes < start || currentMinutes >= end) return "";
+  const segmentStart = Math.max(start, Math.floor(currentMinutes / 30) * 30);
+  const segmentEnd = Math.min(end, segmentStart + 30);
+  return `${minutesToTimeLabel(segmentStart)}-${minutesToTimeLabel(segmentEnd)}`;
+}
+
+function minutesToTimeLabel(minutes) {
+  if (minutes >= 1440) return "24:00";
+  const normalized = Math.max(0, minutes);
+  return `${String(Math.floor(normalized / 60)).padStart(2, "0")}:${String(normalized % 60).padStart(2, "0")}`;
+}
+
 function getAppointmentSpan(day, slot) {
   return Math.max(1, Number(day.appointmentMerges?.[slot] || 1));
 }
@@ -4697,8 +4716,7 @@ function isCoveredAppointmentSlot(day, slot, slots = getScheduleSlotsForDay(day)
 function getAppointmentEndLabel(slotIndex, span, slots = timeSlots) {
   const start = slotToMinutes(slots[slotIndex] || slots[0] || "08:00");
   const minutes = start + span * getScheduleSlotIntervalMinutes(slots);
-  if (minutes >= 1440) return "24:00";
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+  return minutesToTimeLabel(minutes);
 }
 
 function getScheduleSlotIntervalMinutes(slots = timeSlots) {
