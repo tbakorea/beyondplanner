@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705b" />
+    <link rel="stylesheet" href="./styles.css?v=20260705c" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -285,6 +285,22 @@
             </div>
           </div>
           <section class="daily-pulse" id="dailyPulse" aria-label="오늘 실행 요약"></section>
+          <nav class="ceo-day-guides" aria-label="CEO mode 일간 페이지 안내">
+            <button type="button" data-day-panel-jump="week">
+              <span>‹</span>
+              <strong>위클리 콤파스</strong>
+              <small>왼쪽 페이지</small>
+            </button>
+            <button type="button" data-day-panel-jump="main" aria-current="page">
+              <strong>오늘 실행</strong>
+              <small>우선업무 · 시간표</small>
+            </button>
+            <button type="button" data-day-panel-jump="memo">
+              <strong>메모 페이지</strong>
+              <small>오른쪽 페이지</small>
+              <span>›</span>
+            </button>
+          </nav>
           <section class="onboarding-panel" id="onboardingPanel" hidden>
             <div>
               <p class="eyebrow">Start</p>
@@ -605,6 +621,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260704j"></script>
+    <script src="./app.js?v=20260705a"></script>
   </body>
 </html>

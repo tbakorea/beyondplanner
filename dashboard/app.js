@@ -1376,6 +1376,9 @@ function setupSelectors() {
   el("repeatManagerDialog").addEventListener("click", (event) => {
     if (event.target.id === "repeatManagerDialog") closeRepeatManager();
   });
+  document.querySelectorAll("[data-day-panel-jump]").forEach((button) => {
+    button.onclick = () => scrollDayPanel(button.dataset.dayPanelJump);
+  });
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
@@ -2657,6 +2660,7 @@ function settleDayPanelScroll() {
   const closestIndex = dayPanelOrder.indexOf(closest);
   if (currentIndex < 0 || closestIndex < 0) {
     currentDayPanel = closest;
+    updateDayGuideState();
     return;
   }
   const jump = closestIndex - currentIndex;
@@ -2665,6 +2669,7 @@ function settleDayPanelScroll() {
     return;
   }
   currentDayPanel = closest;
+  updateDayGuideState();
 }
 
 function setupWheelDayNavigation() {
@@ -4058,6 +4063,8 @@ function positionDaySwipe(panel = "main", force = false) {
   const key = `${iso(selectedDate)}:${panel}`;
   if (!force && daySwipeKey === key && panel === "main") return;
   daySwipeKey = key;
+  currentDayPanel = panel;
+  updateDayGuideState();
   window.requestAnimationFrame(() => scrollDayPanel(panel, "auto"));
 }
 
@@ -4067,8 +4074,18 @@ function scrollDayPanel(panel, behavior = "smooth") {
   const target = node.querySelector(`[data-panel="${panel}"]`);
   if (!target) return;
   currentDayPanel = panel;
+  updateDayGuideState();
   window.requestAnimationFrame(() => {
     node.scrollTo({ left: target.offsetLeft, behavior });
+  });
+}
+
+function updateDayGuideState() {
+  document.querySelectorAll("[data-day-panel-jump]").forEach((button) => {
+    const active = button.dataset.dayPanelJump === currentDayPanel;
+    button.classList.toggle("is-active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
   });
 }
 
