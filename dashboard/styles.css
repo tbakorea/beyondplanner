@@ -1784,6 +1784,64 @@ body.is-privacy-blind .app-shell {
   margin: -2px 0 12px;
 }
 
+.planner-options-panel {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(250, 248, 242, 0.72)),
+    rgba(255, 253, 248, 0.78);
+}
+
+.planner-option-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.planner-option-item,
+.planner-option-note {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid rgba(221, 216, 203, 0.72);
+  border-radius: 10px;
+  background: rgba(255, 253, 248, 0.72);
+  padding: 11px 12px;
+}
+
+.planner-option-item strong,
+.planner-option-note strong {
+  display: block;
+  color: var(--forest);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.planner-option-item small,
+.planner-option-note small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.planner-option-note {
+  grid-template-columns: minmax(0, 1fr);
+  border-style: dashed;
+  background: rgba(247, 245, 239, 0.58);
+}
+
+.settings-unit-toggle {
+  min-width: 126px;
+}
+
+.settings-unit-toggle .mini-action {
+  min-width: 56px;
+  min-height: 31px;
+  font-size: 12px;
+}
+
 .foundation-grid,
 .year-layout,
 .month-layout,
@@ -8809,5 +8867,86 @@ body.ceo-mode .daily-panel-chip {
     height: 20px;
     min-height: 20px;
     font-size: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .planner-option-item {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+
+  .settings-unit-toggle {
+    width: fit-content;
+    min-width: 0;
+  }
+
+  .settings-unit-toggle .mini-action {
+    min-width: 62px;
+    min-height: 34px;
+    font-size: 13px;
+  }
+}
+
+/* Daily list finishing: stronger titles, no empty divider under title, clear bottom room. */
+.day-task-panel > .panel-title-row,
+.day-schedule-panel > .panel-title-row {
+  border-bottom: 0;
+}
+
+.day-task-panel > .panel-title-row > span:first-child,
+.day-schedule-panel > .panel-title-row > span:first-child {
+  font-size: 18px;
+  font-weight: 930;
+}
+
+.day-task-panel,
+.day-schedule-panel {
+  padding-bottom: 22px;
+}
+
+.day-task-panel::after,
+.day-schedule-panel::after {
+  content: "";
+  display: block;
+  height: 1px;
+  margin-top: 14px;
+  background: rgba(221, 216, 203, 0.7);
+}
+
+.task-board,
+.appointment-list {
+  padding-bottom: 72px;
+  scroll-padding-bottom: 72px;
+}
+
+@media (max-width: 640px) {
+  .day-swipe .day-task-panel > h3,
+  .day-swipe .day-schedule-panel > h3 {
+    margin-bottom: 2px;
+    border-bottom: 0;
+    font-size: 15px;
+  }
+
+  .day-task-panel > .panel-title-row > span:first-child,
+  .day-schedule-panel > .panel-title-row > span:first-child {
+    font-size: 16px;
+    line-height: 1.15;
+  }
+
+  .day-schedule-panel > .panel-title-row > span:first-child {
+    max-width: none;
+    text-overflow: clip;
+  }
+
+  .task-board,
+  .appointment-list {
+    padding-bottom: 86px;
+    scroll-padding-bottom: 86px;
+  }
+
+  .day-task-panel,
+  .day-schedule-panel {
+    padding-bottom: 24px;
   }
 }

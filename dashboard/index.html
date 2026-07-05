@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705k" />
+    <link rel="stylesheet" href="./styles.css?v=20260705m" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -136,6 +136,25 @@
             <button type="button" data-settings-view="search">검색/질문</button>
           </div>
           <div class="foundation-grid">
+            <article class="panel span-12 planner-options-panel">
+              <h3>화면 및 입력 옵션</h3>
+              <div class="planner-option-grid">
+                <div class="planner-option-item">
+                  <span>
+                    <strong>시간표 단위</strong>
+                    <small>오늘부터 적용됩니다. 이전 날짜는 당시 설정을 유지합니다.</small>
+                  </span>
+                  <span class="schedule-unit-toggle settings-unit-toggle" aria-label="시간 단위 선택">
+                    <button class="mini-action" id="scheduleUnit30" type="button">30분</button>
+                    <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
+                  </span>
+                </div>
+                <div class="planner-option-note">
+                  <strong>다음 정리 후보</strong>
+                  <small>시트 고급 서식, 백업/복원, 반복업무 세부조건, 자금 반복 종료조건은 실행 화면에서 덜어내 설정/관리로 모읍니다.</small>
+                </div>
+              </div>
+            </article>
             <article class="panel span-6">
               <h3>개인 사명 선언</h3>
               <textarea data-store="foundation.mission" rows="10" placeholder="나의 선택 기준, 삶의 방향, 지키고 싶은 원칙을 적습니다."></textarea>
@@ -325,12 +344,8 @@
               </article>
               <article class="panel day-schedule-panel">
                 <h3 class="panel-title-row">
-                  <span>시간표</span>
+                  <span>시간별 일정</span>
                   <span class="schedule-title-actions">
-                    <span class="schedule-unit-toggle" aria-label="시간 단위 선택">
-                      <button class="mini-action" id="scheduleUnit30" type="button">30분</button>
-                      <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
-                    </span>
                     <button class="mini-action" id="aiScheduleSuggest" type="button">AI</button>
                   </span>
                 </h3>
