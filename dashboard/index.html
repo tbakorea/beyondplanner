@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705c" />
+    <link rel="stylesheet" href="./styles.css?v=20260705d" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -261,11 +261,13 @@
             <div class="daily-heading">
               <p class="eyebrow">Daily Page</p>
               <div class="day-date-nav" id="dailyDateSwipeZone" aria-label="일간 날짜 이동">
+                <button class="daily-panel-chip" type="button" data-day-panel-jump="week" aria-label="위클리 콤파스 보기">위클리</button>
                 <button class="icon-button compact" id="dailyPrevDay" title="어제로 이동" type="button">‹</button>
                 <button class="daily-date-button" id="dailyCalendarToggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="달력에서 날짜 선택">
                   <span id="dayTitle">일간 페이지</span>
                 </button>
                 <button class="icon-button compact" id="dailyNextDay" title="내일로 이동" type="button">›</button>
+                <button class="daily-panel-chip" type="button" data-day-panel-jump="memo" aria-label="메모 페이지 보기">메모</button>
                 <button class="icon-button today-jump" id="dailyTodayButton" type="button">오늘</button>
               </div>
               <section class="daily-calendar-popover" id="dailyCalendarPopover" role="dialog" aria-label="일간 일정 날짜 선택" hidden>
@@ -285,22 +287,6 @@
             </div>
           </div>
           <section class="daily-pulse" id="dailyPulse" aria-label="오늘 실행 요약"></section>
-          <nav class="ceo-day-guides" aria-label="CEO mode 일간 페이지 안내">
-            <button type="button" data-day-panel-jump="week">
-              <span>‹</span>
-              <strong>위클리 콤파스</strong>
-              <small>왼쪽 페이지</small>
-            </button>
-            <button type="button" data-day-panel-jump="main" aria-current="page">
-              <strong>오늘 실행</strong>
-              <small>우선업무 · 시간표</small>
-            </button>
-            <button type="button" data-day-panel-jump="memo">
-              <strong>메모 페이지</strong>
-              <small>오른쪽 페이지</small>
-              <span>›</span>
-            </button>
-          </nav>
           <section class="onboarding-panel" id="onboardingPanel" hidden>
             <div>
               <p class="eyebrow">Start</p>
