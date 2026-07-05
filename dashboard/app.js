@@ -4657,7 +4657,7 @@ function renderAppointments(day) {
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
     row.innerHTML = `
-      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentSegment ? `<em class="appointment-current-segment">${currentSegment}</em>` : ""}<b>${endSlot}</b>` : slot}${isCurrent && !currentSegment ? `<em>지금</em>` : ""}</span>
+      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentSegment ? `<em class="appointment-current-segment appointment-now-pill"><i></i>${currentSegment}</em>` : ""}<b>${endSlot}</b>` : slot}${isCurrent && !currentSegment ? `<em class="appointment-now-pill"><i></i>지금</em>` : ""}</span>
       <input type="text" value="${escapeAttr(value)}" placeholder="일정" />
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}

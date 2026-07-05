@@ -1350,13 +1350,6 @@ body.is-privacy-blind .app-shell {
   will-change: transform, opacity;
 }
 
-.daily-date-calendar-mark {
-  flex: 0 0 auto;
-  color: var(--sage-dark);
-  font-size: 16px;
-  line-height: 1;
-}
-
 #dayTitle.slide-out-next {
   animation: dateSlideOutNext 150ms ease-in forwards;
 }
@@ -3264,16 +3257,29 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .appointment-time em {
   display: inline-flex;
+  align-items: center;
+  gap: 4px;
   width: fit-content;
   margin-top: 2px;
   border-radius: 999px;
-  background: #d7372f;
-  color: white;
-  padding: 1px 5px;
+  background: rgba(255, 253, 248, 0.92);
+  color: #a3312b;
+  padding: 2px 6px 2px 4px;
+  border: 1px solid rgba(215, 55, 47, 0.28);
   font-size: 9px;
   font-style: normal;
   font-weight: 900;
   line-height: 1.3;
+  box-shadow: 0 3px 10px rgba(215, 55, 47, 0.12);
+}
+
+.appointment-now-pill i {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: #d7372f;
+  box-shadow: 0 0 0 3px rgba(215, 55, 47, 0.1);
 }
 
 .appointment-time.range .appointment-current-segment {
@@ -3283,14 +3289,23 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   z-index: 2;
   transform: translateY(-50%);
   margin: 0;
-  padding: 2px 4px;
+  padding: 2px 5px 2px 4px;
   max-width: 100%;
   overflow: hidden;
   text-overflow: clip;
   font-size: 8.5px;
   letter-spacing: 0;
   white-space: nowrap;
-  box-shadow: 0 2px 7px rgba(215, 55, 47, 0.16);
+}
+
+.appointment-time.range .appointment-current-segment::after {
+  content: "";
+  position: absolute;
+  left: calc(100% + 4px);
+  top: 50%;
+  width: 16px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(215, 55, 47, 0.72), rgba(215, 55, 47, 0));
 }
 
 .appointment-row input[type="text"] {
@@ -4850,10 +4865,6 @@ body.ceo-mode .day-main-panel .panel {
     gap: 4px;
     min-height: 30px;
     padding-inline: 3px;
-  }
-
-  .daily-date-calendar-mark {
-    font-size: 12px;
   }
 
   .daily-calendar-popover {
@@ -7149,12 +7160,6 @@ body.ceo-mode .sheet-grid-wrap {
   }
 }
 
-@media (max-width: 360px) {
-  .daily-date-calendar-mark {
-    display: none;
-  }
-}
-
 @media screen {
   .brand-top,
   .brand-top .eyebrow {
@@ -8031,5 +8036,37 @@ body.ceo-mode .sheet-grid-wrap {
   .appointment-time.range .appointment-current-segment {
     font-size: 8px;
     padding-inline: 3px;
+  }
+}
+
+/* Schedule current-time polish: calm pin instead of a heavy warning badge. */
+.appointment-row.is-current-time {
+  background: rgba(255, 247, 211, 0.42);
+}
+
+.appointment-row.is-current-time .appointment-time {
+  color: #8a342f;
+  font-weight: 840;
+}
+
+.appointment-row.is-merged.is-current-time .appointment-time {
+  color: var(--muted);
+  font-weight: 780;
+}
+
+.appointment-row.is-merged .appointment-current-segment {
+  border-color: rgba(215, 55, 47, 0.2);
+  background: rgba(255, 253, 248, 0.96);
+}
+
+@media (max-width: 430px) {
+  .appointment-now-pill i {
+    width: 4px;
+    height: 4px;
+  }
+
+  .appointment-time.range .appointment-current-segment {
+    max-width: 62px;
+    font-size: 7.5px;
   }
 }
