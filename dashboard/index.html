@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705m" />
+    <link rel="stylesheet" href="./styles.css?v=20260705p" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -18,7 +18,7 @@
     <header class="app-header">
       <div class="brand-block" aria-label="beyond ai planning system">
         <div class="brand-row">
-          <h1>Beyond Work <span class="brand-year">2026</span></h1>
+          <h1>Beyond Work</h1>
           <button class="coach-bubble" id="coachBubble" type="button" title="AI 코칭" aria-label="AI 코칭"></button>
         </div>
         <button id="modeToggle" type="button">CEO mode</button>
@@ -129,14 +129,19 @@
           <div class="page-title">
             <p class="eyebrow">Settings</p>
             <h2>설정과 가치 기반</h2>
+            <button class="mini-action section-ai-button" type="button" data-section-ai="foundation">AI</button>
           </div>
           <div class="settings-shortcuts" aria-label="설정 바로가기">
             <button type="button" data-settings-view="year">연간 캘린더</button>
             <button type="button" data-settings-view="day">오늘 실행 화면</button>
             <button type="button" data-settings-view="search">검색/질문</button>
           </div>
+          <div class="settings-tabbar" role="tablist" aria-label="설정 분류">
+            <button class="is-active" id="settingsUserTab" type="button" role="tab" aria-selected="true" aria-controls="settingsUserPanel" data-settings-tab="user">사용자 설정</button>
+            <button id="settingsAppTab" type="button" role="tab" aria-selected="false" aria-controls="settingsAppPanel" data-settings-tab="app">앱 설정</button>
+          </div>
           <div class="foundation-grid">
-            <article class="panel span-12 planner-options-panel">
+            <article class="panel span-12 planner-options-panel" id="settingsAppPanel" role="tabpanel" aria-labelledby="settingsAppTab" data-settings-panel="app" hidden>
               <h3>화면 및 입력 옵션</h3>
               <div class="planner-option-grid">
                 <div class="planner-option-item">
@@ -155,19 +160,19 @@
                 </div>
               </div>
             </article>
-            <article class="panel span-6">
+            <article class="panel span-6" id="settingsUserPanel" role="tabpanel" aria-labelledby="settingsUserTab" data-settings-panel="user">
               <h3>개인 사명 선언</h3>
               <textarea data-store="foundation.mission" rows="10" placeholder="나의 선택 기준, 삶의 방향, 지키고 싶은 원칙을 적습니다."></textarea>
             </article>
-            <article class="panel span-6">
+            <article class="panel span-6" data-settings-panel="user">
               <h3>핵심 가치</h3>
               <div class="value-list" id="valuesList"></div>
             </article>
-            <article class="panel span-12">
+            <article class="panel span-12" data-settings-panel="user">
               <h3>역할과 장기 목표</h3>
               <div class="role-goal-table" id="roleGoalTable"></div>
             </article>
-            <article class="panel span-12">
+            <article class="panel span-12" data-settings-panel="user">
               <h3>사용자 정보</h3>
               <p class="profile-benefit-note">구체적으로 적을수록 AI가 목표, 역할, 건강 리듬, 에너지 흐름, 부담 요인을 함께 읽어 더 개인화된 업무·일정·코칭을 제안합니다.</p>
               <div class="profile-grid compact-profile">
@@ -196,6 +201,7 @@
           <div class="page-title">
             <p class="eyebrow">Year At A Glance</p>
             <h2 id="yearPageTitle">연간 계획</h2>
+            <button class="mini-action section-ai-button" type="button" data-section-ai="year">AI</button>
           </div>
           <div class="year-layout">
             <article class="panel span-12">
@@ -216,6 +222,7 @@
         <section class="view" id="view-month">
           <div class="page-title month-title">
             <p class="eyebrow">Monthly Planner</p>
+            <button class="mini-action section-ai-button" type="button" data-section-ai="month">AI</button>
             <div class="month-title-nav" id="monthSwipeZone" aria-label="월간 계획 이동">
               <button class="icon-button compact month-nav-button" id="monthPrevButton" type="button" aria-label="이전 달">‹</button>
               <button class="month-title-button" id="monthPickerToggle" type="button" aria-haspopup="dialog" aria-expanded="false">
@@ -256,6 +263,7 @@
                 <span id="weekTitle">주간 일정</span>
                 <span class="daily-date-calendar-mark" aria-hidden="true">▦</span>
               </button>
+              <button class="mini-action section-ai-button" type="button" data-section-ai="week">AI</button>
               <section class="daily-calendar-popover week-calendar-popover" id="weekCalendarPopover" role="dialog" aria-label="주간 일정 선택" hidden>
                 <div class="daily-calendar-toolbar">
                   <button class="daily-calendar-nav" id="weekCalendarPrevMonth" type="button" aria-label="이전 달">‹</button>
@@ -280,19 +288,11 @@
             <div class="daily-heading">
               <p class="eyebrow">Daily Page</p>
               <div class="day-date-nav" id="dailyDateSwipeZone" aria-label="일간 날짜 이동">
-                <button class="daily-panel-chip daily-panel-chip-left" type="button" data-day-panel-jump="week" aria-label="위클리 콤파스 보기">
-                  <span class="daily-panel-chip-arrow" aria-hidden="true">‹</span>
-                  <span class="daily-panel-chip-label">Compass</span>
-                </button>
                 <button class="icon-button compact" id="dailyPrevDay" title="어제로 이동" type="button">‹</button>
                 <button class="daily-date-button" id="dailyCalendarToggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="달력에서 날짜 선택">
                   <span id="dayTitle">일간 페이지</span>
                 </button>
                 <button class="icon-button compact" id="dailyNextDay" title="내일로 이동" type="button">›</button>
-                <button class="daily-panel-chip daily-panel-chip-right" type="button" data-day-panel-jump="memo" aria-label="메모 페이지 보기">
-                  <span class="daily-panel-chip-label">Memo</span>
-                  <span class="daily-panel-chip-arrow" aria-hidden="true">›</span>
-                </button>
                 <button class="icon-button today-jump" id="dailyTodayButton" type="button">오늘</button>
               </div>
               <section class="daily-calendar-popover" id="dailyCalendarPopover" role="dialog" aria-label="일간 일정 날짜 선택" hidden>
@@ -311,7 +311,14 @@
               <strong id="dailyCompletion">0/0</strong>
             </div>
           </div>
-          <section class="daily-pulse" id="dailyPulse" aria-label="오늘 실행 요약"></section>
+          <div class="daily-pulse-row" id="dailyPulseZone" aria-label="오늘 실행 요약과 주변 페이지 이동">
+            <button class="daily-pulse-nav daily-pulse-nav-left" type="button" data-day-panel-jump="week" aria-label="위클리 콤파스 보기">‹</button>
+            <button class="daily-pulse-center" id="dailyPulseToggle" type="button" aria-expanded="false" aria-controls="dailyPulseDetails">
+              <span class="daily-pulse" id="dailyPulse"></span>
+            </button>
+            <button class="daily-pulse-nav daily-pulse-nav-right" type="button" data-day-panel-jump="memo" aria-label="메모 페이지 보기">›</button>
+          </div>
+          <div class="daily-pulse-details" id="dailyPulseDetails" hidden></div>
           <section class="onboarding-panel" id="onboardingPanel" hidden>
             <div>
               <p class="eyebrow">Start</p>
@@ -335,7 +342,7 @@
                 <h3 class="panel-title-row">
                   <span>오늘의 우선업무</span>
                   <span class="panel-actions">
-                    <button class="mini-action" id="aiTaskSuggest" type="button">AI 추천</button>
+                    <button class="mini-action" id="aiTaskSuggest" type="button" data-section-ai="tasks">AI</button>
                   </span>
                 </h3>
                 <div class="ai-suggest-popover" id="taskSuggestPopover" hidden></div>
@@ -346,7 +353,7 @@
                 <h3 class="panel-title-row">
                   <span>시간별 일정</span>
                   <span class="schedule-title-actions">
-                    <button class="mini-action" id="aiScheduleSuggest" type="button">AI</button>
+                    <button class="mini-action" id="aiScheduleSuggest" type="button" data-section-ai="schedule">AI</button>
                   </span>
                 </h3>
                 <div class="schedule-actions">
@@ -363,7 +370,7 @@
             <article class="panel swipe-panel day-memo-panel" data-panel="memo">
               <h3 class="panel-title-row">
                 <span>메모 페이지</span>
-                <button class="mini-action" id="aiMemoSuggest" type="button">AI</button>
+                <button class="mini-action" id="aiMemoSuggest" type="button" data-section-ai="memo">AI</button>
               </h3>
               <textarea data-day-field="memo" rows="18" placeholder="떠오른 생각, 회의 메모, 후속 조치를 자유롭게 적습니다."></textarea>
               <h3 class="subhead">일일 기록</h3>
@@ -409,6 +416,7 @@
               <p class="eyebrow">Project Control</p>
               <h2>프로젝트 관리</h2>
             </div>
+            <button class="mini-action section-ai-button" type="button" data-section-ai="projects">AI</button>
             <button class="mini-action" id="addProjectButton" type="button">프로젝트 추가</button>
           </div>
           <div class="project-summary-strip" id="projectSummaryStrip"></div>
@@ -419,6 +427,7 @@
           <div class="page-title">
             <p class="eyebrow">Money Flow</p>
             <h2>용돈/자금 관리</h2>
+            <button class="mini-action section-ai-button" type="button" data-section-ai="finance">AI</button>
           </div>
           <div class="notes-layout finance-layout">
             <article class="panel span-12 finance-month-panel">
@@ -458,6 +467,7 @@
               <p class="eyebrow">Custom Sheets</p>
               <h2>커스텀 시트</h2>
             </div>
+            <button class="mini-action section-ai-button" type="button" data-section-ai="sheets">AI</button>
           </div>
           <div class="sheet-board" id="sheetBoard">
             <article class="panel sheet-page sheet-list-panel">
@@ -628,6 +638,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260705e"></script>
+    <script src="./app.js?v=20260705h"></script>
   </body>
 </html>

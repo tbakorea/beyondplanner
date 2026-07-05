@@ -223,22 +223,6 @@ h1 {
   color: var(--forest);
 }
 
-.brand-year {
-  display: inline-flex;
-  align-items: center;
-  min-height: 20px;
-  margin-left: 6px;
-  transform: translateY(-2px);
-  border: 1px solid rgba(95, 118, 104, 0.2);
-  border-radius: 999px;
-  background: rgba(255, 253, 248, 0.7);
-  color: rgba(47, 65, 56, 0.7);
-  padding: 2px 7px;
-  font-size: 0.42em;
-  font-weight: 900;
-  vertical-align: middle;
-}
-
 .brand-row h1::after {
   content: "AI";
   display: inline-grid;
@@ -1588,6 +1572,96 @@ body.is-privacy-blind .app-shell {
   overflow: hidden;
 }
 
+.daily-pulse-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 6px;
+  margin: -5px 0 9px;
+  touch-action: pan-y;
+}
+
+.daily-pulse-center {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.daily-pulse-center .daily-pulse {
+  margin: 0;
+}
+
+.daily-pulse-nav {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  min-height: 32px;
+  border: 1px solid rgba(221, 216, 203, 0.52);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.66);
+  color: rgba(47, 65, 56, 0.76);
+  padding: 0;
+  font-size: 22px;
+  font-weight: 950;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.daily-pulse-nav.is-active,
+.daily-pulse-nav[aria-current="page"] {
+  border-color: rgba(38, 60, 52, 0.34);
+  background: var(--forest);
+  color: #fff;
+}
+
+.daily-pulse-details {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+  margin: -2px 0 10px;
+  border: 1px solid rgba(221, 216, 203, 0.54);
+  border-radius: 10px;
+  background: rgba(255, 253, 248, 0.74);
+  padding: 8px;
+  box-shadow: 0 8px 22px rgba(38, 50, 56, 0.045);
+}
+
+.daily-pulse-details[hidden] {
+  display: none;
+}
+
+.daily-pulse-detail-item {
+  min-width: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.42);
+  padding: 7px 8px;
+}
+
+.daily-pulse-detail-item span,
+.daily-pulse-detail-item small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-pulse-detail-item strong {
+  display: block;
+  overflow: hidden;
+  margin: 2px 0;
+  color: var(--forest);
+  font-size: 15px;
+  font-weight: 920;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .pulse-ticker {
   position: relative;
   display: flex;
@@ -1784,6 +1858,34 @@ body.is-privacy-blind .app-shell {
   margin: -2px 0 12px;
 }
 
+.settings-tabbar {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 14px;
+  border: 1px solid rgba(221, 216, 203, 0.66);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.62);
+  padding: 4px;
+}
+
+.settings-tabbar button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(38, 50, 56, 0.72);
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 860;
+  cursor: pointer;
+}
+
+.settings-tabbar button.is-active {
+  background: var(--forest);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(38, 60, 52, 0.14);
+}
+
 .planner-options-panel {
   background:
     linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(250, 248, 242, 0.72)),
@@ -1961,6 +2063,21 @@ body.is-privacy-blind .app-shell {
 
 .mini-action:hover {
   background: var(--stone);
+}
+
+.section-ai-button,
+[data-section-ai] {
+  min-width: 38px;
+  border-color: rgba(95, 118, 104, 0.22);
+  background: rgba(255, 253, 248, 0.84);
+  color: var(--sage-dark);
+  text-transform: uppercase;
+}
+
+.section-ai-button:hover,
+[data-section-ai]:hover {
+  border-color: rgba(95, 118, 104, 0.38);
+  background: rgba(238, 243, 236, 0.9);
 }
 
 .achievement-badge {
@@ -8318,16 +8435,6 @@ body.ceo-mode .daily-panel-chip {
   letter-spacing: 0;
 }
 
-.brand-year {
-  min-height: 19px;
-  margin-left: 5px;
-  border-color: rgba(95, 118, 104, 0.16);
-  background: rgba(255, 255, 255, 0.58);
-  color: rgba(47, 65, 56, 0.58);
-  padding: 2px 7px;
-  font-size: 0.36em;
-}
-
 .brand-row h1::after {
   display: none;
 }
@@ -8714,18 +8821,7 @@ body.ceo-mode .daily-panel-chip {
 }
 
 /* Readability pass: comfortable iPhone typography for users in their 50s+. */
-.brand-year {
-  font-size: 0.46em;
-  padding: 3px 8px;
-}
-
 @media (max-width: 640px) {
-  .brand-year {
-    min-height: 21px;
-    font-size: 0.48em;
-    padding-inline: 7px;
-  }
-
   .pulse-ticker {
     min-height: 36px;
   }
@@ -8885,6 +8981,56 @@ body.ceo-mode .daily-panel-chip {
     min-width: 62px;
     min-height: 34px;
     font-size: 13px;
+  }
+}
+
+@media (max-width: 640px) {
+  #dayTitle {
+    font-size: clamp(16px, 4.35vw, 19px);
+    letter-spacing: 0;
+  }
+
+  .settings-tabbar {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .settings-tabbar button {
+    min-height: 38px;
+    font-size: 14px;
+  }
+
+  .daily-pulse-row {
+    grid-template-columns: 33px minmax(0, 1fr) 33px;
+    gap: 4px;
+    margin-bottom: 8px;
+  }
+
+  .daily-pulse-nav {
+    width: 33px;
+    min-height: 34px;
+    font-size: 23px;
+  }
+
+  .daily-pulse-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: -3px;
+    padding: 7px;
+  }
+
+  .daily-pulse-detail-item {
+    padding: 7px;
+  }
+
+  .daily-pulse-detail-item strong {
+    font-size: 14px;
+  }
+
+  .daily-pulse-detail-item span,
+  .daily-pulse-detail-item small {
+    font-size: 10.5px;
   }
 }
 

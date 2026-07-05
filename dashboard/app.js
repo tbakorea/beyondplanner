@@ -122,6 +122,7 @@ let hasInitialDeviceCache = hasCachedPlannerState();
 let state = loadState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
+let activeCoachSection = "";
 let saveStatus = { ready: false, environment: "db", message: "저장 확인 중", saving: false };
 let accountSaveReady = false;
 let accountSaveTimer = 0;
@@ -129,6 +130,7 @@ let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
 let daySwipeKey = "";
 let plannerMode = localStorage.getItem("beyondWorkMode") || "";
+let settingsTab = "user";
 const installationId = getInstallationId();
 const dayPanelOrder = ["week", "main", "memo"];
 let currentDayPanel = "main";
@@ -1383,6 +1385,14 @@ function setupSelectors() {
   document.querySelectorAll("[data-day-panel-jump]").forEach((button) => {
     button.onclick = () => scrollDayPanel(button.dataset.dayPanelJump);
   });
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    button.onclick = () => setSettingsTab(button.dataset.settingsTab || "user");
+  });
+  document.querySelectorAll("[data-section-ai]").forEach((button) => {
+    button.onclick = () => openSectionCoach(button.dataset.sectionAi || "day");
+  });
+  el("dailyPulseToggle")?.addEventListener("click", toggleDailyPulseDetails);
+  setupPulsePanelSwipe();
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
@@ -1433,6 +1443,7 @@ function setupSelectors() {
   el("topSearchSubmit").onclick = runHeaderSearch;
   el("topSearchClose").onclick = closeTopSearch;
   el("coachBubble").onclick = () => {
+    activeCoachSection = "";
     showView("coach");
     renderAll();
   };
@@ -1440,11 +1451,11 @@ function setupSelectors() {
     togglePlannerMode();
   };
   el("refreshCoach").onclick = () => renderCoach();
-  el("aiTaskSuggest").onclick = () => renderTaskSuggestionPopover();
-  el("aiScheduleSuggest").onclick = () => renderScheduleSuggestionPopover();
+  el("aiTaskSuggest").onclick = () => openSectionCoach("tasks");
+  el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
   el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
-  el("aiMemoSuggest").onclick = () => applyMemoPrompt();
+  el("aiMemoSuggest").onclick = () => openSectionCoach("memo");
   el("closeSearchButton").onclick = closeSearch;
   el("closeCoachButton").onclick = closeCoach;
   el("unlockPasscodeButton").onclick = unlockWithPasscode;
@@ -1581,7 +1592,14 @@ function closeSearch() {
 }
 
 function closeCoach() {
+  activeCoachSection = "";
   closeToDailyPage();
+}
+
+function openSectionCoach(section = "day") {
+  activeCoachSection = section;
+  showView("coach");
+  renderAll();
 }
 
 function closeToDailyPage() {
@@ -3061,7 +3079,7 @@ function renderWeek() {
 
 function renderDay() {
   const day = ensureDay();
-  const formattedDate = formatDailyTitleDate(selectedDate);
+  const formattedDate = formatDate(selectedDate);
   el("dayTitle").textContent = formattedDate;
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
   const key = iso(selectedDate);
@@ -3108,9 +3126,10 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const coach = buildCoachAnalysis();
   const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
   const coachLabel = coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정";
+  const nextText = nextAppointment.text === "비어 있음" ? "없음" : nextAppointment.text;
   const tickerItems = `
     <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
-    <span class="pulse-ticker-item" role="listitem"><b>다음</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextAppointment.text === "비어 있음" ? "없음" : nextAppointment.text)}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>다음</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextText)}</small></span>
     <span class="pulse-ticker-item" role="listitem"><b>이월</b> ${carryoverOpen.length}<small>${carryoverOpen.length ? "정리" : "없음"}</small></span>
     <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
   `;
@@ -3122,6 +3141,33 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
       </div>
     </div>
   `;
+  renderDailyPulseDetails([
+    ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
+    ["다음 일정", nextAppointment.time, nextText],
+    ["이월 관리", `${carryoverOpen.length}건`, carryoverOpen.length ? "오늘 판단이 필요합니다." : "열린 이월 업무가 없습니다."],
+    ["AI 신호", coachLabel, coach.title],
+  ]);
+}
+
+function renderDailyPulseDetails(items) {
+  const node = el("dailyPulseDetails");
+  if (!node) return;
+  node.innerHTML = items.map(([label, value, detail]) => `
+    <div class="daily-pulse-detail-item">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      <small>${escapeHtml(detail)}</small>
+    </div>
+  `).join("");
+}
+
+function toggleDailyPulseDetails() {
+  const node = el("dailyPulseDetails");
+  const toggle = el("dailyPulseToggle");
+  if (!node || !toggle) return;
+  const nextHidden = !node.hidden ? true : false;
+  node.hidden = nextHidden;
+  toggle.setAttribute("aria-expanded", String(!nextHidden));
 }
 
 function getNextAppointmentSummary(day) {
@@ -3276,7 +3322,7 @@ function renderCoach() {
   const message = el("coachMessage");
   const suggestions = el("coachSuggestions");
   if (!message || !suggestions) return;
-  const analysis = buildCoachAnalysis();
+  const analysis = activeCoachSection ? buildSectionCoachAnalysis(activeCoachSection) : buildCoachAnalysis();
   message.className = `coach-card severity-${analysis.severity}`;
   message.innerHTML = `
     <strong>${escapeHtml(analysis.title)}</strong>
@@ -3363,6 +3409,128 @@ function buildCoachAnalysis() {
     detail: `${identitySummary || "사용자 정보"}${healthSummary ? ` · 건강: ${healthSummary}` : ""} · 최근 7일 완료율 ${trend.completionRate}% · 오늘 일정 ${appointmentEntries.length}개 · 이월 ${carryovers.length}개를 종합했습니다.`,
     suggestions,
   };
+}
+
+function buildSectionCoachAnalysis(section = "day") {
+  const context = buildPlannerContext();
+  const labels = {
+    foundation: "사용자 설정",
+    year: "연간 계획",
+    month: "월간 계획",
+    week: "주간 일정",
+    tasks: "오늘의 우선업무",
+    schedule: "시간별 일정",
+    memo: "메모 페이지",
+    projects: "프로젝트 관리",
+    finance: "용돈/자금 관리",
+    sheets: "커스텀 시트",
+    day: "오늘 실행",
+  };
+  const label = labels[section] || labels.day;
+  const base = buildCoachAnalysis();
+  const data = getSectionCoachData(section, context);
+  const suggestions = generateSectionSuggestions(section, context, data);
+  return {
+    severity: data.severity || base.severity,
+    title: `${label} AI 코칭`,
+    message: data.message,
+    detail: `${data.detail} · 사용자 목표, 오늘 업무, 시간표, 최근 완료 흐름을 함께 참고했습니다.`,
+    suggestions: suggestions.length ? suggestions : base.suggestions,
+  };
+}
+
+function getSectionCoachData(section, context) {
+  const day = context.day;
+  const month = ensureMonth();
+  const week = ensureWeek();
+  const projects = state.projects?.items || [];
+  const sheets = state.customSheets?.items || [];
+  const financeRows = Object.values(state.finance?.months || {}).flat().filter((item) => item.title || item.amount);
+  const activeMonthRows = (state.finance?.months?.[selectedFinanceMonth] || []).filter((item) => item.title || item.amount);
+  const memoLength = `${day.memo || ""} ${day.record || ""}`.trim().length;
+  const sectionData = {
+    foundation: {
+      severity: state.profile?.goals || state.foundation?.mission ? "calm" : "warm",
+      message: state.profile?.goals
+        ? "사용자 정보가 코칭의 기준점으로 작동하고 있습니다. 목표, 역할, 건강 리듬이 오늘 업무와 연결되는지 주기적으로 갱신하세요."
+        : "사용자 정보와 핵심 목표가 부족합니다. AI 코칭의 정확도를 높이려면 목표, 현재 과제, 에너지 시간대를 먼저 채우는 것이 좋습니다.",
+      detail: `입력 정보 ${Object.values(state.profile || {}).filter(Boolean).length}개 · 사명 ${state.foundation?.mission ? "있음" : "없음"}`,
+    },
+    year: {
+      severity: (state.year?.goals || []).filter(Boolean).length ? "calm" : "warm",
+      message: "연간 목표는 오늘의 업무를 걸러내는 필터입니다. 목표가 추상적이면 이번 달 결과와 이번 주 행동으로 쪼개세요.",
+      detail: `연간 목표 ${(state.year?.goals || []).filter(Boolean).length}개 · 미래 계획 ${(state.year?.futureLog || []).filter(Boolean).length}개`,
+    },
+    month: {
+      severity: month.focus ? "calm" : "warm",
+      message: month.focus ? "월간 초점이 있습니다. 이번 주 우선업무와 오늘 A업무가 같은 방향인지 확인하세요." : "월간 초점이 비어 있습니다. 이번 달 반드시 남길 결과 하나를 먼저 정하면 일정 판단이 쉬워집니다.",
+      detail: `월간 초점 ${month.focus ? "있음" : "없음"} · 월간 프로젝트 ${(month.projects || []).filter(Boolean).length}개`,
+    },
+    week: {
+      severity: (week.priorities || []).some((item) => item.text && !item.done) ? "calm" : "warm",
+      message: "주간 일정은 오늘의 행동을 미리 이기는 구조입니다. 미완료 주요일정은 오늘 A업무나 시간표 블록으로 내려 보내세요.",
+      detail: `금주의 주요일정 ${(week.priorities || []).filter((item) => item.text).length}개 · 역할 ${(week.compass || []).length}개`,
+    },
+    tasks: {
+      severity: context.openTasks.length >= 8 ? "alert" : context.highPriorityOpen ? "calm" : "warm",
+      message: context.highPriorityOpen ? "A업무가 잡혀 있습니다. 가장 중요한 한 가지를 시간표에 먼저 고정하면 실행률이 올라갑니다." : "A업무가 없습니다. 오늘의 결과를 만드는 업무 하나를 A로 지정하세요.",
+      detail: `열린 업무 ${context.openTasks.length}개 · 완료 ${context.doneTasks.length}개 · 이월 ${context.carryovers.length}개`,
+    },
+    schedule: {
+      severity: context.appointmentEntries.length ? "calm" : context.openTasks.length ? "warm" : "calm",
+      message: context.appointmentEntries.length ? "일정 블록이 있습니다. A업무와 회복 시간을 과밀하지 않게 배치했는지 확인하세요." : "업무는 있는데 시간표가 비어 있습니다. 중요한 업무 하나를 실제 시간칸에 넣어야 실행이 시작됩니다.",
+      detail: `일정 ${context.appointmentEntries.length}개 · 빈 시간 ${context.freeSlots.length}칸`,
+    },
+    memo: {
+      severity: memoLength ? "calm" : "warm",
+      message: memoLength ? "메모가 실행 기록으로 쌓이고 있습니다. 결정, 후속조치, 배운 점을 분리해서 남기면 검색과 회고 가치가 커집니다." : "메모가 비어 있습니다. 오늘의 결정 1개와 내일 넘길 일 1개만 적어도 회고 품질이 올라갑니다.",
+      detail: `메모/기록 ${memoLength}자`,
+    },
+    projects: {
+      severity: projects.length ? "calm" : "warm",
+      message: projects.length ? "프로젝트는 다음 행동과 자금 시뮬레이션이 연결될 때 힘이 납니다. 진행 중 프로젝트마다 다음 행동 1개를 오늘 업무로 내려보세요." : "프로젝트 목록이 비어 있습니다. 반복적으로 신경 쓰는 일을 프로젝트로 올려 관리하면 실행 누수가 줄어듭니다.",
+      detail: `프로젝트 ${projects.length}개`,
+    },
+    finance: {
+      severity: activeMonthRows.length ? "calm" : "warm",
+      message: activeMonthRows.length ? "이번 달 자금 이슈가 기록되어 있습니다. 예정/확인/보류 상태를 오늘 우선업무와 연결해 현금흐름 리스크를 줄이세요." : "이번 달 자금 항목이 비어 있습니다. 카드대금, 이자, 입금 예정부터 기록하면 의사결정 부담이 줄어듭니다.",
+      detail: `이번 달 ${activeMonthRows.length}건 · 전체 자금 항목 ${financeRows.length}건`,
+    },
+    sheets: {
+      severity: sheets.length > 1 ? "calm" : "warm",
+      message: "커스텀 시트는 반복 양식과 비교표에 적합합니다. 자주 쓰는 기록은 템플릿화하고, 오늘 업무와 연결되는 체크 항목만 남기세요.",
+      detail: `시트 ${sheets.length}개 · 현재 시트 ${state.customSheets?.items?.find((sheet) => sheet.id === selectedSheetId)?.name || "없음"}`,
+    },
+  };
+  return sectionData[section] || {
+    severity: baseSeverityFromContext(context),
+    message: "오늘 실행 흐름을 기준으로 입력된 내용을 분석했습니다. 중요한 일, 시간 배치, 회고 기록이 서로 이어지는지 확인하세요.",
+    detail: `업무 ${context.openTasks.length}개 · 일정 ${context.appointmentEntries.length}개`,
+  };
+}
+
+function baseSeverityFromContext(context) {
+  if (context.carryovers.length >= 4 || context.openTasks.length >= 8) return "alert";
+  if (context.openTasks.length && !context.appointmentEntries.length) return "warm";
+  return "calm";
+}
+
+function generateSectionSuggestions(section, context, data) {
+  const firstOpen = context.openTasks[0]?.text || "";
+  const firstFree = context.freeSlots[0] || "";
+  const map = {
+    foundation: ["핵심 목표 1개를 30자 안으로 다시 쓰기", "현재 과제와 에너지 시간대를 사용자 정보에 보강하기"],
+    year: ["연간 목표 1개를 이번 달 결과로 쪼개기", "미래 계획 중 지금 하지 않을 일을 대기 목록으로 정리하기"],
+    month: ["월간 초점과 연결된 이번 주 행동 1개 만들기", "기념일·마감일 중 오늘 준비할 일을 우선업무로 내리기"],
+    week: ["미완료 주요일정 1개를 오늘 A업무로 전환하기", "역할별 핵심행동을 2개 이하로 줄이기"],
+    tasks: [firstOpen ? `${firstOpen.slice(0, 24)}을 시간표에 고정하기` : "오늘 A업무 1개 추가하기", "취소·연기·위임할 업무를 먼저 정리하기"],
+    schedule: [firstFree ? `${firstFree}에 A업무 실행 블록 만들기` : "일정 사이 완충시간 10분 확보하기", "오후 전에 가장 어려운 업무 1개 배치하기"],
+    memo: ["오늘의 결정 1개를 메모에 남기기", "내일 첫 행동 1개를 일일 기록에 적기"],
+    projects: ["진행 중 프로젝트마다 다음 행동 1개 지정하기", "자금 영향이 큰 프로젝트를 우선 검토하기"],
+    finance: ["이번 달 미확인 지출을 확인 상태로 정리하기", "자금 이슈 1개를 오늘 우선업무에 연결하기"],
+    sheets: ["현재 시트의 첫 행/첫 열 의미를 명확히 정리하기", "반복 입력되는 표는 템플릿으로 분리하기"],
+  };
+  return [...new Set([...(map[section] || []), ...(data.severity === "alert" ? ["오늘 처리할 수 없는 항목은 과감히 연기하기"] : [])])].slice(0, 5);
 }
 
 function buildPlannerContext(key = iso(selectedDate)) {
@@ -4083,6 +4251,48 @@ function updateDayGuideState() {
     button.classList.toggle("is-active", active);
     if (active) button.setAttribute("aria-current", "page");
     else button.removeAttribute("aria-current");
+  });
+}
+
+function setSettingsTab(tab = "user") {
+  settingsTab = tab === "app" ? "app" : "user";
+  updateSettingsTabState();
+}
+
+function updateSettingsTabState() {
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    const active = button.dataset.settingsTab === settingsTab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.querySelectorAll("[data-settings-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.settingsPanel !== settingsTab;
+  });
+}
+
+function setupPulsePanelSwipe() {
+  const zone = el("dailyPulseZone");
+  if (!zone) return;
+  let startX = 0;
+  let startY = 0;
+  let startNav = "";
+  zone.addEventListener("pointerdown", (event) => {
+    startX = event.clientX;
+    startY = event.clientY;
+    startNav = event.target.closest(".daily-pulse-nav-left") ? "week" : event.target.closest(".daily-pulse-nav-right") ? "memo" : "";
+  });
+  zone.addEventListener("pointerup", (event) => {
+    if (!startX) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    startX = 0;
+    startY = 0;
+    const nav = startNav;
+    startNav = "";
+    if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    if (nav === "week" && dx < 0) return scrollDayPanel("week");
+    if (nav === "memo" && dx > 0) return scrollDayPanel("memo");
+    scrollDayPanel(dx > 0 ? "week" : "memo");
   });
 }
 
@@ -6677,6 +6887,7 @@ function renderAll() {
   renderNotes();
   renderSheets();
   renderSearch();
+  updateSettingsTabState();
   updateStickyPanelTop();
 }
 
