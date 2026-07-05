@@ -8090,23 +8090,54 @@ body.ceo-mode .daily-panel-chip {
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  min-height: 30px;
-  border: 1px solid rgba(221, 216, 203, 0.78);
+  gap: 5px;
+  min-height: 32px;
+  border: 1px solid rgba(95, 118, 104, 0.18);
   border-radius: 999px;
-  background: rgba(255, 253, 248, 0.62);
-  color: rgba(47, 65, 56, 0.78);
-  padding: 5px 9px;
-  font-size: 11.5px;
-  font-weight: 860;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(244, 242, 236, 0.62)),
+    rgba(255, 253, 248, 0.66);
+  color: rgba(47, 65, 56, 0.84);
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 880;
   letter-spacing: 0;
   white-space: nowrap;
   cursor: pointer;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset, 0 6px 14px rgba(38, 50, 56, 0.045);
+  backdrop-filter: blur(12px) saturate(1.08);
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.daily-panel-chip-label {
+  display: inline-block;
+  max-width: 66px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1;
+}
+
+.daily-panel-chip-arrow {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: rgba(95, 118, 104, 0.09);
+  color: var(--sage-dark);
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1;
 }
 
 .daily-panel-chip:hover,
 .daily-panel-chip:focus-visible {
-  border-color: rgba(95, 118, 104, 0.28);
-  background: rgba(235, 241, 232, 0.88);
+  border-color: rgba(95, 118, 104, 0.32);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(233, 239, 232, 0.82)),
+    rgba(255, 253, 248, 0.92);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 8px 18px rgba(38, 50, 56, 0.08);
+  transform: translateY(-1px);
   outline: none;
 }
 
@@ -8115,12 +8146,30 @@ body.ceo-mode .daily-panel-chip {
   border-color: #263832;
   background: #263832;
   color: #fff;
+  box-shadow: 0 8px 18px rgba(38, 56, 50, 0.16);
+}
+
+.daily-panel-chip.is-active .daily-panel-chip-arrow,
+.daily-panel-chip[aria-current="page"] .daily-panel-chip-arrow {
+  background: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.82);
 }
 
 @media (max-width: 430px) {
   .daily-panel-chip {
-    min-height: 28px;
-    padding-inline: 7px;
-    font-size: 10.5px;
+    gap: 3px;
+    min-height: 30px;
+    padding-inline: 6px;
+    font-size: 0;
+  }
+
+  .daily-panel-chip-label {
+    display: none;
+  }
+
+  .daily-panel-chip-arrow {
+    width: 18px;
+    height: 18px;
+    font-size: 16px;
   }
 }
