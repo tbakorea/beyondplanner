@@ -6758,20 +6758,26 @@ async function requestAiSearchAnswer(value) {
   showView("search");
   renderSearch();
   try {
+    const session = getAuthSession();
     const response = await fetch("/api/ask", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : {}),
+      },
       body: JSON.stringify({ question, context: buildPlannerAiContext() }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.error || "AI 답변을 받아오지 못했습니다.");
+    const detail = payload.detail ? ` (${String(payload.detail).slice(0, 180)})` : "";
+    const hint = payload.hint ? ` · ${payload.hint}` : "";
+    if (!response.ok) throw new Error(`${payload.error || "AI 답변을 받아오지 못했습니다."}${detail}${hint}`);
     aiSearch = { query: question, answer: payload.answer || "AI 답변이 비어 있습니다.", loading: false, error: "" };
   } catch (error) {
     aiSearch = {
       query: question,
       answer: "",
       loading: false,
-      error: `${error.message || "AI 연결 오류"} · OPENAI_API_KEY로 server.py를 실행했는지 확인하세요.`,
+      error: `${error.message || "AI 연결 오류"} · 배포 환경에서는 OPENAI_API_KEY와 /api/ask 설정을 확인하세요.`,
     };
   }
   renderSearch();
