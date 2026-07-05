@@ -3717,6 +3717,11 @@ function renderRepeatPriorityList() {
   ensureRepeatPriorityRows();
   node.innerHTML = "";
   getSortedRepeatRuleEntries().forEach(({ rule, index }) => {
+    const scroller = document.createElement("div");
+    scroller.className = "repeat-rule-scroll";
+    scroller.tabIndex = 0;
+    scroller.addEventListener("pointerdown", () => activateRepeatRuleScroller(scroller));
+    scroller.addEventListener("focusin", () => activateRepeatRuleScroller(scroller));
     const row = document.createElement("div");
     row.className = "repeat-rule-row";
     row.innerHTML = `
@@ -3788,6 +3793,9 @@ function renderRepeatPriorityList() {
       saveState();
       renderAll();
     });
+    row.querySelector(".repeat-weekday-toggle")?.addEventListener("click", () => {
+      row.querySelector(".repeat-weekday-popover")?.toggleAttribute("hidden");
+    });
     row.querySelectorAll(".repeat-weekdays input[type='checkbox']").forEach((checkbox) => {
       checkbox.addEventListener("change", () => {
         const selected = Array.from(row.querySelectorAll(".repeat-weekdays input[type='checkbox']:checked")).map((item) => Number(item.value));
@@ -3795,7 +3803,8 @@ function renderRepeatPriorityList() {
         if (!selected.length) checkbox.checked = true;
         markRepeatRuleChanged(rule, index);
         saveState();
-        renderAll();
+        const toggle = row.querySelector(".repeat-weekday-toggle");
+        if (toggle) toggle.textContent = repeatWeekdaySummary(rule);
       });
     });
     row.querySelector(".repeat-monthday")?.addEventListener("change", (event) => {
@@ -3843,7 +3852,8 @@ function renderRepeatPriorityList() {
       renderRepeatPriorityList();
       renderDay();
     };
-    node.appendChild(row);
+    scroller.appendChild(row);
+    node.appendChild(scroller);
   });
   const add = document.createElement("button");
   add.className = "add-row repeat-add";
@@ -3855,6 +3865,15 @@ function renderRepeatPriorityList() {
     renderRepeatPriorityList();
   };
   node.appendChild(add);
+}
+
+function activateRepeatRuleScroller(scroller) {
+  const node = el("repeatPriorityList");
+  if (!node) return;
+  node.querySelectorAll(".repeat-rule-scroll.is-active").forEach((item) => {
+    if (item !== scroller) item.classList.remove("is-active");
+  });
+  scroller.classList.add("is-active");
 }
 
 function getSortedRepeatRuleEntries() {
@@ -3902,14 +3921,20 @@ function setRepeatAnchorToSelectedDate(rule) {
 function renderRepeatTargetControl(rule) {
   if (rule.frequency === "daily") {
     const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : weekdays.map((_, index) => index);
+    const summary = repeatWeekdaySummary(rule);
     return `
-      <div class="repeat-weekdays" aria-label="반복 요일 선택">
-        ${weekdays.map((day, dayIndex) => `
-          <label>
-            <input type="checkbox" value="${dayIndex}" ${selected.includes(dayIndex) ? "checked" : ""} />
-            <span>${day}</span>
-          </label>
-        `).join("")}
+      <div class="repeat-weekday-picker">
+        <button class="repeat-weekday-toggle" type="button" aria-label="반복 요일 선택">${escapeHtml(summary || "요일 선택")}</button>
+        <div class="repeat-weekday-popover" hidden>
+          <div class="repeat-weekdays" aria-label="반복 요일 선택">
+            ${weekdays.map((day, dayIndex) => `
+              <label>
+                <input type="checkbox" value="${dayIndex}" ${selected.includes(dayIndex) ? "checked" : ""} />
+                <span>${day}</span>
+              </label>
+            `).join("")}
+          </div>
+        </div>
       </div>
     `;
   }
@@ -3949,6 +3974,11 @@ function renderRepeatTargetControl(rule) {
     `;
   }
   return `<span class="repeat-target-static">매일</span>`;
+}
+
+function repeatWeekdaySummary(rule) {
+  const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : weekdays.map((_, index) => index);
+  return selected.length === 7 ? "매일" : selected.map((dayIndex) => weekdays[dayIndex]).filter(Boolean).join(", ");
 }
 
 function renderDayCompass() {
