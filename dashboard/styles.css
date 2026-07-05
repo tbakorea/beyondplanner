@@ -8654,3 +8654,160 @@ body.ceo-mode .daily-panel-chip {
     font-size: 10px;
   }
 }
+
+/* Readability pass: comfortable iPhone typography for users in their 50s+. */
+.brand-year {
+  font-size: 0.46em;
+  padding: 3px 8px;
+}
+
+@media (max-width: 640px) {
+  .brand-year {
+    min-height: 21px;
+    font-size: 0.48em;
+    padding-inline: 7px;
+  }
+
+  .pulse-ticker {
+    min-height: 36px;
+  }
+
+  .pulse-ticker-item {
+    min-height: 28px;
+    max-width: 78vw;
+    padding-inline: 9px;
+    font-size: 13px;
+  }
+
+  .pulse-ticker-item small {
+    font-size: 12px;
+  }
+
+  .day-task-panel,
+  .day-schedule-panel {
+    position: relative;
+    padding-bottom: 16px;
+  }
+
+  .task-board,
+  .appointment-list {
+    padding-bottom: 54px;
+    scroll-padding-bottom: 54px;
+  }
+
+  .task-row {
+    grid-template-columns: 20px 24px minmax(0, 1fr) 20px;
+    column-gap: 4px;
+    min-height: 36px;
+  }
+
+  .task-cycle {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+  }
+
+  .priority-select,
+  .postpone-select,
+  .postpone-date {
+    width: 24px;
+    max-width: 24px;
+    min-height: 26px;
+  }
+
+  .task-status-label {
+    font-size: 12px;
+  }
+
+  .task-status-label.is-priority-letter {
+    font-size: 15px;
+  }
+
+  .task-text-input,
+  .task-row input[type="text"] {
+    min-height: 28px;
+    padding-inline: 4px;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  .task-delete,
+  .repeat-delete {
+    width: 20px;
+    height: 20px;
+    min-height: 20px;
+    font-size: 14px;
+  }
+
+  .schedule-title-actions .schedule-unit-toggle {
+    display: none;
+  }
+
+  .schedule-actions {
+    position: absolute;
+    top: 48px;
+    right: 8px;
+    z-index: 14;
+    width: 34px;
+    margin: 0;
+    border: 1px solid rgba(221, 216, 203, 0.64);
+    border-radius: 999px;
+    background: rgba(255, 253, 248, 0.86);
+    padding: 5px 4px;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: 0 10px 24px rgba(38, 50, 56, 0.1);
+    transform: translateX(4px);
+    transition: opacity 150ms ease, transform 150ms ease;
+  }
+
+  .day-schedule-panel:focus-within .schedule-actions {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(0);
+  }
+
+  .schedule-actions .panel-actions {
+    display: grid;
+    gap: 4px;
+  }
+
+  .schedule-actions .mini-action {
+    width: 24px;
+    min-width: 24px;
+    min-height: 28px;
+    border-radius: 999px;
+    padding: 0;
+    font-size: 10px;
+    line-height: 1;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+  }
+
+  .appointment-row {
+    grid-template-columns: 45px minmax(0, 1fr);
+    gap: 6px;
+    min-height: 36px;
+    padding-right: 3px;
+  }
+
+  .appointment-row span,
+  .appointment-time {
+    font-size: 13px;
+    font-weight: 760;
+  }
+
+  .appointment-row input[type="text"] {
+    min-height: 30px;
+    padding-inline: 5px;
+    font-size: 13px;
+    line-height: 1.25;
+  }
+
+  .appointment-merge-button {
+    width: 23px;
+    height: 20px;
+    min-height: 20px;
+    font-size: 14px;
+  }
+}
