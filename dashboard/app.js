@@ -334,6 +334,10 @@ function formatDate(date) {
   return date.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
 }
 
+function formatDailyTitleDate(date) {
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${weekdays[date.getDay()]})`;
+}
+
 function formatShortDate(date) {
   return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit", weekday: "short" });
 }
@@ -3057,7 +3061,7 @@ function renderWeek() {
 
 function renderDay() {
   const day = ensureDay();
-  const formattedDate = formatDate(selectedDate);
+  const formattedDate = formatDailyTitleDate(selectedDate);
   el("dayTitle").textContent = formattedDate;
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
   const key = iso(selectedDate);
@@ -3103,27 +3107,14 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const nextAppointment = getNextAppointmentSummary(day);
   const coach = buildCoachAnalysis();
   const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
+  const coachLabel = coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정";
   node.innerHTML = `
-    <article class="pulse-card pulse-primary">
-      <span>오늘 실행</span>
-      <strong>${completion.done}/${completion.total}</strong>
-      <small>${completionRate}% 완료 · 남은 핵심 ${openTasks}</small>
-    </article>
-    <article class="pulse-card">
-      <span>다음 일정</span>
-      <strong>${escapeHtml(nextAppointment.time)}</strong>
-      <small>${escapeHtml(nextAppointment.text)}</small>
-    </article>
-    <article class="pulse-card">
-      <span>이월 관리</span>
-      <strong>${carryoverOpen.length}</strong>
-      <small>${carryoverOpen.length ? "오늘 판단 필요" : "이월 없음"}</small>
-    </article>
-    <article class="pulse-card pulse-coach pulse-${coach.severity}">
-      <span>AI 신호</span>
-      <strong>${escapeHtml(coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정")}</strong>
-      <small>${escapeHtml(coach.title)}</small>
-    </article>
+    <div class="pulse-ticker" role="list">
+      <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘 실행</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
+      <span class="pulse-ticker-item" role="listitem"><b>다음 일정</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextAppointment.text)}</small></span>
+      <span class="pulse-ticker-item" role="listitem"><b>이월</b> ${carryoverOpen.length} <small>${carryoverOpen.length ? "판단 필요" : "없음"}</small></span>
+      <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
+    </div>
   `;
 }
 
@@ -4666,15 +4657,15 @@ function renderAppointments(day) {
     const row = document.createElement("div");
     const value = day.appointments[slot] || "";
     const isCurrent = isCurrentAppointmentSlot(slotIndex, span, slots);
-    const currentSegment = span > 1 && isCurrent ? getCurrentAppointmentSegmentLabel(slotIndex, span, slots) : "";
+    const currentTimeLabel = isCurrent ? getCurrentAppointmentTimeLabel(slotIndex, span, slots) : "";
     const currentProgress = span > 1 && isCurrent ? getCurrentAppointmentProgress(slotIndex, span, slots) : 0;
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
     row.style.setProperty("--slot-span", span);
-    if (currentSegment) row.style.setProperty("--current-segment-top", `${currentProgress}%`);
+    if (currentTimeLabel && span > 1) row.style.setProperty("--current-segment-top", `${currentProgress}%`);
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
     row.innerHTML = `
-      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentSegment ? `<em class="appointment-current-segment appointment-now-pill"><i></i>${currentSegment}</em>` : ""}<b>${endSlot}</b>` : slot}${isCurrent && !currentSegment ? `<em class="appointment-now-pill"><i></i>지금</em>` : ""}</span>
+      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentTimeLabel ? `<em class="appointment-current-time-number">${currentTimeLabel}</em>` : ""}<b>${endSlot}</b>` : slot}</span>
       <input type="text" value="${escapeAttr(value)}" placeholder="일정" />
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
@@ -4731,16 +4722,14 @@ function isCurrentAppointmentSlot(slotIndex, span, slots = timeSlots) {
   return currentMinutes >= start && currentMinutes < end;
 }
 
-function getCurrentAppointmentSegmentLabel(slotIndex, span, slots = timeSlots) {
+function getCurrentAppointmentTimeLabel(slotIndex, span, slots = timeSlots) {
   if (iso(selectedDate) !== iso(todayInPlanner())) return "";
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
   const end = start + span * getScheduleSlotIntervalMinutes(slots);
   if (currentMinutes < start || currentMinutes >= end) return "";
-  const segmentStart = Math.max(start, Math.floor(currentMinutes / 30) * 30);
-  const segmentEnd = Math.min(end, segmentStart + 30);
-  return `${minutesToTimeLabel(segmentStart)}-${minutesToTimeLabel(segmentEnd)}`;
+  return minutesToTimeLabel(Math.max(start, Math.floor(currentMinutes / 30) * 30));
 }
 
 function getCurrentAppointmentProgress(slotIndex, span, slots = timeSlots) {
