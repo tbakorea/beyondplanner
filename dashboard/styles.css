@@ -1574,7 +1574,7 @@ body.is-privacy-blind .app-shell {
 
 .daily-pulse-row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 34px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   margin: -5px 0 9px;
@@ -1594,20 +1594,35 @@ body.is-privacy-blind .app-shell {
 }
 
 .daily-pulse-nav {
-  display: grid;
-  place-items: center;
-  width: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  width: auto;
+  min-width: 60px;
   min-height: 32px;
   border: 1px solid rgba(221, 216, 203, 0.52);
   border-radius: 999px;
   background: rgba(255, 253, 248, 0.66);
   color: rgba(47, 65, 56, 0.76);
-  padding: 0;
-  font-size: 22px;
+  padding: 0 8px;
+  font-size: 12px;
   font-weight: 950;
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.daily-pulse-nav-arrow {
+  font-size: 20px;
+  line-height: 0.9;
+}
+
+.daily-pulse-nav-label {
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .daily-pulse-nav.is-active,
@@ -9002,15 +9017,23 @@ body.ceo-mode .daily-panel-chip {
   }
 
   .daily-pulse-row {
-    grid-template-columns: 33px minmax(0, 1fr) 33px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 4px;
     margin-bottom: 8px;
   }
 
   .daily-pulse-nav {
-    width: 33px;
+    min-width: 49px;
     min-height: 34px;
-    font-size: 23px;
+    padding-inline: 6px;
+  }
+
+  .daily-pulse-nav-arrow {
+    font-size: 19px;
+  }
+
+  .daily-pulse-nav-label {
+    font-size: 8.5px;
   }
 
   .daily-pulse-details {
