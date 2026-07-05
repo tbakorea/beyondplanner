@@ -3222,6 +3222,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .appointment-time.range {
+  position: relative;
+  min-width: 0;
   align-self: stretch;
   display: grid;
   align-content: space-between;
@@ -3241,12 +3243,17 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .appointment-row.is-merged {
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
   border-color: var(--line);
   background: rgba(217, 229, 234, 0.24);
 }
 
 .appointment-row.is-current-time {
   background: rgba(255, 241, 138, 0.24);
+}
+
+.appointment-row.is-current-time:not(.is-merged) {
   box-shadow: inset 3px 0 0 #d7372f;
 }
 
@@ -3270,12 +3277,20 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .appointment-time.range .appointment-current-segment {
-  justify-self: start;
-  margin: 2px 0;
-  padding: 1px 4px;
-  font-size: 8px;
+  position: absolute;
+  top: var(--current-segment-top, 50%);
+  left: 0;
+  z-index: 2;
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 2px 4px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: clip;
+  font-size: 8.5px;
   letter-spacing: 0;
   white-space: nowrap;
+  box-shadow: 0 2px 7px rgba(215, 55, 47, 0.16);
 }
 
 .appointment-row input[type="text"] {
@@ -3289,7 +3304,11 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .appointment-row.is-merged input[type="text"] {
   align-self: stretch;
+  min-width: 0;
   min-height: calc(24px + (var(--slot-span, 1) - 1) * 32px);
+  font-size: 15.5px;
+  font-weight: 760;
+  line-height: 1.35;
 }
 
 .appointment-merge-button {
@@ -3500,11 +3519,44 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .repeat-manager-open {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   width: 100%;
-  min-height: 38px;
-  margin-top: 10px;
-  font-size: 14px;
-  font-weight: 850;
+  min-height: 44px;
+  margin-top: 12px;
+  border: 1px solid rgba(95, 118, 104, 0.24);
+  border-left: 4px solid var(--sage-dark);
+  border-radius: 11px;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(238, 243, 235, 0.82));
+  color: var(--forest);
+  font-size: 14.5px;
+  font-weight: 900;
+  letter-spacing: 0;
+  box-shadow: 0 8px 20px rgba(38, 50, 56, 0.08);
+}
+
+.repeat-manager-open::after {
+  content: "›";
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(95, 118, 104, 0.12);
+  color: var(--forest);
+  font-size: 19px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.repeat-manager-open:hover,
+.repeat-manager-open:focus-visible {
+  border-color: rgba(95, 118, 104, 0.38);
+  background: linear-gradient(180deg, #fffefa, rgba(226, 235, 225, 0.92));
+  box-shadow: 0 10px 24px rgba(38, 50, 56, 0.12);
 }
 
 .repeat-manager-dialog {
@@ -7943,5 +7995,41 @@ body.ceo-mode .sheet-grid-wrap {
   .top-search-toggle {
     padding-inline: 11px;
     font-size: 13px;
+  }
+}
+
+/* Schedule merge refinement: larger merged text and proportional current marker. */
+.appointment-row.is-merged.is-current-time {
+  box-shadow: none;
+}
+
+.appointment-row.is-merged {
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.appointment-row.is-merged input[type="text"] {
+  font-size: clamp(15px, 1.25vw, 17px);
+  font-weight: 780;
+  line-height: 1.35;
+}
+
+.appointment-row.is-merged .appointment-current-segment {
+  top: var(--current-segment-top, 50%);
+}
+
+@media (max-width: 640px) {
+  .appointment-row.is-merged {
+    grid-template-columns: 68px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .appointment-row.is-merged input[type="text"] {
+    font-size: 15px;
+  }
+
+  .appointment-time.range .appointment-current-segment {
+    font-size: 8px;
+    padding-inline: 3px;
   }
 }

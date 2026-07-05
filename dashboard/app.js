@@ -4650,8 +4650,10 @@ function renderAppointments(day) {
     const value = day.appointments[slot] || "";
     const isCurrent = isCurrentAppointmentSlot(slotIndex, span, slots);
     const currentSegment = span > 1 && isCurrent ? getCurrentAppointmentSegmentLabel(slotIndex, span, slots) : "";
+    const currentProgress = span > 1 && isCurrent ? getCurrentAppointmentProgress(slotIndex, span, slots) : 0;
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
     row.style.setProperty("--slot-span", span);
+    if (currentSegment) row.style.setProperty("--current-segment-top", `${currentProgress}%`);
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
     row.innerHTML = `
@@ -4722,6 +4724,15 @@ function getCurrentAppointmentSegmentLabel(slotIndex, span, slots = timeSlots) {
   const segmentStart = Math.max(start, Math.floor(currentMinutes / 30) * 30);
   const segmentEnd = Math.min(end, segmentStart + 30);
   return `${minutesToTimeLabel(segmentStart)}-${minutesToTimeLabel(segmentEnd)}`;
+}
+
+function getCurrentAppointmentProgress(slotIndex, span, slots = timeSlots) {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
+  const duration = span * getScheduleSlotIntervalMinutes(slots);
+  if (!duration) return 0;
+  return Math.max(16, Math.min(84, ((currentMinutes - start) / duration) * 100));
 }
 
 function minutesToTimeLabel(minutes) {
