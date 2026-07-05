@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260705q" />
+    <link rel="stylesheet" href="./styles.css?v=20260706a" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -567,6 +567,10 @@
             </div>
           </div>
           <article class="panel span-12">
+            <div class="search-question-box" aria-label="검색 또는 AI 질문 입력">
+              <input id="searchPageInput" type="search" placeholder="검색어 또는 질문을 입력하세요. 예: 소풍간 날이 언제이지?" />
+              <button id="searchPageSubmit" type="button">실행</button>
+            </div>
             <div class="panel-title-row search-results-heading">
               <h3>검색 결과</h3>
               <button class="icon-close page-close" id="closeSearchButton" type="button" aria-label="검색 결과 닫기">×</button>
@@ -644,6 +648,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260705h"></script>
+    <script src="./app.js?v=20260706a"></script>
   </body>
 </html>

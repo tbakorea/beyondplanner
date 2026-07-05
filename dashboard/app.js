@@ -1494,6 +1494,15 @@ function setupSelectors() {
   el("plannerSearch").oninput = (event) => {
     updateSearch(event.target.value);
   };
+  el("searchPageInput").oninput = (event) => {
+    updateSearch(event.target.value);
+  };
+  el("searchPageInput").onkeydown = (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    runPageSearch();
+  };
+  el("searchPageSubmit").onclick = runPageSearch;
   el("headerSearch").onkeydown = (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
@@ -1563,6 +1572,13 @@ function runHeaderSearch() {
   requestAiSearchAnswer(input.value);
 }
 
+function runPageSearch() {
+  const input = el("searchPageInput");
+  if (!input) return;
+  updateSearch(input.value);
+  requestAiSearchAnswer(input.value);
+}
+
 function updateStickyPanelTop() {
   const header = document.querySelector(".app-header");
   if (!header) return;
@@ -1579,6 +1595,7 @@ function updateSearch(value) {
   searchQuery = value.trim();
   if (el("plannerSearch").value !== value) el("plannerSearch").value = value;
   if (el("headerSearch").value !== value) el("headerSearch").value = value;
+  if (el("searchPageInput").value !== value) el("searchPageInput").value = value;
   renderSearch();
   if (searchQuery) showView("search");
 }
@@ -1588,6 +1605,7 @@ function closeSearch() {
   aiSearch = { query: "", answer: "", loading: false, error: "" };
   el("plannerSearch").value = "";
   el("headerSearch").value = "";
+  el("searchPageInput").value = "";
   closeToDailyPage();
 }
 
@@ -2785,6 +2803,7 @@ function renderSidebar() {
   el("searchHint").textContent = searchQuery ? `${searchQuery}` : "검색어를 입력하세요";
   if (el("plannerSearch").value !== searchQuery) el("plannerSearch").value = searchQuery;
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
+  if (el("searchPageInput").value !== searchQuery) el("searchPageInput").value = searchQuery;
   el("topYearProgress").textContent = `연간 ${Math.round((elapsed / totalDays) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
   el("topSearchCount").textContent = `검색 ${results.length}`;
