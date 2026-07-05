@@ -8236,3 +8236,255 @@ body.ceo-mode .daily-panel-chip {
     font-size: 16px;
   }
 }
+
+/* Product polish pass: calmer hierarchy, lighter chrome, and a premium daily surface. */
+.app-header {
+  min-height: var(--app-header-height);
+  border-bottom-color: rgba(221, 216, 203, 0.54);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(249, 246, 239, 0.78)),
+    rgba(251, 248, 240, 0.78);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset, 0 12px 34px rgba(38, 50, 56, 0.055);
+}
+
+.brand-block {
+  align-self: center;
+}
+
+.brand-row {
+  gap: 10px;
+}
+
+.brand-row h1 {
+  font-weight: 880;
+  letter-spacing: 0;
+}
+
+.brand-year {
+  min-height: 19px;
+  margin-left: 5px;
+  border-color: rgba(95, 118, 104, 0.16);
+  background: rgba(255, 255, 255, 0.58);
+  color: rgba(47, 65, 56, 0.58);
+  padding: 2px 7px;
+  font-size: 0.36em;
+}
+
+.brand-row h1::after {
+  display: none;
+}
+
+.coach-bubble {
+  width: 40px;
+  height: 30px;
+  border-color: rgba(95, 118, 104, 0.44);
+  background:
+    radial-gradient(circle at 34% 50%, rgba(95, 118, 104, 0.85) 0 2px, transparent 2.8px),
+    radial-gradient(circle at 50% 50%, rgba(95, 118, 104, 0.85) 0 2px, transparent 2.8px),
+    radial-gradient(circle at 66% 50%, rgba(95, 118, 104, 0.85) 0 2px, transparent 2.8px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(225, 234, 229, 0.72));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 8px 22px rgba(38, 50, 56, 0.09);
+}
+
+.coach-bubble::after {
+  border-color: rgba(95, 118, 104, 0.44);
+  background: rgba(225, 234, 229, 0.78);
+}
+
+.coach-bubble::before {
+  top: -8px;
+  right: -7px;
+  min-width: 18px;
+  height: 18px;
+  border-width: 2px;
+  background: #cf463c;
+  font-size: 10px;
+}
+
+#modeToggle {
+  border-color: rgba(95, 118, 104, 0.18);
+  background: rgba(255, 255, 255, 0.58);
+  color: rgba(38, 50, 56, 0.72);
+  font-weight: 820;
+}
+
+#modeToggle:hover {
+  background: rgba(255, 253, 248, 0.9);
+}
+
+.quick-strip {
+  gap: 3px;
+  border-color: rgba(221, 216, 203, 0.42);
+  background: rgba(255, 253, 248, 0.46);
+  padding: 4px;
+  box-shadow: none;
+}
+
+.quick-strip button,
+.top-search-toggle {
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 7px 12px;
+  color: rgba(38, 50, 56, 0.76);
+  font-size: 12.5px;
+  font-weight: 840;
+}
+
+.quick-strip button:hover,
+.top-search-toggle:hover {
+  background: rgba(235, 231, 220, 0.62) !important;
+  transform: none;
+}
+
+.quick-strip button.is-active,
+.top-search-toggle.is-active {
+  background: var(--forest) !important;
+  border-color: var(--forest) !important;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(38, 60, 52, 0.16);
+}
+
+.top-status {
+  gap: 4px;
+}
+
+.top-status span,
+.top-status button,
+.top-status select,
+.top-more-menu summary {
+  min-height: 25px;
+  border-color: rgba(221, 216, 203, 0.36);
+  background: transparent;
+  color: rgba(85, 94, 89, 0.68);
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.top-status .is-warning {
+  background: rgba(255, 244, 210, 0.72);
+}
+
+.daily-title {
+  border-color: rgba(221, 216, 203, 0.58);
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.88), rgba(255, 253, 248, 0.72)),
+    rgba(255, 253, 248, 0.82);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.86) inset, 0 10px 28px rgba(38, 50, 56, 0.055);
+}
+
+.daily-date-button {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+#dayTitle {
+  letter-spacing: 0;
+}
+
+#dailyPrevDay,
+#dailyNextDay {
+  min-height: 40px;
+  border-color: rgba(38, 50, 56, 0.18);
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+}
+
+.daily-panel-chip {
+  min-height: 30px;
+  border-color: rgba(95, 118, 104, 0.14);
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: none;
+}
+
+.daily-panel-chip-arrow {
+  background: rgba(95, 118, 104, 0.08);
+}
+
+.daily-pulse {
+  margin-top: -3px;
+}
+
+.pulse-ticker {
+  min-height: 32px;
+  border-color: rgba(221, 216, 203, 0.48);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(251, 248, 240, 0.48)),
+    rgba(255, 253, 248, 0.58);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+}
+
+.pulse-ticker::before {
+  background: linear-gradient(90deg, rgba(250, 248, 242, 0.98), rgba(250, 248, 242, 0));
+}
+
+.pulse-ticker::after {
+  background: linear-gradient(270deg, rgba(250, 248, 242, 0.98), rgba(250, 248, 242, 0));
+}
+
+.pulse-ticker-item {
+  min-height: 23px;
+  background: transparent;
+  color: rgba(38, 50, 56, 0.74);
+  padding: 2px 8px;
+  font-size: 11.5px;
+}
+
+.pulse-ticker-item.pulse-primary,
+.pulse-ticker-item.pulse-alert,
+.pulse-ticker-item.pulse-warm,
+.pulse-ticker-item.pulse-calm {
+  background: rgba(255, 255, 255, 0.34);
+}
+
+.pulse-ticker-item b {
+  color: rgba(47, 65, 56, 0.86);
+}
+
+.panel {
+  border-color: rgba(221, 216, 203, 0.62);
+  background: rgba(255, 253, 248, 0.78);
+  box-shadow: 0 10px 28px rgba(38, 50, 56, 0.055);
+}
+
+.panel h3 {
+  letter-spacing: 0;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    min-height: var(--app-header-height);
+  }
+
+  .brand-row h1 {
+    font-size: clamp(24px, 7.4vw, 31px);
+  }
+
+  .brand-year {
+    padding-inline: 6px;
+  }
+
+  .quick-strip button,
+  .top-search-toggle {
+    min-height: 36px;
+    padding-inline: 11px;
+    font-size: 13px;
+  }
+
+  .top-status span,
+  .top-status button,
+  .top-status select,
+  .top-more-menu summary {
+    min-height: 25px;
+    font-size: 10.5px;
+  }
+
+  .pulse-ticker {
+    min-height: 30px;
+  }
+
+  .pulse-ticker-item {
+    min-height: 22px;
+    font-size: 11px;
+  }
+}
