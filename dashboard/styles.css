@@ -1589,22 +1589,69 @@ body.is-privacy-blind .app-shell {
 }
 
 .pulse-ticker {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 7px;
   min-height: 34px;
-  overflow-x: auto;
+  overflow: hidden;
   border: 1px solid rgba(221, 216, 203, 0.72);
   border-radius: 999px;
   background: rgba(255, 253, 248, 0.68);
   padding: 4px 7px;
   box-shadow: 0 5px 16px rgba(38, 50, 56, 0.045);
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
 }
 
-.pulse-ticker::-webkit-scrollbar {
-  display: none;
+.pulse-ticker::before,
+.pulse-ticker::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  width: 34px;
+  pointer-events: none;
+}
+
+.pulse-ticker::before {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 253, 248, 0.96), rgba(255, 253, 248, 0));
+}
+
+.pulse-ticker::after {
+  right: 0;
+  background: linear-gradient(270deg, rgba(255, 253, 248, 0.96), rgba(255, 253, 248, 0));
+}
+
+.pulse-ticker-track {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  animation: pulse-marquee 26s linear infinite;
+  will-change: transform;
+}
+
+.pulse-ticker:hover .pulse-ticker-track,
+.pulse-ticker:focus-within .pulse-ticker-track {
+  animation-play-state: paused;
+}
+
+.pulse-ticker-group {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding-right: 7px;
+}
+
+@keyframes pulse-marquee {
+  from {
+    transform: translateX(0);
+  }
+
+  to {
+    transform: translateX(-50%);
+  }
 }
 
 .pulse-ticker-item {
@@ -1658,6 +1705,22 @@ body.is-privacy-blind .app-shell {
 
 .pulse-ticker-item.pulse-calm {
   background: rgba(174, 191, 177, 0.13);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ticker {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .pulse-ticker::-webkit-scrollbar {
+    display: none;
+  }
+
+  .pulse-ticker-track {
+    animation: none;
+  }
 }
 
 .onboarding-panel {
@@ -7045,6 +7108,20 @@ body.ceo-mode .sheet-grid-wrap {
     gap: 5px;
     min-height: 31px;
     padding: 3px 5px;
+  }
+
+  .pulse-ticker::before,
+  .pulse-ticker::after {
+    width: 22px;
+  }
+
+  .pulse-ticker-track {
+    animation-duration: 22s;
+  }
+
+  .pulse-ticker-group {
+    gap: 5px;
+    padding-right: 5px;
   }
 
   .pulse-ticker-item {

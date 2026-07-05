@@ -3108,12 +3108,18 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const coach = buildCoachAnalysis();
   const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
   const coachLabel = coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정";
+  const tickerItems = `
+    <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘 실행</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>다음 일정</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextAppointment.text)}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>이월</b> ${carryoverOpen.length} <small>${carryoverOpen.length ? "판단 필요" : "없음"}</small></span>
+    <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
+  `;
   node.innerHTML = `
-    <div class="pulse-ticker" role="list">
-      <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘 실행</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
-      <span class="pulse-ticker-item" role="listitem"><b>다음 일정</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextAppointment.text)}</small></span>
-      <span class="pulse-ticker-item" role="listitem"><b>이월</b> ${carryoverOpen.length} <small>${carryoverOpen.length ? "판단 필요" : "없음"}</small></span>
-      <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
+    <div class="pulse-ticker" role="list" aria-label="오늘 실행 요약 전광판">
+      <div class="pulse-ticker-track">
+        <div class="pulse-ticker-group">${tickerItems}</div>
+        <div class="pulse-ticker-group" aria-hidden="true">${tickerItems}</div>
+      </div>
     </div>
   `;
 }
