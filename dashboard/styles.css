@@ -8488,3 +8488,169 @@ body.ceo-mode .daily-panel-chip {
     font-size: 11px;
   }
 }
+
+/* iPhone official-app polish: reduce repeated chrome and keep the daily surface calm. */
+.task-delete,
+.repeat-delete {
+  border-color: rgba(185, 179, 167, 0.34);
+  background: rgba(255, 253, 248, 0.46);
+  color: rgba(140, 45, 39, 0.38);
+  opacity: 0.72;
+  transition: opacity 140ms ease, color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.task-delete:hover,
+.task-delete:focus-visible,
+.repeat-delete:hover,
+.repeat-delete:focus-visible {
+  border-color: rgba(215, 55, 47, 0.42);
+  background: rgba(215, 55, 47, 0.08);
+  color: #a3312b;
+  opacity: 1;
+}
+
+.task-row {
+  border-color: rgba(221, 216, 203, 0.66);
+}
+
+.task-text-input::placeholder,
+.appointment-row input[type="text"]::placeholder {
+  color: rgba(112, 117, 111, 0.38);
+}
+
+.appointment-merge-button {
+  border-color: rgba(95, 118, 104, 0.14);
+  background: rgba(255, 253, 248, 0.52);
+  color: rgba(95, 118, 104, 0.56);
+  opacity: 0.58;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.62) inset;
+  transition: opacity 140ms ease, transform 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.appointment-row:hover .appointment-merge-button,
+.appointment-row:focus-within .appointment-merge-button,
+.appointment-merge-button:hover,
+.appointment-merge-button:focus-visible {
+  background: rgba(255, 253, 248, 0.92);
+  color: var(--sage-dark);
+  opacity: 1;
+}
+
+.schedule-title-actions {
+  gap: 4px;
+}
+
+.schedule-unit-toggle .mini-action {
+  min-width: 42px;
+}
+
+.pulse-ticker-item {
+  max-width: min(32vw, 280px);
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding-top: max(6px, env(safe-area-inset-top));
+    padding-bottom: 6px;
+  }
+
+  .quick-strip {
+    border-radius: 18px;
+    padding: 3px;
+  }
+
+  .quick-strip button,
+  .top-search-toggle {
+    min-height: 34px;
+    padding-inline: 10px;
+    font-size: 12.5px;
+  }
+
+  .day-date-nav {
+    gap: 5px;
+  }
+
+  .daily-panel-chip {
+    width: 28px;
+    min-width: 28px;
+    min-height: 36px;
+    padding: 0;
+    border-radius: 999px;
+  }
+
+  .daily-panel-chip-arrow {
+    display: none;
+  }
+
+  .daily-panel-chip-label {
+    display: inline-grid;
+    place-items: center;
+    max-width: none;
+    width: 100%;
+    height: 100%;
+    color: transparent;
+    font-size: 0;
+  }
+
+  .daily-panel-chip-left .daily-panel-chip-label::before {
+    content: "주";
+  }
+
+  .daily-panel-chip-right .daily-panel-chip-label::before {
+    content: "메";
+  }
+
+  .daily-panel-chip-label::before {
+    color: rgba(47, 65, 56, 0.72);
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  #dailyPrevDay,
+  #dailyNextDay {
+    width: 34px;
+    min-height: 42px;
+    font-size: 25px;
+  }
+
+  .daily-date-button {
+    min-width: 0;
+    padding-inline: 4px;
+  }
+
+  .pulse-ticker-track {
+    animation-duration: 18s;
+  }
+
+  .pulse-ticker-item {
+    max-width: 66vw;
+    padding-inline: 7px;
+  }
+
+  .task-delete,
+  .repeat-delete {
+    width: 18px;
+    height: 18px;
+    min-height: 18px;
+    font-size: 13px;
+    opacity: 0.5;
+  }
+
+  .appointment-merge-button {
+    width: 23px;
+    height: 20px;
+    min-height: 20px;
+    font-size: 14px;
+    opacity: 0.42;
+  }
+
+  .day-swipe .panel > h3 {
+    font-size: 13px;
+  }
+
+  .schedule-title-actions .mini-action {
+    min-height: 24px;
+    padding-inline: 7px;
+    font-size: 10px;
+  }
+}
