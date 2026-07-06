@@ -1994,6 +1994,29 @@ body.is-privacy-blind .app-shell {
   font-size: 12px;
 }
 
+.settings-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  border: 1px solid rgba(95, 118, 104, 0.22);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--forest);
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 860;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--forest);
+}
+
 .foundation-grid,
 .year-layout,
 .month-layout,
@@ -2726,6 +2749,12 @@ body.ceo-mode .project-money-row input:last-child {
   background: rgba(247, 245, 239, 0.74);
 }
 
+.finance-row.finance-amount-hidden .finance-amount {
+  color: var(--muted);
+  background: rgba(247, 245, 239, 0.72);
+  letter-spacing: 0.08em;
+}
+
 .finance-delete {
   width: 26px;
   min-width: 26px;
@@ -3244,6 +3273,10 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   grid-template-columns: 22px 30px minmax(0, 1fr) 22px;
 }
 
+.task-row:has(.task-money-link) {
+  grid-template-columns: 22px 30px minmax(0, 1fr) 46px 22px;
+}
+
 .carryover-date {
   display: inline-flex;
   align-items: center;
@@ -3519,6 +3552,27 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 .repeat-delete:hover {
   border-color: rgba(215, 55, 47, 0.38);
   background: rgba(215, 55, 47, 0.08);
+}
+
+.task-money-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  min-height: 22px;
+  border: 1px solid rgba(95, 118, 104, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.84);
+  color: var(--forest);
+  padding: 0 6px;
+  font-size: 9px;
+  font-weight: 920;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.task-money-link:hover {
+  background: rgba(174, 191, 177, 0.18);
 }
 
 .add-row {
@@ -9210,5 +9264,22 @@ body.ceo-mode .daily-panel-chip {
   .day-task-panel,
   .day-schedule-panel {
     padding-bottom: 24px;
+  }
+
+  .settings-toggle {
+    width: fit-content;
+    min-height: 34px;
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .task-row:has(.task-money-link) {
+    grid-template-columns: 18px 22px minmax(0, 1fr) 38px 18px;
+  }
+
+  .task-money-link {
+    min-width: 36px;
+    padding: 0 4px;
+    font-size: 8px;
   }
 }

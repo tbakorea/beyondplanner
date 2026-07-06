@@ -333,19 +333,19 @@ function parseDate(value) {
 }
 
 function formatDate(date) {
-  return date.toLocaleDateString("ko-KR", { year: "numeric", month: "2-digit", day: "2-digit", weekday: "short" });
+  return `${date.getFullYear()}. ${pad(date.getMonth() + 1)}. ${pad(date.getDate())}. (${weekdays[date.getDay()]})`;
 }
 
 function formatDailyTitleDate(date) {
-  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${weekdays[date.getDay()]})`;
+  return formatDate(date);
 }
 
 function formatShortDate(date) {
-  return date.toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit", weekday: "short" });
+  return formatDate(date);
 }
 
 function formatCompassDate(date) {
-  return `${pad(date.getMonth() + 1)}. ${pad(date.getDate())}. ${weekdays[date.getDay()]}`;
+  return formatDate(date);
 }
 
 function todayInPlanner() {
@@ -610,6 +610,7 @@ function createFinanceState() {
     fixed: Array.from({ length: 6 }, () => emptyMoneyItem("지출")),
     issueMemo: "",
     decisionMemo: "",
+    showAmounts: true,
   };
 }
 
@@ -647,6 +648,7 @@ function normalizeFinanceState(finance) {
   finance.fixed ||= [];
   finance.issueMemo ||= "";
   finance.decisionMemo ||= "";
+  finance.showAmounts = finance.showAmounts !== false;
   financeMonthKeys().forEach((key) => {
     finance.months[key] ||= Array.from({ length: 5 }, () => emptyMoneyItem());
     while (finance.months[key].length < 5) finance.months[key].push(emptyMoneyItem());
@@ -1106,12 +1108,14 @@ function ensureMonth(key = monthKey()) {
 function ensureWeek(key = weekKey()) {
   state.weeks[key] ||= {
     priorities: createWeeklyPriorities(key, state),
-    compass: compassRoleNames().map((role) => ({ role, goal: "", action: "" })),
+    compass: createWeeklyCompass(key, state),
   };
   state.weeks[key].priorities ||= createWeeklyPriorities(key, state);
+  carryWeeklyPrioritiesIntoWeek(key, state.weeks[key], state);
   while (state.weeks[key].priorities.length < 5) state.weeks[key].priorities.push({ text: "", done: false });
   state.weeks[key].priorities = state.weeks[key].priorities.slice(0, 5);
   state.weeks[key].compass ||= [];
+  carryWeeklyCompassIntoWeek(key, state.weeks[key], state);
   const roles = compassRoleNames();
   state.weeks[key].compass = roles.map((role, index) => {
     const existing = state.weeks[key].compass.find((item) => item.role === role) || state.weeks[key].compass[index] || {};
@@ -1228,6 +1232,59 @@ function createWeeklyPriorities(key, sourceState = null) {
   const carried = previous.filter((item) => item?.text && !item.done).map((item) => ({ text: item.text, done: false }));
   while (carried.length < 5) carried.push({ text: "", done: false });
   return carried.slice(0, 5);
+}
+
+function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
+  if (!week || !key) return;
+  const previousKey = previousWeekKey(key);
+  const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
+  const carriedTexts = previous
+    .filter((item) => item?.text && !item.done)
+    .map((item) => String(item.text).trim())
+    .filter(Boolean);
+  if (!carriedTexts.length) return;
+  week.priorities ||= [];
+  while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
+  const existingTexts = new Set(week.priorities.map((item) => String(item?.text || "").trim()).filter(Boolean));
+  carriedTexts.forEach((text) => {
+    if (existingTexts.has(text)) return;
+    const empty = week.priorities.find((item) => !String(item?.text || "").trim());
+    if (!empty) return;
+    empty.text = text;
+    empty.done = false;
+    existingTexts.add(text);
+  });
+}
+
+function createWeeklyCompass(key, sourceState = state) {
+  const roles = compassRoleNames();
+  const week = { compass: roles.map((role) => ({ role, goal: "", action: "", actions: ["", ""] })) };
+  carryWeeklyCompassIntoWeek(key, week, sourceState);
+  return week.compass;
+}
+
+function carryWeeklyCompassIntoWeek(key, week, sourceState = state) {
+  if (!week || !key) return;
+  const previousKey = previousWeekKey(key);
+  const previousCompass = previousKey ? sourceState?.weeks?.[previousKey]?.compass || [] : [];
+  if (!previousCompass.length) return;
+  const roles = compassRoleNames();
+  week.compass ||= [];
+  roles.forEach((role, index) => {
+    const current = week.compass.find((item) => item.role === role) || week.compass[index] || { role, goal: "", action: "", actions: ["", ""] };
+    const previous = previousCompass.find((item) => item.role === role) || previousCompass[index] || {};
+    normalizeCompassItem(current);
+    normalizeCompassItem(previous);
+    current.role = role;
+    if (!String(current.goal || "").trim() && String(previous.goal || "").trim()) current.goal = previous.goal;
+    current.actions = current.actions.slice(0, 2).map((value, actionIndex) => {
+      const currentValue = String(value || "").trim();
+      const previousValue = String(previous.actions?.[actionIndex] || "").trim();
+      return currentValue || previousValue || "";
+    });
+    current.action = current.actions[0] || "";
+    week.compass[index] = current;
+  });
 }
 
 function previousWeekKey(key) {
@@ -1456,6 +1513,14 @@ function setupSelectors() {
   el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
   el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
+  el("financeAmountVisibilityToggle").onchange = () => {
+    state.finance ||= createFinanceState();
+    normalizeFinanceState(state.finance);
+    state.finance.showAmounts = el("financeAmountVisibilityToggle").checked;
+    relinkAllMoneyTasks();
+    saveState();
+    renderAll();
+  };
   el("aiMemoSuggest").onclick = () => openSectionCoach("memo");
   el("closeSearchButton").onclick = closeSearch;
   el("closeCoachButton").onclick = closeCoach;
@@ -4200,7 +4265,7 @@ function repeatWeekdaySummary(rule) {
 function renderDayCompass() {
   const node = el("dayCompass");
   if (!node) return;
-  const title = document.querySelector(".day-compass-panel h3");
+  const title = document.querySelector(".day-compass-title-text");
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
@@ -4399,6 +4464,7 @@ function renderTaskRow(task, priority, index) {
     <button class="task-cycle" type="button" aria-label="완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" placeholder="업무 내용" />
+    ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
     <button class="task-delete" type="button" aria-label="우선업무 삭제">×</button>
   `;
   const cycle = row.querySelector(".task-cycle");
@@ -4407,6 +4473,7 @@ function renderTaskRow(task, priority, index) {
   const postponeSelect = row.querySelector(".postpone-select");
   const postponeDate = row.querySelector(".postpone-date");
   const text = row.querySelector(".task-text-input");
+  const moneyLink = row.querySelector(".task-money-link");
   const deleteButton = row.querySelector(".task-delete");
   cycle.onclick = () => {
     cycleTaskMarker(task);
@@ -4447,6 +4514,7 @@ function renderTaskRow(task, priority, index) {
     saveState({ fastSave: true });
   };
   deleteButton.onclick = () => deleteTask(priority, index);
+  if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
   return row;
 }
 
@@ -5078,7 +5146,11 @@ function mergeAppointmentRange(day, range) {
 function renderNotes() {
   state.finance ||= createFinanceState();
   normalizeFinanceState(state.finance);
+  const amountToggle = document.getElementById("financeAmountVisibilityToggle");
+  if (amountToggle) amountToggle.checked = moneyAmountsVisible();
+  if (ensureMoneyTasksReflected()) saveState({ fastSave: true });
   if (!state.finance.months[selectedFinanceMonth]) selectedFinanceMonth = monthKey(selectedDate);
+  sortMoneyRowsByDueDay(state.finance.fixed);
   renderFinanceMonthNav();
   renderFinanceYearRows();
   renderMoneyRows(el("fixedMoneyRows"), state.finance.fixed, { fixed: true });
@@ -6460,15 +6532,16 @@ function renderEditableList(node, array, placeholder, onSave) {
 function renderMoneyRows(node, rows, options = {}) {
   if (!node) return;
   node.innerHTML = "";
+  const showAmounts = moneyAmountsVisible();
   rows.forEach((item, index) => {
     const row = document.createElement("div");
-    row.className = `finance-row ${options.fixed ? "finance-row-fixed" : ""} finance-status-${item.status}`;
+    row.className = `finance-row ${options.fixed ? "finance-row-fixed" : ""} ${showAmounts ? "" : "finance-amount-hidden"} finance-status-${item.status}`;
     row.innerHTML = `
       <select class="finance-type" aria-label="구분">
         ${moneyTypes.map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${type}</option>`).join("")}
       </select>
       <input class="finance-title" type="text" value="${escapeAttr(item.title)}" placeholder="내용" />
-      <input class="finance-amount" type="text" inputmode="numeric" value="${escapeAttr(item.amount)}" placeholder="금액" />
+      <input class="finance-amount" type="${showAmounts ? "text" : "password"}" inputmode="numeric" value="${escapeAttr(item.amount)}" placeholder="${showAmounts ? "금액" : "숨김"}" />
       <input class="finance-due" type="number" min="1" max="31" value="${escapeAttr(item.dueDay)}" placeholder="일" />
       <select class="finance-status" aria-label="상태">
         ${moneyStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}
@@ -6527,9 +6600,12 @@ function removeMoneyRow(rows, index, options = {}) {
 }
 
 function updateMoneyItem(rows, index, field, value, options = {}) {
-  rows[index][field] = value;
-  if (options.monthKey) linkMoneyItemToTask(rows[index], options.monthKey);
-  if (options.fixed) linkFixedMoneyItemToTasks(rows[index]);
+  const item = rows[index];
+  if (!item) return;
+  item[field] = value;
+  if (options.fixed && field === "dueDay") sortMoneyRowsByDueDay(rows);
+  if (options.monthKey) linkMoneyItemToTask(item, options.monthKey);
+  if (options.fixed) linkFixedMoneyItemToTasks(item);
   saveState();
   renderFinanceSummary();
 }
@@ -6548,7 +6624,86 @@ function renderFinanceSummary() {
     .filter((item) => item.type === "수입")
     .reduce((sum, item) => sum + parseMoneyAmount(item.amount), 0);
   const monthNumber = Number(selectedFinanceMonth.split("-")[1]);
+  if (!moneyAmountsVisible()) {
+    node.textContent = `${monthNumber}월 ${activeOpenRows.length}건 · 금액 숨김 · 연간 미확인 ${yearlyOpenRows.length}`;
+    return;
+  }
   node.textContent = `${monthNumber}월 ${activeOpenRows.length}건 · 수입 ${formatMoneyAmount(incomeTotal)} · 지출 ${formatMoneyAmount(expenseTotal)} · 연간 미확인 ${yearlyOpenRows.length}`;
+}
+
+function moneyAmountsVisible() {
+  return state.finance?.showAmounts !== false;
+}
+
+function sortMoneyRowsByDueDay(rows = []) {
+  const filled = rows.filter((item) => item.title?.trim() || item.amount || item.dueDay || item.memo?.trim());
+  const empty = rows.filter((item) => !(item.title?.trim() || item.amount || item.dueDay || item.memo?.trim()));
+  filled.sort((a, b) => {
+    const aDay = Number(a.dueDay) || 99;
+    const bDay = Number(b.dueDay) || 99;
+    return aDay - bDay || String(a.title || "").localeCompare(String(b.title || ""), "ko");
+  });
+  rows.splice(0, rows.length, ...filled, ...empty);
+  return rows;
+}
+
+function relinkAllMoneyTasks() {
+  state.finance ||= createFinanceState();
+  normalizeFinanceState(state.finance);
+  Object.entries(state.finance.months || {}).forEach(([key, rows]) => {
+    rows.forEach((item) => linkMoneyItemToTask(item, key));
+  });
+  state.finance.fixed.forEach((item) => linkFixedMoneyItemToTasks(item));
+}
+
+function ensureMoneyTasksReflected() {
+  state.finance ||= createFinanceState();
+  normalizeFinanceState(state.finance);
+  let changed = false;
+  Object.entries(state.finance.months || {}).forEach(([key, rows]) => {
+    rows.forEach((item) => {
+      if (!item.title?.trim() || !getMoneyItemDate(item, key) || hasFinanceLinkedTask(item.id)) return;
+      linkMoneyItemToTask(item, key);
+      changed = true;
+    });
+  });
+  (state.finance.fixed || []).forEach((item) => {
+    if (!item.title?.trim() || !Number(item.dueDay)) return;
+    Object.keys(createFinanceMonths()).forEach((key) => {
+      const linkId = `${item.id}-${key}`;
+      if (!isFixedMoneyActiveForMonth(item, key) || hasFinanceLinkedTask(linkId)) return;
+      linkMoneyItemToTask(item, key, linkId, true);
+      changed = true;
+    });
+  });
+  return changed;
+}
+
+function hasFinanceLinkedTask(linkId = "") {
+  if (!linkId) return false;
+  return Object.values(state.days || {}).some((day) =>
+    priorities.some(([priority]) => (day.tasks?.[priority] || []).some((task) => task.financeItemId === linkId)),
+  );
+}
+
+function openMoneyFromFinanceTask(financeItemId = "") {
+  if (!financeItemId) return;
+  state.finance ||= createFinanceState();
+  normalizeFinanceState(state.finance);
+  let targetMonth = "";
+  Object.entries(state.finance.months || {}).some(([key, rows]) => {
+    if (!rows.some((item) => item.id === financeItemId)) return false;
+    targetMonth = key;
+    return true;
+  });
+  if (!targetMonth) {
+    const fixedItem = (state.finance.fixed || []).find((item) => financeItemId.startsWith(`${item.id}-`));
+    if (fixedItem) targetMonth = financeItemId.slice(fixedItem.id.length + 1);
+  }
+  if (targetMonth) selectedFinanceMonth = targetMonth;
+  showView("notes");
+  renderAll();
+  window.requestAnimationFrame(() => document.getElementById("view-notes")?.scrollIntoView({ block: "start" }));
 }
 
 function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
@@ -6609,7 +6764,7 @@ function getMoneyItemDate(item, key) {
 }
 
 function buildMoneyTaskText(item, fixed = false) {
-  const amount = item.amount ? ` ${item.amount}` : "";
+  const amount = moneyAmountsVisible() && item.amount ? ` ${item.amount}` : "";
   return `자금 확인${fixed ? "(매월)" : ""}: ${item.title.trim()}${amount}`;
 }
 
