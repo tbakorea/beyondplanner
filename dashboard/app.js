@@ -6707,7 +6707,11 @@ function removeStaleMoneyTasks(expectedLinks) {
     priorities.forEach(([priority]) => {
       const tasks = day.tasks?.[priority] || [];
       const filtered = tasks.filter((task) => {
-        if (!task.financeItemId) return true;
+        if (!task.financeItemId) {
+          const keepLegacy = shouldKeepLegacyFixedMoneyTask(task, dayKey);
+          if (!keepLegacy) changed = true;
+          return keepLegacy;
+        }
         const expected = expectedLinks.get(task.financeItemId);
         const keep = Boolean(expected && expected.date === dayKey);
         if (!keep) changed = true;
@@ -6717,6 +6721,35 @@ function removeStaleMoneyTasks(expectedLinks) {
     });
   });
   return changed;
+}
+
+function shouldKeepLegacyFixedMoneyTask(task = {}, dayKey = "") {
+  const title = getLegacyFixedMoneyTaskTitle(task.text);
+  if (!title) return true;
+  return (state.finance?.fixed || []).some((item) => {
+    if (!item.title?.trim()) return false;
+    if (!sameMoneyTitle(item.title, title)) return false;
+    const key = monthKey(parseDate(dayKey));
+    return isFixedMoneyActiveForMonth(item, key) && getMoneyItemDate(item, key) === dayKey;
+  });
+}
+
+function getLegacyFixedMoneyTaskTitle(text = "") {
+  const value = String(text || "").trim();
+  const match = value.match(/^자금\s*확인\s*\(매월\)\s*:\s*(.+)$/);
+  if (!match) return "";
+  return normalizeMoneyTitle(match[1].replace(/\s+[0-9,.-]+원?$/, ""));
+}
+
+function sameMoneyTitle(a = "", b = "") {
+  return normalizeMoneyTitle(a) === normalizeMoneyTitle(b);
+}
+
+function normalizeMoneyTitle(value = "") {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/[0-9,.-]+원?$/g, "")
+    .trim();
 }
 
 function hasFinanceLinkedTask(linkId = "") {
