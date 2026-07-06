@@ -624,6 +624,7 @@ function emptyMoneyItem(type = "지출") {
     status: "예정",
     memo: "",
     taskDate: "",
+    startDate: "",
     repeatEndMode: "none",
     repeatEndDate: "",
   };
@@ -679,6 +680,7 @@ function normalizeMoneyItem(item, fallbackType = "지출") {
     status: moneyStatuses.includes(item?.status) ? item.status : "예정",
     memo: item?.memo || "",
     taskDate: item?.taskDate || "",
+    startDate: item?.startDate || "",
     repeatEndMode: item?.repeatEndMode === "date" ? "date" : "none",
     repeatEndDate: item?.repeatEndDate || "",
   };
@@ -6603,6 +6605,7 @@ function updateMoneyItem(rows, index, field, value, options = {}) {
   const item = rows[index];
   if (!item) return;
   item[field] = value;
+  if (options.fixed && !item.startDate && moneyItemHasInput(item)) item.startDate = iso(todayInPlanner());
   if (options.fixed && field === "dueDay") sortMoneyRowsByDueDay(rows);
   if (options.monthKey) linkMoneyItemToTask(item, options.monthKey);
   if (options.fixed) linkFixedMoneyItemToTasks(item);
@@ -6636,8 +6639,8 @@ function moneyAmountsVisible() {
 }
 
 function sortMoneyRowsByDueDay(rows = []) {
-  const filled = rows.filter((item) => item.title?.trim() || item.amount || item.dueDay || item.memo?.trim());
-  const empty = rows.filter((item) => !(item.title?.trim() || item.amount || item.dueDay || item.memo?.trim()));
+  const filled = rows.filter((item) => moneyItemHasInput(item));
+  const empty = rows.filter((item) => !moneyItemHasInput(item));
   filled.sort((a, b) => {
     const aDay = Number(a.dueDay) || 99;
     const bDay = Number(b.dueDay) || 99;
@@ -6645,6 +6648,10 @@ function sortMoneyRowsByDueDay(rows = []) {
   });
   rows.splice(0, rows.length, ...filled, ...empty);
   return rows;
+}
+
+function moneyItemHasInput(item = {}) {
+  return Boolean(item.title?.trim() || item.amount || item.dueDay || item.memo?.trim());
 }
 
 function relinkAllMoneyTasks() {
@@ -6737,9 +6744,10 @@ function linkFixedMoneyItemToTasks(item) {
 }
 
 function isFixedMoneyActiveForMonth(item, key) {
-  if (item.repeatEndMode !== "date" || !item.repeatEndDate) return true;
   const targetDate = getMoneyItemDate(item, key);
   if (!targetDate) return false;
+  if (item.startDate && targetDate < item.startDate) return false;
+  if (item.repeatEndMode !== "date" || !item.repeatEndDate) return true;
   return targetDate <= item.repeatEndDate;
 }
 
