@@ -5150,7 +5150,7 @@ function renderNotes() {
   normalizeFinanceState(state.finance);
   const amountToggle = document.getElementById("financeAmountVisibilityToggle");
   if (amountToggle) amountToggle.checked = moneyAmountsVisible();
-  if (ensureMoneyTasksReflected()) saveState({ fastSave: true });
+  if (syncMoneyTaskLinks()) saveState({ fastSave: true });
   if (!state.finance.months[selectedFinanceMonth]) selectedFinanceMonth = monthKey(selectedDate);
   sortMoneyRowsByDueDay(state.finance.fixed);
   renderFinanceMonthNav();
@@ -6664,23 +6664,56 @@ function relinkAllMoneyTasks() {
 }
 
 function ensureMoneyTasksReflected() {
+  return syncMoneyTaskLinks();
+}
+
+function syncMoneyTaskLinks() {
   state.finance ||= createFinanceState();
   normalizeFinanceState(state.finance);
-  let changed = false;
+  const expectedLinks = buildExpectedMoneyTaskLinks();
+  let changed = removeStaleMoneyTasks(expectedLinks);
+  expectedLinks.forEach((link) => {
+    if (hasFinanceLinkedTaskAt(link.id, link.date)) return;
+    linkMoneyItemToTask(link.item, link.monthKey, link.id, link.fixed);
+    changed = true;
+  });
+  return changed;
+}
+
+function buildExpectedMoneyTaskLinks() {
+  const links = new Map();
   Object.entries(state.finance.months || {}).forEach(([key, rows]) => {
     rows.forEach((item) => {
-      if (!item.title?.trim() || !getMoneyItemDate(item, key) || hasFinanceLinkedTask(item.id)) return;
-      linkMoneyItemToTask(item, key);
-      changed = true;
+      const targetDate = getMoneyItemDate(item, key);
+      if (!item.title?.trim() || !targetDate) return;
+      links.set(item.id, { id: item.id, item, monthKey: key, date: targetDate, fixed: false });
     });
   });
   (state.finance.fixed || []).forEach((item) => {
     if (!item.title?.trim() || !Number(item.dueDay)) return;
     Object.keys(createFinanceMonths()).forEach((key) => {
-      const linkId = `${item.id}-${key}`;
-      if (!isFixedMoneyActiveForMonth(item, key) || hasFinanceLinkedTask(linkId)) return;
-      linkMoneyItemToTask(item, key, linkId, true);
-      changed = true;
+      if (!isFixedMoneyActiveForMonth(item, key)) return;
+      const targetDate = getMoneyItemDate(item, key);
+      const id = `${item.id}-${key}`;
+      links.set(id, { id, item, monthKey: key, date: targetDate, fixed: true });
+    });
+  });
+  return links;
+}
+
+function removeStaleMoneyTasks(expectedLinks) {
+  let changed = false;
+  Object.entries(state.days || {}).forEach(([dayKey, day]) => {
+    priorities.forEach(([priority]) => {
+      const tasks = day.tasks?.[priority] || [];
+      const filtered = tasks.filter((task) => {
+        if (!task.financeItemId) return true;
+        const expected = expectedLinks.get(task.financeItemId);
+        const keep = Boolean(expected && expected.date === dayKey);
+        if (!keep) changed = true;
+        return keep;
+      });
+      if (filtered.length !== tasks.length) day.tasks[priority] = filtered;
     });
   });
   return changed;
@@ -6691,6 +6724,13 @@ function hasFinanceLinkedTask(linkId = "") {
   return Object.values(state.days || {}).some((day) =>
     priorities.some(([priority]) => (day.tasks?.[priority] || []).some((task) => task.financeItemId === linkId)),
   );
+}
+
+function hasFinanceLinkedTaskAt(linkId = "", dayKey = "") {
+  if (!linkId || !dayKey) return false;
+  const day = state.days?.[dayKey];
+  if (!day) return false;
+  return priorities.some(([priority]) => (day.tasks?.[priority] || []).some((task) => task.financeItemId === linkId));
 }
 
 function openMoneyFromFinanceTask(financeItemId = "") {
@@ -7092,6 +7132,7 @@ function renderAll() {
   ensureMonth();
   ensureWeek();
   ensureDay();
+  if (syncMoneyTaskLinks()) saveState({ fastSave: true });
   renderSidebar();
   renderFoundation();
   renderYear();
