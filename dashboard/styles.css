@@ -3829,6 +3829,37 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   gap: 6px;
 }
 
+.profile-multi-field {
+  display: grid;
+  gap: 7px;
+}
+
+.persona-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.persona-chip-list label {
+  align-items: center;
+  border: 1px solid rgba(221, 216, 203, 0.95);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 800;
+  gap: 5px;
+  min-height: 34px;
+  padding: 6px 10px;
+  white-space: nowrap;
+}
+
+.persona-chip-list input {
+  accent-color: var(--ink);
+  height: 14px;
+  margin: 0;
+  width: 14px;
+}
+
 .profile-benefit-note {
   margin: -2px 0 14px;
   color: var(--muted);

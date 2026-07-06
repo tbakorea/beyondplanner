@@ -96,8 +96,22 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
 const hourlyTimeSlots = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
+const personaTypes = {
+  ceo: "CEO/대표",
+  entrepreneur: "개인사업자/프리랜서",
+  owner: "자영업자/매장 운영자",
+  employee: "직장인/팀원",
+  manager: "관리자/팀장",
+  student: "학생",
+  growth: "자기개발/개인 성장",
+  secondLife: "은퇴 준비/인생 2막",
+  other: "기타",
+};
 
 const defaultProfileFields = {
+  personaType: "",
+  personaTypesSecondary: [],
+  personaCustom: "",
   age: "",
   job: "",
   roles: "",
@@ -434,6 +448,7 @@ function migrateState(nextState) {
   normalizeCustomSheetsState(nextState.customSheets);
   nextState.notes ||= { projects: Array.from({ length: 8 }, () => ""), references: Array.from({ length: 8 }, () => ""), freeform: "" };
   nextState.profile = { ...defaultProfileFields, ...(nextState.profile || {}) };
+  if (!Array.isArray(nextState.profile.personaTypesSecondary)) nextState.profile.personaTypesSecondary = [];
   nextState.calendar ||= {};
   nextState.calendar.events ||= [];
   nextState.scheduleUnitChanges = normalizeScheduleUnitChanges(nextState.scheduleUnitChanges);
@@ -3225,10 +3240,16 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
   const coachLabel = coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정";
   const nextText = nextAppointment.text === "비어 있음" ? "없음" : nextAppointment.text;
+  const execution = buildDailyExecutionSignal(day, tasks, carryovers, completion);
+  const pattern = buildPatternSignal(selectedDate);
+  const alignment = buildGoalProjectAlignmentSignal(tasks);
   const tickerItems = `
     <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
     <span class="pulse-ticker-item" role="listitem"><b>다음</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextText)}</small></span>
     <span class="pulse-ticker-item" role="listitem"><b>이월</b> ${carryoverOpen.length}<small>${carryoverOpen.length ? "정리" : "없음"}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>실행</b> ${escapeHtml(execution.value)} <small>${escapeHtml(execution.detail)}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>패턴</b> ${escapeHtml(pattern.value)} <small>${escapeHtml(pattern.detail)}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>연결</b> ${escapeHtml(alignment.value)} <small>${escapeHtml(alignment.detail)}</small></span>
     <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
   `;
   node.innerHTML = `
@@ -3243,8 +3264,71 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
     ["다음 일정", nextAppointment.time, nextText],
     ["이월 관리", `${carryoverOpen.length}건`, carryoverOpen.length ? "오늘 판단이 필요합니다." : "열린 이월 업무가 없습니다."],
+    ["실행 추천", execution.value, execution.detail],
+    ["패턴 분석", pattern.value, pattern.detail],
+    ["목표 연결", alignment.value, alignment.detail],
     ["AI 신호", coachLabel, coach.title],
   ]);
+}
+
+function buildDailyExecutionSignal(day, tasks, carryovers, completion) {
+  const context = buildPlannerContext();
+  const openA = context.openTasks.filter((task) => task.priority === "A");
+  const scheduledTexts = context.appointmentEntries.map((entry) => entry.text).join(" ");
+  const unscheduledA = openA.find((task) => task.text && !scheduledTexts.includes(task.text.slice(0, 8)));
+  if (unscheduledA) return { value: "A고정", detail: `${unscheduledA.text.slice(0, 16)} 시간 배치` };
+  if (carryovers.length >= 3) return { value: "이월정리", detail: `${carryovers.length}건 판단` };
+  if (!context.appointmentEntries.length && context.openTasks.length) return { value: "시간배치", detail: "중요업무 1개 배치" };
+  if (completion.total && completion.done === completion.total) return { value: "마감", detail: "기록/회고 정리" };
+  return { value: "유지", detail: "현재 흐름 유지" };
+}
+
+function buildPatternSignal(date = selectedDate) {
+  const trend = getRecentTaskTrend(date);
+  const weekdayStats = getRecentWeekdayCompletionStats(date);
+  if (!trend.total) return { value: "대기", detail: "기록 축적 필요" };
+  const best = weekdayStats.find((item) => item.total >= 1);
+  if (best) return { value: `${trend.completionRate}%`, detail: `${weekdays[best.day]}요일 완료율 ${best.rate}%` };
+  return { value: `${trend.completionRate}%`, detail: `최근 7일 ${trend.done}/${trend.total}` };
+}
+
+function getRecentWeekdayCompletionStats(anchorDate) {
+  const stats = weekdays.map((_, day) => ({ day, total: 0, done: 0, rate: 0 }));
+  for (let offset = 0; offset < 28; offset += 1) {
+    const date = new Date(anchorDate);
+    date.setDate(anchorDate.getDate() - offset);
+    const tasks = getDayTasks(iso(date)).filter((task) => task.text?.trim());
+    const stat = stats[date.getDay()];
+    stat.total += tasks.length;
+    stat.done += tasks.filter((task) => shouldStrikeTask(task)).length;
+  }
+  stats.forEach((item) => {
+    item.rate = item.total ? Math.round((item.done / item.total) * 100) : 0;
+  });
+  return stats.sort((a, b) => b.rate - a.rate || b.total - a.total);
+}
+
+function buildGoalProjectAlignmentSignal(tasks = []) {
+  const yearGoals = (state.year?.goals || []).filter(Boolean);
+  const monthProjects = (ensureMonth().projects || []).filter(Boolean);
+  const activeProjects = (state.projects?.items || []).filter((project) => project.status !== "완료");
+  const taskText = tasks.map((task) => task.text || "").join(" ");
+  const goalHit = yearGoals.find((goal) => tokenOverlap(taskText, goal));
+  const projectHit = [...monthProjects, ...activeProjects.map((project) => `${project.name} ${project.nextAction} ${project.goal}`)].find((project) => tokenOverlap(taskText, project));
+  if (goalHit && projectHit) return { value: "목표+프로젝트", detail: "오늘 업무와 연결됨" };
+  if (goalHit) return { value: "목표", detail: goalHit.slice(0, 18) };
+  if (projectHit) return { value: "프로젝트", detail: projectHit.slice(0, 18) };
+  if (yearGoals.length || monthProjects.length || activeProjects.length) return { value: "미연결", detail: "A업무와 목표 연결 필요" };
+  return { value: "설정필요", detail: "목표/프로젝트 입력" };
+}
+
+function tokenOverlap(source = "", target = "") {
+  const sourceText = normalizeSearchText(source);
+  const tokens = normalizeSearchText(target)
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 2);
+  return tokens.some((token) => sourceText.includes(token));
 }
 
 function renderDailyPulseDetails(items) {
@@ -3457,11 +3541,28 @@ function bindProfileFields() {
       }
     };
   });
+  bindProfileMultiFields();
+}
+
+function bindProfileMultiFields() {
+  document.querySelectorAll("[data-profile-multi]").forEach((group) => {
+    const key = group.dataset.profileMulti;
+    const values = Array.isArray(state.profile?.[key]) ? state.profile[key] : [];
+    group.querySelectorAll("input[type='checkbox']").forEach((checkbox) => {
+      checkbox.checked = values.includes(checkbox.value);
+      checkbox.onchange = () => {
+        state.profile ||= {};
+        state.profile[key] = Array.from(group.querySelectorAll("input[type='checkbox']:checked")).map((input) => input.value);
+        saveState();
+        renderCoach();
+      };
+    });
+  });
 }
 
 function buildCoachAnalysis() {
   const context = buildPlannerContext();
-  const { openTasks, doneTasks, carryovers, appointmentEntries, goals, trend, freeSlots, highPriorityOpen, identitySummary, coachingStyle, currentChallenges, healthSummary, exerciseLimits } = context;
+  const { openTasks, doneTasks, carryovers, appointmentEntries, goals, trend, freeSlots, highPriorityOpen, identitySummary, personaLabel, personaGuidance, coachingStyle, currentChallenges, healthSummary, exerciseLimits } = context;
   let severity = "calm";
   let title = "오늘의 선택을 또렷하게 만들 시간입니다.";
   let message = "역할, 목표, 오늘의 우선업무가 서로 이어지도록 한 가지 중요한 결과를 먼저 고르세요.";
@@ -3487,6 +3588,9 @@ function buildCoachAnalysis() {
   if (currentChallenges && severity !== "alert") {
     message += ` 지금 적어 둔 현재 과제는 '${currentChallenges.slice(0, 28)}'입니다. 오늘의 선택 하나가 이 부담을 조금 줄이는 방향이면 좋겠습니다.`;
   }
+  if (personaGuidance) {
+    message += ` ${personaLabel} 관점에서는 ${personaGuidance}`;
+  }
   if (healthSummary) {
     message += exerciseLimits
       ? " 건강 정보가 있으므로 오늘 활동은 무리보다 안전한 지속성을 우선으로 잡겠습니다."
@@ -3504,7 +3608,7 @@ function buildCoachAnalysis() {
     severity,
     title,
     message,
-    detail: `${identitySummary || "사용자 정보"}${healthSummary ? ` · 건강: ${healthSummary}` : ""} · 최근 7일 완료율 ${trend.completionRate}% · 오늘 일정 ${appointmentEntries.length}개 · 이월 ${carryovers.length}개를 종합했습니다.`,
+    detail: `${identitySummary || personaLabel || "사용자 정보"}${healthSummary ? ` · 건강: ${healthSummary}` : ""} · 최근 7일 완료율 ${trend.completionRate}% · 오늘 일정 ${appointmentEntries.length}개 · 이월 ${carryovers.length}개를 종합했습니다.`,
     suggestions,
   };
 }
@@ -3532,7 +3636,7 @@ function buildSectionCoachAnalysis(section = "day") {
     severity: data.severity || base.severity,
     title: `${label} AI 코칭`,
     message: data.message,
-    detail: `${data.detail} · ${getSectionUsageGuide(section)} · 사용자 목표, 오늘 업무, 시간별 일정, 최근 완료 흐름을 함께 참고했습니다.`,
+    detail: `${data.detail} · ${getSectionUsageGuide(section)} · ${context.personaLabel ? `${context.personaLabel} 유형, ` : ""}사용자 목표, 오늘 업무, 시간별 일정, 최근 완료 흐름을 함께 참고했습니다.`,
     suggestions: suggestions.length ? suggestions : base.suggestions,
   };
 }
@@ -3566,9 +3670,9 @@ function getSectionCoachData(section, context) {
     foundation: {
       severity: state.profile?.goals || state.foundation?.mission ? "calm" : "warm",
       message: state.profile?.goals
-        ? "사용자 정보가 코칭의 기준점으로 작동하고 있습니다. 목표, 역할, 건강 리듬이 오늘 업무와 연결되는지 주기적으로 갱신하세요."
-        : "사용자 정보와 핵심 목표가 부족합니다. AI 코칭의 정확도를 높이려면 목표, 현재 과제, 에너지 시간대를 먼저 채우는 것이 좋습니다.",
-      detail: `입력 정보 ${Object.values(state.profile || {}).filter(Boolean).length}개 · 사명 ${state.foundation?.mission ? "있음" : "없음"}`,
+        ? "사용자 정보가 코칭의 기준점으로 작동하고 있습니다. 사용자 유형, 목표, 역할, 건강 리듬이 오늘 업무와 연결되는지 주기적으로 갱신하세요."
+        : "사용자 정보와 핵심 목표가 부족합니다. AI 코칭의 정확도를 높이려면 사용자 유형, 목표, 현재 과제, 에너지 시간대를 먼저 채우는 것이 좋습니다.",
+      detail: `유형 ${context.personaLabel || "미설정"} · 입력 정보 ${Object.values(state.profile || {}).filter(Boolean).length}개 · 사명 ${state.foundation?.mission ? "있음" : "없음"}`,
     },
     year: {
       severity: (state.year?.goals || []).filter(Boolean).length ? "calm" : "warm",
@@ -3632,8 +3736,9 @@ function baseSeverityFromContext(context) {
 function generateSectionSuggestions(section, context, data) {
   const firstOpen = context.openTasks[0]?.text || "";
   const firstFree = context.freeSlots[0] || "";
+  const personaHints = getCombinedPersonaSuggestions(context).slice(0, 2);
   const map = {
-    foundation: ["핵심 목표 1개를 30자 안으로 다시 쓰기", "현재 과제와 에너지 시간대를 사용자 정보에 보강하기"],
+    foundation: ["사용자 유형을 먼저 선택하고 역할 설명을 보강하기", "핵심 목표 1개를 30자 안으로 다시 쓰기", "현재 과제와 에너지 시간대를 사용자 정보에 보강하기"],
     year: ["연간 목표 1개를 이번 달 결과로 쪼개기", "미래 계획 중 지금 하지 않을 일을 대기 목록으로 정리하기"],
     month: ["월간 초점과 연결된 이번 주 행동 1개 만들기", "기념일·마감일 중 오늘 준비할 일을 우선업무로 내리기"],
     week: ["미완료 주요일정 1개를 오늘 A업무로 전환하기", "역할별 핵심행동을 2개 이하로 줄이기"],
@@ -3644,7 +3749,7 @@ function generateSectionSuggestions(section, context, data) {
     finance: ["이번 달 미확인 지출을 확인 상태로 정리하기", "자금 이슈 1개를 오늘 우선업무에 연결하기"],
     sheets: ["현재 시트의 첫 행/첫 열 의미를 명확히 정리하기", "반복 입력되는 표는 템플릿으로 분리하기"],
   };
-  return [...new Set([...(map[section] || []), ...(data.severity === "alert" ? ["오늘 처리할 수 없는 항목은 과감히 연기하기"] : [])])].slice(0, 5);
+  return [...new Set([...(personaHints || []), ...(map[section] || []), ...(data.severity === "alert" ? ["오늘 처리할 수 없는 항목은 과감히 연기하기"] : [])])].slice(0, 5);
 }
 
 function buildPlannerContext(key = iso(selectedDate)) {
@@ -3665,6 +3770,9 @@ function buildPlannerContext(key = iso(selectedDate)) {
   const weeklyFocus = ensureWeek(weekKey(date)).priorities?.filter((item) => item?.text && !item.done).map((item) => item.text) || [];
   const trend = getRecentTaskTrend(date);
   const identitySummary = summarizeProfileIdentity(state.profile);
+  const personaLabel = getPersonaLabel(state.profile);
+  const secondaryPersonaLabels = getSecondaryPersonaLabels(state.profile);
+  const personaGuidance = getPersonaGuidance(state.profile?.personaType);
   return {
     key,
     date,
@@ -3680,6 +3788,11 @@ function buildPlannerContext(key = iso(selectedDate)) {
     weeklyFocus,
     trend,
     identitySummary,
+    personaType: state.profile?.personaType || "",
+    secondaryPersonaTypes: getSecondaryPersonaTypes(state.profile),
+    personaLabel,
+    secondaryPersonaLabels,
+    personaGuidance,
     coachingStyle: state.profile?.coachingStyle || "",
     currentChallenges: state.profile?.currentChallenges || "",
     energyWindow: state.profile?.energyWindow || "",
@@ -3697,11 +3810,63 @@ function buildPlannerContext(key = iso(selectedDate)) {
 
 function summarizeProfileIdentity(profile = {}) {
   const parts = [
+    getPersonaLabel(profile),
+    getSecondaryPersonaLabels(profile).length && `보조: ${getSecondaryPersonaLabels(profile).slice(0, 3).join(", ")}`,
     profile.job && `${profile.job}`,
     profile.roles && `역할: ${profile.roles.slice(0, 22)}`,
     profile.goals && `목표: ${profile.goals.slice(0, 22)}`,
   ].filter(Boolean);
   return parts.join(" · ");
+}
+
+function getPersonaLabel(profile = {}) {
+  const type = profile.personaType || "";
+  if (type === "other" && profile.personaCustom) return profile.personaCustom.trim();
+  return personaTypes[type] || "";
+}
+
+function getSecondaryPersonaTypes(profile = {}) {
+  return Array.isArray(profile.personaTypesSecondary)
+    ? profile.personaTypesSecondary.filter((type) => type && type !== profile.personaType)
+    : [];
+}
+
+function getSecondaryPersonaLabels(profile = {}) {
+  return getSecondaryPersonaTypes(profile).map((type) => personaTypes[type]).filter(Boolean);
+}
+
+function getPersonaGuidance(type = "") {
+  const guides = {
+    ceo: "오늘의 핵심 의사결정, 현금흐름, 위임할 일을 먼저 분리하는 것이 중요합니다.",
+    entrepreneur: "매출로 이어지는 실행, 고객 대응, 납기 리스크를 먼저 고정하는 것이 중요합니다.",
+    owner: "매장 운영, 고객 흐름, 직원/재고/정산 이슈를 놓치지 않는 것이 중요합니다.",
+    employee: "상사·팀과 약속한 결과물, 마감, 협업 커뮤니케이션을 먼저 정리하는 것이 중요합니다.",
+    manager: "팀 병목, 위임 상태, 보고·의사결정 대기 항목을 먼저 확인하는 것이 중요합니다.",
+    student: "학습 블록, 복습, 시험·과제 마감을 시간표에 넣는 것이 중요합니다.",
+    growth: "습관 실행, 회고, 장기 목표와 연결된 작은 행동을 매일 남기는 것이 중요합니다.",
+    secondLife: "건강, 관계, 자산, 새 역할 탐색을 무리 없이 지속하는 것이 중요합니다.",
+    other: "직접 정의한 역할에 맞춰 목표와 오늘 행동이 연결되는지 확인하는 것이 중요합니다.",
+  };
+  return guides[type] || "";
+}
+
+function getPersonaSuggestions(type = "") {
+  const suggestions = {
+    ceo: ["오늘 결정해야 할 안건 1개 결론 내기", "현금흐름·리스크 항목 1개 확인하기", "대표가 직접 하지 않아도 되는 일 1개 위임하기"],
+    entrepreneur: ["매출 또는 고객 접점 업무 1개 먼저 처리하기", "견적·납기·응답 지연 항목 1개 해소하기", "이번 주 수입으로 이어질 다음 행동 정하기"],
+    owner: ["오늘 매장/현장 운영 체크 1개 완료하기", "고객 불편 또는 직원 전달사항 1개 정리하기", "정산·재고·예약 중 리스크 1개 확인하기"],
+    employee: ["오늘 보고하거나 공유할 결과물 1개 완성하기", "마감 임박 업무를 시간별 일정에 고정하기", "협업 대기 항목 1개를 먼저 문의하기"],
+    manager: ["팀 병목 1개 확인하고 담당자/다음 행동 지정하기", "위임한 업무의 상태를 확인하기", "보고·회의 전 핵심 숫자 1개 정리하기"],
+    student: ["가장 어려운 과목 50분 학습 블록 만들기", "오늘 배운 내용 10분 복습하기", "시험·과제 마감에서 역산한 다음 행동 정하기"],
+    growth: ["핵심 습관 1개를 체크 가능한 행동으로 만들기", "오늘 회고 질문 1개에 답하기", "장기 목표와 연결된 20분 실행 만들기"],
+    secondLife: ["건강 활동 1개와 관계 연락 1개를 일정에 넣기", "자산·서류·생활 정리 항목 1개 처리하기", "새 역할 탐색을 위한 작은 조사 1개 하기"],
+  };
+  return suggestions[type] || [];
+}
+
+function getCombinedPersonaSuggestions(context = buildPlannerContext()) {
+  const types = [context.personaType, ...(context.secondaryPersonaTypes || [])].filter(Boolean);
+  return [...new Set(types.flatMap((type) => getPersonaSuggestions(type)))];
 }
 
 function summarizeHealthProfile(profile = {}) {
@@ -3737,6 +3902,7 @@ function getRecentTaskTrend(anchorDate) {
 function generateTaskSuggestions(context = buildPlannerContext()) {
   const { openTasks, carryovers, goals, weeklyFocus, appointmentEntries, trend, profileText, decisionPrinciples, currentChallenges, energyWindow, healthStatus, medications, exerciseLimits, activityLevel, exerciseGoal, recoveryPattern } = context;
   const suggestions = [];
+  suggestions.push(...getCombinedPersonaSuggestions(context));
   const profileGoal = state.profile?.goals?.trim();
   if (profileGoal) suggestions.push(`목표 연결: ${profileGoal.slice(0, 22)}의 다음 행동 1개 완료하기`);
   if (decisionPrinciples) suggestions.push(`기준 점검: ${decisionPrinciples.slice(0, 18)}에 맞는 선택 1개 정리하기`);
@@ -3840,7 +4006,7 @@ function renderScheduleSuggestionPopover() {
 }
 
 function generateScheduleSuggestions(context = buildPlannerContext()) {
-  const { openTasks, freeSlots, appointmentEntries, carryovers, energyWindow, exerciseGoal, exerciseLimits, recoveryPattern } = context;
+  const { openTasks, freeSlots, appointmentEntries, carryovers, energyWindow, exerciseGoal, exerciseLimits, recoveryPattern, personaType, secondaryPersonaTypes } = context;
   const firstA = openTasks.find((task) => task.priority === "A") || openTasks[0];
   const preferredStart = /오후/.test(energyWindow) ? "13:00" : /저녁/.test(energyWindow) ? "16:00" : "09:00";
   const firstFree = freeSlots.find((slot) => slot >= preferredStart) || freeSlots.find((slot) => slot >= "09:00") || freeSlots[0] || "09:00";
@@ -3865,8 +4031,26 @@ function generateScheduleSuggestions(context = buildPlannerContext()) {
   } else {
     suggestions.push({ slot: "오전", text: "A업무 60분, B업무 30분, 기록 10분 순서로 배치" });
   }
+  [personaType, ...(secondaryPersonaTypes || []).slice(0, 1)]
+    .map((type) => getPersonaScheduleSuggestion(type))
+    .filter(Boolean)
+    .forEach((item) => suggestions.push(item));
   suggestions.push({ slot: "마감 전", text: "완료 체크, 내일 첫 행동, 배운 점 1줄 기록" });
   return [...new Map(suggestions.map((item) => [`${item.slot}:${item.text}`, item])).values()];
+}
+
+function getPersonaScheduleSuggestion(type = "") {
+  const map = {
+    ceo: { slot: "대표 블록", text: "의사결정 30분과 위임 확인 15분을 분리 배치" },
+    entrepreneur: { slot: "매출 블록", text: "고객 대응과 견적·납기 확인을 먼저 배치" },
+    owner: { slot: "운영 점검", text: "오픈/마감 체크와 직원 전달사항을 고정 배치" },
+    employee: { slot: "마감 블록", text: "보고 산출물 작성 시간을 먼저 확보" },
+    manager: { slot: "팀 점검", text: "팀 병목 확인과 피드백 시간을 분리 배치" },
+    student: { slot: "학습 블록", text: "집중 학습 50분과 복습 10분을 한 세트로 배치" },
+    growth: { slot: "습관 블록", text: "핵심 습관을 가장 방해가 적은 시간에 배치" },
+    secondLife: { slot: "균형 블록", text: "건강 활동과 관계·자산 점검 시간을 무리 없이 배치" },
+  };
+  return map[type] || null;
 }
 
 function applyScheduleSuggestion(suggestion) {
@@ -6662,6 +6846,35 @@ function normalizeFixedMoneyStartDates(rows = []) {
   });
 }
 
+function fixedMoneyTaskWindow() {
+  const start = todayInPlanner();
+  const end = addMonthsClamped(start, 1);
+  return { start: iso(start), end: iso(end) };
+}
+
+function addMonthsClamped(date, months) {
+  const source = new Date(date);
+  source.setHours(0, 0, 0, 0);
+  const targetYear = source.getFullYear();
+  const targetMonth = source.getMonth() + months;
+  const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+  return new Date(targetYear, targetMonth, Math.min(source.getDate(), lastDay));
+}
+
+function fixedMoneyTaskMonthKeys() {
+  const window = fixedMoneyTaskWindow();
+  const start = parseDate(window.start);
+  const end = parseDate(window.end);
+  const keys = [];
+  const cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+  const endMonth = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (cursor <= endMonth) {
+    keys.push(monthKey(cursor));
+    cursor.setMonth(cursor.getMonth() + 1, 1);
+  }
+  return keys;
+}
+
 function relinkAllMoneyTasks() {
   state.finance ||= createFinanceState();
   normalizeFinanceState(state.finance);
@@ -6699,7 +6912,7 @@ function buildExpectedMoneyTaskLinks() {
   });
   (state.finance.fixed || []).forEach((item) => {
     if (!item.title?.trim() || !Number(item.dueDay)) return;
-    Object.keys(createFinanceMonths()).forEach((key) => {
+    fixedMoneyTaskMonthKeys().forEach((key) => {
       if (!isFixedMoneyActiveForMonth(item, key)) return;
       const targetDate = getMoneyItemDate(item, key);
       const id = `${item.id}-${key}`;
@@ -6819,7 +7032,7 @@ function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
 function linkFixedMoneyItemToTasks(item) {
   removeFinanceLinkedTask(item.id, true);
   if (!item.title?.trim() || !Number(item.dueDay)) return;
-  Object.keys(createFinanceMonths()).forEach((key) => {
+  fixedMoneyTaskMonthKeys().forEach((key) => {
     if (isFixedMoneyActiveForMonth(item, key)) linkMoneyItemToTask(item, key, `${item.id}-${key}`, true);
   });
 }
@@ -6827,6 +7040,8 @@ function linkFixedMoneyItemToTasks(item) {
 function isFixedMoneyActiveForMonth(item, key) {
   const targetDate = getMoneyItemDate(item, key);
   if (!targetDate) return false;
+  const window = fixedMoneyTaskWindow();
+  if (targetDate < window.start || targetDate > window.end) return false;
   if (item.startDate && targetDate < item.startDate) return false;
   if (item.repeatEndMode !== "date" || !item.repeatEndDate) return true;
   return targetDate <= item.repeatEndDate;

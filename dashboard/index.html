@@ -185,6 +185,32 @@
               <h3>사용자 정보</h3>
               <p class="profile-benefit-note">구체적으로 적을수록 AI가 목표, 역할, 건강 리듬, 에너지 흐름, 부담 요인을 함께 읽어 더 개인화된 업무·일정·코칭을 제안합니다.</p>
               <div class="profile-grid compact-profile">
+                <label><span class="row-label">주 정체성</span><select data-profile-field="personaType">
+                  <option value="">선택</option>
+                  <option value="ceo">CEO/대표</option>
+                  <option value="entrepreneur">개인사업자/프리랜서</option>
+                  <option value="owner">자영업자/매장 운영자</option>
+                  <option value="employee">직장인/팀원</option>
+                  <option value="manager">관리자/팀장</option>
+                  <option value="student">학생</option>
+                  <option value="growth">자기개발/개인 성장</option>
+                  <option value="secondLife">은퇴 준비/인생 2막</option>
+                  <option value="other">기타</option>
+                </select></label>
+                <div class="profile-multi-field" data-profile-multi="personaTypesSecondary">
+                  <span class="row-label">보조 정체성</span>
+                  <div class="persona-chip-list">
+                    <label><input type="checkbox" value="ceo" /> <span>CEO/대표</span></label>
+                    <label><input type="checkbox" value="entrepreneur" /> <span>개인사업자</span></label>
+                    <label><input type="checkbox" value="owner" /> <span>자영업자</span></label>
+                    <label><input type="checkbox" value="employee" /> <span>직장인</span></label>
+                    <label><input type="checkbox" value="manager" /> <span>관리자</span></label>
+                    <label><input type="checkbox" value="student" /> <span>학생</span></label>
+                    <label><input type="checkbox" value="growth" /> <span>자기개발</span></label>
+                    <label><input type="checkbox" value="secondLife" /> <span>인생 2막</span></label>
+                  </div>
+                </div>
+                <label><span class="row-label">유형 설명</span><input data-profile-field="personaCustom" type="text" placeholder="예: 시행사 대표, 센터 운영자, 수험생" /></label>
                 <label><span class="row-label">나이</span><input data-profile-field="age" type="text" placeholder="예: 42" /></label>
                 <label><span class="row-label">직업</span><input data-profile-field="job" type="text" placeholder="예: 대표, 센터장, 관리자" /></label>
                 <label><span class="row-label">현재 역할</span><textarea data-profile-field="roles" rows="3" placeholder="예: 경영자, 부모, 리더, 투자자, 코치"></textarea></label>
