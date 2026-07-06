@@ -659,6 +659,7 @@ function normalizeFinanceState(finance) {
     finance.months[key] = finance.months[key].map((item) => normalizeMoneyItem(item));
   });
   finance.fixed = finance.fixed.map((item) => normalizeMoneyItem(item, "지출"));
+  normalizeFixedMoneyStartDates(finance.fixed);
 }
 
 function ensureFinanceMonth(key = selectedFinanceMonth) {
@@ -6652,6 +6653,13 @@ function sortMoneyRowsByDueDay(rows = []) {
 
 function moneyItemHasInput(item = {}) {
   return Boolean(item.title?.trim() || item.amount || item.dueDay || item.memo?.trim());
+}
+
+function normalizeFixedMoneyStartDates(rows = []) {
+  const today = iso(todayInPlanner());
+  rows.forEach((item) => {
+    if (!item.startDate && moneyItemHasInput(item)) item.startDate = today;
+  });
 }
 
 function relinkAllMoneyTasks() {
