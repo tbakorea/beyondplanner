@@ -1452,6 +1452,7 @@ function setupSelectors() {
   };
   el("refreshCoach").onclick = () => renderCoach();
   el("aiTaskSuggest").onclick = () => openSectionCoach("tasks");
+  el("aiCompassSuggest").onclick = () => openSectionCoach("week");
   el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
   el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
@@ -3132,6 +3133,16 @@ function renderScheduleUnitControls(day = ensureDay()) {
   el("scheduleUnit60")?.classList.toggle("is-active", unit === "60");
   el("scheduleUnit30")?.setAttribute("aria-pressed", String(unit === "30"));
   el("scheduleUnit60")?.setAttribute("aria-pressed", String(unit === "60"));
+  const range = el("scheduleRangeLabel");
+  if (range) range.textContent = getScheduleRangeLabel(day);
+}
+
+function getScheduleRangeLabel(day = ensureDay()) {
+  const slots = getScheduleSlotsForDay(day);
+  if (!slots.length) return "시작시간 ~ 종료시간";
+  const start = slots[0];
+  const end = getAppointmentEndLabel(slots.length - 1, 1, slots);
+  return `${start} ~ ${end}`;
 }
 
 function renderDailyPulse(day, tasks, carryovers, completion) {
@@ -3194,7 +3205,7 @@ function getNextAppointmentSummary(day) {
   const entries = slots
     .map((slot, index) => ({ slot, index, text: String(day.appointments?.[slot] || "").trim() }))
     .filter((entry) => entry.text);
-  if (!entries.length) return { time: "비어 있음", text: "중요업무를 시간표에 배치하세요" };
+  if (!entries.length) return { time: "비어 있음", text: "중요업무를 시간별 일정에 배치하세요" };
   const selectedKey = iso(selectedDate);
   const todayKey = iso(todayInPlanner());
   const now = new Date();
@@ -3206,7 +3217,7 @@ function getNextAppointmentSummary(day) {
   });
   if (!next) {
     return selectedKey === todayKey
-      ? { time: "완료", text: "남은 시간표 일정이 없습니다" }
+      ? { time: "완료", text: "남은 시간별 일정이 없습니다" }
       : { time: "비어 있음", text: "이 날짜의 다음 일정을 선택하세요" };
   }
   const span = getAppointmentSpan(day, next.slot);
@@ -3273,7 +3284,7 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
     message: `${praise} ${season.shortTone} 오늘은 큰 결심보다 작은 실행 하나면 충분합니다. ${challenge}`,
     signals: [
       season.signal,
-      `${appointments.length ? `시간표에 ${appointments.length}개의 일정이 있습니다.` : "시간표가 비어 있으니 중요한 일 하나를 먼저 고정할 수 있습니다."}`,
+      `${appointments.length ? `시간별 일정에 ${appointments.length}개의 일정이 있습니다.` : "시간별 일정이 비어 있으니 중요한 일 하나를 먼저 고정할 수 있습니다."}`,
       `${carryovers.length ? `이월 ${carryovers.length}개는 탓할 짐이 아니라 오늘 결단할 재료입니다.` : "이월이 적습니다. 오늘은 새 추진력을 만들기 좋습니다."}`,
     ],
   };
@@ -3316,7 +3327,7 @@ function getSeasonalContext(date) {
 function dailyChallengeText(openTasks, carryovers, appointments, goals, hash) {
   if (carryovers.length >= 5) return "남길 일과 보낼 일을 분명히 나누세요.";
   if (openTasks.length >= 8) return "A업무 두 개만 남겨도 충분히 강합니다.";
-  if (!appointments.length && openTasks.length) return "중요한 일 하나를 시간표에 앉히세요.";
+  if (!appointments.length && openTasks.length) return "중요한 일 하나를 시간별 일정에 앉히세요.";
   if (goals) return "목표와 닿은 작은 행동 하나를 끝내세요.";
   return pickByHash(
     [
@@ -3389,7 +3400,7 @@ function buildCoachAnalysis() {
   if (carryovers.length >= 4 || openTasks.length >= 8) {
     severity = "alert";
     title = "업무가 과밀합니다. 오늘은 줄이는 결단이 성과입니다.";
-    message = `열린 업무 ${openTasks.length}개, 이월 ${carryovers.length}개가 보입니다. A업무 1-2개만 시간표에 고정하고 나머지는 연기·위임·취소로 정리하세요.`;
+    message = `열린 업무 ${openTasks.length}개, 이월 ${carryovers.length}개가 보입니다. A업무 1-2개만 시간별 일정에 고정하고 나머지는 연기·위임·취소로 정리하세요.`;
   } else if (!appointmentEntries.length && openTasks.length > 0) {
     severity = "warm";
     title = "업무는 있지만 시간이 비어 있습니다.";
@@ -3411,7 +3422,7 @@ function buildCoachAnalysis() {
   if (healthSummary) {
     message += exerciseLimits
       ? " 건강 정보가 있으므로 오늘 활동은 무리보다 안전한 지속성을 우선으로 잡겠습니다."
-      : " 건강 리듬도 함께 보겠습니다. 짧은 신체 활동을 시간표에 넣으면 집중 회복에 도움이 됩니다.";
+      : " 건강 리듬도 함께 보겠습니다. 짧은 신체 활동을 시간별 일정에 넣으면 집중 회복에 도움이 됩니다.";
   }
   if (/단호|직설|강하게/.test(coachingStyle)) {
     message += " 결론은 단순합니다. 덜 중요한 일은 과감히 뒤로 보내고, 가장 중요한 한 칸을 반드시 지키세요.";
@@ -3441,7 +3452,7 @@ function buildSectionCoachAnalysis(section = "day") {
     schedule: "시간별 일정",
     memo: "메모 페이지",
     projects: "프로젝트 관리",
-    finance: "용돈/자금 관리",
+    finance: "Money",
     sheets: "커스텀 시트",
     day: "오늘 실행",
   };
@@ -3453,9 +3464,25 @@ function buildSectionCoachAnalysis(section = "day") {
     severity: data.severity || base.severity,
     title: `${label} AI 코칭`,
     message: data.message,
-    detail: `${data.detail} · 사용자 목표, 오늘 업무, 시간표, 최근 완료 흐름을 함께 참고했습니다.`,
+    detail: `${data.detail} · ${getSectionUsageGuide(section)} · 사용자 목표, 오늘 업무, 시간별 일정, 최근 완료 흐름을 함께 참고했습니다.`,
     suggestions: suggestions.length ? suggestions : base.suggestions,
   };
+}
+
+function getSectionUsageGuide(section = "day") {
+  const guides = {
+    foundation: "이 섹션은 AI가 사용자의 방향과 의사결정 기준을 이해하는 기준점입니다.",
+    year: "이 섹션은 올해 반드시 남길 결과를 정하고 월간·주간 실행으로 내려보내는 곳입니다.",
+    month: "이 섹션은 이번 달의 초점과 기념일, 프로젝트 흐름을 한눈에 조정하는 곳입니다.",
+    week: "이 섹션은 이번 주 주요일정을 오늘의 우선업무로 연결하는 다리입니다.",
+    tasks: "이 섹션은 오늘 반드시 끝낼 일과 연기·위임·취소할 일을 선명하게 가르는 곳입니다.",
+    schedule: "이 섹션은 중요한 업무를 실제 시간 블록에 배치해 실행 가능하게 만드는 곳입니다.",
+    memo: "이 섹션은 회의 메모, 결정, 배운 점을 기록해 검색과 회고 자산으로 바꾸는 곳입니다.",
+    projects: "이 섹션은 프로젝트 목표, 다음 행동, 자금 시뮬레이션을 연결해 진행을 관리하는 곳입니다.",
+    finance: "이 섹션은 월별 수입·지출 이슈를 일정과 우선업무로 연결해 리스크를 줄이는 곳입니다.",
+    sheets: "이 섹션은 반복 양식, 비교표, 체크리스트를 자유롭게 설계하는 작업 공간입니다.",
+  };
+  return guides[section] || "이 섹션은 오늘의 실행 흐름을 점검하고 다음 행동을 정하는 곳입니다.";
 }
 
 function getSectionCoachData(section, context) {
@@ -3487,17 +3514,17 @@ function getSectionCoachData(section, context) {
     },
     week: {
       severity: (week.priorities || []).some((item) => item.text && !item.done) ? "calm" : "warm",
-      message: "주간 일정은 오늘의 행동을 미리 이기는 구조입니다. 미완료 주요일정은 오늘 A업무나 시간표 블록으로 내려 보내세요.",
+      message: "주간 일정은 오늘의 행동을 미리 이기는 구조입니다. 미완료 주요일정은 오늘 A업무나 시간별 일정 블록으로 내려 보내세요.",
       detail: `금주의 주요일정 ${(week.priorities || []).filter((item) => item.text).length}개 · 역할 ${(week.compass || []).length}개`,
     },
     tasks: {
       severity: context.openTasks.length >= 8 ? "alert" : context.highPriorityOpen ? "calm" : "warm",
-      message: context.highPriorityOpen ? "A업무가 잡혀 있습니다. 가장 중요한 한 가지를 시간표에 먼저 고정하면 실행률이 올라갑니다." : "A업무가 없습니다. 오늘의 결과를 만드는 업무 하나를 A로 지정하세요.",
+      message: context.highPriorityOpen ? "A업무가 잡혀 있습니다. 가장 중요한 한 가지를 시간별 일정에 먼저 고정하면 실행률이 올라갑니다." : "A업무가 없습니다. 오늘의 결과를 만드는 업무 하나를 A로 지정하세요.",
       detail: `열린 업무 ${context.openTasks.length}개 · 완료 ${context.doneTasks.length}개 · 이월 ${context.carryovers.length}개`,
     },
     schedule: {
       severity: context.appointmentEntries.length ? "calm" : context.openTasks.length ? "warm" : "calm",
-      message: context.appointmentEntries.length ? "일정 블록이 있습니다. A업무와 회복 시간을 과밀하지 않게 배치했는지 확인하세요." : "업무는 있는데 시간표가 비어 있습니다. 중요한 업무 하나를 실제 시간칸에 넣어야 실행이 시작됩니다.",
+      message: context.appointmentEntries.length ? "일정 블록이 있습니다. A업무와 회복 시간을 과밀하지 않게 배치했는지 확인하세요." : "업무는 있는데 시간별 일정이 비어 있습니다. 중요한 업무 하나를 실제 시간칸에 넣어야 실행이 시작됩니다.",
       detail: `일정 ${context.appointmentEntries.length}개 · 빈 시간 ${context.freeSlots.length}칸`,
     },
     memo: {
@@ -3542,7 +3569,7 @@ function generateSectionSuggestions(section, context, data) {
     year: ["연간 목표 1개를 이번 달 결과로 쪼개기", "미래 계획 중 지금 하지 않을 일을 대기 목록으로 정리하기"],
     month: ["월간 초점과 연결된 이번 주 행동 1개 만들기", "기념일·마감일 중 오늘 준비할 일을 우선업무로 내리기"],
     week: ["미완료 주요일정 1개를 오늘 A업무로 전환하기", "역할별 핵심행동을 2개 이하로 줄이기"],
-    tasks: [firstOpen ? `${firstOpen.slice(0, 24)}을 시간표에 고정하기` : "오늘 A업무 1개 추가하기", "취소·연기·위임할 업무를 먼저 정리하기"],
+    tasks: [firstOpen ? `${firstOpen.slice(0, 24)}을 시간별 일정에 고정하기` : "오늘 A업무 1개 추가하기", "취소·연기·위임할 업무를 먼저 정리하기"],
     schedule: [firstFree ? `${firstFree}에 A업무 실행 블록 만들기` : "일정 사이 완충시간 10분 확보하기", "오후 전에 가장 어려운 업무 1개 배치하기"],
     memo: ["오늘의 결정 1개를 메모에 남기기", "내일 첫 행동 1개를 일일 기록에 적기"],
     projects: ["진행 중 프로젝트마다 다음 행동 1개 지정하기", "자금 영향이 큰 프로젝트를 우선 검토하기"],
@@ -3654,7 +3681,7 @@ function generateTaskSuggestions(context = buildPlannerContext()) {
   if (carryovers.length) suggestions.push(`이월 정리: ${carryovers[0].text.slice(0, 18)}을 완료·연기·위임 중 하나로 결정하기`);
   if (openTasks.length) suggestions.push(`집중 실행: ${openTasks[0].text.slice(0, 22)}을 25분 단위로 착수하기`);
   if (!openTasks.some((task) => task.priority === "A") && goals) suggestions.push("목표와 직접 연결되는 A업무 1개 추가하기");
-  if (!appointmentEntries.length && openTasks.length) suggestions.push("가장 중요한 업무 1개를 오전 시간표에 고정하기");
+  if (!appointmentEntries.length && openTasks.length) suggestions.push("가장 중요한 업무 1개를 오전 시간별 일정에 고정하기");
   if (/오전/.test(energyWindow)) suggestions.push("오전 집중 시간에 가장 어려운 A업무 먼저 배치하기");
   if (/오후/.test(energyWindow)) suggestions.push("오전에는 정리, 오후 집중 시간에 핵심 실행 배치하기");
   if (trend.completionRate < 45 && trend.total >= 4) suggestions.push("오늘 업무 수를 줄이고 끝낼 수 있는 3개만 남기기");
@@ -6050,7 +6077,7 @@ function renderProjectBoard() {
         <label><span class="row-label">예산</span><input type="text" data-field="budget" inputmode="numeric" value="${escapeAttr(project.budget)}" placeholder="예산" /></label>
         <label><span class="row-label">실사용</span><input type="text" data-field="actual" inputmode="numeric" value="${escapeAttr(project.actual)}" placeholder="실사용" /></label>
       </div>
-      <label class="project-wide-field"><span class="row-label">목표</span><textarea data-field="goal" rows="2" placeholder="완료 기준과 기대 결과">${escapeHtml(project.goal)}</textarea></label>
+      <label class="project-wide-field"><span class="row-label">목표</span><textarea data-field="goal" rows="1" placeholder="완료 기준과 기대 결과">${escapeHtml(project.goal)}</textarea></label>
       <div class="project-action-row">
         <label><span class="row-label">다음 행동</span><input type="text" data-field="nextAction" value="${escapeAttr(project.nextAction)}" placeholder="오늘 또는 이번 주 실행할 일" /></label>
         <label><span class="row-label">실행일</span><input type="date" data-field="dueDate" value="${escapeAttr(project.dueDate)}" /></label>
@@ -6063,7 +6090,7 @@ function renderProjectBoard() {
       </div>
       <div class="project-money-grid"></div>
       <button class="add-row project-money-add" type="button">시뮬레이션 항목 추가</button>
-      <label class="project-wide-field"><span class="row-label">메모</span><textarea data-field="notes" rows="3" placeholder="리스크, 의사결정, 확인할 숫자">${escapeHtml(project.notes)}</textarea></label>
+      <label class="project-wide-field"><span class="row-label">메모</span><textarea data-field="notes" rows="2" placeholder="리스크, 의사결정, 확인할 숫자">${escapeHtml(project.notes)}</textarea></label>
     `;
   const [titleInput, statusSelect] = card.querySelectorAll(".project-card-head input, .project-card-head select");
   titleInput.oninput = () => updateProjectField(index, "title", titleInput.value);
