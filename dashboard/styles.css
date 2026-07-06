@@ -9239,8 +9239,12 @@ body.ceo-mode .daily-panel-chip {
 @media (max-width: 640px) {
   .day-swipe .day-task-panel > h3,
   .day-swipe .day-schedule-panel > h3 {
-    margin-bottom: 2px;
+    top: 0;
+    z-index: 32;
+    margin-bottom: 8px;
     border-bottom: 0;
+    background: #fffefa;
+    box-shadow: 0 1px 0 rgba(221, 216, 203, 0.82), 0 7px 12px rgba(247, 245, 239, 0.96);
     font-size: 15px;
   }
 
@@ -9257,6 +9261,7 @@ body.ceo-mode .daily-panel-chip {
 
   .task-board,
   .appointment-list {
+    padding-top: 4px;
     padding-bottom: 86px;
     scroll-padding-bottom: 86px;
   }
