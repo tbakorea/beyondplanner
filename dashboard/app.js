@@ -366,6 +366,10 @@ function formatDate(date) {
   return `${date.getFullYear()}. ${pad(date.getMonth() + 1)}. ${pad(date.getDate())}. (${weekdays[date.getDay()]})`;
 }
 
+function formatYearMonth(date) {
+  return `${date.getFullYear()}. ${pad(date.getMonth() + 1)}.`;
+}
+
 function formatDailyTitleDate(date) {
   return formatDate(date);
 }
@@ -476,7 +480,6 @@ function migrateState(nextState) {
   Object.entries(nextState.weeks || {}).forEach(([key, week]) => {
     week.priorities ||= createWeeklyPriorities(key, nextState);
     while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
-    week.priorities = week.priorities.slice(0, 5);
     week.compass ||= [];
     week.compass = week.compass.filter((item) => item.role !== "일");
     week.compass.forEach((item) => {
@@ -1180,7 +1183,6 @@ function ensureWeek(key = weekKey()) {
   state.weeks[key].priorities ||= createWeeklyPriorities(key, state);
   carryWeeklyPrioritiesIntoWeek(key, state.weeks[key], state);
   while (state.weeks[key].priorities.length < 5) state.weeks[key].priorities.push({ text: "", done: false });
-  state.weeks[key].priorities = state.weeks[key].priorities.slice(0, 5);
   state.weeks[key].compass ||= [];
   carryWeeklyCompassIntoWeek(key, state.weeks[key], state);
   const roles = compassRoleNames();
@@ -1337,7 +1339,7 @@ function createWeeklyPriorities(key, sourceState = null) {
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
   const carried = previous.filter((item) => item?.text && !item.done).map((item) => ({ text: item.text, done: false }));
   while (carried.length < 5) carried.push({ text: "", done: false });
-  return carried.slice(0, 5);
+  return carried;
 }
 
 function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
@@ -1355,9 +1357,10 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
   carriedTexts.forEach((text) => {
     if (existingTexts.has(text)) return;
     const empty = week.priorities.find((item) => !String(item?.text || "").trim());
-    if (!empty) return;
-    empty.text = text;
-    empty.done = false;
+    const target = empty || { text: "", done: false };
+    target.text = text;
+    target.done = false;
+    if (!empty) week.priorities.push(target);
     existingTexts.add(text);
   });
 }
@@ -2326,7 +2329,7 @@ function renderDailyCalendar() {
   const todayKey = iso(todayInPlanner());
   const selectedKey = iso(selectedDate);
 
-  el("dailyCalendarMonthTitle").textContent = `${year}년 ${month + 1}월`;
+  el("dailyCalendarMonthTitle").textContent = formatYearMonth(new Date(year, month, 1));
   el("dailyCalendarPrevMonth").disabled = false;
   el("dailyCalendarNextMonth").disabled = false;
   grid.innerHTML = "";
@@ -2386,7 +2389,7 @@ function renderWeekCalendar() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
 
-  el("weekCalendarMonthTitle").textContent = `${year}년 ${month + 1}월`;
+  el("weekCalendarMonthTitle").textContent = formatYearMonth(new Date(year, month, 1));
   el("weekCalendarPrevMonth").disabled = false;
   el("weekCalendarNextMonth").disabled = false;
   grid.innerHTML = "";
@@ -3131,7 +3134,7 @@ function getLunarDecadeLabel(date) {
 
 function renderMonth() {
   const current = ensureMonth();
-  el("monthTitle").textContent = `${selectedDate.getFullYear()} ${monthNames[selectedDate.getMonth()]} Month Plan`;
+  el("monthTitle").textContent = `${formatYearMonth(selectedDate)} Month Plan`;
   if (!el("monthPickerPopover")?.hidden) renderMonthPicker();
   document.querySelector("[data-month-field='focus']").value = current.focus || "";
   document.querySelector("[data-month-field='focus']").oninput = (event) => {
@@ -3269,7 +3272,7 @@ function renderWeek() {
     const card = document.createElement("div");
     card.className = `week-day ${annotation.hasHoliday ? "has-holiday" : ""} ${annotation.lunarLabel ? "has-lunar" : ""}`.trim();
     card.innerHTML = `
-      <strong>${weekdays[i]} · ${date.getDate()}</strong>
+      <strong>${formatDate(date)}</strong>
       <div class="week-day-marks">${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel)}</div>
       <small>${tasks.length ? tasks.slice(0, 3).map((task) => `${task.priority}. ${task.text}`).join("<br>") : "일간 페이지에 업무를 입력하세요."}</small>
     `;
@@ -3870,7 +3873,7 @@ function getSectionCoachData(section, context) {
     week: {
       severity: (week.priorities || []).some((item) => item.text && !item.done) ? "calm" : "warm",
       message: "주간 일정은 오늘의 행동을 미리 이기는 구조입니다. 미완료 주요일정은 오늘 A업무나 시간별 일정 블록으로 내려 보내세요.",
-      detail: `금주의 주요일정 ${(week.priorities || []).filter((item) => item.text).length}개 · 역할 ${(week.compass || []).length}개`,
+      detail: `Week Focus ${(week.priorities || []).filter((item) => item.text).length}개 · Roles ${(week.compass || []).length}개`,
     },
     tasks: {
       severity: context.openTasks.length >= 8 ? "alert" : context.highPriorityOpen ? "calm" : "warm",
@@ -4648,15 +4651,15 @@ function renderDayCompass() {
   node.innerHTML = "";
   const priorityBlock = document.createElement("section");
   priorityBlock.className = "weekly-priority-block";
-  priorityBlock.innerHTML = `<h4>금주의 주요일정</h4>`;
-  week.priorities.slice(0, 5).forEach((item, index) => {
+  priorityBlock.innerHTML = `<h4>Week Focus List</h4>`;
+  week.priorities.forEach((item, index) => {
     item ||= { text: "", done: false };
     week.priorities[index] = item;
     const row = document.createElement("label");
     row.className = `weekly-priority-row ${item.done ? "done" : ""}`;
     row.innerHTML = `
       <input type="checkbox" ${item.done ? "checked" : ""} />
-      <input class="weekly-priority-text" type="text" value="${escapeAttr(item.text)}" placeholder="주요일정 ${index + 1}" />
+      <input class="weekly-priority-text" type="text" value="${escapeAttr(item.text)}" placeholder="Week item ${index + 1}" />
     `;
     const checkbox = row.querySelector("input[type='checkbox']");
     const text = row.querySelector(".weekly-priority-text");
@@ -4671,6 +4674,20 @@ function renderDayCompass() {
     };
     priorityBlock.appendChild(row);
   });
+  const addPriority = document.createElement("button");
+  addPriority.type = "button";
+  addPriority.className = "add-row weekly-priority-add";
+  addPriority.textContent = "Add Week Item";
+  addPriority.onclick = () => {
+    week.priorities.push({ text: "", done: false });
+    saveState({ fastSave: true });
+    renderDayCompass();
+    window.requestAnimationFrame(() => {
+      const inputs = priorityBlock.querySelectorAll(".weekly-priority-text");
+      inputs[inputs.length - 1]?.focus();
+    });
+  };
+  priorityBlock.appendChild(addPriority);
   node.appendChild(priorityBlock);
   week.compass.forEach((item, index) => {
     normalizeCompassItem(item);
@@ -6876,7 +6893,7 @@ function renderFinanceMonthNav() {
   if (title) {
     const yearNumber = Number(selectedFinanceMonth.split("-")[0]);
     const monthNumber = Number(selectedFinanceMonth.split("-")[1]);
-    title.textContent = `${yearNumber}년 ${monthNumber}월 자금 체크`;
+    title.textContent = `${yearNumber}. ${pad(monthNumber)}. Money Check`;
   }
   renderFinanceMonthTabs(false);
 }
@@ -6917,7 +6934,7 @@ function renderFinanceYearRows() {
   const monthNumber = Number(key.split("-")[1]);
   monthPanel.innerHTML = `
     <h4>
-      <span>${yearNumber}년 ${monthNumber}월 자금 체크</span>
+      <span>${yearNumber}. ${pad(monthNumber)}. Money Check</span>
       <small>${monthNumber}월 예정 수입·지출·이자·카드대금</small>
     </h4>
     <div class="finance-grid"></div>
@@ -7462,7 +7479,7 @@ function collectSearchResults(query) {
     month.projects.forEach((value, index) => push("month", `${key} 프로젝트 ${index + 1}`, value, `${key}-01`));
   });
   Object.entries(state.weeks).forEach(([key, week]) => {
-    week.priorities?.forEach((item, index) => push("week", `${key} 금주의 주요일정 ${index + 1}`, item.text, key));
+    week.priorities?.forEach((item, index) => push("week", `${key} Week Focus ${index + 1}`, item.text, key));
     week.compass.forEach((item) => {
       normalizeCompassItem(item);
       push("week", `${key} ${item.role}`, item.goal, key);
@@ -7720,7 +7737,7 @@ function buildPlannerWorkbookTables() {
   Object.keys(state.weeks || {}).sort().forEach((key) => {
     const week = state.weeks[key];
     (week.priorities || []).forEach((item, index) => {
-      if (item.text || item.done) weekRows.push([key, `금주의 주요일정 ${index + 1}`, item.done ? "완료" : "", item.text || ""]);
+      if (item.text || item.done) weekRows.push([key, `Week Focus ${index + 1}`, item.done ? "완료" : "", item.text || ""]);
     });
     (week.compass || []).forEach((item) => {
       if (item.goal) weekRows.push([key, item.role, "목표", item.goal]);
