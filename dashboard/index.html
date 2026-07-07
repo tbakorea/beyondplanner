@@ -26,24 +26,24 @@
       <div class="header-tools">
         <nav class="quick-strip" aria-label="빠른 이동">
           <div class="top-search-wrap">
-            <button class="top-search-toggle" id="topSearchToggle" type="button">검색/질문</button>
+            <button class="top-search-toggle" id="topSearchToggle" type="button">Ask</button>
             <div class="top-search" id="topSearchPopover" hidden>
               <span>빠른 검색</span>
               <input id="headerSearch" type="search" placeholder="검색 또는 질문" />
-              <button id="topSearchSubmit" type="button">실행</button>
+              <button id="topSearchSubmit" type="button">Go</button>
               <button class="icon-close top-search-close" id="topSearchClose" type="button" aria-label="검색/질문 닫기">×</button>
             </div>
           </div>
-          <button type="button" data-top-view="day">오늘</button>
-          <button type="button" data-top-view="week">주간</button>
-          <button type="button" data-top-view="month">월간</button>
-          <button type="button" data-top-view="projects">프로젝트</button>
+          <button type="button" data-top-view="day">Today</button>
+          <button type="button" data-top-view="week">Week</button>
+          <button type="button" data-top-view="month">Month</button>
+          <button type="button" data-top-view="projects">Projects</button>
           <button type="button" data-top-view="notes">Money</button>
-          <button type="button" data-top-view="sheets">시트</button>
+          <button type="button" data-top-view="sheets">Sheets</button>
           <button class="settings-nav-button" type="button" data-top-view="foundation" aria-label="설정" title="설정">⚙</button>
         </nav>
         <div class="top-status" aria-label="플래너 상태">
-          <span id="topYearProgress">연간 0%</span>
+          <span id="topYearProgress">Year 0%</span>
           <span id="topCarryover">이월 0</span>
           <span id="topSearchCount">검색 0</span>
           <span id="topSaveStatus">저장 확인 중</span>
@@ -95,13 +95,13 @@
           </div>
         </section>
         <nav class="tabs" aria-label="플래너 섹션">
-          <button class="tab active" data-view="day">오늘</button>
-          <button class="tab" data-view="week">주간</button>
-          <button class="tab" data-view="month">월간</button>
-          <button class="tab" data-view="projects">프로젝트</button>
+          <button class="tab active" data-view="day">Today</button>
+          <button class="tab" data-view="week">Week</button>
+          <button class="tab" data-view="month">Month</button>
+          <button class="tab" data-view="projects">Projects</button>
           <button class="tab" data-view="notes">Money</button>
-          <button class="tab" data-view="sheets">시트</button>
-          <button class="tab" data-view="year">연간</button>
+          <button class="tab" data-view="sheets">Sheets</button>
+          <button class="tab" data-view="year">Year</button>
           <button class="tab settings-tab-button" data-view="foundation" aria-label="설정" title="설정">⚙</button>
         </nav>
         <section class="mini-panel">
@@ -130,27 +130,27 @@
         <section class="view" id="view-foundation">
           <div class="page-title">
             <p class="eyebrow">Settings</p>
-            <h2>설정과 가치 기반</h2>
+            <h2>My Setup</h2>
             <button class="mini-action section-ai-button" type="button" data-section-ai="foundation">AI</button>
           </div>
           <div class="settings-shortcuts" aria-label="설정 바로가기">
-            <button type="button" data-settings-view="year">연간 캘린더</button>
-            <button type="button" data-settings-view="day">오늘 실행 화면</button>
-            <button type="button" data-settings-view="search">검색/질문</button>
+            <button type="button" data-settings-view="year">Year Calendar</button>
+            <button type="button" data-settings-view="day">Today View</button>
+            <button type="button" data-settings-view="search">Ask</button>
           </div>
           <div class="settings-tabbar" role="tablist" aria-label="설정 분류">
-            <button class="is-active" id="settingsUserTab" type="button" role="tab" aria-selected="true" aria-controls="settingsUserPanel" data-settings-tab="user">사용자 설정</button>
-            <button id="settingsAppTab" type="button" role="tab" aria-selected="false" aria-controls="settingsAppPanel" data-settings-tab="app">앱 설정</button>
+            <button class="is-active" id="settingsUserTab" type="button" role="tab" aria-selected="true" aria-controls="settingsUserPanel" data-settings-tab="user">About Me</button>
+            <button id="settingsAppTab" type="button" role="tab" aria-selected="false" aria-controls="settingsAppPanel" data-settings-tab="app">App Options</button>
           </div>
           <div class="foundation-grid">
             <article class="panel span-12 planner-options-panel" id="settingsAppPanel" role="tabpanel" aria-labelledby="settingsAppTab" data-settings-panel="app" hidden>
-              <h3>섹션별 앱 설정</h3>
+              <h3>Section Options</h3>
               <div class="planner-option-grid">
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>시간별 일정관리</strong>
+                    <strong>Schedule</strong>
                     <small>
-                      30분/1시간 단위는 오늘부터 적용됩니다. 시작·종료 시간은 시간별 일정의 표시 범위를 정합니다.
+                      Choose 30 min or 1 hour blocks. Set the visible start and end time for your day.
                       <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
                     </small>
                   </span>
@@ -160,15 +160,15 @@
                       <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
                     </span>
                     <span class="time-range-controls" aria-label="일정 시작 종료 시간">
-                      <label>시작 <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
-                      <label>종료 <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
+                      <label>Start <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
+                      <label>End <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
                     </span>
                   </div>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Money 금액 표시</strong>
-                    <small>Money 항목이 오늘·주간 일정에 반영될 때 금액 노출 여부를 조절합니다.</small>
+                    <strong>Money Amounts</strong>
+                    <small>Show or hide amounts when Money items appear in Today or Week.</small>
                   </span>
                   <label class="settings-toggle">
                     <input id="financeAmountVisibilityToggle" type="checkbox" checked />
@@ -177,29 +177,29 @@
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>오늘 섹션</strong>
-                    <small>우선업무, 시간별 일정, 위클리/메모 이동, 오늘 실행 흐름 표시를 관리합니다.</small>
+                    <strong>Today</strong>
+                    <small>Control Top Tasks, Schedule, Weekly Focus, Memo, and the daily flow banner.</small>
                   </span>
                   <span class="setting-status-pill">기본값 유지</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>주간·월간·연간</strong>
-                    <small>달력 시작요일, 공휴일·음력·기념일 표시, 주간 이월 흐름을 관리합니다.</small>
+                    <strong>Week · Month · Year</strong>
+                    <small>Calendar start day, holidays, lunar notes, anniversaries, and weekly carryover.</small>
                   </span>
-                  <span class="setting-status-pill">일요일 시작</span>
+                  <span class="setting-status-pill">Sun start</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>프로젝트·시트</strong>
-                    <small>프로젝트 상세 이동, 시트 행·열 조정, 템플릿과 내보내기 방식을 관리합니다.</small>
+                    <strong>Projects · Sheets</strong>
+                    <small>Detail pages, sheet rows and columns, templates, and exports.</small>
                   </span>
-                  <span class="setting-status-pill">사용 중</span>
+                  <span class="setting-status-pill">On</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>보안·백업</strong>
-                    <small>잠금, 보안 블라인드, 복원용 백업과 Excel/Numbers 검토 파일을 관리합니다.</small>
+                    <strong>Security · Backup</strong>
+                    <small>Lock, privacy blind, restore backup, and Excel/Numbers review files.</small>
                   </span>
                   <button class="mini-action" id="settingsExcelExportButton" type="button">엑셀</button>
                 </div>
@@ -209,18 +209,18 @@
               <div class="settings-step-heading">
                 <span>1</span>
                 <div>
-                  <h3>개인 사명 선언</h3>
-                  <p>프랭클린 플래너의 중심축입니다. 내가 지킬 원칙과 선택 기준을 짧게 적습니다.</p>
+                  <h3>My Why</h3>
+                  <p>Write the simple reason and rule that guide your choices.</p>
                 </div>
               </div>
-              <textarea data-store="foundation.mission" rows="10" placeholder="나의 선택 기준, 삶의 방향, 지키고 싶은 원칙을 적습니다."></textarea>
+              <textarea data-store="foundation.mission" rows="10" placeholder="What do I stand for? What rule should guide my choices?"></textarea>
             </article>
             <article class="panel span-6" data-settings-panel="user">
               <div class="settings-step-heading">
                 <span>2</span>
                 <div>
-                  <h3>핵심 가치</h3>
-                  <p>시간을 어디에 먼저 쓸지 판단하는 기준입니다.</p>
+                  <h3>What Matters</h3>
+                  <p>Pick the things that deserve your time first.</p>
                 </div>
               </div>
               <div class="value-list" id="valuesList"></div>
@@ -229,8 +229,8 @@
               <div class="settings-step-heading">
                 <span>3</span>
                 <div>
-                  <h3>역할과 장기 목표</h3>
-                  <p>개인, 가족, 일, 성장 같은 역할별 목표를 정하면 주간·일간 계획의 기준이 됩니다.</p>
+                  <h3>Roles & Goals</h3>
+                  <p>Name your key roles and the results you want from each one.</p>
                 </div>
               </div>
               <div class="role-goal-table" id="roleGoalTable"></div>
@@ -239,13 +239,13 @@
               <div class="settings-step-heading">
                 <span>4</span>
                 <div>
-                  <h3>사용자 정보</h3>
-                  <p>정체성, 현재 역할, 건강 리듬을 적으면 AI 코칭이 더 현실적인 말과 실행안으로 바뀝니다.</p>
+                  <h3>About Me</h3>
+                  <p>Tell the planner who you are, what you do, and what rhythm works for you.</p>
                 </div>
               </div>
-              <p class="profile-benefit-note">구체적으로 적을수록 AI가 목표, 역할, 건강 리듬, 에너지 흐름, 부담 요인을 함께 읽어 더 개인화된 업무·일정·코칭을 제안합니다.</p>
+              <p class="profile-benefit-note">The clearer this is, the better AI can suggest tasks, schedule blocks, and coaching that fit your real life.</p>
               <div class="profile-grid compact-profile">
-                <label><span class="row-label">주 정체성</span><select data-profile-field="personaType">
+                <label><span class="row-label">Main Type</span><select data-profile-field="personaType">
                   <option value="">선택</option>
                   <option value="ceo">CEO/대표</option>
                   <option value="entrepreneur">개인사업자/프리랜서</option>
@@ -253,12 +253,12 @@
                   <option value="employee">직장인/팀원</option>
                   <option value="manager">관리자/팀장</option>
                   <option value="student">학생</option>
-                  <option value="growth">자기개발/개인 성장</option>
+                  <option value="growth">Self Growth</option>
                   <option value="secondLife">은퇴 준비/인생 2막</option>
                   <option value="other">기타</option>
                 </select></label>
                 <div class="profile-multi-field" data-profile-multi="personaTypesSecondary">
-                  <span class="row-label">보조 정체성</span>
+                  <span class="row-label">Also Me</span>
                   <div class="persona-chip-list">
                     <label><input type="checkbox" value="ceo" /> <span>CEO/대표</span></label>
                     <label><input type="checkbox" value="entrepreneur" /> <span>개인사업자</span></label>
@@ -266,27 +266,27 @@
                     <label><input type="checkbox" value="employee" /> <span>직장인</span></label>
                     <label><input type="checkbox" value="manager" /> <span>관리자</span></label>
                     <label><input type="checkbox" value="student" /> <span>학생</span></label>
-                    <label><input type="checkbox" value="growth" /> <span>자기개발</span></label>
-                    <label><input type="checkbox" value="secondLife" /> <span>인생 2막</span></label>
+                    <label><input type="checkbox" value="growth" /> <span>Self Growth</span></label>
+                    <label><input type="checkbox" value="secondLife" /> <span>Next Chapter</span></label>
                   </div>
                 </div>
-                <label><span class="row-label">유형 설명</span><input data-profile-field="personaCustom" type="text" placeholder="예: 시행사 대표, 센터 운영자, 수험생" /></label>
-                <label><span class="row-label">나이</span><input data-profile-field="age" type="text" placeholder="예: 42" /></label>
-                <label><span class="row-label">직업</span><input data-profile-field="job" type="text" placeholder="예: 대표, 센터장, 관리자" /></label>
-                <label><span class="row-label">현재 역할</span><textarea data-profile-field="roles" rows="3" placeholder="예: 경영자, 부모, 리더, 투자자, 코치"></textarea></label>
-                <label><span class="row-label">핵심 목표</span><textarea data-profile-field="goals" rows="3" placeholder="목표를 추가하거나 수정한 뒤 Enter/Return으로 코칭에 반영합니다."></textarea></label>
-                <label><span class="row-label">의사결정 기준</span><textarea data-profile-field="decisionPrinciples" rows="3" placeholder="예: 장기 신뢰, 현금흐름, 가족시간, 성장성"></textarea></label>
-                <label><span class="row-label">현재 과제</span><textarea data-profile-field="currentChallenges" rows="3" placeholder="요즘 가장 부담되는 일, 해결해야 할 병목"></textarea></label>
-                <label><span class="row-label">강점</span><textarea data-profile-field="strengths" rows="3" placeholder="잘하는 방식, 에너지 나는 일"></textarea></label>
-                <label><span class="row-label">주의할 패턴</span><textarea data-profile-field="risks" rows="3" placeholder="미루는 일, 과부하, 반복되는 병목"></textarea></label>
-                <label><span class="row-label">에너지 시간대</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 집중형, 오후 미팅형" /></label>
-                <label><span class="row-label">코칭 방식</span><input data-profile-field="coachingStyle" type="text" placeholder="예: 단호하게, 격려 중심, 숫자 중심" /></label>
-                <label><span class="row-label">건강 상태</span><textarea data-profile-field="healthStatus" rows="3" placeholder="예: 허리 통증, 혈압 관리, 피로 누적 등"></textarea></label>
-                <label><span class="row-label">투약/관리</span><textarea data-profile-field="medications" rows="3" placeholder="복용 약, 정기검진, 관리 중인 항목"></textarea></label>
-                <label><span class="row-label">운동 제한</span><textarea data-profile-field="exerciseLimits" rows="3" placeholder="피해야 할 동작, 의사에게 들은 주의사항"></textarea></label>
-                <label><span class="row-label">활동 수준</span><input data-profile-field="activityLevel" type="text" placeholder="예: 거의 앉아 있음, 주 2회 걷기" /></label>
-                <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기, 근력 회복" /></label>
-                <label><span class="row-label">수면/회복</span><input data-profile-field="recoveryPattern" type="text" placeholder="예: 6시간 수면, 오후 피로 큼" /></label>
+                <label><span class="row-label">My Work</span><input data-profile-field="personaCustom" type="text" placeholder="e.g. developer, CEO, student, store owner" /></label>
+                <label><span class="row-label">Age</span><input data-profile-field="age" type="text" placeholder="e.g. 42" /></label>
+                <label><span class="row-label">Job</span><input data-profile-field="job" type="text" placeholder="e.g. CEO, manager, trainer" /></label>
+                <label><span class="row-label">Roles</span><textarea data-profile-field="roles" rows="3" placeholder="e.g. leader, parent, investor, coach"></textarea></label>
+                <label><span class="row-label">Big Goals</span><textarea data-profile-field="goals" rows="3" placeholder="Add or edit goals. Press Enter/Return to update coaching."></textarea></label>
+                <label><span class="row-label">My Rules</span><textarea data-profile-field="decisionPrinciples" rows="3" placeholder="e.g. trust, cash flow, family time, growth"></textarea></label>
+                <label><span class="row-label">Current Blocks</span><textarea data-profile-field="currentChallenges" rows="3" placeholder="What feels heavy or stuck right now?"></textarea></label>
+                <label><span class="row-label">Strengths</span><textarea data-profile-field="strengths" rows="3" placeholder="What kind of work gives you energy?"></textarea></label>
+                <label><span class="row-label">Watch-outs</span><textarea data-profile-field="risks" rows="3" placeholder="Things you delay, overload, or repeat too often"></textarea></label>
+                <label><span class="row-label">Best Time</span><input data-profile-field="energyWindow" type="text" placeholder="e.g. morning focus, afternoon meetings" /></label>
+                <label><span class="row-label">Coach Style</span><input data-profile-field="coachingStyle" type="text" placeholder="e.g. direct, warm, numbers first" /></label>
+                <label><span class="row-label">Health</span><textarea data-profile-field="healthStatus" rows="3" placeholder="e.g. back pain, blood pressure, fatigue"></textarea></label>
+                <label><span class="row-label">Care</span><textarea data-profile-field="medications" rows="3" placeholder="Medicine, checkups, care routines"></textarea></label>
+                <label><span class="row-label">Limits</span><textarea data-profile-field="exerciseLimits" rows="3" placeholder="Movements or intensity to avoid"></textarea></label>
+                <label><span class="row-label">Activity</span><input data-profile-field="activityLevel" type="text" placeholder="e.g. mostly sitting, walk twice a week" /></label>
+                <label><span class="row-label">Fitness Goal</span><input data-profile-field="exerciseGoal" type="text" placeholder="e.g. walk 20 min daily, rebuild strength" /></label>
+                <label><span class="row-label">Rest</span><input data-profile-field="recoveryPattern" type="text" placeholder="e.g. 6 hours sleep, tired after lunch" /></label>
               </div>
             </article>
           </div>
@@ -295,20 +295,20 @@
         <section class="view" id="view-year">
           <div class="page-title">
             <p class="eyebrow">Year At A Glance</p>
-            <h2 id="yearPageTitle">연간 계획</h2>
+            <h2 id="yearPageTitle">Year Plan</h2>
             <button class="mini-action section-ai-button" type="button" data-section-ai="year">AI</button>
           </div>
           <div class="year-layout">
             <article class="panel span-12">
-              <h3>연간 캘린더</h3>
+              <h3>Year Calendar</h3>
               <div class="year-grid" id="yearGrid"></div>
             </article>
             <article class="panel span-6">
-              <h3>연간 목표</h3>
+              <h3>Year Goals</h3>
               <div class="editable-list" id="yearGoals"></div>
             </article>
             <article class="panel span-6">
-              <h3>미래 계획 / 대기 목록</h3>
+              <h3>Someday List</h3>
               <div class="editable-list" id="futureLog"></div>
             </article>
           </div>
@@ -318,10 +318,10 @@
           <div class="page-title month-title">
             <p class="eyebrow">Monthly Planner</p>
             <button class="mini-action section-ai-button" type="button" data-section-ai="month">AI</button>
-            <div class="month-title-nav" id="monthSwipeZone" aria-label="월간 계획 이동">
+            <div class="month-title-nav" id="monthSwipeZone" aria-label="Move Month Plan">
               <button class="icon-button compact month-nav-button" id="monthPrevButton" type="button" aria-label="이전 달">‹</button>
               <button class="month-title-button" id="monthPickerToggle" type="button" aria-haspopup="dialog" aria-expanded="false">
-                <span id="monthTitle">월간 계획</span>
+                <span id="monthTitle">Month Plan</span>
               </button>
               <button class="icon-button compact month-nav-button" id="monthNextButton" type="button" aria-label="다음 달">›</button>
               <div class="month-picker-popover" id="monthPickerPopover" role="dialog" aria-label="월 선택" hidden>
@@ -331,11 +331,11 @@
           </div>
           <div class="month-layout">
             <article class="panel span-8">
-              <h3>월간 캘린더</h3>
+              <h3>Month Calendar</h3>
               <div class="month-calendar" id="monthCalendar"></div>
             </article>
             <article class="panel span-4">
-              <h3>월간 초점</h3>
+              <h3>Month Focus</h3>
               <textarea data-month-field="focus" rows="8" placeholder="이번 달의 가장 중요한 결과"></textarea>
               <h3 class="subhead">생일 · 기념일</h3>
               <div class="anniversary-form">
@@ -344,7 +344,7 @@
                 <button id="addAnniversaryButton" type="button">추가</button>
               </div>
               <div class="anniversary-list" id="anniversaryList"></div>
-              <h3 class="subhead">월간 프로젝트</h3>
+              <h3 class="subhead">Month Projects</h3>
               <div class="editable-list" id="monthProjects"></div>
             </article>
           </div>
@@ -355,11 +355,11 @@
             <div class="week-heading">
               <p class="eyebrow">Weekly Schedule</p>
               <button class="week-date-button" id="weekCalendarToggle" type="button" aria-haspopup="dialog" aria-expanded="false" title="달력에서 주간 선택">
-                <span id="weekTitle">주간 일정</span>
+                <span id="weekTitle">Week Plan</span>
                 <span class="daily-date-calendar-mark" aria-hidden="true">▦</span>
               </button>
               <button class="mini-action section-ai-button" type="button" data-section-ai="week">AI</button>
-              <section class="daily-calendar-popover week-calendar-popover" id="weekCalendarPopover" role="dialog" aria-label="주간 일정 선택" hidden>
+              <section class="daily-calendar-popover week-calendar-popover" id="weekCalendarPopover" role="dialog" aria-label="Choose Week Plan" hidden>
                 <div class="daily-calendar-toolbar">
                   <button class="daily-calendar-nav" id="weekCalendarPrevMonth" type="button" aria-label="이전 달">‹</button>
                   <strong id="weekCalendarMonthTitle">2026년 1월</strong>
@@ -372,7 +372,7 @@
           </div>
           <div class="week-layout">
             <article class="panel span-12">
-              <h3>주간 보기</h3>
+              <h3>Week View</h3>
               <div class="week-days" id="weekDays"></div>
             </article>
           </div>
@@ -407,7 +407,7 @@
             </div>
           </div>
           <div class="daily-pulse-row" id="dailyPulseZone" aria-label="오늘 실행 요약과 주변 페이지 이동">
-            <button class="daily-pulse-nav daily-pulse-nav-left" type="button" data-day-panel-jump="week" aria-label="위클리 콤파스 보기">
+            <button class="daily-pulse-nav daily-pulse-nav-left" type="button" data-day-panel-jump="week" aria-label="Weekly Focus">
               <span class="daily-pulse-nav-arrow" aria-hidden="true">‹</span>
               <span class="daily-pulse-nav-label">Weekly</span>
             </button>
@@ -423,20 +423,20 @@
           <section class="onboarding-panel" id="onboardingPanel" hidden>
             <div>
               <p class="eyebrow">Start</p>
-              <h3>오늘 실행 흐름 만들기</h3>
-              <p>핵심 목표와 이번 주 흐름을 먼저 잡으면 AI 코칭이 더 정확해집니다.</p>
+              <h3>Build Today</h3>
+              <p>Set your goals and week focus first, then AI can coach more clearly.</p>
             </div>
             <div class="onboarding-actions">
               <button type="button" data-onboarding-action="task">첫 업무 입력</button>
-              <button type="button" data-onboarding-action="week">주간 계획</button>
-              <button type="button" data-onboarding-action="foundation">가치 설정</button>
+              <button type="button" data-onboarding-action="week">Week Plan</button>
+              <button type="button" data-onboarding-action="foundation">My Setup</button>
               <button type="button" data-onboarding-toggle>숨기기</button>
             </div>
           </section>
           <div class="day-swipe" id="daySwipe" aria-label="일간 페이지 좌우 넘김">
             <article class="panel swipe-panel day-compass-panel" data-panel="week">
               <h3 class="panel-title-row">
-                <span class="day-compass-title-text">위클리 콤파스</span>
+                <span class="day-compass-title-text">Weekly Focus</span>
                 <button class="mini-action section-ai-button" id="aiCompassSuggest" type="button" data-section-ai="week">AI</button>
               </h3>
               <div class="weekly-compass" id="dayCompass"></div>
@@ -444,18 +444,18 @@
             <section class="swipe-panel day-main-panel" data-panel="main">
               <article class="panel day-task-panel">
                 <h3 class="panel-title-row">
-                  <span>오늘의 우선업무</span>
+                  <span>Top Tasks</span>
                   <span class="panel-actions">
                     <button class="mini-action" id="aiTaskSuggest" type="button" data-section-ai="tasks">AI</button>
                   </span>
                 </h3>
                 <div class="ai-suggest-popover" id="taskSuggestPopover" hidden></div>
                 <div class="task-board" id="taskBoard"></div>
-                <button class="add-row repeat-manager-open" id="openRepeatManagerButton" type="button">반복 우선업무 관리</button>
+                <button class="add-row repeat-manager-open" id="openRepeatManagerButton" type="button">Repeating Tasks</button>
               </article>
               <article class="panel day-schedule-panel">
                 <h3 class="panel-title-row">
-                  <span>시간별 일정</span>
+                  <span>Schedule</span>
                   <span class="schedule-title-actions">
                     <button class="mini-action" id="aiScheduleSuggest" type="button" data-section-ai="schedule">AI</button>
                   </span>
@@ -477,8 +477,8 @@
                 <button class="mini-action" id="aiMemoSuggest" type="button" data-section-ai="memo">AI</button>
               </h3>
               <textarea data-day-field="memo" rows="18" placeholder="떠오른 생각, 회의 메모, 후속 조치를 자유롭게 적습니다."></textarea>
-              <h3 class="subhead">일일 기록</h3>
-              <textarea data-day-field="record" rows="10" placeholder="오늘의 진행, 결정, 배운 점을 기록합니다."></textarea>
+              <h3 class="subhead">Daily Note</h3>
+              <textarea data-day-field="record" rows="10" placeholder="Progress, decisions, and lessons from today."></textarea>
               <div class="daily-review-grid" aria-label="하루 회고">
                 <label><span>완료/성과</span><textarea data-day-field="wins" rows="4" placeholder="오늘 끝낸 것, 성과, 감사한 점"></textarea></label>
                 <label><span>내일로 넘길 일</span><textarea data-day-field="carry" rows="4" placeholder="내일 첫 행동으로 넘길 일"></textarea></label>
@@ -513,7 +513,7 @@
               <div class="coach-benefits">
                 <p>목표와 오늘의 업무를 연결해 우선순위를 더 빠르게 정합니다.</p>
                 <p>미완료, 과밀 일정, 빈 시간대를 감지해 실행 가능한 다음 행동을 제안합니다.</p>
-                <p>반복되는 업무 패턴을 바탕으로 놓치기 쉬운 역할과 회고를 상기시킵니다.</p>
+                <p>It notices repeated patterns and reminds you what may be easy to miss.</p>
               </div>
             </article>
           </div>
@@ -674,7 +674,7 @@
           <article class="panel span-12">
             <div class="search-question-box" aria-label="검색 또는 AI 질문 입력">
               <input id="searchPageInput" type="search" placeholder="검색어 또는 질문을 입력하세요. 예: 소풍간 날이 언제이지?" />
-              <button id="searchPageSubmit" type="button">실행</button>
+              <button id="searchPageSubmit" type="button">Go</button>
             </div>
             <div class="panel-title-row search-results-heading">
               <h3>검색 결과</h3>
@@ -712,15 +712,15 @@
       </div>
     </section>
 
-    <section class="repeat-manager-dialog" id="repeatManagerDialog" hidden role="dialog" aria-modal="true" aria-label="반복 우선업무 관리">
+    <section class="repeat-manager-dialog" id="repeatManagerDialog" hidden role="dialog" aria-modal="true" aria-label="Repeating Tasks">
       <div class="repeat-manager-card">
         <header class="repeat-manager-header">
           <div>
             <p class="eyebrow">Recurring Priorities</p>
-            <h2>반복 우선업무</h2>
-            <small>내용이 입력된 항목은 연간, 월간, 주간, 매일 순으로 정렬됩니다.</small>
+            <h2>Repeating Tasks</h2>
+            <small>Saved items are sorted by yearly, monthly, weekly, and daily.</small>
           </div>
-          <button class="icon-close" id="closeRepeatManagerButton" type="button" aria-label="반복 우선업무 닫기">×</button>
+          <button class="icon-close" id="closeRepeatManagerButton" type="button" aria-label="Close Repeating Tasks">×</button>
         </header>
         <div class="repeat-list repeat-list-dialog" id="repeatPriorityList"></div>
       </div>
@@ -740,14 +740,14 @@
           <button id="unlockBiometricButton" type="button">생체인증</button>
         </div>
         <details class="lock-settings">
-          <summary>보안 설정</summary>
+          <summary>Security</summary>
           <label>
             새 비밀번호
             <input id="newPasscode" type="password" inputmode="numeric" autocomplete="new-password" placeholder="4자리 이상" />
           </label>
           <button id="savePasscodeButton" type="button">비밀번호 저장</button>
           <button id="registerBiometricButton" type="button">생체인증 등록</button>
-          <button id="clearSecurityButton" type="button">보안 설정 해제</button>
+          <button id="clearSecurityButton" type="button">Clear Security</button>
         </details>
       </div>
     </section>

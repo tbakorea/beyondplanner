@@ -89,7 +89,7 @@ const SHEET_MAX_COLUMN_WIDTH = 360;
 const SHEET_DEFAULT_ROW_HEIGHT = 36;
 const SHEET_MIN_ROW_HEIGHT = 28;
 const SHEET_MAX_ROW_HEIGHT = 160;
-const defaultRoles = ["개인", "가족", "일", "성장", "공헌", "건강", "관계"];
+const defaultRoles = ["Me", "Family", "Work", "Growth", "Service", "Health", "People"];
 const isMacEnvironment = /Mac|iPhone|iPad/.test(navigator.platform || "") || /Macintosh|iPhone|iPad/.test(navigator.userAgent || "");
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
   const minutes = 8 * 60 + i * 30;
@@ -103,8 +103,8 @@ const personaTypes = {
   employee: "직장인/팀원",
   manager: "관리자/팀장",
   student: "학생",
-  growth: "자기개발/개인 성장",
-  secondLife: "은퇴 준비/인생 2막",
+  growth: "Self Growth",
+  secondLife: "Next Chapter",
   other: "기타",
 };
 
@@ -584,12 +584,12 @@ function applySheetTemplate(sheet, template) {
     },
     goalTracker: {
       columns: 8,
-      headers: ["목표", "역할/영역", "지표", "현재", "목표값", "달성률", "다음 액션", "점검일"],
+      headers: ["Goal", "Area", "Metric", "Now", "Target", "Progress", "Next Action", "Check Date"],
       types: ["general", "general", "general", "number", "number", "number", "general", "date"],
       widths: [210, 130, 130, 92, 92, 92, 240, 118],
       samples: [
-        ["핵심 목표", "일", "완료 건수", "", "", "", "오늘 할 첫 행동", ""],
-        ["성장 목표", "성장", "학습 시간", "", "", "", "", ""],
+        ["Main Goal", "Work", "Done Count", "", "", "", "First action today", ""],
+        ["Growth Goal", "Growth", "Study Time", "", "", "", "", ""],
       ],
     },
     client: {
@@ -598,7 +598,7 @@ function applySheetTemplate(sheet, template) {
       types: ["general", "general", "general", "general", "date", "date", "general", "general"],
       widths: [86, 170, 150, 110, 118, 118, 220, 220],
       samples: [
-        ["고객", "거래처명", "", "핵심", "", "", "관심 이슈", "다음 연락 내용을 기록"],
+        ["Client", "Name", "", "Key", "", "", "Need", "Next contact note"],
       ],
     },
     profitSim: {
@@ -2962,7 +2962,7 @@ function renderSidebar() {
   if (el("plannerSearch").value !== searchQuery) el("plannerSearch").value = searchQuery;
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
   if (el("searchPageInput").value !== searchQuery) el("searchPageInput").value = searchQuery;
-  el("topYearProgress").textContent = `연간 ${Math.round((elapsed / totalDays) * 100)}%`;
+  el("topYearProgress").textContent = `Year ${Math.round((elapsed / totalDays) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
   el("topSearchCount").textContent = `검색 ${results.length}`;
   const saveStatusNode = el("topSaveStatus");
@@ -2996,7 +2996,7 @@ function renderFoundation() {
   state.foundation.values.forEach((value, index) => {
     const row = document.createElement("div");
     row.className = "value-item";
-    row.innerHTML = `<span class="row-label">Value ${index + 1}</span><input type="text" value="${escapeAttr(value)}" placeholder="핵심 가치" />`;
+    row.innerHTML = `<span class="row-label">Value ${index + 1}</span><input type="text" value="${escapeAttr(value)}" placeholder="What matters" />`;
     row.querySelector("input").oninput = (event) => {
       state.foundation.values[index] = event.target.value;
       saveState();
@@ -3010,9 +3010,9 @@ function renderFoundation() {
     const row = document.createElement("div");
     row.className = "role-row";
     row.innerHTML = `
-      <label><span class="row-label">역할</span><input type="text" value="${escapeAttr(item.role)}" /></label>
-      <label><span class="row-label">장기 목표</span><input type="text" value="${escapeAttr(item.goal)}" /></label>
-      <label><span class="row-label">회복 활동</span><input type="text" value="${escapeAttr(item.renewal)}" /></label>
+      <label><span class="row-label">Role</span><input type="text" value="${escapeAttr(item.role)}" /></label>
+      <label><span class="row-label">Goal</span><input type="text" value="${escapeAttr(item.goal)}" /></label>
+      <label><span class="row-label">Recharge</span><input type="text" value="${escapeAttr(item.renewal)}" /></label>
     `;
     const inputs = row.querySelectorAll("input");
     inputs[0].oninput = (event) => updateRole(index, "role", event.target.value);
@@ -3061,7 +3061,7 @@ function renderYear() {
   grid.innerHTML = "";
   const activeYear = selectedDate.getFullYear();
   const title = el("yearPageTitle");
-  if (title) title.textContent = `${activeYear} 연간 계획`;
+  if (title) title.textContent = `${activeYear} Year Plan`;
   for (let month = 0; month < 12; month += 1) {
     const box = document.createElement("section");
     box.className = "mini-month";
@@ -3100,7 +3100,7 @@ function renderYear() {
     }
     grid.appendChild(box);
   }
-  renderEditableList(el("yearGoals"), state.year.goals, "연간 목표", () => saveState());
+  renderEditableList(el("yearGoals"), state.year.goals, "Year Goal", () => saveState());
   renderEditableList(el("futureLog"), state.year.future, "언젠가 / 대기", () => saveState());
 }
 
@@ -3131,14 +3131,14 @@ function getLunarDecadeLabel(date) {
 
 function renderMonth() {
   const current = ensureMonth();
-  el("monthTitle").textContent = `${selectedDate.getFullYear()}년 ${monthNames[selectedDate.getMonth()]} 월간 계획`;
+  el("monthTitle").textContent = `${selectedDate.getFullYear()} ${monthNames[selectedDate.getMonth()]} Month Plan`;
   if (!el("monthPickerPopover")?.hidden) renderMonthPicker();
   document.querySelector("[data-month-field='focus']").value = current.focus || "";
   document.querySelector("[data-month-field='focus']").oninput = (event) => {
     current.focus = event.target.value;
     saveState();
   };
-  renderEditableList(el("monthProjects"), current.projects, "월간 프로젝트", () => saveState());
+  renderEditableList(el("monthProjects"), current.projects, "Month Project", () => saveState());
   renderAnniversaryList();
   renderMonthCalendar();
 }
@@ -3255,8 +3255,8 @@ function renderWeek() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
   const weekRange = `${formatShortDate(weekStart)} ~ ${formatShortDate(weekEnd)}`;
-  el("weekTitle").textContent = `주간 일정 (${weekRange})`;
-  el("weekCalendarToggle").setAttribute("aria-label", `주간 일정 ${weekRange}, 달력에서 주간 선택`);
+  el("weekTitle").textContent = `Week Plan (${weekRange})`;
+  el("weekCalendarToggle").setAttribute("aria-label", `Week Plan ${weekRange}, choose a week from calendar`);
 
   const days = el("weekDays");
   days.innerHTML = "";
@@ -3512,7 +3512,7 @@ function renderOnboarding(day) {
   if (collapsed) {
     node.innerHTML = `
       <button class="onboarding-restore" type="button" data-onboarding-toggle>
-        <span>오늘 실행 흐름 만들기</span>
+        <span>Build Today</span>
         <b>보이기</b>
       </button>
     `;
@@ -3522,7 +3522,7 @@ function renderOnboarding(day) {
   node.innerHTML = `
     <div>
       <p class="eyebrow">Start</p>
-      <h3>오늘 실행 흐름 만들기</h3>
+      <h3>Build Today</h3>
       <p>${escapeHtml(getOnboardingSummary(steps))}</p>
       <div class="onboarding-step-list">
         ${steps.map((step) => `
@@ -3559,10 +3559,10 @@ function getOnboardingSteps(day = ensureDay()) {
   const hasSchedule = Object.values(day.appointments || {}).some((value) => String(value || "").trim());
   const hasReview = ["wins", "carry", "lesson"].some((field) => String(day[field] || "").trim());
   return [
-    { action: "foundation", done: hasIdentity, title: "정체성/목표", caption: "AI가 판단할 기준" },
-    { action: "week", done: hasWeek, title: "이번 주 초점", caption: "주간 주요 일정" },
-    { action: "task", done: hasTasks, title: "오늘 우선업무", caption: "오늘 끝낼 일" },
-    { action: "schedule", done: hasSchedule, title: "시간 배치", caption: "실행할 시간칸" },
+    { action: "foundation", done: hasIdentity, title: "About Me", caption: "AI's context" },
+    { action: "week", done: hasWeek, title: "Week Focus", caption: "This week's key items" },
+    { action: "task", done: hasTasks, title: "Top Tasks", caption: "What to finish today" },
+    { action: "schedule", done: hasSchedule, title: "Schedule", caption: "When to do it" },
     { action: "review", done: hasReview, title: "하루 회고", caption: "배운 점 축적" },
   ];
 }
@@ -3799,17 +3799,17 @@ function buildCoachAnalysis() {
 function buildSectionCoachAnalysis(section = "day") {
   const context = buildPlannerContext();
   const labels = {
-    foundation: "사용자 설정",
-    year: "연간 계획",
-    month: "월간 계획",
-    week: "주간 일정",
-    tasks: "오늘의 우선업무",
-    schedule: "시간별 일정",
+    foundation: "About Me",
+    year: "Year Plan",
+    month: "Month Plan",
+    week: "Week Plan",
+    tasks: "Top Tasks",
+    schedule: "Schedule",
     memo: "메모 페이지",
     projects: "프로젝트 관리",
     finance: "Money",
     sheets: "커스텀 시트",
-    day: "오늘 실행",
+    day: "Today",
   };
   const label = labels[section] || labels.day;
   const base = buildCoachAnalysis();
@@ -4639,7 +4639,7 @@ function renderDayCompass() {
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
-  if (title) title.textContent = `위클리 콤파스 (${formatCompassDate(weekStart)} ~ ${formatCompassDate(weekEnd)})`;
+  if (title) title.textContent = `Weekly Focus (${formatCompassDate(weekStart)} ~ ${formatCompassDate(weekEnd)})`;
   const week = ensureWeek();
   const roleNames = compassRoleNames();
   while (week.compass.length < roleNames.length) {
@@ -4674,14 +4674,14 @@ function renderDayCompass() {
   node.appendChild(priorityBlock);
   week.compass.forEach((item, index) => {
     normalizeCompassItem(item);
-    item.role = roleNames[index] || item.role || `역할 ${index + 1}`;
+    item.role = roleNames[index] || item.role || `Role ${index + 1}`;
     const row = document.createElement("div");
     row.className = "compass-row";
     row.innerHTML = `
       <span class="row-label">${item.role}</span>
-      <input type="text" value="${escapeAttr(item.goal)}" placeholder="이번 주 목표" />
+      <input type="text" value="${escapeAttr(item.goal)}" placeholder="This week's goal" />
       <div class="compass-actions">
-        ${item.actions.slice(0, 2).map((value, actionIndex) => `<input type="text" value="${escapeAttr(value)}" placeholder="핵심 행동 ${actionIndex + 1}" />`).join("")}
+        ${item.actions.slice(0, 2).map((value, actionIndex) => `<input type="text" value="${escapeAttr(value)}" placeholder="Action ${actionIndex + 1}" />`).join("")}
       </div>
     `;
     const inputs = row.querySelectorAll("input");
@@ -5655,9 +5655,9 @@ function addCustomSheet(template = "blank") {
     blank: "새 시트",
     checklist: "체크리스트",
     finance: "자금 체크표",
-    projectAction: "프로젝트 실행표",
-    meeting: "회의 기록표",
-    goalTracker: "목표 추적표",
+    projectAction: "Project Actions",
+    meeting: "Meeting Notes",
+    goalTracker: "Goal Tracker",
     client: "고객 관리표",
     profitSim: "손익 시뮬레이션",
   };
@@ -7381,16 +7381,16 @@ function collectSearchResults(query) {
   const push = (type, label, text, date = "") => {
     if (matchesSearchText(`${label} ${text} ${date}`, terms)) results.push({ type, label, text, date });
   };
-  push("foundation", "사명 선언", state.foundation.mission);
-  state.foundation.values.forEach((value, index) => push("foundation", `핵심 가치 ${index + 1}`, value));
+  push("foundation", "My Why", state.foundation.mission);
+  state.foundation.values.forEach((value, index) => push("foundation", `Value ${index + 1}`, value));
   state.foundation.roles.forEach((role) => {
-    push("foundation", `역할 ${role.role}`, role.goal);
-    push("foundation", `회복 활동 ${role.role}`, role.renewal);
+    push("foundation", `Role ${role.role}`, role.goal);
+    push("foundation", `Recharge ${role.role}`, role.renewal);
   });
-  state.year.goals.forEach((value, index) => push("year", `연간 목표 ${index + 1}`, value));
+  state.year.goals.forEach((value, index) => push("year", `Year Goal ${index + 1}`, value));
   state.year.future.forEach((value, index) => push("year", `대기 목록 ${index + 1}`, value));
   Object.entries(state.months).forEach(([key, month]) => {
-    push("month", `${key} 월간 초점`, month.focus, `${key}-01`);
+    push("month", `${key} Month Focus`, month.focus, `${key}-01`);
     month.projects.forEach((value, index) => push("month", `${key} 프로젝트 ${index + 1}`, value, `${key}-01`));
   });
   Object.entries(state.weeks).forEach(([key, week]) => {
@@ -7402,7 +7402,7 @@ function collectSearchResults(query) {
     });
   });
   state.repeats?.priorityTasks?.forEach((rule, index) => {
-    push("notes", `반복 우선업무 ${index + 1}`, rule.text);
+    push("notes", `Repeating Task ${index + 1}`, rule.text);
   });
   Object.entries(state.days).forEach(([key, day]) => {
     getDayTasks(key).forEach((task) => push("day", `${key} ${task.priority}`, task.text, key));
@@ -7657,7 +7657,7 @@ function buildPlannerWorkbookTables() {
     (week.compass || []).forEach((item) => {
       if (item.goal) weekRows.push([key, item.role, "목표", item.goal]);
       (item.actions || []).forEach((action, index) => {
-        if (action) weekRows.push([key, item.role, `핵심행동 ${index + 1}`, action]);
+        if (action) weekRows.push([key, item.role, `Action ${index + 1}`, action]);
       });
     });
   });
@@ -7671,12 +7671,12 @@ function buildPlannerWorkbookTables() {
   ]);
   const profileRows = Object.entries(state.profile || {}).map(([key, value]) => [key, Array.isArray(value) ? value.join(", ") : value || ""]);
   return [
-    { title: "사용자 정보", headers: ["항목", "내용"], rows: profileRows },
-    { title: "오늘의 우선업무", headers: ["날짜", "중요도", "상태", "완료", "내용", "위임"], rows: taskRows },
-    { title: "시간별 일정", headers: ["날짜", "시작", "종료", "내용"], rows: appointmentRows },
-    { title: "위클리 콤파스", headers: ["주", "구분", "항목", "내용"], rows: weekRows },
+    { title: "About Me", headers: ["Field", "Text"], rows: profileRows },
+    { title: "Top Tasks", headers: ["Date", "Priority", "Status", "Done", "Task", "Delegate"], rows: taskRows },
+    { title: "Schedule", headers: ["Date", "Start", "End", "Text"], rows: appointmentRows },
+    { title: "Weekly Focus", headers: ["Week", "Group", "Item", "Text"], rows: weekRows },
     { title: "Money", headers: ["월/반복", "일", "구분", "상태", "내용", "금액", "메모"], rows: moneyRows },
-    { title: "프로젝트", headers: ["상태", "프로젝트", "담당", "시작", "종료", "목표", "다음 행동", "예산", "실적", "메모"], rows: projectRows },
+    { title: "Projects", headers: ["Status", "Project", "Owner", "Start", "End", "Goal", "Next Action", "Budget", "Actual", "Memo"], rows: projectRows },
   ];
 }
 
