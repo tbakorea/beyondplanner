@@ -837,15 +837,21 @@ async function hydrateServerState() {
     if (payload.exists && payload.state) {
       const localMeta = getStateMeta();
       const localUpdatedAt = localMeta.updatedAt || "";
+      const serverHasContent = hasPlannerContent(payload.state);
+      const localHasContent = hasPlannerContent(state);
       lastServerUpdatedAt = payload.updatedAt || "";
-      if (!localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt)) {
+      if (!localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent)) {
         setBootMessage("최신 서버 데이터를 반영하는 중");
         storeStateFromServer(payload, "최신 데이터 반영됨");
       } else {
         saveStatus.message = localMeta.dirty ? "기기 작업 유지 중" : "기기 캐시 최신";
-        if (isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
-          setBootMessage("기기 작업을 서버에 맞추는 중");
+        if (!serverHasContent && localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
+          setBootMessage("기기 작업을 서버에 복구하는 중");
           await persistStateToServer({ force: true });
+        } else if (serverHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
+          saveStatus.message = "서버 데이터 보호됨";
+          setBootMessage("서버 데이터를 보호하는 중");
+          storeStateFromServer(payload, "서버 데이터 보호됨");
         }
       }
     } else {
@@ -940,7 +946,7 @@ async function persistStateToServer(options = {}) {
     logoutPlanner();
     return;
   }
-  if (!options.force && !hasPlannerContent(state)) {
+  if (!hasPlannerContent(state)) {
     saveStatus.saving = false;
     saveStatus.message = "저장됨";
     renderSidebarAfterDailyInput();
