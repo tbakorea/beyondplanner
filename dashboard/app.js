@@ -6,7 +6,7 @@ const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
 const PRIVACY_CONFIG_KEY = "beyondWorkPrivacyConfig.v1";
 const AUTH_USERS_KEY = "beyondWorkAuthUsers.v1";
 const AUTH_SESSION_KEY = "beyondWorkAuthSession.v1";
-const ONBOARDING_DISMISSED_KEY = "beyondWorkOnboardingDismissed.v1";
+const ONBOARDING_COLLAPSED_KEY = "beyondWorkOnboardingCollapsed.v1";
 const DAILY_OPENING_SEEN_KEY = "beyondWorkDailyOpeningSeen.v1";
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
 const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
@@ -1570,10 +1570,7 @@ function setupSelectors() {
   document.querySelectorAll("[data-onboarding-action]").forEach((button) => {
     button.onclick = () => handleOnboardingAction(button.dataset.onboardingAction);
   });
-  document.querySelector("[data-onboarding-dismiss]")?.addEventListener("click", () => {
-    localStorage.setItem(ONBOARDING_DISMISSED_KEY, "1");
-    renderOnboarding(ensureDay());
-  });
+  document.querySelector("[data-onboarding-toggle]")?.addEventListener("click", toggleOnboardingPanel);
   el("importFile").onchange = importPlanner;
   el("plannerSearch").oninput = (event) => {
     updateSearch(event.target.value);
@@ -3385,10 +3382,21 @@ function renderOnboarding(day) {
   const node = el("onboardingPanel");
   if (!node) return;
   const isToday = iso(selectedDate) === iso(todayInPlanner());
-  const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "1";
+  const collapsed = localStorage.getItem(ONBOARDING_COLLAPSED_KEY) === "1";
   const steps = getOnboardingSteps(day);
-  node.hidden = dismissed || !isToday || steps.every((step) => step.done);
+  node.hidden = !isToday;
   if (node.hidden) return;
+  node.classList.toggle("is-collapsed", collapsed);
+  if (collapsed) {
+    node.innerHTML = `
+      <button class="onboarding-restore" type="button" data-onboarding-toggle>
+        <span>오늘 실행 흐름 만들기</span>
+        <b>보이기</b>
+      </button>
+    `;
+    node.querySelector("[data-onboarding-toggle]")?.addEventListener("click", toggleOnboardingPanel);
+    return;
+  }
   node.innerHTML = `
     <div>
       <p class="eyebrow">Start</p>
@@ -3406,16 +3414,19 @@ function renderOnboarding(day) {
     </div>
     <div class="onboarding-actions">
       <button type="button" data-onboarding-action="${escapeAttr(steps.find((step) => !step.done)?.action || "task")}">다음 단계</button>
-      <button type="button" data-onboarding-dismiss>나중에</button>
+      <button type="button" data-onboarding-toggle>숨기기</button>
     </div>
   `;
   node.querySelectorAll("[data-onboarding-action]").forEach((button) => {
     button.onclick = () => handleOnboardingAction(button.dataset.onboardingAction);
   });
-  node.querySelector("[data-onboarding-dismiss]")?.addEventListener("click", () => {
-    localStorage.setItem(ONBOARDING_DISMISSED_KEY, "1");
-    renderOnboarding(ensureDay());
-  });
+  node.querySelector("[data-onboarding-toggle]")?.addEventListener("click", toggleOnboardingPanel);
+}
+
+function toggleOnboardingPanel() {
+  const collapsed = localStorage.getItem(ONBOARDING_COLLAPSED_KEY) === "1";
+  localStorage.setItem(ONBOARDING_COLLAPSED_KEY, collapsed ? "0" : "1");
+  renderOnboarding(ensureDay());
 }
 
 function getOnboardingSteps(day = ensureDay()) {
