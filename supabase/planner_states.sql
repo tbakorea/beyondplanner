@@ -79,9 +79,17 @@ begin
     return 0;
   end if;
 
-  score := score + coalesce(jsonb_object_length(coalesce(input_state->'days', '{}'::jsonb)), 0);
-  score := score + coalesce(jsonb_object_length(coalesce(input_state->'weeks', '{}'::jsonb)), 0);
-  score := score + coalesce(jsonb_object_length(coalesce(input_state->'months', '{}'::jsonb)), 0);
+  select count(*) into row_count
+  from jsonb_object_keys(coalesce(input_state->'days', '{}'::jsonb));
+  score := score + coalesce(row_count, 0);
+
+  select count(*) into row_count
+  from jsonb_object_keys(coalesce(input_state->'weeks', '{}'::jsonb));
+  score := score + coalesce(row_count, 0);
+
+  select count(*) into row_count
+  from jsonb_object_keys(coalesce(input_state->'months', '{}'::jsonb));
+  score := score + coalesce(row_count, 0);
 
   select count(*) into row_count
   from jsonb_each(coalesce(input_state->'days', '{}'::jsonb)) day_entry
