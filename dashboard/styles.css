@@ -2152,14 +2152,6 @@ body.is-privacy-blind .app-shell {
   font-weight: 820;
 }
 
-.settings-export-button {
-  min-width: 96px;
-  min-height: 34px;
-  border-color: rgba(38, 60, 52, 0.28);
-  background: var(--forest);
-  color: #fff;
-}
-
 #scheduleRangeLabel {
   display: inline-flex;
   align-items: center;
