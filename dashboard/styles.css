@@ -2098,6 +2098,18 @@ body.is-privacy-blind .app-shell {
   gap: 8px;
 }
 
+.settings-action-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.danger-action {
+  border-color: rgba(176, 76, 70, 0.32);
+  color: #9b3832;
+}
+
 .time-range-controls {
   display: flex;
   justify-content: flex-end;

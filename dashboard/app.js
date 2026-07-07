@@ -1559,6 +1559,7 @@ function setupSelectors() {
   el("dailyPulseToggle")?.addEventListener("click", toggleDailyPulseDetails);
   setupPulsePanelSwipe();
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
+  if (el("settingsLogoutButton")) el("settingsLogoutButton").onclick = logoutPlanner;
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
   el("revealPrivacyButton").onclick = deactivatePrivacyBlind;
