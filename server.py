@@ -128,6 +128,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             try:
                 self.write_json(200, save_supabase_planner_state(token, state, payload))
                 return
+            except DestructiveOverwriteError as exc:
+                self.write_json(409, {"error": str(exc), "code": "destructive_overwrite_blocked"})
+                return
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", "replace")
                 self.write_json(normalize_supabase_status(exc.code, detail), normalize_supabase_error_payload(detail, "Supabase DB에 저장할 수 없습니다."))
@@ -366,6 +369,10 @@ def bearer_token(headers) -> str:
     return value.split(" ", 1)[1].strip()
 
 
+class DestructiveOverwriteError(Exception):
+    pass
+
+
 def supabase_base() -> tuple[str, str]:
     supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip().rstrip("/")
     anon_key = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY", "").strip()
@@ -423,6 +430,8 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
     existing = get_supabase_planner_state(token)
     if existing.get("exists") and is_newer_timestamp(existing.get("updatedAt"), updated_at):
         return {"ok": True, "stale": True, "updatedAt": existing.get("updatedAt") or "", "storage": "supabase-db"}
+    if existing.get("exists") and is_destructive_overwrite(existing.get("state"), state):
+        raise DestructiveOverwriteError("기존 플래너 데이터가 크게 줄어든 저장 요청이라 DB 보호를 위해 차단했습니다.")
     body = [
         {
             "user_id": user_id,
@@ -449,6 +458,115 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
 
 def normalize_tier(tier: str) -> str:
     return tier if tier in {"ceo", "director", "manager", "staff"} else "staff"
+
+
+def is_destructive_overwrite(previous: dict, incoming: dict) -> bool:
+    if os.environ.get("ALLOW_DESTRUCTIVE_PLANNER_SAVE", "").strip() == "1":
+        return False
+    previous_score = planner_content_score(previous)
+    incoming_score = planner_content_score(incoming)
+    if previous_score < 5:
+        return False
+    if incoming_score == 0:
+        return True
+    return previous_score - incoming_score >= 10 and incoming_score < previous_score * 0.2
+
+
+def planner_content_score(source: dict) -> int:
+    if not isinstance(source, dict):
+        return 0
+
+    def has_text(value) -> bool:
+        return bool(str(value or "").strip())
+
+    def count_texts(values) -> int:
+        return sum(1 for value in values if has_text(value))
+
+    score = 0
+    foundation = source.get("foundation") or {}
+    score += count_texts([foundation.get("mission")])
+    score += count_texts(foundation.get("values") or [])
+    for role in foundation.get("roles") or []:
+        if isinstance(role, dict):
+            score += count_texts([role.get("goal"), role.get("renewal")])
+
+    year = source.get("year") or {}
+    score += count_texts(year.get("goals") or [])
+    score += count_texts(year.get("future") or [])
+
+    for month in (source.get("months") or {}).values():
+        if isinstance(month, dict):
+            score += count_texts([month.get("focus")])
+            score += count_texts(month.get("projects") or [])
+
+    for week in (source.get("weeks") or {}).values():
+        if not isinstance(week, dict):
+            continue
+        for item in week.get("priorities") or []:
+            if isinstance(item, dict) and (has_text(item.get("text")) or item.get("done")):
+                score += 1
+        for item in week.get("compass") or []:
+            if isinstance(item, dict):
+                score += count_texts([item.get("goal"), item.get("action")])
+                score += count_texts(item.get("actions") or [])
+
+    for day in (source.get("days") or {}).values():
+        if not isinstance(day, dict):
+            continue
+        for task_group in (day.get("tasks") or {}).values():
+            if not isinstance(task_group, list):
+                continue
+            for task in task_group:
+                if isinstance(task, dict) and (
+                    has_text(task.get("text"))
+                    or task.get("done")
+                    or task.get("status") not in {"", None, "미완료"}
+                    or has_text(task.get("delegate"))
+                ):
+                    score += 1
+        appointments = day.get("appointments") or {}
+        appointment_values = appointments.values() if isinstance(appointments, dict) else appointments
+        score += count_texts(appointment_values or [])
+        score += len(day.get("appointmentMerges") or {})
+        score += count_texts(day.get(field) for field in ("memo", "record", "wins", "carry", "lesson"))
+
+    for rule in ((source.get("repeats") or {}).get("priorityTasks") or []):
+        if isinstance(rule, dict) and has_text(rule.get("text")):
+            score += 1
+
+    score += count_texts((source.get("profile") or {}).values())
+
+    notes = source.get("notes") or {}
+    score += count_texts(notes.get("projects") or [])
+    score += count_texts(notes.get("references") or [])
+    score += count_texts([notes.get("freeform")])
+
+    finance = source.get("finance") or {}
+    money_fields = ("title", "amount", "dueDay", "memo", "taskDate", "repeatEndDate")
+    money_rows = list(finance.get("fixed") or [])
+    for rows in (finance.get("months") or {}).values():
+        money_rows.extend(rows or [])
+    for item in money_rows:
+        if isinstance(item, dict) and any(has_text(item.get(field)) for field in money_fields):
+            score += 1
+    score += count_texts([finance.get("issueMemo"), finance.get("decisionMemo")])
+
+    for project in ((source.get("projects") or {}).get("items") or []):
+        if not isinstance(project, dict):
+            continue
+        project_fields = ("title", "owner", "startDate", "endDate", "goal", "nextAction", "dueDate", "budget", "actual", "notes")
+        if any(has_text(project.get(field)) for field in project_fields):
+            score += 1
+        for item in project.get("finances") or []:
+            if isinstance(item, dict) and any(has_text(item.get(field)) for field in ("title", "amount", "timing", "memo")):
+                score += 1
+
+    for sheet in ((source.get("customSheets") or {}).get("items") or []):
+        if isinstance(sheet, dict):
+            score += count_texts((sheet.get("cells") or {}).values())
+
+    score += sum(1 for event in ((source.get("calendar") or {}).get("events") or []) if isinstance(event, dict) and has_text(event.get("title")))
+    return score
 
 
 def extract_supabase_error(detail: str) -> str:

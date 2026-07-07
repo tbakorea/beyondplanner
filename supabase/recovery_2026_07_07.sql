@@ -4,6 +4,9 @@
 -- Run this in Supabase SQL Editor before any restore attempt.
 -- It creates a current snapshot first, then shows which users still have
 -- planner state rows and how much content remains.
+--
+-- After this diagnostic SQL, run the latest supabase/planner_states.sql too.
+-- That file installs planner_state_revisions and the destructive overwrite guard.
 
 create table if not exists public.planner_states_recovery_snapshot_20260707
 as
@@ -32,6 +35,30 @@ from auth.users u
 left join public.planner_states ps on ps.user_id = u.id
 order by u.created_at desc;
 
+-- If supabase/planner_states.sql has already been applied, this shows saved
+-- pre-update revisions that may be used for per-user restoration.
+create table if not exists public.planner_state_revisions (
+  id bigserial primary key,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  state jsonb not null,
+  planner_updated_at timestamptz,
+  archived_at timestamptz not null default now(),
+  change_type text not null check (change_type in ('update', 'delete'))
+);
+
+select
+  r.user_id,
+  u.email,
+  r.planner_updated_at,
+  r.archived_at,
+  r.change_type,
+  coalesce(jsonb_object_length(coalesce(r.state->'days', '{}'::jsonb)), 0) as day_count,
+  length(coalesce(r.state::text, '')) as state_text_length
+from public.planner_state_revisions r
+left join auth.users u on u.id = r.user_id
+order by r.archived_at desc
+limit 100;
+
 -- If a previous Supabase backup/PITR export is available, restore by inserting
 -- rows into planner_states with the original user_id and state:
 --
@@ -42,4 +69,3 @@ order by u.created_at desc;
 --     updated_at = excluded.updated_at
 -- where public.planner_states.updated_at is null
 --    or excluded.updated_at >= public.planner_states.updated_at;
-
