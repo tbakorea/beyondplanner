@@ -2670,61 +2670,32 @@ function setupMobileDayFocus() {
   const resetOnVerticalSwipe = (node) => {
     let startX = 0;
     let startY = 0;
+    let startAt = 0;
     const maybeReset = (x, y) => {
       if (!isSmartphoneLayout() || mobileDayFocusMode === "split" || !startX) return;
       if (isEditingDailyField()) return;
       const dx = x - startX;
       const dy = y - startY;
-      if (Math.abs(dy) < 34 || Math.abs(dy) < Math.abs(dx) * 1.08) return;
+      const elapsed = Math.max(1, Date.now() - startAt);
+      const velocity = Math.abs(dy) / elapsed;
+      if (Math.abs(dy) < 92 || Math.abs(dy) < Math.abs(dx) * 1.4 || velocity < 0.42) return;
       startX = 0;
       startY = 0;
+      startAt = 0;
       resetMobileDayFocusToSplit({ blur: true });
     };
     node.addEventListener("pointerdown", (event) => {
       startX = event.clientX;
       startY = event.clientY;
+      startAt = Date.now();
     }, { passive: true });
-    node.addEventListener("pointermove", (event) => maybeReset(event.clientX, event.clientY), { passive: true });
     node.addEventListener("pointerup", (event) => maybeReset(event.clientX, event.clientY), { passive: true });
     node.addEventListener("pointercancel", () => {
       startX = 0;
       startY = 0;
+      startAt = 0;
     }, { passive: true });
   };
-  const resetOnScrollIntent = (node) => {
-    let lastTop = node.scrollTop || 0;
-    let scrollTimer = 0;
-    node.addEventListener("scroll", () => {
-      if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
-      const currentTop = node.scrollTop || 0;
-      const delta = Math.abs(currentTop - lastTop);
-      lastTop = currentTop;
-      if (delta < 6) return;
-      window.clearTimeout(scrollTimer);
-      scrollTimer = window.setTimeout(() => {
-        if (!isEditingDailyField()) resetMobileDayFocusToSplit();
-      }, 34);
-    }, { passive: true });
-    node.addEventListener("wheel", (event) => {
-      if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
-      if (isEditingDailyField()) return;
-      if (Math.abs(event.deltaY) < 12 || Math.abs(event.deltaY) < Math.abs(event.deltaX) * 1.1) return;
-      resetMobileDayFocusToSplit({ blur: true });
-    }, { passive: true });
-  };
-  let lastWindowTop = window.scrollY || 0;
-  let windowScrollTimer = 0;
-  window.addEventListener("scroll", () => {
-    if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
-    const currentTop = window.scrollY || 0;
-    const delta = Math.abs(currentTop - lastWindowTop);
-    lastWindowTop = currentTop;
-    if (delta < 6) return;
-    window.clearTimeout(windowScrollTimer);
-    windowScrollTimer = window.setTimeout(() => {
-      if (!isEditingDailyField()) resetMobileDayFocusToSplit();
-    }, 34);
-  }, { passive: true });
   taskPanel.addEventListener("pointerdown", expandOnInteraction("tasks"), { passive: true });
   taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
   schedulePanel.addEventListener("pointerdown", expandOnInteraction("schedule"), { passive: true });
@@ -2736,8 +2707,6 @@ function setupMobileDayFocus() {
   }, { passive: true });
   resetOnVerticalSwipe(taskPanel);
   resetOnVerticalSwipe(schedulePanel);
-  resetOnScrollIntent(taskPanel);
-  resetOnScrollIntent(schedulePanel);
   applyMobileDayFocusMode();
 }
 
