@@ -96,6 +96,10 @@ const timeSlots = Array.from({ length: 23 }, (_, i) => {
   return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 });
 const hourlyTimeSlots = Array.from({ length: 24 }, (_, hour) => `${String(hour).padStart(2, "0")}:00`);
+const defaultAppSettings = {
+  scheduleStart: "08:00",
+  scheduleEnd: "19:30",
+};
 const personaTypes = {
   ceo: "CEO/대표",
   entrepreneur: "개인사업자/프리랜서",
@@ -442,6 +446,7 @@ function loadState() {
 function migrateState(nextState) {
   nextState.finance ||= createFinanceState();
   normalizeFinanceState(nextState.finance);
+  nextState.appSettings = normalizeAppSettings(nextState.appSettings);
   nextState.projects ||= createProjectState();
   normalizeProjectState(nextState.projects);
   nextState.customSheets ||= createCustomSheetsState();
@@ -888,6 +893,7 @@ function loadEmptyState() {
       priorityTasks: emptyRepeatRules(REPEAT_PRIORITY_MIN_ROWS),
     },
     scheduleUnitChanges: [],
+    appSettings: { ...defaultAppSettings },
     profile: { ...defaultProfileFields },
     notes: {
       projects: Array.from({ length: 8 }, () => ""),
@@ -1179,6 +1185,28 @@ function normalizeScheduleUnitChanges(changes = []) {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
+function normalizeAppSettings(settings = {}) {
+  const next = { ...defaultAppSettings, ...(settings || {}) };
+  next.scheduleStart = normalizeScheduleTime(next.scheduleStart, defaultAppSettings.scheduleStart);
+  next.scheduleEnd = normalizeScheduleTime(next.scheduleEnd, defaultAppSettings.scheduleEnd);
+  if (timeToMinutes(next.scheduleEnd) <= timeToMinutes(next.scheduleStart)) {
+    next.scheduleStart = defaultAppSettings.scheduleStart;
+    next.scheduleEnd = defaultAppSettings.scheduleEnd;
+  }
+  return next;
+}
+
+function normalizeScheduleTime(value, fallback) {
+  const text = String(value || "").trim();
+  return /^\d{2}:\d{2}$/.test(text) && timeToMinutes(text) >= 0 ? text : fallback;
+}
+
+function timeToMinutes(value = "00:00") {
+  const [hours, minutes] = String(value).split(":").map(Number);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return -1;
+  return hours * 60 + minutes;
+}
+
 function getEffectiveScheduleUnit(key = iso(selectedDate)) {
   state.scheduleUnitChanges = normalizeScheduleUnitChanges(state.scheduleUnitChanges);
   const change = [...state.scheduleUnitChanges].reverse().find((item) => item.date <= key);
@@ -1215,7 +1243,20 @@ function previousDayKey(key) {
 }
 
 function getScheduleSlotsForUnit(unit = "30") {
-  return normalizeScheduleUnit(unit) === "60" ? hourlyTimeSlots : timeSlots;
+  return buildScheduleSlotsForUnit(unit);
+}
+
+function buildScheduleSlotsForUnit(unit = "30") {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  const interval = normalizeScheduleUnit(unit) === "60" ? 60 : 30;
+  const start = timeToMinutes(state.appSettings.scheduleStart);
+  const end = timeToMinutes(state.appSettings.scheduleEnd);
+  if (end <= start) return normalizeScheduleUnit(unit) === "60" ? hourlyTimeSlots : timeSlots;
+  const slots = [];
+  for (let minutes = start; minutes + interval <= end; minutes += interval) {
+    slots.push(`${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`);
+  }
+  return slots.length ? slots : normalizeScheduleUnit(unit) === "60" ? hourlyTimeSlots : timeSlots;
 }
 
 function getScheduleSlotsForDay(day = ensureDay()) {
@@ -1235,7 +1276,7 @@ function convertAppointmentUnit(day, fromUnit, toUnit) {
   const nextUnit = normalizeScheduleUnit(toUnit);
   if (!day?.appointments || previousUnit === nextUnit) return;
   if (previousUnit === "30" && nextUnit === "60") {
-    hourlyTimeSlots.forEach((slot) => {
+    getScheduleSlotsForUnit("60").forEach((slot) => {
       const halfSlot = `${slot.slice(0, 3)}30`;
       const texts = [day.appointments[slot], day.appointments[halfSlot]].map((value) => String(value || "").trim()).filter(Boolean);
       if (texts.length) day.appointments[slot] = [...new Set(texts)].join(" ");
@@ -1531,6 +1572,8 @@ function setupSelectors() {
   el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
   el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
+  el("scheduleStartTime").onchange = updateScheduleTimeRange;
+  el("scheduleEndTime").onchange = updateScheduleTimeRange;
   el("financeAmountVisibilityToggle").onchange = () => {
     state.finance ||= createFinanceState();
     normalizeFinanceState(state.finance);
@@ -3197,16 +3240,35 @@ function renderScheduleUnitControls(day = ensureDay()) {
   el("scheduleUnit60")?.classList.toggle("is-active", unit === "60");
   el("scheduleUnit30")?.setAttribute("aria-pressed", String(unit === "30"));
   el("scheduleUnit60")?.setAttribute("aria-pressed", String(unit === "60"));
+  renderAppSettingsControls();
   const range = el("scheduleRangeLabel");
   if (range) range.textContent = getScheduleRangeLabel(day);
+}
+
+function renderAppSettingsControls() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  const startInput = el("scheduleStartTime");
+  const endInput = el("scheduleEndTime");
+  if (startInput && startInput.value !== state.appSettings.scheduleStart) startInput.value = state.appSettings.scheduleStart;
+  if (endInput && endInput.value !== state.appSettings.scheduleEnd) endInput.value = state.appSettings.scheduleEnd;
+}
+
+function updateScheduleTimeRange() {
+  state.appSettings = normalizeAppSettings({
+    ...state.appSettings,
+    scheduleStart: el("scheduleStartTime")?.value || defaultAppSettings.scheduleStart,
+    scheduleEnd: el("scheduleEndTime")?.value || defaultAppSettings.scheduleEnd,
+  });
+  Object.values(state.days || {}).forEach((day) => ensureAppointmentSlots(day, day.scheduleUnit || "30"));
+  saveState();
+  renderAll();
 }
 
 function getScheduleRangeLabel(day = ensureDay()) {
   const slots = getScheduleSlotsForDay(day);
   if (!slots.length) return "시작시간 ~ 종료시간";
   const start = slots[0];
-  const end = getAppointmentEndLabel(slots.length - 1, 1, slots);
-  return `${start} ~ ${end}`;
+  return `${start} ~ ${state.appSettings?.scheduleEnd || defaultAppSettings.scheduleEnd}`;
 }
 
 function renderDailyPulse(day, tasks, carryovers, completion) {

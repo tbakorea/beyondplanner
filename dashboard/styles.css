@@ -2053,8 +2053,43 @@ body.is-privacy-blind .app-shell {
 
 .planner-option-grid {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   margin-top: 8px;
+}
+
+.planner-option-section {
+  border: 1px solid rgba(221, 216, 203, 0.78);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.58);
+  padding: 11px;
+}
+
+.planner-option-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.planner-option-section-head strong {
+  color: var(--forest);
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.planner-option-section-head small,
+.planner-option-note {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 730;
+}
+
+.planner-option-note {
+  border-top: 1px solid rgba(221, 216, 203, 0.48);
+  margin-top: 8px;
+  padding-top: 8px;
+  line-height: 1.45;
 }
 
 .planner-option-item {
@@ -2086,6 +2121,35 @@ body.is-privacy-blind .app-shell {
 
 .settings-unit-toggle {
   min-width: 126px;
+}
+
+.settings-control-stack {
+  display: grid;
+  gap: 7px;
+  justify-items: end;
+}
+
+.settings-time-range {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-time-range label {
+  align-items: center;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 820;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.settings-time-range input {
+  min-height: 30px;
+  width: 88px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 820;
 }
 
 #scheduleRangeLabel {
@@ -9307,6 +9371,14 @@ body.ceo-mode .daily-panel-chip {
   .settings-unit-toggle {
     width: fit-content;
     min-width: 0;
+  }
+
+  .settings-control-stack {
+    justify-items: start;
+  }
+
+  .settings-time-range {
+    flex-wrap: wrap;
   }
 
   .settings-unit-toggle .mini-action {

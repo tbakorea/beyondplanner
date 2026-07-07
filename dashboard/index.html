@@ -142,22 +142,54 @@
           </div>
           <div class="foundation-grid">
             <article class="panel span-12 planner-options-panel" id="settingsAppPanel" role="tabpanel" aria-labelledby="settingsAppTab" data-settings-panel="app" hidden>
-              <h3>화면 및 입력 옵션</h3>
+              <h3>섹션별 앱 설정</h3>
               <div class="planner-option-grid">
-                <div class="planner-option-item">
-                  <span>
-                    <strong>시간별 일정 단위</strong>
-                    <small>
-                      오늘부터 적용됩니다. 이전 날짜는 당시 설정을 유지합니다.
-                      <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
-                    </small>
-                  </span>
-                  <span class="schedule-unit-toggle settings-unit-toggle" aria-label="시간 단위 선택">
-                    <button class="mini-action" id="scheduleUnit30" type="button">30분</button>
-                    <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
-                  </span>
-                </div>
-                <div class="planner-option-item">
+                <section class="planner-option-section">
+                  <div class="planner-option-section-head">
+                    <strong>오늘 섹션</strong>
+                    <small>우선업무, 시간별 일정, 메모 흐름</small>
+                  </div>
+                  <div class="planner-option-item">
+                    <span>
+                      <strong>시간별 일정관리</strong>
+                      <small>
+                        시간 단위는 오늘부터 적용됩니다. 이전 날짜는 당시 설정을 유지합니다.
+                        <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
+                      </small>
+                    </span>
+                    <div class="settings-control-stack">
+                      <span class="schedule-unit-toggle settings-unit-toggle" aria-label="시간 단위 선택">
+                        <button class="mini-action" id="scheduleUnit30" type="button">30분</button>
+                        <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
+                      </span>
+                      <span class="settings-time-range" aria-label="일정 시작과 종료 시간">
+                        <label>시작 <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
+                        <label>종료 <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
+                      </span>
+                    </div>
+                  </div>
+                  <div class="planner-option-note">추가 후보: 우선업무 기본 행 수, 전광판 표시 항목, 회고 질문 표시 여부</div>
+                </section>
+                <section class="planner-option-section">
+                  <div class="planner-option-section-head">
+                    <strong>주간·월간 섹션</strong>
+                    <small>컴파스, 주간 일정, 월간 캘린더</small>
+                  </div>
+                  <div class="planner-option-note">추가 후보: 주간 시작 요일, 공휴일/음력 표시, 월간 초점 표시 방식</div>
+                </section>
+                <section class="planner-option-section">
+                  <div class="planner-option-section-head">
+                    <strong>프로젝트·시트 섹션</strong>
+                    <small>프로젝트 리스트와 커스텀 시트</small>
+                  </div>
+                  <div class="planner-option-note">추가 후보: 기본 프로젝트 템플릿, 시트 기본 행/열 수, 제목행/제목열 고정 기본값</div>
+                </section>
+                <section class="planner-option-section">
+                  <div class="planner-option-section-head">
+                    <strong>Money 섹션</strong>
+                    <small>반복 지출, 자금 일정, 금액 표시</small>
+                  </div>
+                  <div class="planner-option-item">
                   <span>
                     <strong>Money 금액 표시</strong>
                     <small>Money 항목이 오늘·주간 일정에 반영될 때 금액 노출 여부를 조절합니다.</small>
@@ -166,7 +198,16 @@
                     <input id="financeAmountVisibilityToggle" type="checkbox" checked />
                     <span>보이기</span>
                   </label>
-                </div>
+                  </div>
+                  <div class="planner-option-note">추가 후보: 반복지출 우선업무 반영 기간, 금액 숨김 기본값, 자금 일정 알림 기준</div>
+                </section>
+                <section class="planner-option-section">
+                  <div class="planner-option-section-head">
+                    <strong>AI·검색 섹션</strong>
+                    <small>AI 답변, 코칭, 검색 결과</small>
+                  </div>
+                  <div class="planner-option-note">추가 후보: AI 코칭 강도, 검색 결과 개수, 비용 발생 AI 기능 허용 계정</div>
+                </section>
               </div>
             </article>
             <article class="panel span-6" id="settingsUserPanel" role="tabpanel" aria-labelledby="settingsUserTab" data-settings-panel="user">
