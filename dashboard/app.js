@@ -2446,6 +2446,21 @@ function handleOnboardingAction(action) {
     renderAll();
     return;
   }
+  if (action === "schedule") {
+    showView("day");
+    scrollDayPanel("main");
+    setMobileDayFocusMode("schedule");
+    renderAll();
+    window.requestAnimationFrame(() => document.querySelector(".day-schedule-panel input[type='text']")?.focus());
+    return;
+  }
+  if (action === "review") {
+    showView("day");
+    scrollDayPanel("memo");
+    renderAll();
+    window.requestAnimationFrame(() => document.querySelector("[data-day-field='wins']")?.focus());
+    return;
+  }
   if (action === "foundation") {
     showView("foundation");
     renderAll();
@@ -3212,6 +3227,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const execution = buildDailyExecutionSignal(day, tasks, carryovers, completion);
   const pattern = buildPatternSignal(selectedDate);
   const alignment = buildGoalProjectAlignmentSignal(tasks);
+  const review = buildDailyReviewSignal(day);
   const tickerItems = `
     <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
     <span class="pulse-ticker-item" role="listitem"><b>다음</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextText)}</small></span>
@@ -3219,6 +3235,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     <span class="pulse-ticker-item" role="listitem"><b>실행</b> ${escapeHtml(execution.value)} <small>${escapeHtml(execution.detail)}</small></span>
     <span class="pulse-ticker-item" role="listitem"><b>패턴</b> ${escapeHtml(pattern.value)} <small>${escapeHtml(pattern.detail)}</small></span>
     <span class="pulse-ticker-item" role="listitem"><b>연결</b> ${escapeHtml(alignment.value)} <small>${escapeHtml(alignment.detail)}</small></span>
+    <span class="pulse-ticker-item" role="listitem"><b>회고</b> ${escapeHtml(review.value)} <small>${escapeHtml(review.detail)}</small></span>
     <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
   `;
   node.innerHTML = `
@@ -3236,6 +3253,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ["실행 추천", execution.value, execution.detail],
     ["패턴 분석", pattern.value, pattern.detail],
     ["목표 연결", alignment.value, alignment.detail],
+    ["하루 회고", review.value, review.detail],
     ["AI 신호", coachLabel, coach.title],
   ]);
 }
@@ -3289,6 +3307,18 @@ function buildGoalProjectAlignmentSignal(tasks = []) {
   if (projectHit) return { value: "프로젝트", detail: projectHit.slice(0, 18) };
   if (yearGoals.length || monthProjects.length || activeProjects.length) return { value: "미연결", detail: "A업무와 목표 연결 필요" };
   return { value: "설정필요", detail: "목표/프로젝트 입력" };
+}
+
+function buildDailyReviewSignal(day = ensureDay()) {
+  const wins = String(day.wins || "").trim();
+  const carry = String(day.carry || "").trim();
+  const lesson = String(day.lesson || "").trim();
+  const count = [wins, carry, lesson].filter(Boolean).length;
+  if (count >= 3) return { value: "완료", detail: "성과·이월·개선 기록" };
+  if (wins) return { value: `${count}/3`, detail: `성과 기록: ${wins.slice(0, 16)}` };
+  if (carry) return { value: `${count}/3`, detail: `내일 첫 행동: ${carry.slice(0, 16)}` };
+  if (lesson) return { value: `${count}/3`, detail: `개선점: ${lesson.slice(0, 16)}` };
+  return { value: "대기", detail: "마감 전 3줄 회고" };
 }
 
 function tokenOverlap(source = "", target = "") {
@@ -3356,7 +3386,58 @@ function renderOnboarding(day) {
   if (!node) return;
   const isToday = iso(selectedDate) === iso(todayInPlanner());
   const dismissed = localStorage.getItem(ONBOARDING_DISMISSED_KEY) === "1";
-  node.hidden = dismissed || !isToday || hasPlannerContent(state);
+  const steps = getOnboardingSteps(day);
+  node.hidden = dismissed || !isToday || steps.every((step) => step.done);
+  if (node.hidden) return;
+  node.innerHTML = `
+    <div>
+      <p class="eyebrow">Start</p>
+      <h3>오늘 실행 흐름 만들기</h3>
+      <p>${escapeHtml(getOnboardingSummary(steps))}</p>
+      <div class="onboarding-step-list">
+        ${steps.map((step) => `
+          <button class="${step.done ? "is-done" : ""}" type="button" data-onboarding-action="${escapeAttr(step.action)}">
+            <span>${step.done ? "✓" : "·"}</span>
+            <b>${escapeHtml(step.title)}</b>
+            <small>${escapeHtml(step.caption)}</small>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+    <div class="onboarding-actions">
+      <button type="button" data-onboarding-action="${escapeAttr(steps.find((step) => !step.done)?.action || "task")}">다음 단계</button>
+      <button type="button" data-onboarding-dismiss>나중에</button>
+    </div>
+  `;
+  node.querySelectorAll("[data-onboarding-action]").forEach((button) => {
+    button.onclick = () => handleOnboardingAction(button.dataset.onboardingAction);
+  });
+  node.querySelector("[data-onboarding-dismiss]")?.addEventListener("click", () => {
+    localStorage.setItem(ONBOARDING_DISMISSED_KEY, "1");
+    renderOnboarding(ensureDay());
+  });
+}
+
+function getOnboardingSteps(day = ensureDay()) {
+  const week = ensureWeek();
+  const hasIdentity = Boolean(state.profile?.personaType || state.profile?.goals || state.foundation?.mission);
+  const hasWeek = (week.priorities || []).some((item) => item.text?.trim());
+  const hasTasks = getDayTasks(iso(selectedDate)).some((task) => task.text?.trim());
+  const hasSchedule = Object.values(day.appointments || {}).some((value) => String(value || "").trim());
+  const hasReview = ["wins", "carry", "lesson"].some((field) => String(day[field] || "").trim());
+  return [
+    { action: "foundation", done: hasIdentity, title: "정체성/목표", caption: "AI가 판단할 기준" },
+    { action: "week", done: hasWeek, title: "이번 주 초점", caption: "주간 주요 일정" },
+    { action: "task", done: hasTasks, title: "오늘 우선업무", caption: "오늘 끝낼 일" },
+    { action: "schedule", done: hasSchedule, title: "시간 배치", caption: "실행할 시간칸" },
+    { action: "review", done: hasReview, title: "하루 회고", caption: "배운 점 축적" },
+  ];
+}
+
+function getOnboardingSummary(steps = []) {
+  const remain = steps.filter((step) => !step.done);
+  if (!remain.length) return "핵심 흐름이 준비되었습니다. 오늘은 실행과 회고만 남기면 됩니다.";
+  return `${remain.length}단계만 채우면 목표, 주간 계획, 오늘 실행, 회고가 하나로 연결됩니다.`;
 }
 
 function maybeShowDailyOpeningMessage() {
@@ -3634,7 +3715,7 @@ function getSectionCoachData(section, context) {
   const sheets = state.customSheets?.items || [];
   const financeRows = Object.values(state.finance?.months || {}).flat().filter((item) => item.title || item.amount);
   const activeMonthRows = (state.finance?.months?.[selectedFinanceMonth] || []).filter((item) => item.title || item.amount);
-  const memoLength = `${day.memo || ""} ${day.record || ""}`.trim().length;
+  const memoLength = `${day.memo || ""} ${day.record || ""} ${day.wins || ""} ${day.carry || ""} ${day.lesson || ""}`.trim().length;
   const sectionData = {
     foundation: {
       severity: state.profile?.goals || state.foundation?.mission ? "calm" : "warm",
@@ -4616,10 +4697,12 @@ function renderTaskRow(task, priority, index) {
   const menuValue = getPriorityMenuValue(task, priority);
   row.className = `task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.status === "위임" ? "is-delegated" : ""} ${isStruck ? "done" : ""}`;
   const statusControl = getTaskStatusControl(task, menuValue);
+  const linkTags = getTaskLinkTags(task);
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" placeholder="업무 내용" />
+    ${renderTaskLinkTags(linkTags)}
     ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
     <button class="task-delete" type="button" aria-label="우선업무 삭제">×</button>
   `;
@@ -4702,6 +4785,42 @@ function bindDailyTaskTextInput(input) {
     markDailyFieldEditing(0);
     scheduleDailyTaskRelatedRefresh(60);
   };
+}
+
+function renderTaskLinkTags(tags = []) {
+  if (!tags.length) return "";
+  return `<span class="task-link-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</span>`;
+}
+
+function getTaskLinkTags(task = {}) {
+  const tags = [];
+  const text = task.text || "";
+  const add = (tag) => {
+    if (!tags.includes(tag)) tags.push(tag);
+  };
+  if (task.financeItemId || /자금|입금|지출|카드|이자|정산|대금|money/i.test(text)) add("Money");
+  if (task.repeatId) add("반복");
+  if (task.projectTaskId || matchesProjectContext(text)) add("프로젝트");
+  if (matchesGoalContext(text)) add("목표");
+  if (/운동|건강|걷기|수면|회복|투약|검진|스트레칭/.test(text)) add("건강");
+  return tags.slice(0, 3);
+}
+
+function matchesGoalContext(text = "") {
+  const source = normalizeSearchText(text);
+  if (!source) return false;
+  const goalSources = [state.profile?.goals, state.foundation?.mission, ...(state.year?.goals || [])].filter(Boolean);
+  return goalSources.some((goal) => tokenOverlap(source, goal));
+}
+
+function matchesProjectContext(text = "") {
+  const source = normalizeSearchText(text);
+  if (!source) return false;
+  const projects = [
+    ...(ensureMonth().projects || []),
+    ...(state.projects?.items || []).flatMap((project) => [project.name, project.goal, project.nextAction]),
+  ].filter(Boolean);
+  return projects.some((project) => tokenOverlap(source, project));
 }
 
 function getTaskStatusLabel(task, menuValue) {
@@ -4995,11 +5114,13 @@ function renderCarryoverTask(task) {
   const priority = ["A", "B", "C"].includes(task.priority) ? task.priority : "A";
   const menuValue = getPriorityMenuValue(task, priority);
   const statusControl = getTaskStatusControl(task, menuValue);
+  const linkTags = getTaskLinkTags(task);
   row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
+    ${renderTaskLinkTags(linkTags)}
     <button class="task-delete" type="button" aria-label="이월 우선업무 삭제">×</button>
   `;
   const prioritySelect = row.querySelector(".priority-select");
@@ -7153,7 +7274,7 @@ function collectSearchResults(query) {
   Object.entries(state.days).forEach(([key, day]) => {
     getDayTasks(key).forEach((task) => push("day", `${key} ${task.priority}`, task.text, key));
     Object.entries(day.appointments).forEach(([slot, text]) => push("day", `${key} ${slot}`, text, key));
-    ["memo", "record"].forEach((field) => push("day", `${key} ${field}`, day[field], key));
+    ["memo", "record", "wins", "carry", "lesson"].forEach((field) => push("day", `${key} ${field}`, day[field], key));
   });
   Object.entries(state.finance?.months || {}).forEach(([key, rows]) => {
     rows.forEach((item, index) => push("notes", `${key} 자금 ${index + 1} ${item.type} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.memo}`, `${key}-01`));
@@ -7267,6 +7388,9 @@ function buildPlannerAiContext() {
     memo: {
       dayMemo: day.memo || "",
       dayRecord: day.record || "",
+      wins: day.wins || "",
+      carry: day.carry || "",
+      lesson: day.lesson || "",
     },
     carryovers: getCarryoverTasks(selectedDate).slice(0, 10).map((task) => ({
       priority: task.priority,
