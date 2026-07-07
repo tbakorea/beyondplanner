@@ -865,13 +865,10 @@ async function hydrateServerState() {
         storeStateFromServer(payload, "최신 데이터 반영됨");
       } else {
         saveStatus.message = localMeta.dirty ? "기기 작업 유지 중" : "기기 캐시 최신";
-        if (!serverHasContent && localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
-          setBootMessage("기기 작업을 서버에 복구하는 중");
+        if (localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
+          saveStatus.message = "기기 최신 작업 저장 중";
+          setBootMessage("기기 최신 작업을 서버에 저장하는 중");
           await persistStateToServer({ force: true });
-        } else if (serverHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
-          saveStatus.message = "서버 데이터 보호됨";
-          setBootMessage("서버 데이터를 보호하는 중");
-          storeStateFromServer(payload, "서버 데이터 보호됨");
         }
       }
     } else {
