@@ -130,6 +130,22 @@ const defaultProfileFields = {
   recoveryPattern: "",
 };
 
+const defaultAppSettings = {
+  schedule: {
+    startTime: "08:00",
+    endTime: "19:30",
+  },
+  sections: {
+    day: { dailyPulseVisible: true },
+    week: { carryForwardCompass: true },
+    month: { showCalendarAnnotations: true },
+    projects: { slideDetail: true },
+    money: { showAmounts: true },
+    sheets: { titleHeaders: true },
+    backup: { format: "json+xls" },
+  },
+};
+
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
 let hasInitialDeviceCache = hasCachedPlannerState();
@@ -440,6 +456,7 @@ function loadState() {
 }
 
 function migrateState(nextState) {
+  nextState.appSettings = normalizeAppSettings(nextState.appSettings);
   nextState.finance ||= createFinanceState();
   normalizeFinanceState(nextState.finance);
   nextState.projects ||= createProjectState();
@@ -894,6 +911,7 @@ function loadEmptyState() {
       priorityTasks: emptyRepeatRules(REPEAT_PRIORITY_MIN_ROWS),
     },
     scheduleUnitChanges: [],
+    appSettings: normalizeAppSettings(),
     profile: { ...defaultProfileFields },
     notes: {
       projects: Array.from({ length: 8 }, () => ""),
@@ -905,6 +923,31 @@ function loadEmptyState() {
     customSheets: createCustomSheetsState(),
     calendar: {
       events: [],
+    },
+  };
+}
+
+function normalizeAppSettings(settings = {}) {
+  const schedule = settings.schedule || {};
+  const startTime = normalizeTimeValue(schedule.startTime, defaultAppSettings.schedule.startTime);
+  const endTime = normalizeTimeValue(schedule.endTime, defaultAppSettings.schedule.endTime);
+  return {
+    ...defaultAppSettings,
+    ...settings,
+    schedule: {
+      ...defaultAppSettings.schedule,
+      ...schedule,
+      startTime,
+      endTime: timeToMinutes(endTime) > timeToMinutes(startTime) ? endTime : defaultAppSettings.schedule.endTime,
+    },
+    sections: {
+      ...defaultAppSettings.sections,
+      ...(settings.sections || {}),
+      money: {
+        ...defaultAppSettings.sections.money,
+        ...(settings.sections?.money || {}),
+        showAmounts: settings.sections?.money?.showAmounts ?? settings.finance?.showAmounts ?? true,
+      },
     },
   };
 }
@@ -1177,6 +1220,26 @@ function normalizeScheduleUnit(value) {
   return value === "60" ? "60" : "30";
 }
 
+function normalizeTimeValue(value, fallback = "08:00") {
+  const match = String(value || "").match(/^(\d{1,2}):([0-5]\d)$/);
+  if (!match) return fallback;
+  const hour = Math.max(0, Math.min(23, Number(match[1])));
+  const minute = Number(match[2]) >= 30 ? 30 : 0;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function timeToMinutes(value) {
+  const [hour, minute] = normalizeTimeValue(value, "00:00").split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function minutesToTime(minutes) {
+  const clamped = Math.max(0, Math.min(24 * 60, Number(minutes) || 0));
+  const hour = Math.floor(clamped / 60);
+  const minute = clamped % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 function normalizeScheduleUnitChanges(changes = []) {
   if (!Array.isArray(changes)) return [];
   return changes
@@ -1220,8 +1283,27 @@ function previousDayKey(key) {
   return iso(date);
 }
 
+function getScheduleSettingsRange() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  const start = normalizeTimeValue(state.appSettings.schedule.startTime, defaultAppSettings.schedule.startTime);
+  let end = normalizeTimeValue(state.appSettings.schedule.endTime, defaultAppSettings.schedule.endTime);
+  if (timeToMinutes(end) <= timeToMinutes(start)) end = defaultAppSettings.schedule.endTime;
+  return { start, end };
+}
+
+function generateScheduleSlots(unit = "30", range = getScheduleSettingsRange()) {
+  const step = normalizeScheduleUnit(unit) === "60" ? 60 : 30;
+  const start = timeToMinutes(range.start);
+  const end = timeToMinutes(range.end);
+  const slots = [];
+  for (let minutes = start; minutes < end; minutes += step) {
+    slots.push(minutesToTime(minutes));
+  }
+  return slots.length ? slots : (normalizeScheduleUnit(unit) === "60" ? hourlyTimeSlots : timeSlots);
+}
+
 function getScheduleSlotsForUnit(unit = "30") {
-  return normalizeScheduleUnit(unit) === "60" ? hourlyTimeSlots : timeSlots;
+  return generateScheduleSlots(unit);
 }
 
 function getScheduleSlotsForDay(day = ensureDay()) {
@@ -1451,9 +1533,11 @@ function setupSelectors() {
   };
   el("printButton").onclick = () => window.print();
   el("exportButton").onclick = exportPlanner;
+  el("excelExportButton").onclick = exportPlannerWorkbook;
   el("importButton").onclick = () => el("importFile").click();
   el("topPrintButton").onclick = () => window.print();
   el("topExportButton").onclick = exportPlanner;
+  el("topExcelExportButton").onclick = exportPlannerWorkbook;
   el("topImportButton").onclick = () => el("importFile").click();
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
@@ -1537,6 +1621,9 @@ function setupSelectors() {
   el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
   el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
+  el("scheduleStartTime").onchange = updateScheduleRangeSetting;
+  el("scheduleEndTime").onchange = updateScheduleRangeSetting;
+  el("settingsExcelExportButton").onclick = exportPlannerWorkbook;
   el("financeAmountVisibilityToggle").onchange = () => {
     state.finance ||= createFinanceState();
     normalizeFinanceState(state.finance);
@@ -2903,6 +2990,7 @@ function formatTierName(tier = "staff") {
 function renderFoundation() {
   bindStoredTextareas();
   bindProfileFields();
+  renderAppSettings();
   const values = el("valuesList");
   values.innerHTML = "";
   state.foundation.values.forEach((value, index) => {
@@ -2932,6 +3020,34 @@ function renderFoundation() {
     inputs[2].oninput = (event) => updateRole(index, "renewal", event.target.value);
     roles.appendChild(row);
   });
+}
+
+function renderAppSettings() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  const range = getScheduleSettingsRange();
+  const startInput = el("scheduleStartTime");
+  const endInput = el("scheduleEndTime");
+  if (startInput) startInput.value = range.start;
+  if (endInput) endInput.value = range.end;
+  const amountToggle = el("financeAmountVisibilityToggle");
+  if (amountToggle) amountToggle.checked = moneyAmountsVisible();
+  renderScheduleUnitControls(ensureDay());
+}
+
+function updateScheduleRangeSetting() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  const start = normalizeTimeValue(el("scheduleStartTime")?.value, defaultAppSettings.schedule.startTime);
+  const end = normalizeTimeValue(el("scheduleEndTime")?.value, defaultAppSettings.schedule.endTime);
+  if (timeToMinutes(end) <= timeToMinutes(start)) {
+    alert("종료시간은 시작시간보다 늦어야 합니다.");
+    renderAppSettings();
+    return;
+  }
+  state.appSettings.schedule.startTime = start;
+  state.appSettings.schedule.endTime = end;
+  Object.values(state.days || {}).forEach((day) => ensureAppointmentSlots(day, day.scheduleUnit));
+  saveState();
+  renderAll();
 }
 
 function updateRole(index, field, value) {
@@ -7464,11 +7580,112 @@ function renderSearch() {
 }
 
 function exportPlanner() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  downloadTextFile(
+    JSON.stringify(createPlannerBackupEnvelope(), null, 2),
+    `beyond-work-backup-${iso(todayInPlanner())}.beyondwork.json`,
+    "application/json"
+  );
+}
+
+function createPlannerBackupEnvelope() {
+  return {
+    format: "beyond-work-planner-backup",
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    account: getAuthSession()?.email || "",
+    selectedDate: iso(selectedDate),
+    state,
+  };
+}
+
+function exportPlannerWorkbook() {
+  const generatedAt = new Date().toLocaleString("ko-KR");
+  const tables = buildPlannerWorkbookTables();
+  const sections = tables.map((table) => `
+    <h2>${escapeHtml(table.title)}</h2>
+    <table>
+      <thead><tr>${table.headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead>
+      <tbody>
+        ${table.rows.length ? table.rows.map((row) => `<tr>${table.headers.map((_, index) => `<td>${escapeHtml(row[index] ?? "")}</td>`).join("")}</tr>`).join("") : `<tr><td colspan="${table.headers.length}">기록 없음</td></tr>`}
+      </tbody>
+    </table>
+  `).join("");
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #263238; }
+    h1 { font-size: 22px; margin: 0 0 4px; }
+    h2 { margin: 24px 0 8px; font-size: 16px; color: #28483c; }
+    p { margin: 0 0 16px; color: #66736d; }
+    table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
+    th, td { border: 1px solid #d9d4c8; padding: 8px; vertical-align: top; mso-number-format:"\\@"; }
+    th { background: #eef2ec; font-weight: 800; }
+  </style>
+</head>
+<body>
+  <h1>Beyond Work 백업 리포트</h1>
+  <p>생성: ${escapeHtml(generatedAt)} · 복원은 함께 내려받는 .beyondwork.json 파일을 사용하세요.</p>
+  ${sections}
+</body>
+</html>`;
+  downloadTextFile(html, `beyond-work-excel-${iso(todayInPlanner())}.xls`, "application/vnd.ms-excel");
+}
+
+function buildPlannerWorkbookTables() {
+  const taskRows = [];
+  Object.keys(state.days || {}).sort().forEach((key) => {
+    getDayTasks(key).filter((task) => task.text || task.done || task.status !== "미완료").forEach((task) => {
+      taskRows.push([key, task.priority, task.status || "", task.done ? "완료" : "", task.text || "", task.delegate || ""]);
+    });
+  });
+  const appointmentRows = [];
+  Object.keys(state.days || {}).sort().forEach((key) => {
+    const day = state.days[key];
+    getScheduleSlotsForDay(day).forEach((slot) => {
+      const text = String(day.appointments?.[slot] || "").trim();
+      if (text) appointmentRows.push([key, slot, getAppointmentEndLabel(getScheduleSlotsForDay(day).indexOf(slot), getAppointmentSpan(day, slot), getScheduleSlotsForDay(day)), text]);
+    });
+  });
+  const weekRows = [];
+  Object.keys(state.weeks || {}).sort().forEach((key) => {
+    const week = state.weeks[key];
+    (week.priorities || []).forEach((item, index) => {
+      if (item.text || item.done) weekRows.push([key, `금주의 주요일정 ${index + 1}`, item.done ? "완료" : "", item.text || ""]);
+    });
+    (week.compass || []).forEach((item) => {
+      if (item.goal) weekRows.push([key, item.role, "목표", item.goal]);
+      (item.actions || []).forEach((action, index) => {
+        if (action) weekRows.push([key, item.role, `핵심행동 ${index + 1}`, action]);
+      });
+    });
+  });
+  const moneyRows = [];
+  (state.finance?.fixed || []).forEach((item) => moneyRows.push(["반복", item.dueDay || "", item.type || "", item.status || "", item.title || "", item.amount || "", item.memo || ""]));
+  Object.entries(state.finance?.months || {}).sort().forEach(([key, rows]) => {
+    rows.forEach((item) => moneyRows.push([key, item.dueDay || "", item.type || "", item.status || "", item.title || "", item.amount || "", item.memo || ""]));
+  });
+  const projectRows = (state.projects?.items || []).map((project) => [
+    project.status || "", project.title || "", project.owner || "", project.startDate || "", project.endDate || "", project.goal || "", project.nextAction || "", project.budget || "", project.actual || "", project.notes || "",
+  ]);
+  const profileRows = Object.entries(state.profile || {}).map(([key, value]) => [key, Array.isArray(value) ? value.join(", ") : value || ""]);
+  return [
+    { title: "사용자 정보", headers: ["항목", "내용"], rows: profileRows },
+    { title: "오늘의 우선업무", headers: ["날짜", "중요도", "상태", "완료", "내용", "위임"], rows: taskRows },
+    { title: "시간별 일정", headers: ["날짜", "시작", "종료", "내용"], rows: appointmentRows },
+    { title: "위클리 콤파스", headers: ["주", "구분", "항목", "내용"], rows: weekRows },
+    { title: "Money", headers: ["월/반복", "일", "구분", "상태", "내용", "금액", "메모"], rows: moneyRows },
+    { title: "프로젝트", headers: ["상태", "프로젝트", "담당", "시작", "종료", "목표", "다음 행동", "예산", "실적", "메모"], rows: projectRows },
+  ];
+}
+
+function downloadTextFile(content, filename, type) {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `beyond-planner-${selectedDate.getFullYear()}.json`;
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -7480,8 +7697,10 @@ function importPlanner(event) {
   reader.onload = () => {
     try {
       const parsed = JSON.parse(String(reader.result || "{}"));
-      if (!parsed.foundation || !parsed.year || !parsed.days) throw new Error("Invalid planner file");
-      state = migrateState(parsed);
+      const importedState = parsed?.format === "beyond-work-planner-backup" ? parsed.state : parsed;
+      if (!importedState?.foundation || !importedState?.year || !importedState?.days) throw new Error("Invalid planner file");
+      if (!window.confirm("이 백업 파일로 현재 플래너를 복원할까요? 현재 서버 데이터는 새 백업으로 덮어쓰기 전에 보호 규칙을 통과해야 합니다.")) return;
+      state = migrateState(importedState);
       selectedSheetId = state.customSheets.activeId;
       saveState();
       renderAll();

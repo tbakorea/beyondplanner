@@ -2068,6 +2068,10 @@ body.is-privacy-blind .app-shell {
   padding: 11px 12px;
 }
 
+.app-setting-section {
+  border-radius: 8px;
+}
+
 .planner-option-item strong {
   display: block;
   color: var(--forest);
@@ -2086,6 +2090,57 @@ body.is-privacy-blind .app-shell {
 
 .settings-unit-toggle {
   min-width: 126px;
+}
+
+.settings-control-stack {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.time-range-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.time-range-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 31px;
+  border: 1px solid rgba(221, 216, 203, 0.82);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--muted);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.time-range-controls input {
+  width: 86px;
+  min-height: 25px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+}
+
+.setting-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  border: 1px solid rgba(95, 118, 104, 0.22);
+  border-radius: 999px;
+  background: rgba(238, 242, 236, 0.72);
+  color: var(--forest);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 840;
+  white-space: nowrap;
 }
 
 #scheduleRangeLabel {
@@ -4017,6 +4072,38 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.55;
+}
+
+.settings-step-heading {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.settings-step-heading > span {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(95, 118, 104, 0.22);
+  border-radius: 999px;
+  background: rgba(238, 242, 236, 0.84);
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 920;
+}
+
+.settings-step-heading h3 {
+  margin-bottom: 2px;
+}
+
+.settings-step-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
 }
 
 .coach-card {
@@ -9307,6 +9394,14 @@ body.ceo-mode .daily-panel-chip {
   .settings-unit-toggle {
     width: fit-content;
     min-width: 0;
+  }
+
+  .settings-control-stack {
+    justify-items: start;
+  }
+
+  .time-range-controls {
+    justify-content: flex-start;
   }
 
   .settings-unit-toggle .mini-action {
