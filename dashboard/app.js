@@ -4883,6 +4883,7 @@ function renderTaskRow(task, priority, index) {
     dailyTextEditingActive = true;
     markDailyFieldEditing(10 * 60 * 1000);
     task.text = text.value;
+    if (syncTaskTimeHintToSchedule(task, ensureDay())) renderAppointments(ensureDay());
     saveState({ fastSave: true });
   };
   deleteButton.onclick = () => deleteTask(priority, index);
@@ -5373,10 +5374,74 @@ function scheduleCarryoverPostponedTask(taskRef, targetDate) {
 }
 
 function updateCarryoverTaskText(taskRef, value) {
-  const source = materializeCarryoverTask(taskRef)?.task;
+  const sourceRef = materializeCarryoverTask(taskRef);
+  const source = sourceRef?.task;
   if (!source) return;
   source.text = value;
+  if (syncTaskTimeHintToSchedule(source, sourceRef.day || ensureDay())) renderAppointments(ensureDay());
   saveState({ fastSave: true });
+}
+
+function extractTaskTimeHint(text = "") {
+  const match = String(text || "").match(/\((오전|오후)?\s*(\d{1,2})(?:(?::|시\s*)([0-5]\d))?\s*(?:분)?\)/);
+  if (!match) return null;
+  let hour = Number(match[2]);
+  const minute = match[3] ? Number(match[3]) : 0;
+  if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
+  if (match[1] === "오후" && hour < 12) hour += 12;
+  if (match[1] === "오전" && hour === 12) hour = 0;
+  return {
+    raw: match[0],
+    slot: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
+    text: String(text || "").replace(match[0], "").replace(/\s{2,}/g, " ").trim(),
+  };
+}
+
+function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
+  if (!task) return false;
+  day.appointments ||= {};
+  const slots = getScheduleSlotsForDay(day);
+  const hint = extractTaskTimeHint(task.text);
+  const previousSlot = task.scheduledSlot || "";
+  const previousText = task.scheduledText || "";
+  let changed = false;
+  if (previousSlot && previousText && day.appointments[previousSlot]) {
+    const cleaned = removeSchedulePart(day.appointments[previousSlot], previousText);
+    if (cleaned !== day.appointments[previousSlot]) {
+      day.appointments[previousSlot] = cleaned;
+      changed = true;
+    }
+  }
+  if (!hint || !slots.includes(hint.slot) || !hint.text) {
+    delete task.scheduledSlot;
+    delete task.scheduledText;
+    return changed;
+  }
+  const current = String(day.appointments[hint.slot] || "").trim();
+  if (!current) {
+    day.appointments[hint.slot] = hint.text;
+    changed = true;
+  } else if (current === previousText) {
+    day.appointments[hint.slot] = hint.text;
+    changed = true;
+  } else if (!current.includes(hint.text)) {
+    day.appointments[hint.slot] = `${current} / ${hint.text}`;
+    changed = true;
+  }
+  task.scheduledSlot = hint.slot;
+  task.scheduledText = hint.text;
+  return changed;
+}
+
+function removeSchedulePart(value = "", part = "") {
+  const current = String(value || "").trim();
+  const target = String(part || "").trim();
+  if (!current || !target) return current;
+  if (current === target) return "";
+  return current
+    .split(/\s*\/\s*/)
+    .filter((item) => item.trim() && item.trim() !== target)
+    .join(" / ");
 }
 
 function formatCarryoverDate(value) {
@@ -5404,13 +5469,16 @@ function renderAppointments(day) {
     if (currentTimeLabel && span > 1) row.style.setProperty("--current-segment-top", `${currentProgress}%`);
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
+    const fieldMarkup = span > 1
+      ? `<textarea rows="${Math.max(2, span)}" placeholder="일정">${escapeHtml(value)}</textarea>`
+      : `<input type="text" value="${escapeAttr(value)}" placeholder="일정" />`;
     row.innerHTML = `
       <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentTimeLabel ? `<em class="appointment-current-time-number">${currentTimeLabel}</em>` : ""}<b>${endSlot}</b>` : slot}</span>
-      <input type="text" value="${escapeAttr(value)}" placeholder="일정" />
+      ${fieldMarkup}
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
     `;
-    const input = row.querySelector("input");
+    const input = row.querySelector("input, textarea");
     let valueBeforeEdit = value;
     input.onfocus = () => {
       valueBeforeEdit = day.appointments[slot] || "";
