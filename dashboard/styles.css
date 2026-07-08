@@ -4023,8 +4023,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   padding-bottom: 7px;
   text-align: center;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: normal;
+  word-break: keep-all;
 }
 
 .appointment-row.is-merged textarea::placeholder {
@@ -8881,7 +8881,7 @@ body.ceo-mode .sheet-grid-wrap {
   padding: 7px 8px;
   text-align: center;
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
   word-break: keep-all;
 }
 
