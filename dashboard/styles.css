@@ -6139,16 +6139,16 @@ body.ceo-mode .day-main-panel .panel {
   .quick-strip button,
   .top-search-toggle {
     scroll-snap-align: start;
-    min-height: 27px;
+    min-height: 31px;
     border-radius: 999px;
-    padding: 4px 8px;
-    font-size: 10.5px;
+    padding: 5px 10px;
+    font-size: 11.8px;
     line-height: 1;
     white-space: nowrap;
   }
 
   .quick-strip button.is-active {
-    padding-inline: 10px;
+    padding-inline: 12px;
   }
 
   .top-search {
