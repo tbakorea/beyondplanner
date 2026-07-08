@@ -1552,6 +1552,8 @@ function setupSelectors() {
   setupPulsePanelSwipe();
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   if (el("settingsLogoutButton")) el("settingsLogoutButton").onclick = logoutPlanner;
+  if (el("settingsExportButton")) el("settingsExportButton").onclick = exportPlanner;
+  if (el("settingsImportButton")) el("settingsImportButton").onclick = () => el("importFile").click();
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
   el("revealPrivacyButton").onclick = deactivatePrivacyBlind;
@@ -3020,8 +3022,10 @@ function renderAppSettings() {
   const range = getScheduleSettingsRange();
   const startInput = el("scheduleStartTime");
   const endInput = el("scheduleEndTime");
+  const rangeLabel = el("scheduleRangeLabel");
   if (startInput) startInput.value = range.start;
   if (endInput) endInput.value = range.end;
+  if (rangeLabel) rangeLabel.textContent = `${range.start} ~ ${range.end}`;
   const amountToggle = el("financeAmountVisibilityToggle");
   if (amountToggle) amountToggle.checked = moneyAmountsVisible();
   renderScheduleUnitControls(ensureDay());
@@ -3094,7 +3098,7 @@ function renderYear() {
     grid.appendChild(box);
   }
   renderEditableList(el("yearGoals"), state.year.goals, "Year Goal", () => saveState());
-  renderEditableList(el("futureLog"), state.year.future, "언젠가 / 대기", () => saveState());
+  renderEditableList(el("futureLog"), state.year.future, "Later / Waiting", () => saveState());
 }
 
 function getCalendarEvents(key) {
@@ -3848,7 +3852,7 @@ function getSectionCoachData(section, context) {
       message: state.profile?.goals
         ? "사용자 정보가 코칭의 기준점으로 작동하고 있습니다. 사용자 유형, 목표, 역할, 건강 리듬이 오늘 업무와 연결되는지 주기적으로 갱신하세요."
         : "사용자 정보와 핵심 목표가 부족합니다. AI 코칭의 정확도를 높이려면 사용자 유형, 목표, 현재 과제, 에너지 시간대를 먼저 채우는 것이 좋습니다.",
-      detail: `유형 ${context.personaLabel || "미설정"} · 입력 정보 ${Object.values(state.profile || {}).filter(Boolean).length}개 · 사명 ${state.foundation?.mission ? "있음" : "없음"}`,
+      detail: `유형 ${context.personaLabel || "미설정"} · 입력 정보 ${Object.values(state.profile || {}).filter(Boolean).length}개 · 방향 ${state.foundation?.mission ? "있음" : "없음"}`,
     },
     year: {
       severity: (state.year?.goals || []).filter(Boolean).length ? "calm" : "warm",
@@ -4018,7 +4022,7 @@ function getPersonaGuidance(type = "") {
     owner: "매장 운영, 고객 흐름, 직원/재고/정산 이슈를 놓치지 않는 것이 중요합니다.",
     employee: "상사·팀과 약속한 결과물, 마감, 협업 커뮤니케이션을 먼저 정리하는 것이 중요합니다.",
     manager: "팀 병목, 위임 상태, 보고·의사결정 대기 항목을 먼저 확인하는 것이 중요합니다.",
-    student: "학습 블록, 복습, 시험·과제 마감을 시간표에 넣는 것이 중요합니다.",
+    student: "학습 블록, 복습, 시험·과제 마감을 시간별 일정에 넣는 것이 중요합니다.",
     growth: "습관 실행, 회고, 장기 목표와 연결된 작은 행동을 매일 남기는 것이 중요합니다.",
     secondLife: "건강, 관계, 자산, 새 역할 탐색을 무리 없이 지속하는 것이 중요합니다.",
     other: "직접 정의한 역할에 맞춰 목표와 오늘 행동이 연결되는지 확인하는 것이 중요합니다.",
@@ -5390,17 +5394,26 @@ function updateCarryoverTaskText(taskRef, value) {
 }
 
 function extractTaskTimeHint(text = "") {
-  const match = String(text || "").match(/\((오전|오후)?\s*(\d{1,2})(?:(?::|시\s*)([0-5]\d))?\s*(?:분)?\)/);
+  const source = String(text || "");
+  const wrapped = source.match(/\((오전|오후)?\s*(\d{1,2})(?:(?::|시\s*)([0-5]\d))?\s*(?:분)?\)/);
+  const plain = wrapped ? null : source.match(/(^|[\s,，])((오전|오후)?\s*(\d{1,2}):([0-5]\d))(?!\d)/);
+  const match = wrapped || plain;
   if (!match) return null;
-  let hour = Number(match[2]);
-  const minute = match[3] ? Number(match[3]) : 0;
+  const meridiem = wrapped ? match[1] : match[3];
+  const rawHour = Number(wrapped ? match[2] : match[4]);
+  const minute = wrapped ? (match[3] ? Number(match[3]) : 0) : Number(match[5]);
+  let hour = rawHour;
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
-  if (match[1] === "오후" && hour < 12) hour += 12;
-  if (match[1] === "오전" && hour === 12) hour = 0;
+  if (meridiem === "오후" && hour < 12) hour += 12;
+  if (meridiem === "오전" && hour === 12) hour = 0;
+  const raw = wrapped ? match[0] : match[2];
   return {
-    raw: match[0],
+    raw,
+    rawHour,
+    minute,
+    hasMeridiem: Boolean(meridiem),
     slot: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
-    text: String(text || "").replace(match[0], "").replace(/\s{2,}/g, " ").trim(),
+    text: source.replace(raw, "").replace(/\s{2,}/g, " ").trim(),
   };
 }
 
@@ -5419,25 +5432,38 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
       changed = true;
     }
   }
-  if (!hint || !slots.includes(hint.slot) || !hint.text) {
+  const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
+  if (!hint || !targetSlot || !hint.text) {
     delete task.scheduledSlot;
     delete task.scheduledText;
     return changed;
   }
-  const current = String(day.appointments[hint.slot] || "").trim();
+  const current = String(day.appointments[targetSlot] || "").trim();
   if (!current) {
-    day.appointments[hint.slot] = hint.text;
+    day.appointments[targetSlot] = hint.text;
     changed = true;
   } else if (current === previousText) {
-    day.appointments[hint.slot] = hint.text;
+    day.appointments[targetSlot] = hint.text;
     changed = true;
   } else if (!current.includes(hint.text)) {
-    day.appointments[hint.slot] = `${current} / ${hint.text}`;
+    day.appointments[targetSlot] = `${current} / ${hint.text}`;
     changed = true;
   }
-  task.scheduledSlot = hint.slot;
+  task.scheduledSlot = targetSlot;
   task.scheduledText = hint.text;
   return changed;
+}
+
+function resolveTaskTimeHintSlot(hint, slots = []) {
+  if (!hint) return "";
+  const candidates = [hint.slot];
+  if (!hint.hasMeridiem && hint.rawHour >= 1 && hint.rawHour <= 7) {
+    candidates.push(`${String(hint.rawHour + 12).padStart(2, "0")}:${String(hint.minute).padStart(2, "0")}`);
+  }
+  if (hint.minute && !candidates.some((slot) => slots.includes(slot))) {
+    candidates.push(`${String((!hint.hasMeridiem && hint.rawHour >= 1 && hint.rawHour <= 7 ? hint.rawHour + 12 : hint.rawHour)).padStart(2, "0")}:00`);
+  }
+  return candidates.find((slot) => slots.includes(slot)) || "";
 }
 
 function removeSchedulePart(value = "", part = "") {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260707a" />
+    <link rel="stylesheet" href="./styles.css?v=20260708a" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -148,7 +148,14 @@
               <div class="planner-option-grid">
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Schedule</strong>
+                    <strong>Today · Top Tasks</strong>
+                    <small>Keep the daily task list compact, carry unfinished items forward, and read time hints such as 2:00 or (14:00).</small>
+                  </span>
+                  <span class="setting-status-pill">DB saved</span>
+                </div>
+                <div class="planner-option-item app-setting-section">
+                  <span>
+                    <strong>Today · Schedule</strong>
                     <small>
                       Choose 30 min or 1 hour blocks. Set the visible start and end time for your day.
                       <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
@@ -167,7 +174,21 @@
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Money Amounts</strong>
+                    <strong>Week</strong>
+                    <small>Weekly Focus, role actions, Sunday-start weeks, and carry-forward items.</small>
+                  </span>
+                  <span class="setting-status-pill">Sun start</span>
+                </div>
+                <div class="planner-option-item app-setting-section">
+                  <span>
+                    <strong>Month · Year</strong>
+                    <small>Sunday-start calendars, Korean holidays, lunar notes, anniversaries, and year navigation.</small>
+                  </span>
+                  <span class="setting-status-pill">YYYY. MM. DD.</span>
+                </div>
+                <div class="planner-option-item app-setting-section">
+                  <span>
+                    <strong>Money</strong>
                     <small>Show or hide amounts when Money items appear in Today or Week.</small>
                   </span>
                   <label class="settings-toggle">
@@ -177,31 +198,33 @@
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Today</strong>
-                    <small>Control Top Tasks, Schedule, Weekly Focus, Memo, and the daily flow banner.</small>
+                    <strong>Projects</strong>
+                    <small>Project list, slide-in detail page, next action, and project money simulation.</small>
                   </span>
-                  <span class="setting-status-pill">기본값 유지</span>
+                  <span class="setting-status-pill">Slide detail</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Week · Month · Year</strong>
-                    <small>Calendar start day, holidays, lunar notes, anniversaries, and weekly carryover.</small>
+                    <strong>Sheets</strong>
+                    <small>Numbers-style custom sheets, title rows/columns, templates, resizing, and CSV export.</small>
                   </span>
-                  <span class="setting-status-pill">Sun start</span>
+                  <span class="setting-status-pill">Templates</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Projects · Sheets</strong>
-                    <small>Detail pages, sheet rows and columns, templates, and exports.</small>
+                    <strong>Ask · AI</strong>
+                    <small>Ask questions, get section coaching, and use your profile, goals, tasks, and schedule as context.</small>
                   </span>
-                  <span class="setting-status-pill">On</span>
+                  <span class="setting-status-pill">Allowed accounts</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Security · Backup</strong>
-                    <small>Lock, privacy blind, logout, restore backup, and Excel/Numbers review files.</small>
+                    <strong>Security · Data Files</strong>
+                    <small>Lock, privacy blind, logout, JSON import/export, and Excel/Numbers review files.</small>
                   </span>
                   <div class="settings-action-row">
+                    <button class="mini-action" id="settingsExportButton" type="button">내보내기</button>
+                    <button class="mini-action" id="settingsImportButton" type="button">가져오기</button>
                     <button class="mini-action" id="settingsExcelExportButton" type="button">엑셀</button>
                     <button class="mini-action danger-action" id="settingsLogoutButton" type="button">로그아웃</button>
                   </div>
@@ -756,6 +779,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260706d"></script>
+    <script src="./app.js?v=20260708a"></script>
   </body>
 </html>

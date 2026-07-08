@@ -3896,7 +3896,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   resize: none;
   overflow: hidden;
   white-space: pre-wrap;
-  word-break: keep-all;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .appointment-row textarea::placeholder {
@@ -3914,6 +3915,14 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   line-height: 1.35;
   padding-top: 7px;
   padding-bottom: 7px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.appointment-row.is-merged textarea::placeholder {
+  color: rgba(94, 102, 97, 0.42);
+  font-weight: 650;
 }
 
 .appointment-merge-button {
