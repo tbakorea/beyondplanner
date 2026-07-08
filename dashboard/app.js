@@ -1420,6 +1420,67 @@ function hasPlannerContent(source = state) {
   return (source.projects?.items || []).some(projectHasUserContent);
 }
 
+function plannerContentScore(source = state) {
+  if (!source || typeof source !== "object") return 0;
+  const hasText = (value) => String(value || "").trim().length > 0;
+  const countValues = (values = []) => values.reduce((total, value) => total + (hasText(value) ? 1 : 0), 0);
+  let score = 0;
+  score += hasText(source.foundation?.mission) ? 1 : 0;
+  score += countValues(source.foundation?.values || []);
+  (source.foundation?.roles || []).forEach((role) => {
+    score += countValues([role.goal, role.renewal]);
+  });
+  score += countValues(source.year?.goals || []);
+  score += countValues(source.year?.future || []);
+  Object.values(source.months || {}).forEach((month) => {
+    score += countValues([month.focus, ...(month.projects || [])]);
+  });
+  Object.values(source.weeks || {}).forEach((week) => {
+    (week.priorities || []).forEach((item) => {
+      score += hasText(item.text) || item.done ? 1 : 0;
+    });
+    (week.compass || []).forEach((item) => {
+      score += countValues([item.goal, item.action, ...(item.actions || [])]);
+    });
+  });
+  Object.values(source.days || {}).forEach((day) => {
+    Object.values(day.tasks || {}).flat().forEach((task) => {
+      score += hasText(task.text) || task.done || task.status !== "미완료" || hasText(task.delegate) ? 1 : 0;
+    });
+    score += countValues(Object.values(day.appointments || {}));
+    score += Object.keys(day.appointmentMerges || {}).length;
+    score += countValues(["memo", "record", "wins", "carry", "lesson"].map((field) => day[field]));
+  });
+  score += (source.repeats?.priorityTasks || []).filter((rule) => hasText(rule.text)).length;
+  Object.values(source.profile || {}).forEach((value) => {
+    score += Array.isArray(value) ? countValues(value) : hasText(value) ? 1 : 0;
+  });
+  score += countValues([...(source.notes?.projects || []), ...(source.notes?.references || []), source.notes?.freeform]);
+  (source.finance?.fixed || []).forEach((item) => {
+    score += countValues([item.title, item.amount, item.dueDay, item.memo, item.taskDate, item.repeatEndDate]) ? 1 : 0;
+  });
+  Object.values(source.finance?.months || {}).flat().forEach((item) => {
+    score += countValues([item.title, item.amount, item.dueDay, item.memo, item.taskDate]) ? 1 : 0;
+  });
+  score += countValues([source.finance?.issueMemo, source.finance?.decisionMemo]);
+  (source.customSheets?.items || []).forEach((sheet) => {
+    score += countValues(Object.values(sheet.cells || {}));
+  });
+  score += (source.calendar?.events || []).filter((event) => hasText(event.title)).length;
+  (source.projects?.items || []).forEach((project) => {
+    score += projectHasUserContent(project) ? 1 : 0;
+  });
+  return score;
+}
+
+function isDangerousPlannerImport(incomingState) {
+  const currentScore = plannerContentScore(state);
+  const incomingScore = plannerContentScore(incomingState);
+  if (currentScore < 5) return false;
+  if (incomingScore === 0) return true;
+  return currentScore - incomingScore >= 10 && incomingScore < currentScore * 0.2;
+}
+
 function weekHasContent(week) {
   const hasText = (value) => String(value || "").trim().length > 0;
   return (week.priorities || []).some((item) => hasText(item.text) || item.done) ||
@@ -8658,6 +8719,20 @@ function importPlanner(event) {
       const parsed = JSON.parse(String(reader.result || "{}"));
       const importedState = parsed?.format === "beyond-work-planner-backup" ? parsed.state : parsed;
       if (!importedState?.foundation || !importedState?.year || !importedState?.days) throw new Error("Invalid planner file");
+      if (!hasPlannerContent(importedState)) {
+        window.alert("가져오기 파일에 저장할 플래너 내용이 없습니다. 현재 데이터는 유지됩니다.");
+        return;
+      }
+      if (isDangerousPlannerImport(importedState)) {
+        window.alert("현재 플래너보다 내용이 현저히 적은 파일입니다. 데이터 보호를 위해 가져오기를 중단했습니다.");
+        return;
+      }
+      const currentAccount = getAuthSession()?.email || "";
+      const importedAccount = parsed?.account || "";
+      if (currentAccount && importedAccount && currentAccount !== importedAccount) {
+        const proceed = window.confirm(`이 백업은 ${importedAccount} 계정에서 만든 파일입니다. 현재 계정 ${currentAccount}에 가져올까요?`);
+        if (!proceed) return;
+      }
       if (!window.confirm("이 파일의 내용으로 플래너를 가져올까요? 현재 저장된 내용은 보호 규칙을 통과한 경우에만 바뀝니다.")) return;
       state = migrateState(importedState);
       selectedSheetId = state.customSheets.activeId;
