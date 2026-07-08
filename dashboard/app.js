@@ -3978,7 +3978,7 @@ function renderOnboarding(day) {
   if (collapsed) {
     node.innerHTML = `
       <button class="onboarding-restore" type="button" data-onboarding-toggle>
-        <span>Build Today</span>
+        <span>${escapeHtml(getAppLanguage() === "ko" ? "오늘 실행흐름" : "Build Today")}</span>
         <b>보이기</b>
       </button>
     `;
@@ -3987,8 +3987,8 @@ function renderOnboarding(day) {
   }
   node.innerHTML = `
     <div>
-      <p class="eyebrow">Start</p>
-      <h3>Build Today</h3>
+      <p class="eyebrow">${escapeHtml(getAppLanguage() === "ko" ? "시작" : "Start")}</p>
+      <h3>${escapeHtml(getAppLanguage() === "ko" ? "오늘 실행흐름 만들기" : "Build Today")}</h3>
       <p>${escapeHtml(getOnboardingSummary(steps))}</p>
       <div class="onboarding-step-list">
         ${steps.map((step) => `
@@ -4019,22 +4019,35 @@ function toggleOnboardingPanel() {
 
 function getOnboardingSteps(day = ensureDay()) {
   const week = ensureWeek();
+  const isKorean = getAppLanguage() === "ko";
   const hasIdentity = Boolean(state.profile?.personaType || state.profile?.goals || state.foundation?.mission);
   const hasWeek = (week.priorities || []).some((item) => item.text?.trim());
   const hasTasks = getDayTasks(iso(selectedDate)).some((task) => task.text?.trim());
   const hasSchedule = Object.values(day.appointments || {}).some((value) => String(value || "").trim());
   const hasReview = ["wins", "carry", "lesson"].some((field) => String(day[field] || "").trim());
-  return [
-    { action: "foundation", done: hasIdentity, title: "About Me", caption: "AI's context" },
-    { action: "week", done: hasWeek, title: "Week Focus", caption: "This week's key items" },
-    { action: "task", done: hasTasks, title: "Top Tasks", caption: "What to finish today" },
-    { action: "schedule", done: hasSchedule, title: "Schedule", caption: "When to do it" },
-    { action: "review", done: hasReview, title: "하루 회고", caption: "배운 점 축적" },
-  ];
+  return isKorean
+    ? [
+        { action: "foundation", done: hasIdentity, title: "나의 정보", caption: "AI 코칭의 기준" },
+        { action: "week", done: hasWeek, title: "주간 초점", caption: "이번 주 핵심" },
+        { action: "task", done: hasTasks, title: "우선업무", caption: "오늘 끝낼 일" },
+        { action: "schedule", done: hasSchedule, title: "시간별 일정", caption: "언제 할지 배치" },
+        { action: "review", done: hasReview, title: "하루 회고", caption: "배운 점 축적" },
+      ]
+    : [
+        { action: "foundation", done: hasIdentity, title: "About Me", caption: "AI's context" },
+        { action: "week", done: hasWeek, title: "Week Focus", caption: "This week's key items" },
+        { action: "task", done: hasTasks, title: "Top Tasks", caption: "What to finish today" },
+        { action: "schedule", done: hasSchedule, title: "Schedule", caption: "When to do it" },
+        { action: "review", done: hasReview, title: "Daily Review", caption: "Lessons retained" },
+      ];
 }
 
 function getOnboardingSummary(steps = []) {
   const remain = steps.filter((step) => !step.done);
+  if (getAppLanguage() !== "ko") {
+    if (!remain.length) return "Your core workflow is ready. Execute and close the day well.";
+    return `${remain.length} steps left to connect goals, week focus, today, and review.`;
+  }
   if (!remain.length) return "핵심 흐름이 준비되었습니다. 오늘은 실행과 회고만 남기면 됩니다.";
   return `${remain.length}단계만 채우면 목표, 주간 계획, 오늘 실행, 회고가 하나로 연결됩니다.`;
 }
