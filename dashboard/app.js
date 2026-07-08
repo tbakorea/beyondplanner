@@ -1099,9 +1099,10 @@ async function hydrateServerState() {
       const localUpdatedAt = localMeta.updatedAt || "";
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
+      const localDirtyIsFresh = Boolean(localMeta.dirty && localUpdatedAt && Date.now() - timestampMs(localUpdatedAt) < 10 * 60 * 1000);
       lastServerUpdatedAt = payload.updatedAt || "";
-      const serverIsNewer = !localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent);
-      const localIsNewer = localHasContent && localUpdatedAt && isTimestampNewer(localUpdatedAt, payload.updatedAt);
+      const serverIsNewer = !localUpdatedAt || !localDirtyIsFresh || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent);
+      const localIsNewer = localDirtyIsFresh && localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt);
       if (serverIsNewer) {
         setBootMessage("저장된 플래너를 불러오는 중");
         storeStateFromServer(payload, "저장됨");
