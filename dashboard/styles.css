@@ -7278,7 +7278,7 @@ body.smartphone-device .privacy-blind-screen {
   .mobile-focus-close {
     position: absolute;
     top: 6px;
-    right: 8px;
+    left: 8px;
     z-index: 45;
     display: none;
     width: 34px;
@@ -7302,6 +7302,11 @@ body.smartphone-device .privacy-blind-screen {
   .day-main-panel.is-focus-schedule .mobile-focus-close {
     display: inline-grid;
     place-items: center;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel > .panel-title-row,
+  .day-main-panel.is-focus-schedule .day-schedule-panel > .panel-title-row {
+    padding-left: 42px;
   }
 
   .day-swipe.is-mobile-focus-active,
