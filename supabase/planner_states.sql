@@ -143,9 +143,12 @@ begin
 
   select count(*) into row_count
   from jsonb_array_elements(coalesce(input_state->'customSheets'->'items', '[]'::jsonb)) sheet
-  where jsonb_object_length(
-    case when jsonb_typeof(sheet->'cells') = 'object' then sheet->'cells' else '{}'::jsonb end
-  ) > 0;
+  where exists (
+    select 1
+    from jsonb_object_keys(
+      case when jsonb_typeof(sheet->'cells') = 'object' then sheet->'cells' else '{}'::jsonb end
+    )
+  );
   score := score + coalesce(row_count, 0);
 
   select count(*) into row_count
