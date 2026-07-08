@@ -2983,6 +2983,33 @@ body.ceo-mode .project-money-row input:last-child {
   touch-action: pan-y;
 }
 
+.finance-row-filled {
+  border-radius: 9px;
+  border: 1px solid rgba(95, 118, 104, 0.16);
+  background: rgba(255, 253, 248, 0.82);
+  padding: 6px;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset;
+}
+
+.finance-row-draft {
+  border: 1px dashed rgba(95, 118, 104, 0.28);
+  border-radius: 9px;
+  background: rgba(247, 245, 239, 0.52);
+  padding: 6px;
+}
+
+.finance-empty-state {
+  border: 1px dashed rgba(95, 118, 104, 0.22);
+  border-radius: 10px;
+  background: rgba(255, 253, 248, 0.58);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.45;
+  padding: 14px;
+  text-align: center;
+}
+
 .finance-row input,
 .finance-row select {
   min-height: 32px;
@@ -4176,6 +4203,80 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 .coach-suggestions {
   display: grid;
   gap: 10px;
+}
+
+.profile-onboarding {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-stage {
+  border: 1px solid rgba(221, 216, 203, 0.86);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.68);
+  padding: 12px;
+}
+
+.profile-stage.is-essential {
+  border-color: rgba(95, 118, 104, 0.28);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(238, 243, 235, 0.62));
+}
+
+.profile-stage summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.profile-stage summary::-webkit-details-marker {
+  display: none;
+}
+
+.profile-stage summary::after {
+  content: "펼치기";
+  grid-column: 2;
+  justify-self: end;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.profile-stage[open] summary::after {
+  content: "접기";
+}
+
+.profile-stage-title,
+.profile-stage summary {
+  margin-bottom: 10px;
+}
+
+.profile-stage-title {
+  display: grid;
+  gap: 3px;
+}
+
+.profile-stage-title span,
+.profile-stage summary > span {
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 920;
+}
+
+.profile-stage-title strong,
+.profile-stage summary > strong {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 940;
+}
+
+.profile-stage-title small,
+.profile-stage summary > small {
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
 .profile-grid label {

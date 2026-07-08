@@ -291,6 +291,7 @@ const settingsLanguageLabels = {
 
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
+let activeMoneyDraftId = "";
 let hasInitialDeviceCache = hasCachedPlannerState();
 let state = loadState();
 let searchQuery = "";
@@ -7607,15 +7608,27 @@ function renderMoneyRows(node, rows, options = {}) {
   if (!node) return;
   node.innerHTML = "";
   const showAmounts = moneyAmountsVisible();
-  rows.forEach((item, index) => {
+  const visibleRows = rows
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => moneyItemHasInput(item) || item.id === activeMoneyDraftId);
+  if (!visibleRows.length) {
+    const empty = document.createElement("div");
+    empty.className = "finance-empty-state";
+    empty.textContent = options.fixed ? "등록된 반복 지출이 없습니다. 필요한 항목만 추가하세요." : "이 달의 자금 항목이 없습니다. 추가 버튼으로 기록하세요.";
+    node.appendChild(empty);
+    return;
+  }
+  visibleRows.forEach(({ item, index }) => {
+    const isFilled = moneyItemHasInput(item);
     const row = document.createElement("div");
-    row.className = `finance-row ${options.fixed ? "finance-row-fixed" : ""} ${showAmounts ? "" : "finance-amount-hidden"} finance-status-${item.status}`;
+    row.className = `finance-row ${options.fixed ? "finance-row-fixed" : ""} ${isFilled ? "finance-row-filled" : "finance-row-draft"} ${showAmounts ? "" : "finance-amount-hidden"} finance-status-${item.status}`;
+    row.dataset.financeId = item.id || "";
     row.innerHTML = `
       <select class="finance-type" aria-label="구분">
         ${moneyTypes.map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${type}</option>`).join("")}
       </select>
       <input class="finance-title" type="text" value="${escapeAttr(item.title)}" placeholder="내용" />
-      <input class="finance-amount" type="${showAmounts ? "text" : "password"}" inputmode="numeric" value="${escapeAttr(item.amount)}" placeholder="${showAmounts ? "금액" : "숨김"}" />
+      <input class="finance-amount" type="${showAmounts ? "text" : "password"}" inputmode="numeric" value="${escapeAttr(formatMoneyInputValue(item.amount, showAmounts))}" placeholder="${showAmounts ? "금액" : "숨김"}" />
       <input class="finance-due" type="number" min="1" max="31" value="${escapeAttr(item.dueDay)}" placeholder="일" />
       <select class="finance-status" aria-label="상태">
         ${moneyStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}
@@ -7642,7 +7655,10 @@ function renderMoneyRows(node, rows, options = {}) {
     const repeatEndDate = row.querySelector(".finance-repeat-end-date");
     type.onchange = () => updateMoneyItem(rows, index, "type", type.value, options);
     title.oninput = () => updateMoneyItem(rows, index, "title", title.value, options);
-    amount.oninput = () => updateMoneyItem(rows, index, "amount", amount.value, options);
+    amount.oninput = () => updateMoneyItem(rows, index, "amount", sanitizeMoneyInput(amount.value), options);
+    amount.onblur = () => {
+      if (showAmounts) amount.value = formatMoneyInputValue(rows[index]?.amount || "", true);
+    };
     dueDay.oninput = () => updateMoneyItem(rows, index, "dueDay", dueDay.value, options);
     status.onchange = () => updateMoneyItem(rows, index, "status", status.value, options);
     memo.oninput = () => updateMoneyItem(rows, index, "memo", memo.value, options);
@@ -7659,16 +7675,19 @@ function renderMoneyRows(node, rows, options = {}) {
 }
 
 function addMoneyRow(rows, options = {}) {
-  rows.push(emptyMoneyItem("지출"));
+  const item = emptyMoneyItem("지출");
+  activeMoneyDraftId = item.id;
+  rows.push(item);
   saveState();
   renderNotes();
+  window.requestAnimationFrame(() => document.querySelector(`[data-finance-id="${CSS.escape(item.id)}"] .finance-title`)?.focus());
 }
 
 function removeMoneyRow(rows, index, options = {}) {
   if (!confirmDelete("이 자금 항목을 삭제할까요? 연결된 우선업무도 함께 정리됩니다.")) return;
   const [removed] = rows.splice(index, 1);
   if (removed?.id) removeFinanceLinkedTask(removed.id, Boolean(options.fixed));
-  if (!rows.length) rows.push(emptyMoneyItem(options.fixed ? "지출" : "지출"));
+  if (removed?.id === activeMoneyDraftId) activeMoneyDraftId = "";
   saveState();
   renderNotes();
 }
@@ -7677,6 +7696,7 @@ function updateMoneyItem(rows, index, field, value, options = {}) {
   const item = rows[index];
   if (!item) return;
   item[field] = value;
+  if (moneyItemHasInput(item) && item.id === activeMoneyDraftId) activeMoneyDraftId = "";
   if (options.fixed && !item.startDate && moneyItemHasInput(item)) item.startDate = iso(todayInPlanner());
   if (options.fixed && field === "dueDay") sortMoneyRowsByDueDay(rows);
   if (options.monthKey) linkMoneyItemToTask(item, options.monthKey);
@@ -7724,6 +7744,21 @@ function sortMoneyRowsByDueDay(rows = []) {
 
 function moneyItemHasInput(item = {}) {
   return Boolean(item.title?.trim() || item.amount || item.dueDay || item.memo?.trim());
+}
+
+function sanitizeMoneyInput(value = "") {
+  const source = String(value || "").replace(/,/g, "").replace(/[^\d.-]/g, "");
+  if (!source || source === "-" || source === "." || source === "-.") return source;
+  return source;
+}
+
+function formatMoneyInputValue(value = "", visible = true) {
+  if (!visible) return value || "";
+  const source = String(value || "").replace(/,/g, "");
+  if (!source || source === "-" || source === "." || source === "-.") return source;
+  const number = Number(source);
+  if (!Number.isFinite(number)) return value;
+  return number.toLocaleString("ko-KR");
 }
 
 function normalizeFixedMoneyStartDates(rows = []) {
@@ -7955,7 +7990,7 @@ function getMoneyItemDate(item, key) {
 }
 
 function buildMoneyTaskText(item, fixed = false) {
-  const amount = moneyAmountsVisible() && item.amount ? ` ${item.amount}` : "";
+  const amount = moneyAmountsVisible() && item.amount ? ` ${formatMoneyInputValue(item.amount, true)}` : "";
   return `자금 확인${fixed ? "(매월)" : ""}: ${item.title.trim()}${amount}`;
 }
 
