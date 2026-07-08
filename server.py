@@ -14,6 +14,7 @@ import json
 import os
 import pathlib
 import urllib.error
+import urllib.parse
 import urllib.request
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -398,8 +399,9 @@ def get_supabase_planner_state(token: str) -> dict:
     user_id = user.get("id")
     if not user_id:
         raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
+    encoded_user_id = urllib.parse.quote(user_id, safe="")
     request = urllib.request.Request(
-        f"{supabase_url}/rest/v1/planner_states?user_id=eq.{user_id}&select=state,updated_at&limit=1",
+        f"{supabase_url}/rest/v1/planner_states?user_id=eq.{encoded_user_id}&select=state,updated_at&limit=1",
         headers={
             "apikey": anon_key,
             "Authorization": f"Bearer {token}",
