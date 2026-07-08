@@ -1764,7 +1764,6 @@ function setPath(path, value) {
   }
   target[parts[0]] = value;
   saveState();
-  renderAll();
 }
 
 function getPath(path) {
