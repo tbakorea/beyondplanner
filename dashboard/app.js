@@ -80,6 +80,11 @@ const repeatWeekOptions = [
   ["5", "다섯째주"],
 ];
 const repeatFrequencySortOrder = { yearly: 0, monthly: 1, weekly: 2, daily: 3 };
+const repeatCarryOptions = [
+  ["auto", "기본이월"],
+  ["carry", "이월함"],
+  ["none", "이월안함"],
+];
 const REPEAT_PRIORITY_MIN_ROWS = 12;
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
@@ -1611,6 +1616,7 @@ function emptyRepeatRule() {
     startDate: iso(baseDate),
     endMode: "none",
     endDate: "",
+    carryMode: "auto",
     active: true,
   };
 }
@@ -1645,6 +1651,7 @@ function normalizeRepeatRule(rule = {}) {
   rule.endMode = rule.endMode === "date" ? "date" : "none";
   rule.endDate = isValidIsoDate(rule.endDate) ? rule.endDate : "";
   if (rule.endMode !== "date") rule.endDate = "";
+  rule.carryMode = ["auto", "carry", "none"].includes(rule.carryMode) ? rule.carryMode : "auto";
   rule.deletedFrom = isValidIsoDate(rule.deletedFrom) ? rule.deletedFrom : "";
   rule.removed = rule.removed === true;
   rule.active = rule.active !== false;
@@ -4725,8 +4732,16 @@ function shouldCarryRepeatTask(task, currentKey) {
   const rule = repeatRuleForTask(task);
   if (!sourceKey || !rule) return true;
   if (rule.deletedFrom && currentKey >= rule.deletedFrom) return false;
+  if (!repeatRuleAllowsCarryover(rule)) return false;
   const nextKey = nextRepeatDateAfter(rule, sourceKey);
   return !nextKey || currentKey < nextKey;
+}
+
+function repeatRuleAllowsCarryover(rule) {
+  normalizeRepeatRule(rule);
+  if (rule.carryMode === "carry") return true;
+  if (rule.carryMode === "none") return false;
+  return rule.frequency !== "daily";
 }
 
 function resetFutureRepeatOccurrences(ruleIndex, fromKey = iso(selectedDate)) {
@@ -4801,6 +4816,9 @@ function renderRepeatPriorityList() {
       <select class="repeat-frequency" aria-label="반복 주기">
         ${repeatFrequencies.map(([value, label]) => `<option value="${value}" ${rule.frequency === value ? "selected" : ""}>${label}</option>`).join("")}
       </select>
+      <select class="repeat-carry-mode" aria-label="미완료 이월 설정">
+        ${repeatCarryOptions.map(([value, label]) => `<option value="${value}" ${rule.carryMode === value ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
       <div class="repeat-target-cell">${renderRepeatTargetControl(rule)}</div>
       <label class="repeat-date-field">
         <span>시작</span>
@@ -4817,6 +4835,7 @@ function renderRepeatPriorityList() {
     const priority = row.querySelector(".repeat-priority");
     const text = row.querySelector(".repeat-text");
     const frequency = row.querySelector(".repeat-frequency");
+    const carryMode = row.querySelector(".repeat-carry-mode");
     const startDate = row.querySelector(".repeat-start-date");
     const endMode = row.querySelector(".repeat-end-mode");
     const endDate = row.querySelector(".repeat-end-date");
@@ -4852,6 +4871,11 @@ function renderRepeatPriorityList() {
       markRepeatRuleChanged(rule, index);
       rule.frequency = frequency.value;
       setRepeatAnchorToSelectedDate(rule);
+      saveState();
+      renderAll();
+    };
+    carryMode.onchange = () => {
+      rule.carryMode = carryMode.value;
       saveState();
       renderAll();
     };

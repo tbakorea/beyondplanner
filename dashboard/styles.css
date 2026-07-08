@@ -4603,8 +4603,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .repeat-list-dialog .repeat-rule-row {
-  grid-template-columns: 22px 46px minmax(230px, 1fr) 82px minmax(220px, auto) 118px 92px 118px 32px;
-  width: max(100%, 1080px);
+  grid-template-columns: 22px 46px minmax(230px, 1fr) 82px 92px minmax(220px, auto) 118px 92px 118px 32px;
+  width: max(100%, 1170px);
 }
 
 .repeat-weekly-controls,
@@ -4668,8 +4668,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   }
 
   .repeat-list-dialog .repeat-rule-row {
-    grid-template-columns: 22px 42px minmax(190px, 1fr) 76px minmax(220px, auto) 112px 88px 112px 30px;
-    width: 940px;
+    grid-template-columns: 22px 42px minmax(190px, 1fr) 76px 88px minmax(220px, auto) 112px 88px 112px 30px;
+    width: 1030px;
   }
 }
 
