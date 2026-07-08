@@ -4440,8 +4440,40 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .repeat-list-dialog .repeat-rule-row {
-  grid-template-columns: 22px 46px minmax(230px, 1fr) 82px minmax(180px, auto) 118px 92px 118px 32px;
-  width: max(100%, 1080px);
+  grid-template-columns: 22px 46px minmax(230px, 1fr) 82px minmax(220px, auto) 118px 92px 118px 32px;
+  width: max(100%, 1140px);
+}
+
+.repeat-weekly-controls,
+.repeat-yearly-controls {
+  display: grid;
+  grid-template-columns: minmax(82px, 1fr) minmax(82px, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.repeat-month-calendar {
+  display: grid;
+  grid-template-columns: 48px minmax(128px, 1fr);
+  gap: 6px;
+  align-items: center;
+}
+
+.repeat-month-calendar span,
+.repeat-target-static {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.repeat-yearly-anniversary {
+  min-height: 32px;
+  border: 1px solid rgba(95, 118, 104, 0.22);
+  border-radius: 9px;
+  background: rgba(174, 191, 177, 0.16);
+  color: var(--forest);
+  font-weight: 900;
+  cursor: pointer;
 }
 
 @media (max-width: 640px) {
@@ -4473,8 +4505,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   }
 
   .repeat-list-dialog .repeat-rule-row {
-    grid-template-columns: 22px 42px minmax(190px, 1fr) 76px minmax(170px, auto) 112px 88px 112px 30px;
-    width: 920px;
+    grid-template-columns: 22px 42px minmax(190px, 1fr) 76px minmax(220px, auto) 112px 88px 112px 30px;
+    width: 980px;
   }
 }
 

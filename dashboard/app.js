@@ -69,7 +69,15 @@ const repeatFrequencies = [
   ["daily", "매일"],
   ["weekly", "매주"],
   ["monthly", "매월"],
-  ["yearly", "매년"],
+  ["yearly", "매년/기념일"],
+];
+const repeatWeekOptions = [
+  ["every", "매주"],
+  ["1", "첫째주"],
+  ["2", "둘째주"],
+  ["3", "셋째주"],
+  ["4", "넷째주"],
+  ["5", "다섯째주"],
 ];
 const repeatFrequencySortOrder = { yearly: 0, monthly: 1, weekly: 2, daily: 3 };
 const REPEAT_PRIORITY_MIN_ROWS = 12;
@@ -1593,6 +1601,8 @@ function emptyRepeatRule() {
     text: "",
     priority: "A",
     frequency: "daily",
+    weeklyMode: "every",
+    weekOfMonth: "every",
     weekday: baseDate.getDay(),
     weekdays: weekdays.map((_, index) => index),
     monthday: baseDate.getDate(),
@@ -1621,6 +1631,9 @@ function normalizeRepeatRule(rule = {}) {
   rule.text ||= "";
   rule.priority = ["A", "B", "C"].includes(rule.priority) ? rule.priority : "A";
   rule.frequency = frequencyValues.includes(rule.frequency) ? rule.frequency : "daily";
+  rule.weekOfMonth = ["every", "1", "2", "3", "4", "5"].includes(String(rule.weekOfMonth)) ? String(rule.weekOfMonth) : "every";
+  rule.weeklyMode = rule.weeklyMode === "nth" || rule.weekOfMonth !== "every" ? "nth" : "every";
+  if (rule.weeklyMode === "every") rule.weekOfMonth = "every";
   rule.weekday = clampNumber(rule.weekday, 0, 6, baseDate.getDay());
   rule.weekdays = Array.isArray(rule.weekdays) ? rule.weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [];
   if (!rule.weekdays.length) rule.weekdays = rule.frequency === "daily" ? weekdays.map((_, index) => index) : [rule.weekday];
@@ -3530,6 +3543,21 @@ function addAnniversaryEvent() {
   renderAll();
 }
 
+function prepareAnniversaryFromRepeatRule(rule = {}) {
+  const baseYear = selectedDate.getFullYear();
+  const month = clampNumber(rule.month, 1, 12, selectedDate.getMonth() + 1);
+  const day = clampNumber(rule.monthday, 1, daysInMonth(baseYear, month - 1), selectedDate.getDate());
+  showView("year");
+  renderAll();
+  const dateInput = el("anniversaryDate");
+  const titleInput = el("anniversaryTitle");
+  if (dateInput) dateInput.value = `${baseYear}-${pad(month)}-${pad(day)}`;
+  if (titleInput) {
+    titleInput.value = rule.text?.trim() || "";
+    titleInput.focus();
+  }
+}
+
 function renderAnniversaryList() {
   const node = el("anniversaryList");
   const dateInput = el("anniversaryDate");
@@ -4648,10 +4676,21 @@ function shouldRepeatOnDate(rule, date) {
   if (rule.endMode === "date" && rule.endDate && key > rule.endDate) return false;
   if (rule.deletedFrom && key >= rule.deletedFrom) return false;
   if (rule.frequency === "daily") return rule.weekdays.includes(date.getDay());
-  if (rule.frequency === "weekly") return Number(rule.weekday) === date.getDay();
+  if (rule.frequency === "weekly") {
+    if (Number(rule.weekday) !== date.getDay()) return false;
+    return rule.weekOfMonth === "every" || getWeekOfMonth(date) === Number(rule.weekOfMonth);
+  }
   if (rule.frequency === "monthly") return Number(rule.monthday) === date.getDate();
-  if (rule.frequency === "yearly") return Number(rule.month) === date.getMonth() + 1 && Number(rule.monthday) === date.getDate();
+  if (rule.frequency === "yearly") return false;
   return false;
+}
+
+function getWeekOfMonth(date) {
+  return Math.floor((date.getDate() - 1) / 7) + 1;
+}
+
+function daysInMonth(year, zeroBasedMonth) {
+  return new Date(year, zeroBasedMonth + 1, 0).getDate();
 }
 
 function nextRepeatDateAfter(rule, fromKey) {
@@ -4819,6 +4858,13 @@ function renderRepeatPriorityList() {
       saveState();
       renderAll();
     });
+    row.querySelector(".repeat-week-of-month")?.addEventListener("change", (event) => {
+      markRepeatRuleChanged(rule, index);
+      rule.weekOfMonth = event.target.value;
+      rule.weeklyMode = rule.weekOfMonth === "every" ? "every" : "nth";
+      saveState();
+      renderAll();
+    });
     row.querySelector(".repeat-weekday-toggle")?.addEventListener("click", () => {
       row.querySelector(".repeat-weekday-popover")?.toggleAttribute("hidden");
     });
@@ -4839,11 +4885,23 @@ function renderRepeatPriorityList() {
       saveState();
       renderAll();
     });
+    row.querySelector(".repeat-month-date")?.addEventListener("change", (event) => {
+      const date = parseDate(event.target.value);
+      if (Number.isNaN(date.getTime())) return;
+      markRepeatRuleChanged(rule, index);
+      rule.monthday = date.getDate();
+      saveState();
+      renderAll();
+    });
     row.querySelector(".repeat-month")?.addEventListener("change", (event) => {
       markRepeatRuleChanged(rule, index);
       rule.month = Number(event.target.value);
       saveState();
       renderAll();
+    });
+    row.querySelector(".repeat-yearly-anniversary")?.addEventListener("click", () => {
+      prepareAnniversaryFromRepeatRule(rule);
+      closeRepeatManager();
     });
     startDate.onchange = () => {
       const previousStart = rule.startDate;
@@ -4935,7 +4993,11 @@ function closeRepeatManager() {
 function setRepeatAnchorToSelectedDate(rule) {
   const baseDate = selectedDate || todayInPlanner();
   if (rule.frequency === "daily") rule.weekdays = weekdays.map((_, index) => index);
-  if (rule.frequency === "weekly") rule.weekday = baseDate.getDay();
+  if (rule.frequency === "weekly") {
+    rule.weekday = baseDate.getDay();
+    rule.weekOfMonth = "every";
+    rule.weeklyMode = "every";
+  }
   if (rule.frequency === "monthly") rule.monthday = baseDate.getDate();
   if (rule.frequency === "yearly") {
     rule.month = baseDate.getMonth() + 1;
@@ -4966,36 +5028,31 @@ function renderRepeatTargetControl(rule) {
   }
   if (rule.frequency === "weekly") {
     return `
-      <select class="repeat-weekday" aria-label="반복 요일">
-        ${weekdays.map((day, dayIndex) => `<option value="${dayIndex}" ${Number(rule.weekday) === dayIndex ? "selected" : ""}>${day}</option>`).join("")}
-      </select>
+      <div class="repeat-weekly-controls">
+        <select class="repeat-week-of-month" aria-label="반복 주차">
+          ${repeatWeekOptions.map(([value, label]) => `<option value="${value}" ${String(rule.weekOfMonth || "every") === value ? "selected" : ""}>${label}</option>`).join("")}
+        </select>
+        <select class="repeat-weekday" aria-label="반복 요일">
+          ${weekdays.map((day, dayIndex) => `<option value="${dayIndex}" ${Number(rule.weekday) === dayIndex ? "selected" : ""}>${day}</option>`).join("")}
+        </select>
+      </div>
     `;
   }
   if (rule.frequency === "monthly") {
+    const baseDate = selectedDate || todayInPlanner();
+    const pickerDate = `${baseDate.getFullYear()}-${pad(baseDate.getMonth() + 1)}-${pad(Math.min(Number(rule.monthday) || baseDate.getDate(), daysInMonth(baseDate.getFullYear(), baseDate.getMonth())))}`;
     return `
-      <select class="repeat-monthday" aria-label="반복 일자">
-        ${Array.from({ length: 31 }, (_, index) => {
-          const day = index + 1;
-          return `<option value="${day}" ${Number(rule.monthday) === day ? "selected" : ""}>${day}일</option>`;
-        }).join("")}
-      </select>
+      <label class="repeat-month-calendar">
+        <span>${Number(rule.monthday) || baseDate.getDate()}일</span>
+        <input class="repeat-month-date" type="date" value="${escapeAttr(pickerDate)}" aria-label="매월 반복 날짜 선택" />
+      </label>
     `;
   }
   if (rule.frequency === "yearly") {
     return `
       <div class="repeat-yearly-controls">
-        <select class="repeat-month" aria-label="반복 월">
-          ${Array.from({ length: 12 }, (_, index) => {
-            const month = index + 1;
-            return `<option value="${month}" ${Number(rule.month) === month ? "selected" : ""}>${month}월</option>`;
-          }).join("")}
-        </select>
-        <select class="repeat-monthday" aria-label="반복 일자">
-          ${Array.from({ length: 31 }, (_, index) => {
-            const day = index + 1;
-            return `<option value="${day}" ${Number(rule.monthday) === day ? "selected" : ""}>${day}일</option>`;
-          }).join("")}
-        </select>
+        <span class="repeat-target-static">연간 기념일에서 관리</span>
+        <button class="repeat-yearly-anniversary" type="button">기념일로 만들기</button>
       </div>
     `;
   }
