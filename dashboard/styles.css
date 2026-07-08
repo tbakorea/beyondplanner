@@ -2003,6 +2003,33 @@ body.is-privacy-blind .app-shell {
   background: var(--stone);
 }
 
+.settings-primary-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -3px 0 10px;
+  padding: 9px;
+  border: 1px solid rgba(221, 216, 203, 0.68);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.76);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.settings-primary-actions::-webkit-scrollbar {
+  display: none;
+}
+
+.settings-primary-actions .settings-select,
+.settings-primary-actions .mini-action {
+  flex: 0 0 auto;
+}
+
+.settings-primary-actions .mini-action {
+  min-height: 34px;
+}
+
 .settings-shortcuts {
   display: flex;
   flex-wrap: nowrap;

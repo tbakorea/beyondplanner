@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260708d" />
+    <link rel="stylesheet" href="./styles.css?v=20260708e" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -133,6 +133,19 @@
             <h2>My Setup</h2>
             <button class="mini-action section-ai-button" type="button" data-section-ai="foundation">AI</button>
           </div>
+          <div class="settings-primary-actions" aria-label="설정 기본 메뉴">
+            <label class="settings-select">
+              <span>Language</span>
+              <select id="languageSelect" aria-label="언어 선택">
+                <option value="en">English</option>
+                <option value="ko">한국어</option>
+              </select>
+            </label>
+            <button class="mini-action" id="settingsExportButton" type="button">내보내기</button>
+            <button class="mini-action" id="settingsImportButton" type="button">가져오기</button>
+            <button class="mini-action" id="settingsExcelExportButton" type="button">엑셀</button>
+            <button class="mini-action danger-action" id="settingsLogoutButton" type="button">로그아웃</button>
+          </div>
           <div class="settings-shortcuts" aria-label="설정 바로가기">
             <button type="button" data-settings-view="year">Year Calendar</button>
             <button type="button" data-settings-view="day">Today View</button>
@@ -166,19 +179,6 @@
                     <label><input type="checkbox" data-menu-visibility="sheets" /> <span>Sheets</span></label>
                     <label><input type="checkbox" data-menu-visibility="year" /> <span>Year</span></label>
                   </div>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>Language</strong>
-                    <small>Choose the planner language. Menu labels update right away.</small>
-                  </span>
-                  <label class="settings-select">
-                    <span>Language</span>
-                    <select id="languageSelect" aria-label="언어 선택">
-                      <option value="en">English</option>
-                      <option value="ko">한국어</option>
-                    </select>
-                  </label>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
@@ -247,14 +247,9 @@
                 <div class="planner-option-item app-setting-section">
                   <span>
                     <strong>Security · Data Files</strong>
-                    <small>Lock, privacy blind, logout, JSON import/export, and Excel/Numbers review files.</small>
+                    <small>Lock, privacy blind, JSON import/export, and Excel/Numbers review files. Common actions are at the top.</small>
                   </span>
-                  <div class="settings-action-row">
-                    <button class="mini-action" id="settingsExportButton" type="button">내보내기</button>
-                    <button class="mini-action" id="settingsImportButton" type="button">가져오기</button>
-                    <button class="mini-action" id="settingsExcelExportButton" type="button">엑셀</button>
-                    <button class="mini-action danger-action" id="settingsLogoutButton" type="button">로그아웃</button>
-                  </div>
+                  <span class="setting-status-pill">Top controls</span>
                 </div>
               </div>
             </article>
