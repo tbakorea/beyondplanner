@@ -199,11 +199,21 @@ const commonUiLabels = {
     searchToggle: "Ask",
     run: "Go",
     searchEyebrow: "Search",
+    quickSearch: "Quick Search",
+    searchPlaceholder: "Search or ask",
+    topCarryover: "Carryover",
+    topSearchCount: "Search",
+    loginNeeded: "Login required",
   },
   ko: {
     searchToggle: "검색/질문",
     run: "실행",
     searchEyebrow: "검색",
+    quickSearch: "빠른 검색",
+    searchPlaceholder: "검색 또는 질문",
+    topCarryover: "이월",
+    topSearchCount: "검색",
+    loginNeeded: "로그인 필요",
   },
 };
 
@@ -3328,7 +3338,9 @@ function setupTabs() {
 }
 
 function renderSidebar() {
-  const isKorean = getAppLanguage() === "ko";
+  const language = getAppLanguage();
+  const isKorean = language === "ko";
+  const common = commonUiLabels[language] || commonUiLabels.en;
   const activeYear = selectedDate.getFullYear();
   const yearStart = new Date(`${activeYear}-01-01T00:00:00`);
   const yearEnd = new Date(`${activeYear}-12-31T00:00:00`);
@@ -3354,8 +3366,8 @@ function renderSidebar() {
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
   if (el("searchPageInput").value !== searchQuery) el("searchPageInput").value = searchQuery;
   el("topYearProgress").textContent = `${isKorean ? "연간" : "Year"} ${Math.round((elapsed / totalDays) * 100)}%`;
-  el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
-  el("topSearchCount").textContent = `검색 ${results.length}`;
+  el("topCarryover").textContent = `${common.topCarryover} ${getCarryoverTasks(selectedDate).length}`;
+  el("topSearchCount").textContent = `${common.topSearchCount} ${results.length}`;
   const saveStatusNode = el("topSaveStatus");
   if (saveStatusNode) {
     saveStatusNode.textContent = saveStatus.saving ? "저장 중" : saveStatus.message;
@@ -3364,7 +3376,7 @@ function renderSidebar() {
     saveStatusNode.classList.toggle("is-warning", saveStatusNode.dataset.saveState === "alert" || saveStatusNode.dataset.saveState === "waiting");
   }
   const auth = getAuthSession();
-  el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : "로그인 필요";
+  el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : common.loginNeeded;
   el("dailyTodayButton").hidden = iso(selectedDate) === iso(todayInPlanner());
   updateCoachBubble();
 }
@@ -3475,6 +3487,11 @@ function applyLanguagePreference() {
   setText("#topSearchSubmit", common.run);
   setText("#searchPageSubmit", common.run);
   setText("#view-search .page-title .eyebrow", common.searchEyebrow);
+  setText("#topSearchPopover > span", common.quickSearch);
+  setText(".side-search label", common.quickSearch);
+  setAttr("#headerSearch", "placeholder", common.searchPlaceholder);
+  setAttr("#plannerSearch", "placeholder", common.searchPlaceholder);
+  setAttr("#searchPageInput", "placeholder", language === "ko" ? "검색어 또는 질문을 입력하세요. 예: 소풍간 날이 언제이지?" : "Type a search term or question. Example: When was the picnic?");
   applySettingsLanguagePreference(language);
 }
 
@@ -3527,6 +3544,12 @@ function applySettingsLanguagePreference(language = getAppLanguage()) {
 function setText(selector, text) {
   const node = document.querySelector(selector);
   if (node) node.textContent = text;
+  return node;
+}
+
+function setAttr(selector, name, value) {
+  const node = document.querySelector(selector);
+  if (node) node.setAttribute(name, value);
   return node;
 }
 
