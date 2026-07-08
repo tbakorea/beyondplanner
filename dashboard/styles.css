@@ -2105,6 +2105,39 @@ body.is-privacy-blind .app-shell {
   flex-wrap: wrap;
 }
 
+.menu-visibility-option {
+  align-items: start;
+}
+
+.menu-visibility-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(74px, 1fr));
+  gap: 7px;
+  min-width: min(330px, 100%);
+}
+
+.menu-visibility-grid label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  border: 1px solid rgba(95, 118, 104, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.82);
+  color: var(--ink);
+  padding: 5px 9px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.menu-visibility-grid input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--forest);
+}
+
 .danger-action {
   border-color: rgba(176, 76, 70, 0.32);
   color: #9b3832;

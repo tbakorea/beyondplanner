@@ -136,6 +136,14 @@ const defaultAppSettings = {
     endTime: "19:30",
   },
   sections: {
+    menu: {
+      week: true,
+      month: true,
+      projects: true,
+      notes: true,
+      sheets: true,
+      year: true,
+    },
     day: { dailyPulseVisible: true },
     week: { carryForwardCompass: true },
     month: { showCalendarAnnotations: true },
@@ -935,6 +943,10 @@ function normalizeAppSettings(settings = {}) {
     sections: {
       ...defaultAppSettings.sections,
       ...(settings.sections || {}),
+      menu: {
+        ...defaultAppSettings.sections.menu,
+        ...(settings.sections?.menu || {}),
+      },
       money: {
         ...defaultAppSettings.sections.money,
         ...(settings.sections?.money || {}),
@@ -3028,7 +3040,44 @@ function renderAppSettings() {
   if (rangeLabel) rangeLabel.textContent = `${range.start} ~ ${range.end}`;
   const amountToggle = el("financeAmountVisibilityToggle");
   if (amountToggle) amountToggle.checked = moneyAmountsVisible();
+  bindMenuVisibilityControls();
+  applyMenuVisibility();
   renderScheduleUnitControls(ensureDay());
+}
+
+function bindMenuVisibilityControls() {
+  const menu = getMenuVisibilitySettings();
+  document.querySelectorAll("[data-menu-visibility]").forEach((checkbox) => {
+    const view = checkbox.dataset.menuVisibility;
+    checkbox.checked = menu[view] !== false;
+    checkbox.onchange = () => {
+      state.appSettings = normalizeAppSettings(state.appSettings);
+      state.appSettings.sections.menu[view] = checkbox.checked;
+      saveState({ fastSave: true });
+      applyMenuVisibility();
+    };
+  });
+}
+
+function getMenuVisibilitySettings() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  return state.appSettings.sections.menu || defaultAppSettings.sections.menu;
+}
+
+function isMainMenuViewVisible(view) {
+  if (view === "day" || view === "foundation") return true;
+  return getMenuVisibilitySettings()[view] !== false;
+}
+
+function applyMenuVisibility() {
+  document.querySelectorAll("[data-view], [data-top-view]").forEach((item) => {
+    const view = item.dataset.view || item.dataset.topView || "";
+    if (!view) return;
+    const visible = isMainMenuViewVisible(view);
+    item.hidden = !visible;
+    item.setAttribute("aria-hidden", String(!visible));
+    item.tabIndex = visible ? 0 : -1;
+  });
 }
 
 function updateScheduleRangeSetting() {
