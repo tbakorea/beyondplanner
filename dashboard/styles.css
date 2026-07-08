@@ -4123,6 +4123,62 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   box-shadow: none;
 }
 
+.appointment-range-options {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  z-index: 8;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid rgba(221, 216, 203, 0.78);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.94);
+  box-shadow: 0 8px 20px rgba(38, 50, 56, 0.1);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(4px, -50%) scale(0.98);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.appointment-row:focus-within .appointment-range-options {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(0, -50%) scale(1);
+}
+
+.appointment-row:focus-within input[type="text"],
+.appointment-row:focus-within textarea {
+  padding-right: 116px;
+}
+
+.appointment-range-options button {
+  width: 34px;
+  min-width: 34px;
+  min-height: 26px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(47, 65, 56, 0.82);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.appointment-range-options button:hover,
+.appointment-range-options button:focus-visible {
+  background: var(--forest);
+  color: #fff;
+}
+
+.appointment-range-options b {
+  display: none;
+  font: inherit;
+}
+
 .appointment-row textarea {
   width: 100%;
   min-width: 0;
@@ -4198,17 +4254,6 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   font-weight: 820;
   line-height: 1;
   cursor: pointer;
-}
-
-.schedule-actions {
-  position: sticky;
-  top: 42px;
-  z-index: 11;
-  margin: -4px -8px 6px;
-  padding: 4px 8px 6px;
-  background: rgba(255, 253, 248, 0.96);
-  border-bottom: 1px solid rgba(235, 230, 218, 0.8);
-  backdrop-filter: blur(10px);
 }
 
 .schedule-title-actions {
@@ -6021,16 +6066,6 @@ body.ceo-mode .day-main-panel .panel {
     font-size: 11px;
   }
 
-  .schedule-actions {
-    top: 36px;
-    margin: -2px -7px 4px;
-    padding: 3px 7px 4px;
-  }
-
-  .schedule-actions .panel-actions {
-    justify-content: flex-start;
-  }
-
   .appointment-row {
     grid-template-columns: 34px minmax(0, 1fr);
     gap: 4px;
@@ -6407,17 +6442,6 @@ body.ceo-mode .day-main-panel .panel {
     min-height: 27px;
     padding: 4px 8px;
     font-size: 11px;
-  }
-
-  .schedule-actions {
-    top: 30px;
-    margin: -1px -6px 2px;
-    padding: 2px 6px 3px;
-  }
-
-  .schedule-actions .panel-actions {
-    justify-content: center;
-    gap: 3px;
   }
 
   .appointment-row {
@@ -9885,6 +9909,34 @@ body.ceo-mode .daily-panel-chip {
     line-height: 1.25;
   }
 
+  .appointment-range-options {
+    right: 2px;
+    display: grid;
+    gap: 2px;
+    padding: 2px;
+  }
+
+  .appointment-range-options button {
+    width: 24px;
+    min-width: 24px;
+    min-height: 22px;
+    padding: 0;
+    font-size: 10px;
+  }
+
+  .appointment-range-options span {
+    display: none;
+  }
+
+  .appointment-range-options b {
+    display: inline;
+  }
+
+  .appointment-row:focus-within input[type="text"],
+  .appointment-row:focus-within textarea {
+    padding-right: 32px;
+  }
+
   .task-delete,
   .repeat-delete {
     width: 20px;
@@ -9895,35 +9947,6 @@ body.ceo-mode .daily-panel-chip {
 
   .schedule-title-actions .schedule-unit-toggle {
     display: none;
-  }
-
-  .schedule-actions {
-    position: sticky;
-    top: 0;
-    z-index: 14;
-    margin: -3px 0 5px;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    backdrop-filter: none;
-  }
-
-  .schedule-actions .panel-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 4px;
-  }
-
-  .schedule-actions .mini-action {
-    width: 100%;
-    min-width: 0;
-    min-height: 28px;
-    border-radius: 999px;
-    padding: 0 4px;
-    font-size: 11px;
-    font-weight: 850;
-    line-height: 1;
-    white-space: nowrap;
   }
 
   .appointment-row {

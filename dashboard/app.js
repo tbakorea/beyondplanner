@@ -2028,11 +2028,6 @@ function setupSelectors() {
   el("lockPasscode").onkeydown = (event) => {
     if (event.key === "Enter") unlockWithPasscode();
   };
-  document.querySelectorAll("[data-merge-range]").forEach((button) => {
-    button.onclick = () => {
-      mergeAppointmentRange(ensureDay(), button.dataset.mergeRange);
-    };
-  });
   el("addAnniversaryButton").onclick = addAnniversaryEvent;
   el("anniversaryTitle").onkeydown = (event) => {
     if (event.key !== "Enter") return;
@@ -6367,6 +6362,11 @@ function renderAppointments(day) {
     row.innerHTML = `
       <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentTimeLabel ? `<em class="appointment-current-time-number">${currentTimeLabel}</em>` : ""}<b>${endSlot}</b>` : slot}</span>
       ${fieldMarkup}
+      <span class="appointment-range-options" aria-label="시간대 빠른 병합">
+        <button type="button" data-row-merge-range="all" aria-label="종일 병합"><span>종일</span><b>종</b></button>
+        <button type="button" data-row-merge-range="am" aria-label="오전 병합"><span>오전</span><b>오</b></button>
+        <button type="button" data-row-merge-range="pm" aria-label="오후 병합"><span>오후</span><b>후</b></button>
+      </span>
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
     `;
@@ -6411,6 +6411,10 @@ function renderAppointments(day) {
       renderAppointments(day);
     });
     row.querySelector(".appointment-merge-button")?.addEventListener("click", () => mergeAppointmentSlot(day, slot));
+    row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
+      button.addEventListener("mousedown", (event) => event.preventDefault());
+      button.addEventListener("click", () => mergeAppointmentRange(day, button.dataset.rowMergeRange));
+    });
     node.appendChild(row);
   });
 }
