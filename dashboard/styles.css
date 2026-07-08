@@ -2423,21 +2423,60 @@ body.is-privacy-blind .app-shell {
 
 .section-ai-button,
 [data-section-ai] {
-  inline-size: 42px;
-  min-width: 42px;
-  min-height: 30px;
-  border-color: rgba(95, 118, 104, 0.22);
-  background: rgba(255, 253, 248, 0.84);
-  color: var(--sage-dark);
-  padding-inline: 0;
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 38px;
+  min-width: 38px;
+  min-height: 34px;
+  border-color: rgba(95, 118, 104, 0.2);
+  background:
+    radial-gradient(circle at 70% 25%, rgba(205, 74, 62, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(238, 243, 236, 0.78));
+  color: transparent;
+  padding: 0;
   text-align: center;
   text-transform: uppercase;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.82) inset, 0 5px 16px rgba(38, 50, 56, 0.05);
+  overflow: hidden;
+}
+
+.section-ai-button::before,
+[data-section-ai]::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(47, 65, 56, 0.76);
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, transparent 46%, rgba(47, 65, 56, 0.82) 47% 53%, transparent 54%),
+    radial-gradient(circle, rgba(174, 191, 177, 0.22), transparent 62%);
+  transform: rotate(-16deg);
+}
+
+.section-ai-button::after,
+[data-section-ai]::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #cf493f;
+  box-shadow:
+    -5px 5px 0 -2px rgba(182, 155, 99, 0.95),
+    0 0 0 3px rgba(207, 73, 63, 0.08);
 }
 
 .section-ai-button:hover,
 [data-section-ai]:hover {
-  border-color: rgba(95, 118, 104, 0.38);
-  background: rgba(238, 243, 236, 0.9);
+  border-color: rgba(95, 118, 104, 0.36);
+  background:
+    radial-gradient(circle at 70% 25%, rgba(205, 74, 62, 0.2), transparent 24%),
+    linear-gradient(180deg, #fffefa, rgba(226, 235, 225, 0.92));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.86) inset, 0 8px 20px rgba(38, 50, 56, 0.09);
+  transform: translateY(-1px);
 }
 
 .achievement-badge {
@@ -5361,10 +5400,11 @@ input[type="checkbox"]:checked::after {
 
   .page-title-actions .mini-action,
   .page-title .section-ai-button {
+    inline-size: 36px;
     min-width: 36px;
-    min-height: 30px;
-    padding-inline: 10px;
-    font-size: 12px;
+    min-height: 32px;
+    padding: 0;
+    font-size: 0;
   }
 
   .month-title {

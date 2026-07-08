@@ -1746,6 +1746,8 @@ function setupSelectors() {
     button.onclick = () => setSettingsTab(button.dataset.settingsTab || "user");
   });
   document.querySelectorAll("[data-section-ai]").forEach((button) => {
+    button.setAttribute("aria-label", "AI 코칭");
+    button.setAttribute("title", "AI 코칭");
     button.onclick = () => openSectionCoach(button.dataset.sectionAi || "day");
   });
   el("dailyPulseToggle")?.addEventListener("click", toggleDailyPulseDetails);
