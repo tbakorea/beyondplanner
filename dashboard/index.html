@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260708t" />
+    <link rel="stylesheet" href="./styles.css?v=20260708u" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -106,22 +106,22 @@
           <button class="tab settings-tab-button" data-view="foundation" aria-label="설정" title="설정">⚙</button>
         </nav>
         <section class="mini-panel">
-          <span>Selected</span>
+          <span id="selectedDatePanelLabel">선택 날짜</span>
           <strong id="selectedDateLabel">-</strong>
           <small id="selectedWeekLabel">-</small>
         </section>
         <section class="mini-panel">
-          <span>Year Progress</span>
+          <span id="yearProgressPanelLabel">연간 진행</span>
           <strong id="yearProgress">0%</strong>
           <small id="yearProgressText">0 / 365</small>
         </section>
         <section class="mini-panel">
-          <span>Open Carryover</span>
+          <span id="carryoverPanelLabel">열린 이월</span>
           <strong id="carryoverCount">0</strong>
           <small>전일 미완료 연결</small>
         </section>
         <section class="mini-panel">
-          <span>Search Results</span>
+          <span id="searchPanelLabel">검색 결과</span>
           <strong id="searchCount">0</strong>
           <small id="searchHint">검색어를 입력하세요</small>
         </section>
@@ -846,6 +846,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260708t"></script>
+    <script src="./app.js?v=20260708u"></script>
   </body>
 </html>

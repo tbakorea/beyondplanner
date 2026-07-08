@@ -3267,11 +3267,16 @@ function setupTabs() {
 }
 
 function renderSidebar() {
+  const isKorean = getAppLanguage() === "ko";
   const activeYear = selectedDate.getFullYear();
   const yearStart = new Date(`${activeYear}-01-01T00:00:00`);
   const yearEnd = new Date(`${activeYear}-12-31T00:00:00`);
   const totalDays = daysBetween(yearStart, yearEnd) + 1;
   const elapsed = Math.max(0, Math.min(totalDays, daysBetween(yearStart, selectedDate) + 1));
+  setText("#selectedDatePanelLabel", isKorean ? "선택 날짜" : "Selected");
+  setText("#yearProgressPanelLabel", isKorean ? "연간 진행" : "Year Progress");
+  setText("#carryoverPanelLabel", isKorean ? "열린 이월" : "Open Carryover");
+  setText("#searchPanelLabel", isKorean ? "검색 결과" : "Search Results");
   el("selectedDateLabel").textContent = formatDate(selectedDate);
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = new Date(weekStart);
@@ -3283,11 +3288,11 @@ function renderSidebar() {
   el("carryoverCount").textContent = getCarryoverTasks(selectedDate).length;
   const results = searchQuery ? collectSearchResults(searchQuery) : [];
   el("searchCount").textContent = results.length;
-  el("searchHint").textContent = searchQuery ? `${searchQuery}` : "검색어를 입력하세요";
+  el("searchHint").textContent = searchQuery ? `${searchQuery}` : (isKorean ? "검색어를 입력하세요" : "Enter a search term");
   if (el("plannerSearch").value !== searchQuery) el("plannerSearch").value = searchQuery;
   if (el("headerSearch").value !== searchQuery) el("headerSearch").value = searchQuery;
   if (el("searchPageInput").value !== searchQuery) el("searchPageInput").value = searchQuery;
-  el("topYearProgress").textContent = `Year ${Math.round((elapsed / totalDays) * 100)}%`;
+  el("topYearProgress").textContent = `${isKorean ? "연간" : "Year"} ${Math.round((elapsed / totalDays) * 100)}%`;
   el("topCarryover").textContent = `이월 ${getCarryoverTasks(selectedDate).length}`;
   el("topSearchCount").textContent = `검색 ${results.length}`;
   const saveStatusNode = el("topSaveStatus");
