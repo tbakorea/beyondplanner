@@ -1775,7 +1775,7 @@ function setupSelectors() {
   el("excelExportButton").onclick = exportPlannerWorkbook;
   el("importButton").onclick = () => el("importFile").click();
   el("topPrintButton").onclick = () => window.print();
-  el("saveNowButton").onclick = () => flushPlannerSave("수동 저장 확인");
+  el("saveNowButton").onclick = () => flushPlannerSave("지금 저장 중");
   el("topExportButton").onclick = exportPlanner;
   el("topExcelExportButton").onclick = exportPlannerWorkbook;
   el("topImportButton").onclick = () => el("importFile").click();
