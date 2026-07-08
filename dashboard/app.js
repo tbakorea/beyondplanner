@@ -194,6 +194,19 @@ const languageLabels = {
   },
 };
 
+const commonUiLabels = {
+  en: {
+    searchToggle: "Ask",
+    run: "Go",
+    searchEyebrow: "Search",
+  },
+  ko: {
+    searchToggle: "검색/질문",
+    run: "실행",
+    searchEyebrow: "검색",
+  },
+};
+
 const settingsLanguageLabels = {
   en: {
     titleEyebrow: "Settings",
@@ -3390,6 +3403,11 @@ function applyLanguagePreference() {
     const view = checkbox.dataset.menuVisibility;
     if (label && labels[view]) label.textContent = labels[view];
   });
+  const common = commonUiLabels[language] || commonUiLabels.en;
+  setText("#topSearchToggle", common.searchToggle);
+  setText("#topSearchSubmit", common.run);
+  setText("#searchPageSubmit", common.run);
+  setText("#view-search .page-title .eyebrow", common.searchEyebrow);
   applySettingsLanguagePreference(language);
 }
 
