@@ -187,6 +187,29 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
         self.write_json(200, result)
 
     def handle_ai_question(self):
+        try:
+            user = require_ai_user(self.headers)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace") if exc.fp else str(exc.reason or "")
+            self.write_json(normalize_http_status(exc.code), {"error": "로그인 세션을 확인할 수 없습니다.", "detail": detail[:500]})
+            return
+        except RuntimeError as exc:
+            self.write_json(503, {"error": str(exc)})
+            return
+        except Exception as exc:  # pragma: no cover - runtime network boundary
+            self.write_json(502, {"error": "인증 서버 연결 중 오류가 발생했습니다.", "detail": str(exc)})
+            return
+
+        if user and not ai_allowed_for_user(user):
+            self.write_json(
+                403,
+                {
+                    "error": "현재 계정은 AI 답변 기능을 사용할 수 없습니다.",
+                    "hint": "AI 기능은 비용이 발생하므로 허용된 계정 또는 향후 유료 플랜에서만 제공됩니다.",
+                },
+            )
+            return
+
         api_key = os.environ.get("OPENAI_API_KEY", "").strip()
         if not api_key:
             self.write_json(
@@ -368,6 +391,36 @@ def bearer_token(headers) -> str:
     if not value.lower().startswith("bearer "):
         return ""
     return value.split(" ", 1)[1].strip()
+
+
+def require_ai_user(headers) -> dict:
+    if not supabase_configured():
+        return {}
+    token = bearer_token(headers)
+    if not token:
+        raise urllib.error.HTTPError("", 401, "로그인 세션이 필요합니다.", {}, None)
+    return call_supabase_user(token)
+
+
+def ai_allowed_for_user(user: dict) -> bool:
+    email = str(user.get("email") or "").strip().lower()
+    return email in allowed_ai_emails()
+
+
+def allowed_ai_emails() -> set[str]:
+    configured = os.environ.get("AI_ALLOWED_EMAILS", "")
+    values = [item.strip().lower() for item in configured.split(",") if item.strip()]
+    if values:
+        return set(values)
+    return {"j3010@ymail.com", "projch@naver.com"}
+
+
+def normalize_http_status(status) -> int:
+    try:
+        code = int(status)
+    except (TypeError, ValueError):
+        return 502
+    return code if 400 <= code <= 599 else 502
 
 
 class DestructiveOverwriteError(Exception):
