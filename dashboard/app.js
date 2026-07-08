@@ -861,15 +861,11 @@ async function hydrateServerState() {
       const localHasContent = hasPlannerContent(state);
       lastServerUpdatedAt = payload.updatedAt || "";
       if (!localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent)) {
-        setBootMessage("최신 서버 데이터를 반영하는 중");
-        storeStateFromServer(payload, "최신 데이터 반영됨");
+        setBootMessage("저장된 플래너를 불러오는 중");
+        storeStateFromServer(payload, "저장됨");
       } else {
-        saveStatus.message = localMeta.dirty ? "기기 작업 유지 중" : "기기 캐시 최신";
-        if (localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
-          saveStatus.message = "기기 최신 작업 저장 중";
-          setBootMessage("기기 최신 작업을 서버에 저장하는 중");
-          await persistStateToServer({ force: true });
-        }
+        saveStatus.message = localMeta.dirty ? "저장 확인 필요" : "저장됨";
+        if (serverHasContent) storeStateFromServer(payload, "저장됨");
       }
     } else {
       const hadLocalContent = hasPlannerContent(state);
@@ -878,8 +874,8 @@ async function hydrateServerState() {
       localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
       if (!getStateMeta().updatedAt) saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
       if (hadLocalContent) {
-        saveStatus.message = "기기 캐시 서버 반영 중";
-        setBootMessage("기기 작업을 서버에 저장하는 중");
+        saveStatus.message = "첫 저장 중";
+        setBootMessage("플래너를 저장하는 중");
         await persistStateToServer({ force: true });
       } else {
         saveStatus.message = "새 플래너 준비됨";
@@ -7708,8 +7704,8 @@ function exportPlannerWorkbook() {
   </style>
 </head>
 <body>
-  <h1>Beyond Work 백업 리포트</h1>
-  <p>생성: ${escapeHtml(generatedAt)} · 복원은 함께 내려받는 .beyondwork.json 파일을 사용하세요.</p>
+  <h1>Beyond Work Export Report</h1>
+  <p>생성: ${escapeHtml(generatedAt)} · 다시 가져오기는 함께 내려받는 .beyondwork.json 파일을 사용하세요.</p>
   ${sections}
 </body>
 </html>`;
@@ -7782,13 +7778,13 @@ function importPlanner(event) {
       const parsed = JSON.parse(String(reader.result || "{}"));
       const importedState = parsed?.format === "beyond-work-planner-backup" ? parsed.state : parsed;
       if (!importedState?.foundation || !importedState?.year || !importedState?.days) throw new Error("Invalid planner file");
-      if (!window.confirm("이 백업 파일로 현재 플래너를 복원할까요? 현재 서버 데이터는 새 백업으로 덮어쓰기 전에 보호 규칙을 통과해야 합니다.")) return;
+      if (!window.confirm("이 파일의 내용으로 플래너를 가져올까요? 현재 저장된 내용은 보호 규칙을 통과한 경우에만 바뀝니다.")) return;
       state = migrateState(importedState);
       selectedSheetId = state.customSheets.activeId;
       saveState();
       renderAll();
     } catch {
-      alert("복원 파일을 읽을 수 없습니다.");
+      alert("가져오기 파일을 읽을 수 없습니다.");
     } finally {
       event.target.value = "";
     }
@@ -7836,7 +7832,7 @@ async function setup() {
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
-  setBootMessage(hasInitialDeviceCache ? "이 기기의 마지막 작업을 여는 중" : "최신 플래너를 불러오는 중");
+  setBootMessage(hasInitialDeviceCache ? "플래너를 여는 중" : "저장된 플래너를 불러오는 중");
   renderAll();
   if (hasInitialDeviceCache) hideBootScreen(80);
   await hydrateServerState();
