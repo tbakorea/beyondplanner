@@ -4105,9 +4105,9 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .appointment-row.is-merged input[type="text"],
 .appointment-row.is-merged textarea {
-  align-self: stretch;
+  align-self: center;
   min-width: 0;
-  min-height: calc(24px + (var(--slot-span, 1) - 1) * 32px);
+  min-height: 32px;
   font-size: 15.5px;
   font-weight: 760;
   line-height: 1.35;
@@ -4568,12 +4568,12 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .repeat-list-dialog {
-  overflow-x: hidden;
+  overflow-x: auto;
   overflow-y: auto;
   padding: 10px 12px 18px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: contain;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
 }
 
 .repeat-rule-row {
@@ -4587,11 +4587,10 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .repeat-rule-scroll {
   width: 100%;
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow: visible;
   border-radius: 10px;
   scrollbar-width: none;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
 }
 
 .repeat-rule-scroll::-webkit-scrollbar {
@@ -4599,15 +4598,13 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .repeat-rule-scroll.is-active {
-  overflow-x: auto;
   background: rgba(174, 191, 177, 0.1);
   box-shadow: inset 0 0 0 1px rgba(95, 118, 104, 0.12);
-  touch-action: pan-x;
 }
 
 .repeat-list-dialog .repeat-rule-row {
   grid-template-columns: 22px 46px minmax(230px, 1fr) 82px minmax(220px, auto) 118px 92px 118px 32px;
-  width: max(100%, 1140px);
+  width: max(100%, 1080px);
 }
 
 .repeat-weekly-controls,
@@ -4672,7 +4669,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
   .repeat-list-dialog .repeat-rule-row {
     grid-template-columns: 22px 42px minmax(190px, 1fr) 76px minmax(220px, auto) 112px 88px 112px 30px;
-    width: 980px;
+    width: 940px;
   }
 }
 
@@ -9068,7 +9065,7 @@ body.ceo-mode .sheet-grid-wrap {
   line-height: 1.35;
   display: block;
   align-self: center;
-  min-height: auto;
+  min-height: 32px;
   max-height: calc((var(--slot-span, 1) * 32px) - 8px);
   padding: 7px 8px;
   text-align: center;

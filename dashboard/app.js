@@ -4947,9 +4947,15 @@ function renderRepeatPriorityList() {
   add.type = "button";
   add.textContent = "반복 업무 추가";
   add.onclick = () => {
-    state.repeats.priorityTasks.push(emptyRepeatRule());
+    const hasDraft = (state.repeats.priorityTasks || []).some((rule) => !rule.removed && !rule.text?.trim());
+    if (!hasDraft) state.repeats.priorityTasks.push(emptyRepeatRule());
     saveState();
     renderRepeatPriorityList();
+    requestAnimationFrame(() => {
+      const draftInput = Array.from(document.querySelectorAll("#repeatPriorityList .repeat-text")).find((input) => !input.value.trim());
+      draftInput?.focus();
+      draftInput?.scrollIntoView({ block: "nearest", inline: "start" });
+    });
   };
   node.appendChild(add);
 }
@@ -4964,9 +4970,12 @@ function activateRepeatRuleScroller(scroller) {
 }
 
 function getSortedRepeatRuleEntries() {
-  return (state.repeats?.priorityTasks || [])
+  const entries = (state.repeats?.priorityTasks || [])
     .map((rule, index) => ({ rule: normalizeRepeatRule(rule), index }))
-    .filter(({ rule }) => !rule.removed)
+    .filter(({ rule }) => !rule.removed);
+  const filled = entries.filter(({ rule }) => Boolean(rule.text?.trim()));
+  const draft = entries.find(({ rule }) => !rule.text?.trim());
+  return (draft ? [...filled, draft] : filled)
     .sort((a, b) => {
       const aFilled = Boolean(a.rule.text?.trim());
       const bFilled = Boolean(b.rule.text?.trim());
@@ -6048,6 +6057,16 @@ function formatCarryoverDate(value) {
   return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
+function resizeMergedAppointmentField(field) {
+  if (!field || field.tagName !== "TEXTAREA") return;
+  field.style.height = "auto";
+  const maxHeight = Number.parseFloat(getComputedStyle(field).maxHeight);
+  const nextHeight = Number.isFinite(maxHeight) && maxHeight > 0
+    ? Math.min(field.scrollHeight, maxHeight)
+    : field.scrollHeight;
+  field.style.height = `${Math.max(32, nextHeight)}px`;
+}
+
 function renderAppointments(day) {
   const node = el("appointmentList");
   node.innerHTML = "";
@@ -6078,6 +6097,7 @@ function renderAppointments(day) {
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
     `;
     const input = row.querySelector("input, textarea");
+    resizeMergedAppointmentField(input);
     let valueBeforeEdit = value;
     input.onfocus = () => {
       valueBeforeEdit = day.appointments[slot] || "";
@@ -6091,6 +6111,7 @@ function renderAppointments(day) {
       day.appointments[slot] = nextValue;
       saveState();
       row.classList.toggle("is-filled", Boolean(nextValue.trim()));
+      resizeMergedAppointmentField(input);
       renderSidebar();
     };
     input.onblur = () => {
