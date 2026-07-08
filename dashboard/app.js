@@ -3366,6 +3366,7 @@ function renderSidebar() {
   const saveStatusNode = el("topSaveStatus");
   if (saveStatusNode) {
     saveStatusNode.textContent = saveStatus.saving ? "저장 중" : saveStatus.message;
+    saveStatusNode.title = saveStatusNode.textContent || "저장 상태";
     const statusText = saveStatusNode.textContent || "";
     saveStatusNode.dataset.saveState = saveStatus.saving ? "saving" : /실패|오류|필요|로그인/.test(statusText) ? "alert" : /대기|확인/.test(statusText) ? "waiting" : "saved";
     saveStatusNode.classList.toggle("is-warning", saveStatusNode.dataset.saveState === "alert" || saveStatusNode.dataset.saveState === "waiting");
@@ -6328,6 +6329,10 @@ function formatCarryoverDate(value) {
 
 function resizeMergedAppointmentField(field) {
   if (!field || field.tagName !== "TEXTAREA") return;
+  if (field.closest(".appointment-row.is-merged")) {
+    field.style.height = "";
+    return;
+  }
   field.style.height = "auto";
   const maxHeight = Number.parseFloat(getComputedStyle(field).maxHeight);
   const nextHeight = Number.isFinite(maxHeight) && maxHeight > 0

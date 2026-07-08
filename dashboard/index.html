@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260709b" />
+    <link rel="stylesheet" href="./styles.css?v=20260709c" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -41,42 +41,42 @@
           <button type="button" data-top-view="notes">Money</button>
           <button type="button" data-top-view="sheets">Sheets</button>
           <button class="settings-nav-button" type="button" data-top-view="foundation" aria-label="설정" title="설정">⚙</button>
-        </nav>
-        <div class="top-status" aria-label="플래너 상태">
-          <span id="topYearProgress">Year 0%</span>
-          <span id="topCarryover">이월 0</span>
-          <span id="topSearchCount">검색 0</span>
-          <span id="topSaveStatus">저장 확인 중</span>
-          <span id="topAccountStatus">-</span>
-          <details class="top-more-menu">
-            <summary>관리</summary>
-            <div class="top-more-panel">
-              <button id="privacyNowButton" type="button">보안모드</button>
-              <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
-                <option value="0">자동꺼짐</option>
-                <option value="30">30초</option>
-                <option value="60">1분</option>
-                <option value="180">3분</option>
-                <option value="300">5분</option>
-                <option value="600">10분</option>
-              </select>
-              <button id="saveNowButton" type="button">저장 확인</button>
-              <button id="topPrintButton" type="button">인쇄</button>
-              <button id="topExportButton" type="button">내보내기</button>
-              <button id="topExcelExportButton" type="button">엑셀</button>
-              <button id="topImportButton" type="button">가져오기</button>
-              <button id="lockNowButton" type="button">잠금</button>
-              <div class="password-change-panel" aria-label="계정 비밀번호 변경">
-                <strong>비밀번호 변경</strong>
-                <input id="accountNewPassword" type="password" autocomplete="new-password" minlength="6" placeholder="새 비밀번호" />
-                <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="새 비밀번호 확인" />
-                <button id="accountPasswordButton" type="button">변경</button>
-                <small id="accountPasswordMessage" role="status"></small>
+          <div class="top-status" aria-label="플래너 상태">
+            <span id="topYearProgress">Year 0%</span>
+            <span id="topCarryover">이월 0</span>
+            <span id="topSearchCount">검색 0</span>
+            <span id="topSaveStatus" title="저장 확인 중">저장 확인 중</span>
+            <span id="topAccountStatus">-</span>
+            <details class="top-more-menu">
+              <summary aria-label="관리" title="관리">⋯</summary>
+              <div class="top-more-panel">
+                <button id="privacyNowButton" type="button">보안모드</button>
+                <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
+                  <option value="0">자동꺼짐</option>
+                  <option value="30">30초</option>
+                  <option value="60">1분</option>
+                  <option value="180">3분</option>
+                  <option value="300">5분</option>
+                  <option value="600">10분</option>
+                </select>
+                <button id="saveNowButton" type="button">저장 확인</button>
+                <button id="topPrintButton" type="button">인쇄</button>
+                <button id="topExportButton" type="button">내보내기</button>
+                <button id="topExcelExportButton" type="button">엑셀</button>
+                <button id="topImportButton" type="button">가져오기</button>
+                <button id="lockNowButton" type="button">잠금</button>
+                <div class="password-change-panel" aria-label="계정 비밀번호 변경">
+                  <strong>비밀번호 변경</strong>
+                  <input id="accountNewPassword" type="password" autocomplete="new-password" minlength="6" placeholder="새 비밀번호" />
+                  <input id="accountNewPasswordConfirm" type="password" autocomplete="new-password" minlength="6" placeholder="새 비밀번호 확인" />
+                  <button id="accountPasswordButton" type="button">변경</button>
+                  <small id="accountPasswordMessage" role="status"></small>
+                </div>
+                <button id="logoutButton" type="button">로그아웃</button>
               </div>
-              <button id="logoutButton" type="button">로그아웃</button>
-            </div>
-          </details>
-        </div>
+            </details>
+          </div>
+        </nav>
       </div>
     </header>
 
@@ -839,6 +839,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260709b"></script>
+    <script src="./app.js?v=20260709c"></script>
   </body>
 </html>

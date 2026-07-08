@@ -542,6 +542,15 @@ body.ceo-mode .day-main-panel {
   scrollbar-width: thin;
 }
 
+.quick-strip > .top-status {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  overflow: visible;
+}
+
 .top-status span,
 .top-status button,
 .top-status select,
@@ -664,6 +673,62 @@ body.ceo-mode .day-main-panel {
   background: rgba(255, 235, 232, 0.78);
   color: #9f251f;
   font-weight: 900;
+}
+
+.quick-strip > .top-status #topYearProgress,
+.quick-strip > .top-status #topCarryover,
+.quick-strip > .top-status #topSearchCount,
+.quick-strip > .top-status #topAccountStatus {
+  display: none;
+}
+
+.quick-strip > .top-status #topSaveStatus,
+.quick-strip > .top-status .top-more-menu summary {
+  display: inline-grid;
+  place-items: center;
+  width: 31px;
+  min-width: 31px;
+  height: 31px;
+  min-height: 31px;
+  padding: 0;
+  border-radius: 999px;
+}
+
+.quick-strip > .top-status #topSaveStatus {
+  color: transparent;
+  font-size: 0;
+}
+
+.quick-strip > .top-status #topSaveStatus::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--sage-dark);
+  box-shadow: 0 0 0 4px rgba(95, 118, 104, 0.12);
+}
+
+.quick-strip > .top-status #topSaveStatus[data-save-state="saving"]::before,
+.quick-strip > .top-status #topSaveStatus[data-save-state="waiting"]::before {
+  background: #b69b63;
+  box-shadow: 0 0 0 4px rgba(182, 155, 99, 0.16);
+}
+
+.quick-strip > .top-status #topSaveStatus[data-save-state="alert"]::before {
+  background: #d7372f;
+  box-shadow: 0 0 0 4px rgba(215, 55, 47, 0.16);
+}
+
+.quick-strip > .top-status .top-more-menu summary {
+  font-size: 20px;
+  line-height: 1;
+  padding-bottom: 3px;
+}
+
+.quick-strip > .top-status .top-more-panel {
+  position: fixed;
+  top: calc(max(10px, env(safe-area-inset-top)) + 112px);
+  right: max(10px, env(safe-area-inset-right));
 }
 
 .coach-bubble {
@@ -9134,6 +9199,8 @@ body.ceo-mode .sheet-grid-wrap {
 }
 
 .appointment-row.is-merged textarea {
+  height: calc((var(--slot-span, 1) * 32px) - 8px);
+  max-height: none;
   overflow-y: auto;
 }
 
@@ -9150,6 +9217,11 @@ body.ceo-mode .sheet-grid-wrap {
   .appointment-row.is-merged input[type="text"],
   .appointment-row.is-merged textarea {
     font-size: 15px;
+  }
+
+  .appointment-row.is-merged textarea {
+    height: calc((var(--slot-span, 1) * var(--mobile-row-height)) - 8px);
+    max-height: none;
   }
 
   .appointment-time.range .appointment-current-time-number {
@@ -10170,4 +10242,26 @@ body.ceo-mode .daily-panel-chip {
     padding: 0 4px;
     font-size: 8px;
   }
+}
+
+/* Header status icons live inside the main menu and must never create a second row. */
+.quick-strip > .top-status {
+  flex: 0 0 auto !important;
+  display: inline-flex !important;
+  flex-wrap: nowrap !important;
+  width: auto !important;
+  gap: 3px !important;
+  overflow: visible !important;
+}
+
+.quick-strip > .top-status #topSaveStatus,
+.quick-strip > .top-status .top-more-menu {
+  display: inline-flex !important;
+}
+
+.quick-strip > .top-status #topYearProgress,
+.quick-strip > .top-status #topCarryover,
+.quick-strip > .top-status #topSearchCount,
+.quick-strip > .top-status #topAccountStatus {
+  display: none !important;
 }
