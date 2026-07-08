@@ -242,6 +242,27 @@ const settingsLanguageLabels = {
       exerciseGoal: "Fitness Goal",
       recoveryPattern: "Rest",
     },
+    placeholders: {
+      mission: "What do I stand for? What rule should guide my choices?",
+      value: "What matters",
+      personaCustom: "e.g. developer, CEO, student, store owner",
+      age: "e.g. 42",
+      job: "e.g. CEO, manager, trainer",
+      roles: "e.g. leader, parent, investor, coach",
+      goals: "Add or edit goals. Press Enter/Return to update coaching.",
+      decisionPrinciples: "e.g. trust, cash flow, family time, growth",
+      currentChallenges: "What feels heavy or stuck right now?",
+      strengths: "What kind of work gives you energy?",
+      risks: "Things you delay, overload, or repeat too often",
+      energyWindow: "e.g. morning focus, afternoon meetings",
+      coachingStyle: "e.g. direct, warm, numbers first",
+      healthStatus: "e.g. back pain, blood pressure, fatigue",
+      medications: "Medicine, checkups, care routines",
+      exerciseLimits: "Movements or intensity to avoid",
+      activityLevel: "e.g. mostly sitting, walk twice a week",
+      exerciseGoal: "e.g. walk 20 min daily, rebuild strength",
+      recoveryPattern: "e.g. 6 hours sleep, tired after lunch",
+    },
     roleLabels: ["Role", "Goal", "Recharge"],
   },
   ko: {
@@ -290,6 +311,27 @@ const settingsLanguageLabels = {
       activityLevel: "활동량",
       exerciseGoal: "운동 목표",
       recoveryPattern: "회복/수면",
+    },
+    placeholders: {
+      mission: "나는 무엇을 기준으로 선택할 것인가? 오늘과 미래를 이끄는 원칙을 적어보세요.",
+      value: "중요한 가치",
+      personaCustom: "예: 대표, 매장 운영자, 학생, 팀장, 프리랜서",
+      age: "예: 42",
+      job: "예: CEO, 매니저, 트레이너",
+      roles: "예: 대표, 부모, 투자자, 리더",
+      goals: "큰 목표를 적어주세요. 입력할수록 코칭이 정확해집니다.",
+      decisionPrinciples: "예: 신뢰, 현금흐름, 가족시간, 성장",
+      currentChallenges: "지금 부담되거나 막혀 있는 일을 적어주세요.",
+      strengths: "어떤 일에서 에너지가 나는지 적어주세요.",
+      risks: "자주 미루거나 과하게 떠안는 패턴을 적어주세요.",
+      energyWindow: "예: 오전 집중, 오후 미팅, 밤 정리",
+      coachingStyle: "예: 단호하게, 따뜻하게, 숫자 중심으로",
+      healthStatus: "예: 허리 통증, 혈압 관리, 피로감",
+      medications: "복용약, 검진, 관리 루틴",
+      exerciseLimits: "피해야 할 동작이나 운동 강도",
+      activityLevel: "예: 앉아 있는 시간이 많음, 주 2회 걷기",
+      exerciseGoal: "예: 매일 20분 걷기, 근력 회복",
+      recoveryPattern: "예: 6시간 수면, 점심 이후 피곤함",
     },
     roleLabels: ["역할", "목표", "회복"],
   },
@@ -3251,10 +3293,11 @@ function renderFoundation() {
   renderAppSettings();
   const values = el("valuesList");
   values.innerHTML = "";
+  const settingsLabels = settingsLanguageLabels[getAppLanguage()] || settingsLanguageLabels.en;
   state.foundation.values.forEach((value, index) => {
     const row = document.createElement("div");
     row.className = "value-item";
-    row.innerHTML = `<span class="row-label">Value ${index + 1}</span><input type="text" value="${escapeAttr(value)}" placeholder="What matters" />`;
+    row.innerHTML = `<span class="row-label">${escapeHtml(getAppLanguage() === "ko" ? `가치 ${index + 1}` : `Value ${index + 1}`)}</span><input type="text" value="${escapeAttr(value)}" placeholder="${escapeAttr(settingsLabels.placeholders?.value || "What matters")}" />`;
     row.querySelector("input").oninput = (event) => {
       state.foundation.values[index] = event.target.value;
       saveState();
@@ -3365,6 +3408,12 @@ function applySettingsLanguagePreference(language = getAppLanguage()) {
     if (description) setNodeText(heading.querySelector("p"), description);
   });
   setText(".profile-benefit-note", labels.benefit);
+  const placeholders = labels.placeholders || {};
+  const missionField = document.querySelector('[data-store="foundation.mission"]');
+  if (missionField && placeholders.mission) missionField.placeholder = placeholders.mission;
+  document.querySelectorAll("#valuesList input").forEach((input) => {
+    if (placeholders.value) input.placeholder = placeholders.value;
+  });
   Object.entries(labels.profileLabels).forEach(([key, text]) => {
     if (key === "personaTypesSecondary") {
       setText(`[data-profile-multi="${key}"] > .row-label`, text);
@@ -3373,6 +3422,7 @@ function applySettingsLanguagePreference(language = getAppLanguage()) {
     const field = document.querySelector(`[data-profile-field="${key}"]`);
     const label = field?.closest("label")?.querySelector(".row-label");
     if (label) label.textContent = text;
+    if (field && placeholders[key]) field.placeholder = placeholders[key];
   });
 }
 
