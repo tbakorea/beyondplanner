@@ -8788,6 +8788,16 @@ function setBootMessage(message) {
   if (node) node.textContent = message;
 }
 
+function renderBootCoaching() {
+  const message = el("bootCoachingMessage");
+  const signals = el("bootCoachingSignals");
+  if (!message || !signals) return;
+  const note = buildDailyOpeningNote(iso(todayInPlanner()));
+  message.textContent = note.message;
+  signals.innerHTML = note.signals.slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
+  localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
+}
+
 function hideBootScreen(delay = 120) {
   const boot = el("bootScreen");
   if (!boot || boot.classList.contains("is-hidden")) return;
@@ -8806,10 +8816,12 @@ async function setup() {
   showView("day");
   setBootMessage(hasInitialDeviceCache ? "플래너를 여는 중" : "저장된 플래너를 불러오는 중");
   renderAll();
-  if (hasInitialDeviceCache) hideBootScreen(80);
+  renderBootCoaching();
+  if (hasInitialDeviceCache) hideBootScreen(820);
   await hydrateServerState();
   renderAll();
-  hideBootScreen(hasInitialDeviceCache ? 0 : 120);
+  renderBootCoaching();
+  hideBootScreen(hasInitialDeviceCache ? 820 : 220);
   window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   positionDaySwipe("main", true);
   window.setTimeout(() => positionDaySwipe("main", true), 180);
