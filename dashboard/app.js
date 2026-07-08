@@ -645,6 +645,7 @@ function migrateState(nextState) {
   Object.values(nextState.days || {}).forEach((day) => {
     day.memo ||= "";
     day.appointmentMerges ||= {};
+    day.autoTaskScheduleLinks ||= {};
     day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
     ensureAppointmentSlots(day, day.scheduleUnit);
     normalizeDayTasks(day);
@@ -1353,6 +1354,7 @@ function ensureDay(key = iso(selectedDate)) {
     tasks: { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) },
     appointments: Object.fromEntries(getScheduleSlotsForUnit(scheduleUnit).map((slot) => [slot, ""])),
     appointmentMerges: {},
+    autoTaskScheduleLinks: {},
     scheduleUnit,
     deletedRepeatIds: [],
     memo: "",
@@ -1364,6 +1366,7 @@ function ensureDay(key = iso(selectedDate)) {
   state.days[key].memo ||= "";
   state.days[key].scheduleUnit = normalizeScheduleUnit(state.days[key].scheduleUnit || scheduleUnit);
   state.days[key].appointmentMerges ||= {};
+  state.days[key].autoTaskScheduleLinks ||= {};
   state.days[key].deletedRepeatIds ||= [];
   ensureAppointmentSlots(state.days[key]);
   normalizeDayTasks(state.days[key]);
@@ -5745,7 +5748,7 @@ function updateCarryoverTaskText(taskRef, value) {
   const source = sourceRef?.task;
   if (!source) return;
   source.text = value;
-  if (syncTaskTimeHintToSchedule(source, sourceRef.day || ensureDay())) renderAppointments(ensureDay());
+  if (!isFutureCarryoverTask(source) && syncTaskTimeHintToSchedule(source, sourceRef.day || ensureDay())) renderAppointments(ensureDay());
   saveState({ fastSave: true });
 }
 
@@ -5813,34 +5816,115 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
 function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
   let changed = false;
   const directTaskSlots = new Set();
+  const selectedKey = iso(selectedDate);
   getTaskRefs(day).forEach(({ task }) => {
+    if (isFutureCarryoverTask(task, selectedKey)) return;
     if (syncTaskTimeHintToSchedule(task, day)) changed = true;
     const slot = getTaskTimeHintSlot(task.text, day);
     if (slot) directTaskSlots.add(slot);
   });
-  carryovers.forEach((task) => {
-    if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots })) changed = true;
-  });
+  if (shouldSyncCarryoverTimeHints(selectedKey)) {
+    carryovers.forEach((task) => {
+      if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots, linkId: getCarryoverScheduleLinkId(task) })) changed = true;
+    });
+  } else if (clearAutoTaskScheduleLinks(day, (link) => link.type === "carryover")) {
+    changed = true;
+  }
+  if (!shouldSyncCarryoverTimeHints(selectedKey) && clearFutureCarryoverTimeHints(day, carryovers, directTaskSlots)) changed = true;
   if (changed) saveState({ fastSave: true });
 }
 
 function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = {}) {
   day.appointments ||= {};
+  day.autoTaskScheduleLinks ||= {};
   const slots = getScheduleSlotsForDay(day);
   const hint = extractTaskTimeHint(text);
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
-  if (!hint || !targetSlot || !hint.text) return false;
-  if (options.blockedSlots?.has(targetSlot)) return false;
+  const linkId = options.linkId || "";
+  let changed = false;
+  const existingLink = linkId ? day.autoTaskScheduleLinks[linkId] : null;
+  if (!hint || !targetSlot || !hint.text) {
+    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId) || changed;
+    return changed;
+  }
+  if (options.blockedSlots?.has(targetSlot)) {
+    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId) || changed;
+    return changed;
+  }
+  if (existingLink && (existingLink.slot !== targetSlot || existingLink.text !== hint.text)) {
+    changed = clearAutoTaskScheduleLink(day, linkId) || changed;
+  }
   const current = String(day.appointments[targetSlot] || "").trim();
-  if (!current) {
+  if (current.includes(hint.text)) {
+    // Already reflected in this day's schedule.
+  } else if (!current) {
     day.appointments[targetSlot] = hint.text;
-    return true;
-  }
-  if (!current.includes(hint.text)) {
+    changed = true;
+  } else {
     day.appointments[targetSlot] = `${current} / ${hint.text}`;
-    return true;
+    changed = true;
   }
-  return false;
+  if (linkId && (!existingLink || existingLink.slot !== targetSlot || existingLink.text !== hint.text)) {
+    day.autoTaskScheduleLinks[linkId] = { type: "carryover", slot: targetSlot, text: hint.text };
+    changed = true;
+  }
+  return changed;
+}
+
+function shouldSyncCarryoverTimeHints(key = iso(selectedDate)) {
+  return key <= iso(todayInPlanner());
+}
+
+function isFutureCarryoverTask(task = {}, key = iso(selectedDate)) {
+  return Boolean((task.carryoverForkFrom || task.carryoverSourceDate) && key > iso(todayInPlanner()));
+}
+
+function getCarryoverScheduleLinkId(task = {}) {
+  return `carryover:${task.date || ""}:${task.id || `${task.priority || ""}-${task.index ?? ""}`}`;
+}
+
+function clearAutoTaskScheduleLinks(day = ensureDay(), predicate = () => true) {
+  day.autoTaskScheduleLinks ||= {};
+  let changed = false;
+  Object.entries({ ...day.autoTaskScheduleLinks }).forEach(([id, link]) => {
+    if (!predicate(link, id)) return;
+    changed = clearAutoTaskScheduleLink(day, id) || changed;
+  });
+  return changed;
+}
+
+function clearAutoTaskScheduleLink(day = ensureDay(), linkId = "") {
+  if (!linkId) return false;
+  day.autoTaskScheduleLinks ||= {};
+  const link = day.autoTaskScheduleLinks[linkId];
+  if (!link) return false;
+  let changed = false;
+  if (link.slot && link.text && day.appointments?.[link.slot]) {
+    const cleaned = removeSchedulePart(day.appointments[link.slot], link.text);
+    if (cleaned !== day.appointments[link.slot]) {
+      day.appointments[link.slot] = cleaned;
+      changed = true;
+    }
+  }
+  delete day.autoTaskScheduleLinks[linkId];
+  return changed || true;
+}
+
+function clearFutureCarryoverTimeHints(day = ensureDay(), carryovers = [], blockedSlots = new Set()) {
+  day.appointments ||= {};
+  let changed = false;
+  carryovers.forEach((task) => {
+    const hint = extractTaskTimeHint(task.text);
+    const targetSlot = hint ? resolveTaskTimeHintSlot(hint, getScheduleSlotsForDay(day)) : "";
+    if (!hint?.text || !targetSlot || blockedSlots.has(targetSlot)) return;
+    const current = String(day.appointments[targetSlot] || "").trim();
+    const cleaned = removeSchedulePart(current, hint.text);
+    if (cleaned !== current) {
+      day.appointments[targetSlot] = cleaned;
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 function getTaskTimeHintSlot(text = "", day = ensureDay()) {
