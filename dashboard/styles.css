@@ -9573,6 +9573,50 @@ body.ceo-mode .daily-panel-chip {
     min-height: 22px;
     font-size: 11px;
   }
+
+  .top-status {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: visible;
+    gap: 5px;
+  }
+
+  #topYearProgress,
+  #topCarryover,
+  #topSearchCount,
+  #topAccountStatus {
+    display: none;
+  }
+
+  #topSaveStatus,
+  .top-more-menu {
+    display: inline-flex;
+    flex: 0 0 auto;
+  }
+
+  .top-more-menu summary {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .top-more-panel {
+    right: auto;
+    left: 0;
+    grid-template-columns: repeat(2, minmax(112px, 1fr));
+    width: min(342px, calc(100vw - 18px));
+  }
+
+  .top-more-panel button,
+  .top-more-panel select {
+    display: inline-flex;
+    min-height: 34px;
+    font-size: 12px;
+  }
+
+  .password-change-panel {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* iPhone official-app polish: reduce repeated chrome and keep the daily surface calm. */
