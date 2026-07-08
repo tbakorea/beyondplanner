@@ -3159,50 +3159,15 @@ function setupMobileDayFocus() {
   const taskPanel = panel?.querySelector(".day-task-panel");
   const schedulePanel = panel?.querySelector(".day-schedule-panel");
   if (!panel || !taskPanel || !schedulePanel) return;
+  el("mobileDayFocusClose")?.addEventListener("click", () => resetMobileDayFocusToSplit({ blur: true }));
   const expandOnInteraction = (mode) => (event) => {
     if (!isSmartphoneLayout() || !event.target.closest("input, select, textarea, button")) return;
     setMobileDayFocusMode(mode);
-  };
-  const resetOnVerticalSwipe = (node) => {
-    let startX = 0;
-    let startY = 0;
-    let startAt = 0;
-    const maybeReset = (x, y) => {
-      if (!isSmartphoneLayout() || mobileDayFocusMode === "split" || !startX) return;
-      if (isEditingDailyField()) return;
-      const dx = x - startX;
-      const dy = y - startY;
-      const elapsed = Math.max(1, Date.now() - startAt);
-      const velocity = Math.abs(dy) / elapsed;
-      if (Math.abs(dy) < 92 || Math.abs(dy) < Math.abs(dx) * 1.4 || velocity < 0.42) return;
-      startX = 0;
-      startY = 0;
-      startAt = 0;
-      resetMobileDayFocusToSplit({ blur: true });
-    };
-    node.addEventListener("pointerdown", (event) => {
-      startX = event.clientX;
-      startY = event.clientY;
-      startAt = Date.now();
-    }, { passive: true });
-    node.addEventListener("pointerup", (event) => maybeReset(event.clientX, event.clientY), { passive: true });
-    node.addEventListener("pointercancel", () => {
-      startX = 0;
-      startY = 0;
-      startAt = 0;
-    }, { passive: true });
   };
   taskPanel.addEventListener("pointerdown", expandOnInteraction("tasks"), { passive: true });
   taskPanel.addEventListener("focusin", expandOnInteraction("tasks"));
   schedulePanel.addEventListener("pointerdown", expandOnInteraction("schedule"), { passive: true });
   schedulePanel.addEventListener("focusin", expandOnInteraction("schedule"));
-  document.addEventListener("pointerdown", (event) => {
-    if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
-    if (event.target.closest(".day-task-panel input, .day-task-panel select, .day-task-panel textarea, .day-task-panel button, .day-schedule-panel input, .day-schedule-panel select, .day-schedule-panel textarea, .day-schedule-panel button")) return;
-    window.setTimeout(() => resetMobileDayFocusToSplit({ blur: true }), 0);
-  }, { passive: true });
-  resetOnVerticalSwipe(taskPanel);
-  resetOnVerticalSwipe(schedulePanel);
   applyMobileDayFocusMode();
 }
 
@@ -5649,7 +5614,7 @@ function bindDailyTaskTextInput(input) {
     event.preventDefault();
     dailyTextEditingActive = false;
     flushDailyTaskRelatedRefresh();
-    resetMobileDayFocusToSplit({ blur: true });
+    input.blur();
   };
   input.onblur = () => {
     dailyTextEditingActive = false;

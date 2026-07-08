@@ -7131,6 +7131,10 @@ button {
   display: none;
 }
 
+.mobile-focus-close {
+  display: none;
+}
+
 body.smartphone-device #privacyNowButton,
 body.smartphone-device #privacyTimeoutSelect,
 body.smartphone-device .privacy-blind-screen {
@@ -7162,6 +7166,35 @@ body.smartphone-device .privacy-blind-screen {
     display: none !important;
   }
 
+  .mobile-focus-close {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 45;
+    display: none;
+    width: 34px;
+    min-width: 34px;
+    height: 34px;
+    min-height: 34px;
+    margin: 0;
+    border: 1px solid rgba(221, 216, 203, 0.82);
+    border-radius: 999px;
+    background: rgba(255, 253, 248, 0.94);
+    color: var(--sage-dark);
+    padding: 0;
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 8px 20px rgba(38, 50, 56, 0.12);
+    backdrop-filter: blur(10px);
+  }
+
+  .day-main-panel.is-focus-tasks .mobile-focus-close,
+  .day-main-panel.is-focus-schedule .mobile-focus-close {
+    display: inline-grid;
+    place-items: center;
+  }
+
   .day-swipe.is-mobile-focus-active,
   .day-swipe:has(.day-main-panel.is-focus-tasks),
   .day-swipe:has(.day-main-panel.is-focus-schedule) {
@@ -7173,6 +7206,7 @@ body.smartphone-device .privacy-blind-screen {
 
   .day-main-panel.is-focus-tasks,
   .day-main-panel.is-focus-schedule {
+    position: relative;
     box-sizing: border-box;
     flex: 0 0 100%;
     width: 100%;
