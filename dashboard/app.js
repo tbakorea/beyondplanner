@@ -5570,21 +5570,25 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
 
 function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
   let changed = false;
+  const directTaskSlots = new Set();
   getTaskRefs(day).forEach(({ task }) => {
     if (syncTaskTimeHintToSchedule(task, day)) changed = true;
+    const slot = getTaskTimeHintSlot(task.text, day);
+    if (slot) directTaskSlots.add(slot);
   });
   carryovers.forEach((task) => {
-    if (syncTaskTextTimeHintToSchedule(task.text, day)) changed = true;
+    if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots })) changed = true;
   });
   if (changed) saveState({ fastSave: true });
 }
 
-function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay()) {
+function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = {}) {
   day.appointments ||= {};
   const slots = getScheduleSlotsForDay(day);
   const hint = extractTaskTimeHint(text);
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
   if (!hint || !targetSlot || !hint.text) return false;
+  if (options.blockedSlots?.has(targetSlot)) return false;
   const current = String(day.appointments[targetSlot] || "").trim();
   if (!current) {
     day.appointments[targetSlot] = hint.text;
@@ -5595,6 +5599,11 @@ function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay()) {
     return true;
   }
   return false;
+}
+
+function getTaskTimeHintSlot(text = "", day = ensureDay()) {
+  const hint = extractTaskTimeHint(text);
+  return hint ? resolveTaskTimeHintSlot(hint, getScheduleSlotsForDay(day)) : "";
 }
 
 function resolveTaskTimeHintSlot(hint, slots = []) {
