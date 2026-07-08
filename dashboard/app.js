@@ -1152,8 +1152,27 @@ function scheduleAccountSave(delay = 650) {
   }, delay);
 }
 
+function flushPlannerSave(reason = "즉시 저장") {
+  window.clearTimeout(accountSaveTimer);
+  const meta = getStateMeta();
+  if (!meta.dirty && !saveStatus.saving) {
+    saveStatus.message = "저장됨";
+    renderSidebarAfterDailyInput();
+    return;
+  }
+  saveStatus.saving = true;
+  saveStatus.message = reason;
+  renderSidebarAfterDailyInput();
+  persistStateToServer();
+}
+
 async function persistStateToServer(options = {}) {
-  if (!accountSaveReady) return;
+  if (!accountSaveReady) {
+    saveStatus.saving = false;
+    saveStatus.message = getAuthSession()?.accessToken ? "저장 대기" : "로그인이 필요합니다";
+    renderSidebarAfterDailyInput();
+    return;
+  }
   const session = await ensureFreshAuthSession();
   if (!session?.accessToken) {
     accountSaveReady = false;
@@ -1735,6 +1754,7 @@ function setupSelectors() {
   el("excelExportButton").onclick = exportPlannerWorkbook;
   el("importButton").onclick = () => el("importFile").click();
   el("topPrintButton").onclick = () => window.print();
+  el("saveNowButton").onclick = () => flushPlannerSave("수동 저장 확인");
   el("topExportButton").onclick = exportPlanner;
   el("topExcelExportButton").onclick = exportPlannerWorkbook;
   el("topImportButton").onclick = () => el("importFile").click();
@@ -1912,7 +1932,18 @@ function setupSelectors() {
   window.addEventListener("focus", queuePassiveServerPull);
   window.addEventListener("online", queuePassiveServerPull);
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) queuePassiveServerPull();
+    if (document.hidden) {
+      flushPlannerSave("백그라운드 전 저장");
+      return;
+    }
+    queuePassiveServerPull();
+  });
+  window.addEventListener("pagehide", () => flushPlannerSave("앱 닫기 전 저장"));
+  window.addEventListener("beforeunload", (event) => {
+    if (!getStateMeta().dirty) return;
+    flushPlannerSave("나가기 전 저장");
+    event.preventDefault();
+    event.returnValue = "";
   });
   window.addEventListener("orientationchange", () => {
     window.setTimeout(() => {
@@ -3172,7 +3203,9 @@ function renderSidebar() {
   const saveStatusNode = el("topSaveStatus");
   if (saveStatusNode) {
     saveStatusNode.textContent = saveStatus.saving ? "저장 중" : saveStatus.message;
-    saveStatusNode.classList.toggle("is-warning", /실패|대기|필요/.test(saveStatus.message));
+    const statusText = saveStatusNode.textContent || "";
+    saveStatusNode.dataset.saveState = saveStatus.saving ? "saving" : /실패|오류|필요|로그인/.test(statusText) ? "alert" : /대기|확인/.test(statusText) ? "waiting" : "saved";
+    saveStatusNode.classList.toggle("is-warning", saveStatusNode.dataset.saveState === "alert" || saveStatusNode.dataset.saveState === "waiting");
   }
   const auth = getAuthSession();
   el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : "로그인 필요";
@@ -4541,7 +4574,7 @@ function updateCoachBubble() {
   const analysis = buildCoachAnalysis();
   node.dataset.severity = analysis.severity;
   node.dataset.count = String(analysis.suggestions.length);
-  node.textContent = "";
+  node.innerHTML = `<span class="compass-spark-icon" aria-hidden="true"></span>`;
 }
 
 function renderTaskSuggestionPopover() {
@@ -4733,8 +4766,8 @@ function shouldCarryRepeatTask(task, currentKey) {
   if (!sourceKey || !rule) return true;
   if (rule.deletedFrom && currentKey >= rule.deletedFrom) return false;
   if (!repeatRuleAllowsCarryover(rule)) return false;
-  const nextKey = nextRepeatDateAfter(rule, sourceKey);
-  return !nextKey || currentKey < nextKey;
+  const carryUntilKey = repeatCarryUntilKey(rule, sourceKey);
+  return Boolean(carryUntilKey && currentKey <= carryUntilKey);
 }
 
 function repeatRuleAllowsCarryover(rule) {
@@ -4742,6 +4775,15 @@ function repeatRuleAllowsCarryover(rule) {
   if (rule.carryMode === "carry") return true;
   if (rule.carryMode === "none") return false;
   return rule.frequency !== "daily";
+}
+
+function repeatCarryUntilKey(rule, sourceKey) {
+  const nextKey = nextRepeatDateAfter(rule, sourceKey);
+  if (!nextKey) return "";
+  const nextDate = parseDate(nextKey);
+  if (Number.isNaN(nextDate.getTime())) return "";
+  nextDate.setDate(nextDate.getDate() - 1);
+  return iso(nextDate);
 }
 
 function resetFutureRepeatOccurrences(ruleIndex, fromKey = iso(selectedDate)) {

@@ -645,6 +645,27 @@ body.ceo-mode .day-main-panel {
   font-weight: 840;
 }
 
+#topSaveStatus[data-save-state="saved"] {
+  border-color: rgba(95, 118, 104, 0.18);
+  background: rgba(229, 237, 232, 0.62);
+  color: var(--forest);
+  font-weight: 850;
+}
+
+#topSaveStatus[data-save-state="saving"] {
+  border-color: rgba(182, 155, 99, 0.34);
+  background: rgba(255, 248, 224, 0.72);
+  color: #78622a;
+  font-weight: 860;
+}
+
+#topSaveStatus[data-save-state="alert"] {
+  border-color: rgba(215, 55, 47, 0.34);
+  background: rgba(255, 235, 232, 0.78);
+  color: #9f251f;
+  font-weight: 900;
+}
+
 .coach-bubble {
   position: absolute;
   top: 50%;
@@ -9269,6 +9290,101 @@ body.ceo-mode .daily-panel-chip {
   border-width: 2px;
   background: #cf463c;
   font-size: 10px;
+}
+
+/* Compass Spark: AI coaching mark inspired by a compass inside a lightbulb. */
+.compass-spark-icon {
+  position: relative;
+  display: block;
+  width: 28px;
+  height: 32px;
+  color: var(--forest);
+  background:
+    linear-gradient(currentColor, currentColor) 50% 83% / 17px 3px no-repeat,
+    linear-gradient(currentColor, currentColor) 50% 93% / 12px 3px no-repeat,
+    radial-gradient(ellipse at 50% 100%, currentColor 0 5px, transparent 5.5px);
+}
+
+.compass-spark-icon::before {
+  content: "";
+  position: absolute;
+  inset: 2px 3px 9px;
+  border: 3px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 999px 999px 52% 52%;
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 64% 78%, 58% 100%, 42% 100%, 36% 78%, 0 78%);
+  opacity: 0.9;
+}
+
+.compass-spark-icon::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 5px;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  clip-path: polygon(50% 0, 58% 38%, 100% 50%, 58% 62%, 50% 100%, 42% 62%, 0 50%, 42% 38%);
+}
+
+.coach-bubble {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  border: 0;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 72% 24%, rgba(207, 70, 60, 0.13), transparent 24%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.94), rgba(229, 237, 232, 0.78));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 10px 24px rgba(38, 50, 56, 0.1);
+}
+
+.coach-bubble::after {
+  display: none;
+}
+
+.coach-bubble .compass-spark-icon {
+  width: 28px;
+  height: 32px;
+}
+
+.section-ai-button,
+[data-section-ai] {
+  inline-size: 40px;
+  min-width: 40px;
+  min-height: 36px;
+  border-color: rgba(95, 118, 104, 0.2);
+  background:
+    radial-gradient(circle at 68% 24%, rgba(207, 70, 60, 0.1), transparent 24%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.94), rgba(229, 237, 232, 0.8));
+}
+
+.section-ai-button::before,
+[data-section-ai]::before {
+  width: 21px;
+  height: 24px;
+  border: 2px solid rgba(47, 65, 56, 0.82);
+  border-bottom-width: 1.5px;
+  border-radius: 999px 999px 50% 50%;
+  background:
+    linear-gradient(rgba(47, 65, 56, 0.82), rgba(47, 65, 56, 0.82)) 50% 82% / 14px 2px no-repeat,
+    linear-gradient(rgba(47, 65, 56, 0.82), rgba(47, 65, 56, 0.82)) 50% 94% / 10px 2px no-repeat;
+  clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 58% 100%, 42% 100%, 38% 78%, 0 78%);
+  transform: none;
+}
+
+.section-ai-button::after,
+[data-section-ai]::after {
+  top: 10px;
+  right: 11px;
+  width: 13px;
+  height: 13px;
+  border-radius: 0;
+  background: rgba(47, 65, 56, 0.9);
+  clip-path: polygon(50% 0, 58% 38%, 100% 50%, 58% 62%, 50% 100%, 42% 62%, 0 50%, 42% 38%);
+  box-shadow: none;
 }
 
 #modeToggle {
