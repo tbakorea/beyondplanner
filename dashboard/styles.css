@@ -3640,7 +3640,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .task-row.is-repeat-task {
-  box-shadow: inset 2px 0 0 rgba(182, 155, 99, 0.64);
+  box-shadow: inset 1.5px 0 0 rgba(182, 155, 99, 0.48);
 }
 
 .task-row.is-repeat-task .task-cycle {
@@ -3649,7 +3649,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .task-row.is-repeat-task .task-status-cell {
-  outline: 1px solid rgba(182, 155, 99, 0.28);
+  outline: 1px solid rgba(182, 155, 99, 0.2);
   outline-offset: -1px;
 }
 
@@ -9822,6 +9822,27 @@ body.ceo-mode .daily-panel-chip {
     padding-bottom: 16px;
   }
 
+  .panel-title-row {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title-row > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .section-ai-button,
+  [data-section-ai] {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+  }
+
   .task-board,
   .appointment-list {
     padding-bottom: 54px;
@@ -9877,44 +9898,32 @@ body.ceo-mode .daily-panel-chip {
   }
 
   .schedule-actions {
-    position: absolute;
-    top: 48px;
-    right: 8px;
+    position: sticky;
+    top: 0;
     z-index: 14;
-    width: 34px;
-    margin: 0;
-    border: 1px solid rgba(221, 216, 203, 0.64);
-    border-radius: 999px;
-    background: rgba(255, 253, 248, 0.86);
-    padding: 5px 4px;
-    opacity: 0;
-    pointer-events: none;
-    box-shadow: 0 10px 24px rgba(38, 50, 56, 0.1);
-    transform: translateX(4px);
-    transition: opacity 150ms ease, transform 150ms ease;
-  }
-
-  .day-schedule-panel:focus-within .schedule-actions {
-    opacity: 1;
-    pointer-events: auto;
-    transform: translateX(0);
+    margin: -3px 0 5px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    backdrop-filter: none;
   }
 
   .schedule-actions .panel-actions {
     display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
   }
 
   .schedule-actions .mini-action {
-    width: 24px;
-    min-width: 24px;
+    width: 100%;
+    min-width: 0;
     min-height: 28px;
     border-radius: 999px;
-    padding: 0;
-    font-size: 10px;
+    padding: 0 4px;
+    font-size: 11px;
+    font-weight: 850;
     line-height: 1;
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
+    white-space: nowrap;
   }
 
   .appointment-row {
@@ -9942,6 +9951,12 @@ body.ceo-mode .daily-panel-chip {
     height: 20px;
     min-height: 20px;
     font-size: 14px;
+  }
+
+  .task-add-options .add-row {
+    min-height: 42px;
+    white-space: nowrap;
+    word-break: keep-all;
   }
 }
 

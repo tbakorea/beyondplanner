@@ -6495,21 +6495,42 @@ function mergeAppointmentSlot(day, slot) {
 
 function mergeAppointmentRange(day, range) {
   const slots = getScheduleSlotsForDay(day);
-  const isHourly = normalizeScheduleUnit(day.scheduleUnit) === "60";
-  const ranges = isHourly
-    ? { all: [0, slots.length], am: [0, 12], pm: [12, 12] }
-    : { all: [0, slots.length], am: [0, 8], pm: [8, slots.length - 8] };
-  const [startIndex, span] = ranges[range] || ranges.all;
+  if (!slots.length) return;
+  normalizeAppointmentMerges(day);
+  const firstStart = slotToMinutes(slots[0]);
+  const lastEnd = slotToMinutes(getAppointmentEndLabel(slots.length - 1, 1, slots));
+  const noon = 12 * 60;
+  let rangeStart = firstStart;
+  let rangeEnd = lastEnd;
+  if (range === "am") {
+    rangeEnd = Math.min(noon, lastEnd);
+  } else if (range === "pm") {
+    rangeStart = Math.max(noon, firstStart);
+  }
+  const selected = slots.filter((slot) => {
+    const minutes = slotToMinutes(slot);
+    return minutes >= rangeStart && minutes < rangeEnd;
+  });
+  if (!selected.length) return;
+  const startIndex = slots.indexOf(selected[0]);
+  const span = selected.length;
   const startSlot = slots[startIndex];
-  const covered = slots.slice(startIndex, startIndex + span);
-  const mergedText = covered.map((slot) => day.appointments[slot]).filter(Boolean).join(" ");
-  covered.forEach((slot) => {
-    if (slot !== startSlot) {
-      day.appointments[slot] = "";
-      delete day.appointmentMerges[slot];
-    }
+  const rangeSlotSet = new Set(selected);
+  const overlappedStarts = slots.filter((slot, index) => {
+    const itemStart = slotToMinutes(slot);
+    const itemEnd = itemStart + getAppointmentSpan(day, slot) * getScheduleSlotIntervalMinutes(slots);
+    return itemStart < rangeEnd && itemEnd > rangeStart && Boolean(day.appointments?.[slot] || day.appointmentMerges?.[slot]);
+  });
+  const mergedText = [...new Set([...selected, ...overlappedStarts])]
+    .map((slot) => String(day.appointments?.[slot] || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  [...new Set([...selected, ...overlappedStarts])].forEach((slot) => {
+    if (slot !== startSlot || !rangeSlotSet.has(slot)) day.appointments[slot] = "";
+    delete day.appointmentMerges[slot];
   });
   if (mergedText) day.appointments[startSlot] = mergedText;
+  else day.appointments[startSlot] ||= "";
   day.appointmentMerges[startSlot] = span;
   saveState();
   renderAppointments(day);
