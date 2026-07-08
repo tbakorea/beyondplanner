@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260708q" />
+    <link rel="stylesheet" href="./styles.css?v=20260708r" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -821,7 +821,7 @@
 
     <section class="lock-screen" id="lockScreen" hidden aria-live="polite">
       <div class="lock-card">
-        <p class="eyebrow">Security</p>
+        <p class="eyebrow">보안</p>
         <h2>Beyond Work 잠금</h2>
         <p id="lockMessage">비밀번호 또는 생체인증으로 플래너를 깨웁니다.</p>
         <label>
@@ -833,19 +833,19 @@
           <button id="unlockBiometricButton" type="button">생체인증</button>
         </div>
         <details class="lock-settings">
-          <summary>Security</summary>
+          <summary>보안 설정</summary>
           <label>
             새 비밀번호
             <input id="newPasscode" type="password" inputmode="numeric" autocomplete="new-password" placeholder="4자리 이상" />
           </label>
           <button id="savePasscodeButton" type="button">비밀번호 저장</button>
           <button id="registerBiometricButton" type="button">생체인증 등록</button>
-          <button id="clearSecurityButton" type="button">Clear Security</button>
+          <button id="clearSecurityButton" type="button">보안 설정 초기화</button>
         </details>
       </div>
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260708q"></script>
+    <script src="./app.js?v=20260708r"></script>
   </body>
 </html>

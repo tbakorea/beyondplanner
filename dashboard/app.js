@@ -3556,7 +3556,7 @@ function renderYear() {
       const title = [
         ...events.map((event) => event.label),
         lunarLabel ? `음력 ${lunarLabel}` : "",
-        count ? `${count} tasks` : "",
+        count ? (getAppLanguage() === "ko" ? `${count}개 업무` : `${count} tasks`) : "",
       ].filter(Boolean).join(" · ");
       if (title) cell.title = title;
       cell.onclick = () => {
@@ -3568,8 +3568,9 @@ function renderYear() {
     }
     grid.appendChild(box);
   }
-  renderEditableList(el("yearGoals"), state.year.goals, "Year Goal", () => saveState());
-  renderEditableList(el("futureLog"), state.year.future, "Later / Waiting", () => saveState());
+  const isKorean = getAppLanguage() === "ko";
+  renderEditableList(el("yearGoals"), state.year.goals, isKorean ? "연간 목표" : "Year Goal", () => saveState());
+  renderEditableList(el("futureLog"), state.year.future, isKorean ? "나중에 볼 일" : "Later / Waiting", () => saveState());
 }
 
 function getCalendarEvents(key) {
@@ -5264,7 +5265,8 @@ function renderDayCompass() {
   const weekStart = startOfWeek(selectedDate);
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
-  if (title) title.textContent = `Weekly Focus (${formatCompassDate(weekStart)} ~ ${formatCompassDate(weekEnd)})`;
+  const isKorean = getAppLanguage() === "ko";
+  if (title) title.textContent = `${isKorean ? "주간 초점" : "Weekly Focus"} (${formatCompassDate(weekStart)} ~ ${formatCompassDate(weekEnd)})`;
   const week = ensureWeek();
   const roleNames = compassRoleNames();
   while (week.compass.length < roleNames.length) {
@@ -5273,7 +5275,7 @@ function renderDayCompass() {
   node.innerHTML = "";
   const priorityBlock = document.createElement("section");
   priorityBlock.className = "weekly-priority-block";
-  priorityBlock.innerHTML = `<h4>Week Focus List</h4>`;
+  priorityBlock.innerHTML = `<h4>${isKorean ? "금주의 주요일정" : "Week Focus List"}</h4>`;
   week.priorities.forEach((item, index) => {
     item ||= { text: "", done: false };
     week.priorities[index] = item;
@@ -5281,7 +5283,7 @@ function renderDayCompass() {
     row.className = `weekly-priority-row ${item.done ? "done" : ""}`;
     row.innerHTML = `
       <input type="checkbox" ${item.done ? "checked" : ""} />
-      <input class="weekly-priority-text" type="text" value="${escapeAttr(item.text)}" placeholder="Week item ${index + 1}" />
+      <input class="weekly-priority-text" type="text" value="${escapeAttr(item.text)}" placeholder="${isKorean ? `주요 일정 ${index + 1}` : `Week item ${index + 1}`}" />
     `;
     const checkbox = row.querySelector("input[type='checkbox']");
     const text = row.querySelector(".weekly-priority-text");
@@ -8281,36 +8283,37 @@ function keepActiveTopViewVisible(name) {
 function collectSearchResults(query) {
   const terms = getSearchTerms(query);
   const results = [];
+  const labels = getSearchResultLabels();
   const push = (type, label, text, date = "") => {
     if (matchesSearchText(`${label} ${text} ${date}`, terms)) results.push({ type, label, text, date });
   };
-  push("foundation", "My Why", state.foundation.mission);
-  state.foundation.values.forEach((value, index) => push("foundation", `Value ${index + 1}`, value));
+  push("foundation", labels.myWhy, state.foundation.mission);
+  state.foundation.values.forEach((value, index) => push("foundation", `${labels.value} ${index + 1}`, value));
   state.foundation.roles.forEach((role) => {
-    push("foundation", `Role ${role.role}`, role.goal);
-    push("foundation", `Recharge ${role.role}`, role.renewal);
+    push("foundation", `${labels.role} ${role.role}`, role.goal);
+    push("foundation", `${labels.recharge} ${role.role}`, role.renewal);
   });
-  state.year.goals.forEach((value, index) => push("year", `Year Goal ${index + 1}`, value));
-  state.year.future.forEach((value, index) => push("year", `대기 목록 ${index + 1}`, value));
+  state.year.goals.forEach((value, index) => push("year", `${labels.yearGoal} ${index + 1}`, value));
+  state.year.future.forEach((value, index) => push("year", `${labels.futureList} ${index + 1}`, value));
   Object.entries(state.months).forEach(([key, month]) => {
-    push("month", `${key} Month Focus`, month.focus, `${key}-01`);
-    month.projects.forEach((value, index) => push("month", `${key} 프로젝트 ${index + 1}`, value, `${key}-01`));
+    push("month", `${key} ${labels.monthFocus}`, month.focus, `${key}-01`);
+    month.projects.forEach((value, index) => push("month", `${key} ${labels.project} ${index + 1}`, value, `${key}-01`));
   });
   Object.entries(state.weeks).forEach(([key, week]) => {
-    week.priorities?.forEach((item, index) => push("week", `${key} Week Focus ${index + 1}`, item.text, key));
+    week.priorities?.forEach((item, index) => push("week", `${key} ${labels.weekFocus} ${index + 1}`, item.text, key));
     week.compass.forEach((item) => {
       normalizeCompassItem(item);
       push("week", `${key} ${item.role}`, item.goal, key);
-      item.actions.forEach((action, index) => push("week", `${key} ${item.role} 행동 ${index + 1}`, action, key));
+      item.actions.forEach((action, index) => push("week", `${key} ${item.role} ${labels.action} ${index + 1}`, action, key));
     });
   });
   state.repeats?.priorityTasks?.forEach((rule, index) => {
-    push("notes", `Repeating Task ${index + 1}`, rule.text);
+    push("notes", `${labels.repeatingTask} ${index + 1}`, rule.text);
   });
   Object.entries(state.days).forEach(([key, day]) => {
     getDayTasks(key).forEach((task) => push("day", `${key} ${task.priority}`, task.text, key));
     Object.entries(day.appointments).forEach(([slot, text]) => push("day", `${key} ${slot}`, text, key));
-    ["memo", "record", "wins", "carry", "lesson"].forEach((field) => push("day", `${key} ${field}`, day[field], key));
+    ["memo", "record", "wins", "carry", "lesson"].forEach((field) => push("day", `${key} ${labels.dayFields[field] || field}`, day[field], key));
   });
   Object.entries(state.finance?.months || {}).forEach(([key, rows]) => {
     rows.forEach((item, index) => push("notes", `${key} 자금 ${index + 1} ${item.type} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.memo}`, `${key}-01`));
@@ -8333,6 +8336,51 @@ function collectSearchResults(query) {
     });
   });
   return results.slice(0, 80);
+}
+
+function getSearchResultLabels() {
+  if (getAppLanguage() === "ko") {
+    return {
+      myWhy: "나의 기준",
+      value: "가치",
+      role: "역할",
+      recharge: "회복",
+      yearGoal: "연간 목표",
+      futureList: "대기 목록",
+      monthFocus: "월간 초점",
+      project: "프로젝트",
+      weekFocus: "금주의 주요일정",
+      action: "핵심행동",
+      repeatingTask: "반복 우선업무",
+      dayFields: {
+        memo: "메모",
+        record: "일일 기록",
+        wins: "완료/성과",
+        carry: "내일로 넘길 일",
+        lesson: "개선할 점",
+      },
+    };
+  }
+  return {
+    myWhy: "My Why",
+    value: "Value",
+    role: "Role",
+    recharge: "Recharge",
+    yearGoal: "Year Goal",
+    futureList: "Future List",
+    monthFocus: "Month Focus",
+    project: "Project",
+    weekFocus: "Week Focus",
+    action: "Action",
+    repeatingTask: "Repeating Task",
+    dayFields: {
+      memo: "Memo",
+      record: "Daily Record",
+      wins: "Wins",
+      carry: "Carry Forward",
+      lesson: "Lesson",
+    },
+  };
 }
 
 function getSearchTerms(query) {
