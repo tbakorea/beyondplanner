@@ -3886,6 +3886,31 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   cursor: pointer;
 }
 
+.task-add-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 7px;
+  padding: 4px 0 2px;
+}
+
+.task-add-options .add-row {
+  min-height: 38px;
+  border-radius: 10px;
+  font-size: 13.5px;
+}
+
+.task-add-primary {
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.task-add-repeat {
+  border-style: solid;
+  border-color: rgba(95, 118, 104, 0.24);
+  background: rgba(174, 191, 177, 0.16);
+  color: var(--forest);
+  font-weight: 900;
+}
+
 .appointment-row {
   position: relative;
   display: grid;
@@ -3996,6 +4021,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   line-height: 1.35;
   padding-top: 7px;
   padding-bottom: 7px;
+  text-align: center;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -5762,6 +5788,7 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea,
   .appointment-time.range {
     min-height: calc(21px + (var(--slot-span, 1) - 1) * 29px);
   }
@@ -6577,6 +6604,7 @@ button {
   }
 
   .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea,
   .appointment-time.range {
     min-height: calc(25px + (var(--slot-span, 1) - 1) * var(--mobile-row-height));
   }
@@ -8318,6 +8346,7 @@ body.ceo-mode .sheet-grid-wrap {
   }
 
   .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea,
   .appointment-time.range {
     min-height: calc(27px + (var(--slot-span, 1) - 1) * var(--mobile-row-height));
   }
@@ -8813,8 +8842,19 @@ body.ceo-mode .sheet-grid-wrap {
   font-size: clamp(15px, 1.25vw, 17px);
   font-weight: 780;
   line-height: 1.35;
+  display: block;
+  align-self: center;
+  min-height: auto;
+  max-height: calc((var(--slot-span, 1) * 32px) - 8px);
+  padding: 7px 8px;
+  text-align: center;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  word-break: keep-all;
+}
+
+.appointment-row.is-merged textarea {
+  overflow-y: auto;
 }
 
 .appointment-row.is-merged .appointment-current-time-number {

@@ -648,6 +648,7 @@ function migrateState(nextState) {
     day.autoTaskScheduleLinks ||= {};
     day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
     ensureAppointmentSlots(day, day.scheduleUnit);
+    normalizeAppointmentMerges(day);
     normalizeDayTasks(day);
   });
   return nextState;
@@ -959,7 +960,10 @@ function normalizeProjectMoney(item) {
 }
 
 function saveState(options = {}) {
-  Object.values(state.days || {}).forEach((day) => normalizeDayTasks(day));
+  Object.values(state.days || {}).forEach((day) => {
+    normalizeAppointmentMerges(day);
+    normalizeDayTasks(day);
+  });
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   persistDisplayCache();
   markLocalStateUpdated();
@@ -1369,6 +1373,7 @@ function ensureDay(key = iso(selectedDate)) {
   state.days[key].autoTaskScheduleLinks ||= {};
   state.days[key].deletedRepeatIds ||= [];
   ensureAppointmentSlots(state.days[key]);
+  normalizeAppointmentMerges(state.days[key]);
   normalizeDayTasks(state.days[key]);
   applyRepeatingPriorityTasks(key);
   return state.days[key];
@@ -1474,6 +1479,20 @@ function ensureAppointmentSlots(day, unit = day?.scheduleUnit || "30") {
   getScheduleSlotsForUnit(unit).forEach((slot) => {
     if (day.appointments[slot] === undefined) day.appointments[slot] = "";
   });
+}
+
+function normalizeAppointmentMerges(day) {
+  if (!day) return;
+  day.appointmentMerges ||= {};
+  const slots = getScheduleSlotsForDay(day);
+  const normalized = {};
+  Object.entries(day.appointmentMerges || {}).forEach(([slot, span]) => {
+    const index = slots.indexOf(slot);
+    const nextSpan = Math.max(1, Math.floor(Number(span) || 1));
+    if (index < 0 || nextSpan <= 1) return;
+    normalized[slot] = Math.min(nextSpan, slots.length - index);
+  });
+  day.appointmentMerges = normalized;
 }
 
 function convertAppointmentUnit(day, fromUnit, toUnit) {
@@ -1701,7 +1720,7 @@ function setupSelectors() {
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
   el("accountPasswordButton").onclick = updateAccountPassword;
-  el("openRepeatManagerButton").onclick = openRepeatManager;
+  if (el("openRepeatManagerButton")) el("openRepeatManagerButton").onclick = openRepeatManager;
   el("closeRepeatManagerButton").onclick = closeRepeatManager;
   el("repeatManagerDialog").addEventListener("click", (event) => {
     if (event.target.id === "repeatManagerDialog") closeRepeatManager();
@@ -5157,15 +5176,23 @@ function renderTaskBoard(day) {
     carryovers.forEach((task) => list.appendChild(renderCarryoverTask(task)));
   }
   getTaskRefs(day).forEach(({ task, priority, index }) => list.appendChild(renderTaskRow(task, priority, index)));
+  const addGroup = document.createElement("div");
+  addGroup.className = "task-add-options";
   const add = document.createElement("button");
-  add.className = "add-row";
-  add.textContent = "업무 추가";
+  add.className = "add-row task-add-primary";
+  add.textContent = "일반 업무 추가";
   add.onclick = () => {
     day.tasks.A.push({ text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
     saveState({ fastSave: true });
     renderDay();
   };
-  list.appendChild(add);
+  const repeat = document.createElement("button");
+  repeat.className = "add-row task-add-repeat";
+  repeat.type = "button";
+  repeat.textContent = "반복 업무 추가";
+  repeat.onclick = openRepeatManager;
+  addGroup.append(add, repeat);
+  list.appendChild(addGroup);
   board.appendChild(list);
 }
 
@@ -5964,8 +5991,9 @@ function formatCarryoverDate(value) {
 function renderAppointments(day) {
   const node = el("appointmentList");
   node.innerHTML = "";
-  const slots = getScheduleSlotsForDay(day);
   ensureAppointmentSlots(day, day.scheduleUnit);
+  normalizeAppointmentMerges(day);
+  const slots = getScheduleSlotsForDay(day);
   slots.forEach((slot, slotIndex) => {
     if (isCoveredAppointmentSlot(day, slot, slots)) return;
     const span = getAppointmentSpan(day, slot);
