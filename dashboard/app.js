@@ -131,7 +131,7 @@ const defaultProfileFields = {
 };
 
 const defaultAppSettings = {
-  language: "en",
+  language: "ko",
   schedule: {
     startTime: "08:00",
     endTime: "19:30",
@@ -3071,8 +3071,8 @@ function renderAppSettings() {
   renderScheduleUnitControls(ensureDay());
 }
 
-function normalizeLanguage(value = "en") {
-  return ["en", "ko"].includes(value) ? value : "en";
+function normalizeLanguage(value = defaultAppSettings.language) {
+  return ["en", "ko"].includes(value) ? value : defaultAppSettings.language;
 }
 
 function getAppLanguage() {
@@ -3408,6 +3408,7 @@ function renderDay() {
   renderOnboarding(day);
   renderDayCompass();
   renderTaskBoard(day);
+  syncVisibleTaskTimeHints(day, carryovers);
   renderRepeatPriorityList();
   renderScheduleUnitControls(day);
   renderAppointments(day);
@@ -5509,7 +5510,7 @@ function updateCarryoverTaskText(taskRef, value) {
 function extractTaskTimeHint(text = "") {
   const source = String(text || "");
   const wrapped = source.match(/\((오전|오후)?\s*(\d{1,2})(?:(?::|시\s*)([0-5]\d))?\s*(?:분)?\)/);
-  const plain = wrapped ? null : source.match(/(^|[\s,，])((오전|오후)?\s*(\d{1,2}):([0-5]\d))(?!\d)/);
+  const plain = wrapped ? null : source.match(/(^|[^\d])((오전|오후)?\s*(\d{1,2}):([0-5]\d))(?!\d)/);
   const match = wrapped || plain;
   if (!match) return null;
   const meridiem = wrapped ? match[1] : match[3];
@@ -5565,6 +5566,35 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
   task.scheduledSlot = targetSlot;
   task.scheduledText = hint.text;
   return changed;
+}
+
+function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
+  let changed = false;
+  getTaskRefs(day).forEach(({ task }) => {
+    if (syncTaskTimeHintToSchedule(task, day)) changed = true;
+  });
+  carryovers.forEach((task) => {
+    if (syncTaskTextTimeHintToSchedule(task.text, day)) changed = true;
+  });
+  if (changed) saveState({ fastSave: true });
+}
+
+function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay()) {
+  day.appointments ||= {};
+  const slots = getScheduleSlotsForDay(day);
+  const hint = extractTaskTimeHint(text);
+  const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
+  if (!hint || !targetSlot || !hint.text) return false;
+  const current = String(day.appointments[targetSlot] || "").trim();
+  if (!current) {
+    day.appointments[targetSlot] = hint.text;
+    return true;
+  }
+  if (!current.includes(hint.text)) {
+    day.appointments[targetSlot] = `${current} / ${hint.text}`;
+    return true;
+  }
+  return false;
 }
 
 function resolveTaskTimeHintSlot(hint, slots = []) {
