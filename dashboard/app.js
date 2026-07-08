@@ -1192,8 +1192,22 @@ async function hydrateServerConfig() {
 
 function scheduleAccountSave(delay = 650) {
   if (!accountSaveReady) {
-    saveStatus.message = getAuthSession()?.accessToken ? "저장 대기" : "로그인이 필요합니다";
+    const hasSession = Boolean(getAuthSession()?.accessToken);
+    saveStatus.saving = hasSession;
+    saveStatus.message = hasSession ? "저장 연결 확인 중" : "로그인이 필요합니다";
     renderSidebarAfterDailyInput();
+    if (hasSession) {
+      window.clearTimeout(accountSaveTimer);
+      accountSaveTimer = window.setTimeout(async () => {
+        await hydrateServerState();
+        if (accountSaveReady && getStateMeta().dirty) {
+          persistStateToServer();
+        } else {
+          saveStatus.saving = false;
+          renderSidebarAfterDailyInput();
+        }
+      }, Math.max(delay, 900));
+    }
     return;
   }
   window.clearTimeout(accountSaveTimer);
