@@ -855,6 +855,8 @@ async function hydrateServerState() {
     accountSaveReady = true;
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
+      // Supabase DB is the source of truth. Browser storage is only a temporary display cache,
+      // so opening the app must always settle on the DB state when a DB row exists.
       const localMeta = getStateMeta();
       const localUpdatedAt = localMeta.updatedAt || "";
       const serverHasContent = hasPlannerContent(payload.state);
@@ -868,18 +870,12 @@ async function hydrateServerState() {
         if (serverHasContent) storeStateFromServer(payload, "저장됨");
       }
     } else {
-      const hadLocalContent = hasPlannerContent(state);
-      if (!hadLocalContent) state = loadEmptyState();
+      // A missing DB row means a new account state. Never auto-upload leftover device/browser cache.
+      state = loadEmptyState();
       selectedSheetId = state.customSheets.activeId;
       localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
-      if (!getStateMeta().updatedAt) saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
-      if (hadLocalContent) {
-        saveStatus.message = "첫 저장 중";
-        setBootMessage("플래너를 저장하는 중");
-        await persistStateToServer({ force: true });
-      } else {
-        saveStatus.message = "새 플래너 준비됨";
-      }
+      saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
+      saveStatus.message = "새 플래너 준비됨";
     }
   } catch (error) {
     accountSaveReady = false;
