@@ -5569,7 +5569,7 @@ function renderTaskRow(task, priority, index) {
   const marker = getTaskMarker(task);
   const isStruck = shouldStrikeTask(task);
   const menuValue = getPriorityMenuValue(task, priority);
-  row.className = `task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.status === "위임" ? "is-delegated" : ""} ${isStruck ? "done" : ""}`;
+  row.className = `task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${task.status === "위임" ? "is-delegated" : ""} ${isStruck ? "done" : ""}`;
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
   row.innerHTML = `
@@ -5674,7 +5674,6 @@ function getTaskLinkTags(task = {}) {
     if (!tags.includes(tag)) tags.push(tag);
   };
   if (task.financeItemId || /자금|입금|지출|카드|이자|정산|대금|money/i.test(text)) add("Money");
-  if (task.repeatId) add("반복");
   if (task.projectTaskId || matchesProjectContext(text)) add("프로젝트");
   if (matchesGoalContext(text)) add("목표");
   if (/운동|건강|걷기|수면|회복|투약|검진|스트레칭/.test(text)) add("건강");
@@ -5990,7 +5989,7 @@ function renderCarryoverTask(task) {
   const menuValue = getPriorityMenuValue(task, priority);
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
-  row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${completedHere ? "done" : ""}`;
+  row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${completedHere ? "done" : ""}`;
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>

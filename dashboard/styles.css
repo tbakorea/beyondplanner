@@ -3639,6 +3639,20 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   padding: 1px 2px;
 }
 
+.task-row.is-repeat-task {
+  box-shadow: inset 2px 0 0 rgba(182, 155, 99, 0.64);
+}
+
+.task-row.is-repeat-task .task-cycle {
+  border-color: rgba(182, 155, 99, 0.68);
+  background: rgba(255, 253, 248, 0.82);
+}
+
+.task-row.is-repeat-task .task-status-cell {
+  outline: 1px solid rgba(182, 155, 99, 0.28);
+  outline-offset: -1px;
+}
+
 .carryover-row {
   grid-template-columns: 22px 30px minmax(0, 1fr) 22px;
 }
