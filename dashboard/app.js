@@ -3644,7 +3644,7 @@ function renderMonthCalendar() {
     cell.innerHTML = `
       <strong>${date.getDate()}</strong>
       ${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel)}
-      ${count ? `<span class="count-pill">${count} tasks</span>` : ""}
+      ${count ? `<span class="count-pill">${getAppLanguage() === "ko" ? `${count}개 업무` : `${count} tasks`}</span>` : ""}
     `;
     cell.title = calendarAriaLabel(date, annotation.events, annotation.lunarLabel, Boolean(count));
     cell.onclick = () => {
@@ -3740,8 +3740,9 @@ function renderWeek() {
   const weekEnd = new Date(weekStart);
   weekEnd.setDate(weekStart.getDate() + 6);
   const weekRange = `${formatShortDate(weekStart)} ~ ${formatShortDate(weekEnd)}`;
-  el("weekTitle").textContent = `Week Plan (${weekRange})`;
-  el("weekCalendarToggle").setAttribute("aria-label", `Week Plan ${weekRange}, choose a week from calendar`);
+  const isKorean = getAppLanguage() === "ko";
+  el("weekTitle").textContent = `${isKorean ? "주간 계획" : "Week Plan"} (${weekRange})`;
+  el("weekCalendarToggle").setAttribute("aria-label", isKorean ? `주간 계획 ${weekRange}, 달력에서 주 선택` : `Week Plan ${weekRange}, choose a week from calendar`);
 
   const days = el("weekDays");
   days.innerHTML = "";
@@ -3749,6 +3750,7 @@ function renderWeek() {
     const date = new Date(weekStart);
     date.setDate(weekStart.getDate() + i);
     const key = iso(date);
+    ensureDay(key);
     const tasks = getDayTasks(key).filter((task) => task.text);
     const annotation = getCalendarAnnotation(date);
     const card = document.createElement("div");
@@ -3756,7 +3758,7 @@ function renderWeek() {
     card.innerHTML = `
       <strong>${formatDate(date)}</strong>
       <div class="week-day-marks">${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel)}</div>
-      <small>${tasks.length ? tasks.slice(0, 3).map((task) => `${task.priority}. ${task.text}`).join("<br>") : "일간 페이지에 업무를 입력하세요."}</small>
+      <small>${tasks.length ? tasks.slice(0, 3).map((task) => `${task.priority}. ${task.text}`).join("<br>") : isKorean ? "일간 페이지에 업무를 입력하세요." : "Add tasks on the daily page."}</small>
     `;
     card.onclick = () => {
       selectedDate = date;
