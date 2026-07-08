@@ -14,6 +14,7 @@ const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
 requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(plannerStorageKey());
+  localStorage.removeItem(plannerStateMetaKey());
   localStorage.removeItem(LAST_DISPLAY_CACHE_KEY);
   history.replaceState(null, "", window.location.pathname);
 }
@@ -562,6 +563,12 @@ function plannerStorageKey() {
   const session = getAuthSession();
   const account = session?.email ? encodeURIComponent(session.email) : "anonymous";
   return `${STORAGE_KEY}.${account}`;
+}
+
+function plannerStateMetaKey() {
+  const session = getAuthSession();
+  const account = session?.email ? encodeURIComponent(session.email) : "anonymous";
+  return `${STATE_META_KEY}.${account}`;
 }
 
 function hasCachedPlannerState() {
@@ -1263,14 +1270,24 @@ function authStateHeaders(extra = {}) {
 
 function getStateMeta() {
   try {
-    return JSON.parse(localStorage.getItem(STATE_META_KEY) || "{}");
+    const accountMeta = JSON.parse(localStorage.getItem(plannerStateMetaKey()) || "null");
+    if (accountMeta && typeof accountMeta === "object") return accountMeta;
+  } catch {
+    // Fall through to the one-time legacy meta migration.
+  }
+  try {
+    const legacyMeta = JSON.parse(localStorage.getItem(STATE_META_KEY) || "{}");
+    const sessionEmail = getAuthSession()?.email || "";
+    if (legacyMeta?.accountEmail && legacyMeta.accountEmail === sessionEmail) return legacyMeta;
+    return {};
   } catch {
     return {};
   }
 }
 
 function saveStateMeta(meta) {
-  localStorage.setItem(STATE_META_KEY, JSON.stringify({ ...getStateMeta(), ...meta }));
+  localStorage.setItem(plannerStateMetaKey(), JSON.stringify({ ...getStateMeta(), ...meta }));
+  localStorage.removeItem(STATE_META_KEY);
 }
 
 function markLocalStateUpdated() {
