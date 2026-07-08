@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260708v" />
+    <link rel="stylesheet" href="./styles.css?v=20260708w" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -152,44 +152,44 @@
             <button class="mini-action danger-action" id="settingsLogoutButton" type="button">로그아웃</button>
           </div>
           <div class="settings-shortcuts" aria-label="설정 바로가기">
-            <button type="button" data-settings-view="year">Year Calendar</button>
-            <button type="button" data-settings-view="day">Today View</button>
-            <button type="button" data-settings-view="search">Ask</button>
+            <button type="button" data-settings-view="year">연간 달력</button>
+            <button type="button" data-settings-view="day">오늘 화면</button>
+            <button type="button" data-settings-view="search">검색/질문</button>
           </div>
           <div class="settings-tabbar" role="tablist" aria-label="설정 분류">
-            <button class="is-active" id="settingsUserTab" type="button" role="tab" aria-selected="true" aria-controls="settingsUserPanel" data-settings-tab="user">About Me</button>
-            <button id="settingsAppTab" type="button" role="tab" aria-selected="false" aria-controls="settingsAppPanel" data-settings-tab="app">App Options</button>
+            <button class="is-active" id="settingsUserTab" type="button" role="tab" aria-selected="true" aria-controls="settingsUserPanel" data-settings-tab="user">사용자 설정</button>
+            <button id="settingsAppTab" type="button" role="tab" aria-selected="false" aria-controls="settingsAppPanel" data-settings-tab="app">앱 설정</button>
           </div>
           <div class="foundation-grid">
             <article class="panel span-12 planner-options-panel" id="settingsAppPanel" role="tabpanel" aria-labelledby="settingsAppTab" data-settings-panel="app" hidden>
-              <h3>Section Options</h3>
+              <h3>섹션별 설정</h3>
               <div class="planner-option-grid">
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Today · Top Tasks</strong>
-                    <small>Keep the daily task list compact, carry unfinished items forward, and read time hints such as 2:00 or (14:00).</small>
+                    <strong>오늘 · 우선업무</strong>
+                    <small>우선업무를 촘촘하게 유지하고, 미완료 이월과 10:00 같은 시간 표기를 자동 반영합니다.</small>
                   </span>
-                  <span class="setting-status-pill">DB saved</span>
+                  <span class="setting-status-pill">DB 저장</span>
                 </div>
                 <div class="planner-option-item app-setting-section menu-visibility-option">
                   <span>
-                    <strong>Main Menu</strong>
-                    <small>Choose which sections appear in the main menu. Today and Settings always stay visible.</small>
+                    <strong>메인 메뉴</strong>
+                    <small>필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.</small>
                   </span>
                   <div class="menu-visibility-grid" aria-label="메인 메뉴 표시 설정">
-                    <label><input type="checkbox" data-menu-visibility="week" /> <span>Week</span></label>
-                    <label><input type="checkbox" data-menu-visibility="month" /> <span>Month</span></label>
-                    <label><input type="checkbox" data-menu-visibility="projects" /> <span>Projects</span></label>
+                    <label><input type="checkbox" data-menu-visibility="week" /> <span>주간</span></label>
+                    <label><input type="checkbox" data-menu-visibility="month" /> <span>월간</span></label>
+                    <label><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
                     <label><input type="checkbox" data-menu-visibility="notes" /> <span>Money</span></label>
-                    <label><input type="checkbox" data-menu-visibility="sheets" /> <span>Sheets</span></label>
-                    <label><input type="checkbox" data-menu-visibility="year" /> <span>Year</span></label>
+                    <label><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
+                    <label><input type="checkbox" data-menu-visibility="year" /> <span>연간</span></label>
                   </div>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Today · Schedule</strong>
+                    <strong>오늘 · 시간별 일정</strong>
                     <small>
-                      Choose 30 min or 1 hour blocks. Set the visible start and end time for your day.
+                      30분/1시간 단위와 하루에 보일 시작시간, 종료시간을 설정합니다.
                       <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
                     </small>
                   </span>
@@ -199,29 +199,29 @@
                       <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
                     </span>
                     <span class="time-range-controls" aria-label="일정 시작 종료 시간">
-                      <label>Start <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
-                      <label>End <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
+                      <label>시작 <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
+                      <label>종료 <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
                     </span>
                   </div>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Week</strong>
-                    <small>Weekly Focus, role actions, Sunday-start weeks, and carry-forward items.</small>
+                    <strong>주간</strong>
+                    <small>위클리 포커스, 역할별 핵심행동, 일요일 시작 주간, 이월 항목을 관리합니다.</small>
                   </span>
-                  <span class="setting-status-pill">Sun start</span>
+                  <span class="setting-status-pill">일요일 시작</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Month · Year</strong>
-                    <small>Sunday-start calendars, Korean holidays, lunar notes, anniversaries, and year navigation.</small>
+                    <strong>월간 · 연간</strong>
+                    <small>일요일 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.</small>
                   </span>
-                  <span class="setting-status-pill">YYYY. MM. DD.</span>
+                  <span class="setting-status-pill">년. 월. 일.</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
                     <strong>Money</strong>
-                    <small>Show or hide amounts when Money items appear in Today or Week.</small>
+                    <small>오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.</small>
                   </span>
                   <label class="settings-toggle">
                     <input id="financeAmountVisibilityToggle" type="checkbox" checked />
@@ -230,31 +230,31 @@
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Projects</strong>
-                    <small>Project list, slide-in detail page, next action, and project money simulation.</small>
+                    <strong>프로젝트</strong>
+                    <small>프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.</small>
                   </span>
-                  <span class="setting-status-pill">Slide detail</span>
+                  <span class="setting-status-pill">슬라이드 상세</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Sheets</strong>
-                    <small>Numbers-style custom sheets, title rows/columns, templates, resizing, and CSV export.</small>
+                    <strong>시트</strong>
+                    <small>Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.</small>
                   </span>
-                  <span class="setting-status-pill">Templates</span>
+                  <span class="setting-status-pill">템플릿</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Ask · AI</strong>
-                    <small>Ask questions, get section coaching, and use your profile, goals, tasks, and schedule as context.</small>
+                    <strong>검색 · AI</strong>
+                    <small>입력한 목표, 업무, 일정, 사용자 정보를 바탕으로 질문과 섹션별 코칭을 제공합니다.</small>
                   </span>
-                  <span class="setting-status-pill">Allowed accounts</span>
+                  <span class="setting-status-pill">허용 계정</span>
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>Security · Data Files</strong>
-                    <small>Lock, privacy blind, JSON import/export, and Excel/Numbers review files. Common actions are at the top.</small>
+                    <strong>보안 · 데이터 파일</strong>
+                    <small>잠금, 보안 블라인드, JSON 가져오기/내보내기, 엑셀 파일은 상단 기본 메뉴에서 사용합니다.</small>
                   </span>
-                  <span class="setting-status-pill">Top controls</span>
+                  <span class="setting-status-pill">상단 메뉴</span>
                 </div>
               </div>
             </article>
@@ -272,8 +272,8 @@
               <div class="settings-step-heading">
                 <span>2</span>
                 <div>
-                  <h3>What Matters</h3>
-                  <p>Pick the things that deserve your time first.</p>
+                  <h3>중요한 것</h3>
+                  <p>내 시간을 먼저 받을 가치가 있는 것을 고릅니다.</p>
                 </div>
               </div>
               <div class="value-list" id="valuesList"></div>
@@ -282,8 +282,8 @@
               <div class="settings-step-heading">
                 <span>3</span>
                 <div>
-                  <h3>Roles & Goals</h3>
-                  <p>Name your key roles and the results you want from each one.</p>
+                  <h3>역할과 목표</h3>
+                  <p>내 주요 역할과 각 역할에서 원하는 결과를 정리합니다.</p>
                 </div>
               </div>
               <div class="role-goal-table" id="roleGoalTable"></div>
@@ -292,8 +292,8 @@
               <div class="settings-step-heading">
                 <span>4</span>
                 <div>
-                  <h3>About Me</h3>
-                  <p>Tell the planner who you are, what you do, and what rhythm works for you.</p>
+                  <h3>나의 정보</h3>
+                  <p>내가 누구인지, 어떤 일을 하는지, 어떤 리듬이 맞는지 알려주세요.</p>
                 </div>
               </div>
               <p class="profile-benefit-note">처음에는 기본 인적사항만 입력해도 앱을 시작할 수 있습니다. 이후 목표, 생활 리듬, 건강 정보를 조금씩 채우면 AI가 더 정확한 업무 제안과 시간 배치를 도와드립니다.</p>
@@ -305,7 +305,7 @@
                     <small>앱 시작과 기본 코칭에 필요한 최소 정보입니다.</small>
                   </div>
                   <div class="profile-grid compact-profile">
-                    <label><span class="row-label">Main Type</span><select data-profile-field="personaType">
+                    <label><span class="row-label">대표 유형</span><select data-profile-field="personaType">
                       <option value="">선택</option>
                       <option value="ceo">CEO/대표</option>
                       <option value="entrepreneur">개인사업자/프리랜서</option>
@@ -317,9 +317,9 @@
                       <option value="secondLife">은퇴 준비/인생 2막</option>
                       <option value="other">기타</option>
                     </select></label>
-                    <label><span class="row-label">Age</span><input data-profile-field="age" type="text" placeholder="e.g. 42" /></label>
-                    <label><span class="row-label">Job</span><input data-profile-field="job" type="text" placeholder="e.g. CEO, manager, trainer" /></label>
-                    <label><span class="row-label">My Work</span><input data-profile-field="personaCustom" type="text" placeholder="e.g. developer, CEO, student, store owner" /></label>
+                    <label><span class="row-label">나이</span><input data-profile-field="age" type="text" placeholder="예: 42" /></label>
+                    <label><span class="row-label">직업</span><input data-profile-field="job" type="text" placeholder="예: CEO, 매니저, 트레이너" /></label>
+                    <label><span class="row-label">하는 일</span><input data-profile-field="personaCustom" type="text" placeholder="예: 대표, 학생, 매장 운영자" /></label>
                   </div>
                 </section>
                 <details class="profile-stage" open>
@@ -330,7 +330,7 @@
                   </summary>
                   <div class="profile-grid compact-profile">
                     <div class="profile-multi-field" data-profile-multi="personaTypesSecondary">
-                      <span class="row-label">Also Me</span>
+                      <span class="row-label">겸하는 역할</span>
                       <div class="persona-chip-list">
                         <label><input type="checkbox" value="ceo" /> <span>CEO/대표</span></label>
                         <label><input type="checkbox" value="entrepreneur" /> <span>개인사업자</span></label>
@@ -338,13 +338,13 @@
                         <label><input type="checkbox" value="employee" /> <span>직장인</span></label>
                         <label><input type="checkbox" value="manager" /> <span>관리자</span></label>
                         <label><input type="checkbox" value="student" /> <span>학생</span></label>
-                        <label><input type="checkbox" value="growth" /> <span>Self Growth</span></label>
-                        <label><input type="checkbox" value="secondLife" /> <span>Next Chapter</span></label>
+                        <label><input type="checkbox" value="growth" /> <span>자기개발</span></label>
+                        <label><input type="checkbox" value="secondLife" /> <span>인생 2막</span></label>
                       </div>
                     </div>
-                    <label><span class="row-label">Roles</span><textarea data-profile-field="roles" rows="3" placeholder="e.g. leader, parent, investor, coach"></textarea></label>
-                    <label><span class="row-label">Big Goals</span><textarea data-profile-field="goals" rows="3" placeholder="Add or edit goals. Press Enter/Return to update coaching."></textarea></label>
-                    <label><span class="row-label">My Rules</span><textarea data-profile-field="decisionPrinciples" rows="3" placeholder="e.g. trust, cash flow, family time, growth"></textarea></label>
+                    <label><span class="row-label">역할</span><textarea data-profile-field="roles" rows="3" placeholder="예: 대표, 부모, 투자자, 리더"></textarea></label>
+                    <label><span class="row-label">큰 목표</span><textarea data-profile-field="goals" rows="3" placeholder="큰 목표를 적어주세요. 입력할수록 코칭이 정확해집니다."></textarea></label>
+                    <label><span class="row-label">나의 원칙</span><textarea data-profile-field="decisionPrinciples" rows="3" placeholder="예: 신뢰, 현금흐름, 가족시간, 성장"></textarea></label>
                   </div>
                 </details>
                 <details class="profile-stage">
@@ -354,17 +354,17 @@
                     <small>사용 중 천천히 채워도 됩니다. 더 나은 피드백을 위한 선택 정보입니다.</small>
                   </summary>
                   <div class="profile-grid compact-profile">
-                    <label><span class="row-label">Current Blocks</span><textarea data-profile-field="currentChallenges" rows="3" placeholder="What feels heavy or stuck right now?"></textarea></label>
-                    <label><span class="row-label">Strengths</span><textarea data-profile-field="strengths" rows="3" placeholder="What kind of work gives you energy?"></textarea></label>
-                    <label><span class="row-label">Watch-outs</span><textarea data-profile-field="risks" rows="3" placeholder="Things you delay, overload, or repeat too often"></textarea></label>
-                    <label><span class="row-label">Best Time</span><input data-profile-field="energyWindow" type="text" placeholder="e.g. morning focus, afternoon meetings" /></label>
-                    <label><span class="row-label">Coach Style</span><input data-profile-field="coachingStyle" type="text" placeholder="e.g. direct, warm, numbers first" /></label>
-                    <label><span class="row-label">Health</span><textarea data-profile-field="healthStatus" rows="3" placeholder="e.g. back pain, blood pressure, fatigue"></textarea></label>
-                    <label><span class="row-label">Care</span><textarea data-profile-field="medications" rows="3" placeholder="Medicine, checkups, care routines"></textarea></label>
-                    <label><span class="row-label">Limits</span><textarea data-profile-field="exerciseLimits" rows="3" placeholder="Movements or intensity to avoid"></textarea></label>
-                    <label><span class="row-label">Activity</span><input data-profile-field="activityLevel" type="text" placeholder="e.g. mostly sitting, walk twice a week" /></label>
-                    <label><span class="row-label">Fitness Goal</span><input data-profile-field="exerciseGoal" type="text" placeholder="e.g. walk 20 min daily, rebuild strength" /></label>
-                    <label><span class="row-label">Rest</span><input data-profile-field="recoveryPattern" type="text" placeholder="e.g. 6 hours sleep, tired after lunch" /></label>
+                    <label><span class="row-label">현재 부담</span><textarea data-profile-field="currentChallenges" rows="3" placeholder="지금 부담되거나 막혀 있는 일을 적어주세요."></textarea></label>
+                    <label><span class="row-label">강점</span><textarea data-profile-field="strengths" rows="3" placeholder="어떤 일에서 에너지가 나는지 적어주세요."></textarea></label>
+                    <label><span class="row-label">주의점</span><textarea data-profile-field="risks" rows="3" placeholder="자주 미루거나 과하게 떠안는 패턴을 적어주세요."></textarea></label>
+                    <label><span class="row-label">좋은 시간대</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 집중, 오후 미팅" /></label>
+                    <label><span class="row-label">코칭 방식</span><input data-profile-field="coachingStyle" type="text" placeholder="예: 단호하게, 따뜻하게, 숫자 중심으로" /></label>
+                    <label><span class="row-label">건강</span><textarea data-profile-field="healthStatus" rows="3" placeholder="예: 허리 통증, 혈압 관리, 피로감"></textarea></label>
+                    <label><span class="row-label">관리/투약</span><textarea data-profile-field="medications" rows="3" placeholder="복용약, 검진, 관리 루틴"></textarea></label>
+                    <label><span class="row-label">운동 제한</span><textarea data-profile-field="exerciseLimits" rows="3" placeholder="피해야 할 동작이나 운동 강도"></textarea></label>
+                    <label><span class="row-label">활동량</span><input data-profile-field="activityLevel" type="text" placeholder="예: 앉아 있는 시간이 많음, 주 2회 걷기" /></label>
+                    <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기, 근력 회복" /></label>
+                    <label><span class="row-label">회복/수면</span><input data-profile-field="recoveryPattern" type="text" placeholder="예: 6시간 수면, 점심 이후 피곤함" /></label>
                   </div>
                 </details>
               </div>
@@ -846,6 +846,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260708v"></script>
+    <script src="./app.js?v=20260708w"></script>
   </body>
 </html>
