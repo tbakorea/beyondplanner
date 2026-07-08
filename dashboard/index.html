@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260708i" />
+    <link rel="stylesheet" href="./styles.css?v=20260708j" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -129,9 +129,13 @@
       <section class="workspace">
         <section class="view" id="view-foundation">
           <div class="page-title">
-            <p class="eyebrow">Settings</p>
-            <h2>My Setup</h2>
-            <button class="mini-action section-ai-button" type="button" data-section-ai="foundation">AI</button>
+            <div class="page-title-copy">
+              <p class="eyebrow">Settings</p>
+              <h2>My Setup</h2>
+            </div>
+            <div class="page-title-actions">
+              <button class="mini-action section-ai-button" type="button" data-section-ai="foundation">AI</button>
+            </div>
           </div>
           <div class="settings-primary-actions" aria-label="설정 기본 메뉴">
             <label class="settings-select">
@@ -369,9 +373,13 @@
 
         <section class="view" id="view-year">
           <div class="page-title">
-            <p class="eyebrow">Year At A Glance</p>
-            <h2 id="yearPageTitle">Year Plan</h2>
-            <button class="mini-action section-ai-button" type="button" data-section-ai="year">AI</button>
+            <div class="page-title-copy">
+              <p class="eyebrow">Year At A Glance</p>
+              <h2 id="yearPageTitle">Year Plan</h2>
+            </div>
+            <div class="page-title-actions">
+              <button class="mini-action section-ai-button" type="button" data-section-ai="year">AI</button>
+            </div>
           </div>
           <div class="year-layout">
             <article class="panel span-12">
@@ -391,8 +399,9 @@
 
         <section class="view" id="view-month">
           <div class="page-title month-title">
-            <p class="eyebrow">Monthly Planner</p>
-            <button class="mini-action section-ai-button" type="button" data-section-ai="month">AI</button>
+            <div class="page-title-copy">
+              <p class="eyebrow">Monthly Planner</p>
+            </div>
             <div class="month-title-nav" id="monthSwipeZone" aria-label="Move Month Plan">
               <button class="icon-button compact month-nav-button" id="monthPrevButton" type="button" aria-label="이전 달">‹</button>
               <button class="month-title-button" id="monthPickerToggle" type="button" aria-haspopup="dialog" aria-expanded="false">
@@ -402,6 +411,9 @@
               <div class="month-picker-popover" id="monthPickerPopover" role="dialog" aria-label="월 선택" hidden>
                 <div class="month-picker-grid" id="monthPickerGrid"></div>
               </div>
+            </div>
+            <div class="page-title-actions">
+              <button class="mini-action section-ai-button" type="button" data-section-ai="month">AI</button>
             </div>
           </div>
           <div class="month-layout">
@@ -610,9 +622,13 @@
 
         <section class="view" id="view-notes">
           <div class="page-title">
-            <p class="eyebrow">Money Flow</p>
-            <h2>Money</h2>
-            <button class="mini-action section-ai-button" type="button" data-section-ai="finance">AI</button>
+            <div class="page-title-copy">
+              <p class="eyebrow">Money Flow</p>
+              <h2>Money</h2>
+            </div>
+            <div class="page-title-actions">
+              <button class="mini-action section-ai-button" type="button" data-section-ai="finance">AI</button>
+            </div>
           </div>
           <div class="notes-layout finance-layout">
             <article class="panel span-12 finance-month-panel">
@@ -648,11 +664,13 @@
 
         <section class="view" id="view-sheets">
           <div class="page-title sheet-page-title">
-            <div>
+            <div class="page-title-copy">
               <p class="eyebrow">Custom Sheets</p>
               <h2>커스텀 시트</h2>
             </div>
-            <button class="mini-action section-ai-button" type="button" data-section-ai="sheets">AI</button>
+            <div class="page-title-actions">
+              <button class="mini-action section-ai-button" type="button" data-section-ai="sheets">AI</button>
+            </div>
           </div>
           <div class="sheet-board" id="sheetBoard">
             <article class="panel sheet-page sheet-list-panel">

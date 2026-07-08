@@ -1103,17 +1103,35 @@ body.is-privacy-blind .app-shell {
 }
 
 .page-title {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
   margin-bottom: 8px;
+}
+
+.page-title-copy {
+  min-width: 0;
 }
 
 .page-title h2 {
   margin-top: 4px;
   font-size: clamp(24px, 2.4vw, 36px);
   line-height: 1.1;
+}
+
+.page-title-actions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: max-content;
+}
+
+.page-title-actions .mini-action,
+.page-title .section-ai-button {
+  min-width: 40px;
+  min-height: 34px;
 }
 
 .section-title-inline {
@@ -1137,6 +1155,14 @@ body.is-privacy-blind .app-shell {
   background: rgba(247, 245, 239, 0.96);
   padding: 9px 12px;
   backdrop-filter: blur(12px) saturate(1.04);
+}
+
+.month-title {
+  grid-template-columns: minmax(0, auto) minmax(180px, 1fr) auto;
+}
+
+.month-title .page-title-copy {
+  min-width: max-content;
 }
 
 .month-title {
@@ -5152,7 +5178,11 @@ input[type="checkbox"]:checked::after {
     grid-column: span 1;
   }
 
-  .page-title,
+  .page-title {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
   .daily-title {
     align-items: flex-start;
     flex-direction: column;
@@ -5323,6 +5353,27 @@ input[type="checkbox"]:checked::after {
 
   .page-title {
     margin-bottom: 7px;
+  }
+
+  .page-title-actions {
+    align-self: center;
+  }
+
+  .page-title-actions .mini-action,
+  .page-title .section-ai-button {
+    min-width: 36px;
+    min-height: 30px;
+    padding-inline: 10px;
+    font-size: 12px;
+  }
+
+  .month-title {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .month-title .month-title-nav {
+    grid-column: 1 / -1;
+    order: 3;
   }
 
   .daily-title {
