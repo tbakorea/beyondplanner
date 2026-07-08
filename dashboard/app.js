@@ -1032,18 +1032,22 @@ async function hydrateServerState() {
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache,
-      // so opening the app must always settle on the DB state when a DB row exists.
+      // but a dirty/newer browser state must first be pushed to DB instead of being overwritten.
       const localMeta = getStateMeta();
       const localUpdatedAt = localMeta.updatedAt || "";
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
       lastServerUpdatedAt = payload.updatedAt || "";
-      if (!localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent)) {
+      const serverIsNewer = !localUpdatedAt || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent);
+      const localIsNewer = localHasContent && localUpdatedAt && isTimestampNewer(localUpdatedAt, payload.updatedAt);
+      if (serverIsNewer) {
         setBootMessage("저장된 플래너를 불러오는 중");
         storeStateFromServer(payload, "저장됨");
+      } else if (localMeta.dirty || localIsNewer) {
+        saveStatus.message = "최신 변경 저장 중";
+        scheduleAccountSave(120);
       } else {
-        saveStatus.message = localMeta.dirty ? "저장 확인 필요" : "저장됨";
-        if (serverHasContent) storeStateFromServer(payload, "저장됨");
+        storeStateFromServer(payload, "저장됨");
       }
     } else {
       // A missing DB row means a new account state. Never auto-upload leftover device/browser cache.
