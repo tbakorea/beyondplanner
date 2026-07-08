@@ -532,6 +532,10 @@ def planner_content_score(source: dict) -> int:
         return 0
 
     def has_text(value) -> bool:
+        if isinstance(value, dict):
+            return any(has_text(item) for item in value.values())
+        if isinstance(value, (list, tuple, set)):
+            return any(has_text(item) for item in value)
         return bool(str(value or "").strip())
 
     def count_texts(values) -> int:
