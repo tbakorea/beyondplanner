@@ -10038,6 +10038,7 @@ body.ceo-mode .daily-panel-chip {
 .day-task-panel > .panel-title-row,
 .day-schedule-panel > .panel-title-row {
   border-bottom: 0;
+  isolation: isolate;
 }
 
 .day-task-panel > .panel-title-row > span:first-child,
@@ -10073,7 +10074,7 @@ body.ceo-mode .daily-panel-chip {
     z-index: 32;
     margin-bottom: 8px;
     border-bottom: 0;
-    background: #fffefa;
+    background: linear-gradient(180deg, #fffefa 0%, #fffefa 82%, rgba(255, 254, 250, 0.96) 100%);
     box-shadow: 0 1px 0 rgba(221, 216, 203, 0.82), 0 7px 12px rgba(247, 245, 239, 0.96);
     font-size: 15px;
   }
