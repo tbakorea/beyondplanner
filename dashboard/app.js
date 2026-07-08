@@ -131,6 +131,7 @@ const defaultProfileFields = {
 };
 
 const defaultAppSettings = {
+  language: "en",
   schedule: {
     startTime: "08:00",
     endTime: "19:30",
@@ -151,6 +152,29 @@ const defaultAppSettings = {
     money: { showAmounts: true },
     sheets: { titleHeaders: true },
     backup: { format: "json+xls" },
+  },
+};
+
+const languageLabels = {
+  en: {
+    day: "Today",
+    week: "Week",
+    month: "Month",
+    projects: "Projects",
+    notes: "Money",
+    sheets: "Sheets",
+    year: "Year",
+    foundation: "Settings",
+  },
+  ko: {
+    day: "오늘",
+    week: "주간",
+    month: "월간",
+    projects: "프로젝트",
+    notes: "Money",
+    sheets: "시트",
+    year: "연간",
+    foundation: "설정",
   },
 };
 
@@ -934,6 +958,7 @@ function normalizeAppSettings(settings = {}) {
   return {
     ...defaultAppSettings,
     ...settings,
+    language: normalizeLanguage(settings.language),
     schedule: {
       ...defaultAppSettings.schedule,
       ...schedule,
@@ -3031,6 +3056,7 @@ function renderFoundation() {
 
 function renderAppSettings() {
   state.appSettings = normalizeAppSettings(state.appSettings);
+  bindLanguageSetting();
   const range = getScheduleSettingsRange();
   const startInput = el("scheduleStartTime");
   const endInput = el("scheduleEndTime");
@@ -3043,6 +3069,44 @@ function renderAppSettings() {
   bindMenuVisibilityControls();
   applyMenuVisibility();
   renderScheduleUnitControls(ensureDay());
+}
+
+function normalizeLanguage(value = "en") {
+  return ["en", "ko"].includes(value) ? value : "en";
+}
+
+function getAppLanguage() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  return normalizeLanguage(state.appSettings.language);
+}
+
+function bindLanguageSetting() {
+  const select = el("languageSelect");
+  if (!select) return;
+  select.value = getAppLanguage();
+  select.onchange = () => {
+    state.appSettings = normalizeAppSettings(state.appSettings);
+    state.appSettings.language = normalizeLanguage(select.value);
+    saveState({ fastSave: true });
+    applyLanguagePreference();
+  };
+  applyLanguagePreference();
+}
+
+function applyLanguagePreference() {
+  const language = getAppLanguage();
+  const labels = languageLabels[language] || languageLabels.en;
+  document.documentElement.lang = language === "ko" ? "ko" : "en";
+  document.querySelectorAll("[data-view], [data-top-view]").forEach((item) => {
+    const view = item.dataset.view || item.dataset.topView || "";
+    if (!view || view === "foundation") return;
+    if (labels[view]) item.textContent = labels[view];
+  });
+  document.querySelectorAll("[data-menu-visibility]").forEach((checkbox) => {
+    const label = checkbox.closest("label")?.querySelector("span");
+    const view = checkbox.dataset.menuVisibility;
+    if (label && labels[view]) label.textContent = labels[view];
+  });
 }
 
 function bindMenuVisibilityControls() {

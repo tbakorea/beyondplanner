@@ -2226,6 +2226,27 @@ body.is-privacy-blind .app-shell {
   accent-color: var(--forest);
 }
 
+.settings-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 860;
+  white-space: nowrap;
+}
+
+.settings-select select {
+  min-width: 116px;
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 5px 30px 5px 12px;
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .foundation-grid,
 .year-layout,
 .month-layout,
