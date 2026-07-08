@@ -1,4 +1,5 @@
 const STORAGE_KEY = "franklinClassicPlanner2026.v1";
+const LAST_DISPLAY_CACHE_KEY = "beyondWorkLastDisplayState.v1";
 const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
 const INSTALLATION_KEY = "beyondWorkInstallationId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
@@ -13,6 +14,7 @@ const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
 requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(plannerStorageKey());
+  localStorage.removeItem(LAST_DISPLAY_CACHE_KEY);
   history.replaceState(null, "", window.location.pathname);
 }
 const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
@@ -175,6 +177,107 @@ const languageLabels = {
     sheets: "시트",
     year: "연간",
     foundation: "설정",
+  },
+};
+
+const settingsLanguageLabels = {
+  en: {
+    titleEyebrow: "Settings",
+    title: "My Setup",
+    shortcuts: { year: "Year Calendar", day: "Today View", search: "Ask" },
+    tabs: { user: "About Me", app: "App Options" },
+    appTitle: "Section Options",
+    primaryLanguage: "Language",
+    appItems: [
+      ["Today · Top Tasks", "Keep the daily task list compact, carry unfinished items forward, and read time hints such as 2:00 or (14:00).", "DB saved"],
+      ["Main Menu", "Choose which sections appear in the main menu. Today and Settings always stay visible.", ""],
+      ["Today · Schedule", "Choose 30 min or 1 hour blocks. Set the visible start and end time for your day.", ""],
+      ["Week", "Weekly Focus, role actions, Sunday-start weeks, and carry-forward items.", "Sun start"],
+      ["Month · Year", "Sunday-start calendars, Korean holidays, lunar notes, anniversaries, and year navigation.", "YYYY. MM. DD."],
+      ["Money", "Show or hide amounts when Money items appear in Today or Week.", ""],
+      ["Projects", "Project list, slide-in detail page, next action, and project money simulation.", "Slide detail"],
+      ["Sheets", "Numbers-style custom sheets, title rows/columns, templates, resizing, and CSV export.", "Templates"],
+      ["Ask · AI", "Ask questions, get section coaching, and use your profile, goals, tasks, and schedule as context.", "Allowed accounts"],
+      ["Security · Data Files", "Lock, privacy blind, JSON import/export, and Excel/Numbers review files. Common actions are at the top.", "Top controls"],
+    ],
+    steps: [
+      ["My Why", "Write the simple reason and rule that guide your choices."],
+      ["What Matters", "Pick the things that deserve your time first."],
+      ["Roles & Goals", "Name your key roles and the results you want from each one."],
+      ["About Me", "Tell the planner who you are, what you do, and what rhythm works for you."],
+    ],
+    benefit: "The clearer this is, the better AI can suggest tasks, schedule blocks, and coaching that fit your real life.",
+    profileLabels: {
+      personaType: "Main Type",
+      personaTypesSecondary: "Also Me",
+      personaCustom: "My Work",
+      age: "Age",
+      job: "Job",
+      roles: "Roles",
+      goals: "Big Goals",
+      decisionPrinciples: "My Rules",
+      currentChallenges: "Current Blocks",
+      strengths: "Strengths",
+      risks: "Watch-outs",
+      energyWindow: "Best Time",
+      coachingStyle: "Coach Style",
+      healthStatus: "Health",
+      medications: "Care",
+      exerciseLimits: "Limits",
+      activityLevel: "Activity",
+      exerciseGoal: "Fitness Goal",
+      recoveryPattern: "Rest",
+    },
+    roleLabels: ["Role", "Goal", "Recharge"],
+  },
+  ko: {
+    titleEyebrow: "설정",
+    title: "나에게 맞추기",
+    shortcuts: { year: "연간 달력", day: "오늘 화면", search: "검색/질문" },
+    tabs: { user: "사용자 설정", app: "앱 설정" },
+    appTitle: "섹션별 설정",
+    primaryLanguage: "언어",
+    appItems: [
+      ["오늘 · 우선업무", "우선업무를 촘촘하게 유지하고, 미완료 이월과 10:00 같은 시간 표기를 자동 반영합니다.", "DB 저장"],
+      ["메인 메뉴", "필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.", ""],
+      ["오늘 · 시간별 일정", "30분/1시간 단위와 하루에 보일 시작시간, 종료시간을 설정합니다.", ""],
+      ["주간", "위클리 포커스, 역할별 핵심행동, 일요일 시작 주간, 이월 항목을 관리합니다.", "일요일 시작"],
+      ["월간 · 연간", "일요일 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.", "년. 월. 일."],
+      ["Money", "오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.", ""],
+      ["프로젝트", "프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.", "슬라이드 상세"],
+      ["시트", "Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.", "템플릿"],
+      ["검색 · AI", "입력한 목표, 업무, 일정, 사용자 정보를 바탕으로 질문과 섹션별 코칭을 제공합니다.", "허용 계정"],
+      ["보안 · 데이터 파일", "잠금, 보안 블라인드, JSON 가져오기/내보내기, 엑셀 파일은 상단 기본 메뉴에서 사용합니다.", "상단 메뉴"],
+    ],
+    steps: [
+      ["나의 기준", "선택을 이끌어 줄 간단한 이유와 원칙을 적습니다."],
+      ["중요한 것", "내 시간을 먼저 받을 가치가 있는 것을 고릅니다."],
+      ["역할과 목표", "내 주요 역할과 각 역할에서 원하는 결과를 정리합니다."],
+      ["나의 정보", "내가 누구인지, 어떤 일을 하는지, 어떤 리듬이 맞는지 알려주세요."],
+    ],
+    benefit: "이 내용을 선명하게 적을수록 AI가 실제 생활에 맞는 업무, 시간 배치, 코칭을 더 정확하게 제안합니다.",
+    profileLabels: {
+      personaType: "대표 유형",
+      personaTypesSecondary: "겸하는 역할",
+      personaCustom: "하는 일",
+      age: "나이",
+      job: "직업",
+      roles: "역할",
+      goals: "큰 목표",
+      decisionPrinciples: "나의 원칙",
+      currentChallenges: "현재 부담",
+      strengths: "강점",
+      risks: "주의점",
+      energyWindow: "좋은 시간대",
+      coachingStyle: "코칭 방식",
+      healthStatus: "건강",
+      medications: "관리/투약",
+      exerciseLimits: "운동 제한",
+      activityLevel: "활동량",
+      exerciseGoal: "운동 목표",
+      recoveryPattern: "회복/수면",
+    },
+    roleLabels: ["역할", "목표", "회복"],
   },
 };
 
@@ -448,11 +551,7 @@ function plannerStorageKey() {
 }
 
 function hasCachedPlannerState() {
-  try {
-    return Boolean(localStorage.getItem(plannerStorageKey()));
-  } catch {
-    return false;
-  }
+  return Boolean(loadCachedPlannerState());
 }
 
 function newTaskId() {
@@ -480,15 +579,40 @@ function normalizeDayTasks(day) {
 }
 
 function loadState() {
+  const cached = loadCachedPlannerState();
+  if (cached) return cached;
+  return loadEmptyState();
+}
+
+function loadCachedPlannerState() {
   try {
-    const cached = JSON.parse(localStorage.getItem(plannerStorageKey()) || "null");
-    if (cached && typeof cached === "object") {
-      return migrateState(cached);
+    const accountCache = JSON.parse(localStorage.getItem(plannerStorageKey()) || "null");
+    if (accountCache && typeof accountCache === "object") return migrateState(accountCache);
+  } catch {
+    // Fall through to the display cache.
+  }
+  try {
+    const cached = JSON.parse(localStorage.getItem(LAST_DISPLAY_CACHE_KEY) || "null");
+    const sessionEmail = getAuthSession()?.email || "";
+    if (cached?.state && (!cached.accountEmail || cached.accountEmail === sessionEmail)) {
+      return migrateState(cached.state);
     }
   } catch {
-    // Fall back to a blank planner if the local device cache is unreadable.
+    // Fall back to a blank planner if the temporary display cache is unreadable.
   }
-  return loadEmptyState();
+  return null;
+}
+
+function persistDisplayCache() {
+  try {
+    localStorage.setItem(LAST_DISPLAY_CACHE_KEY, JSON.stringify({
+      accountEmail: getAuthSession()?.email || "",
+      updatedAt: new Date().toISOString(),
+      state,
+    }));
+  } catch {
+    // Display cache is only a startup preview; DB saving remains authoritative.
+  }
 }
 
 function migrateState(nextState) {
@@ -836,6 +960,7 @@ function normalizeProjectMoney(item) {
 function saveState(options = {}) {
   Object.values(state.days || {}).forEach((day) => normalizeDayTasks(day));
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+  persistDisplayCache();
   markLocalStateUpdated();
   scheduleAccountSave(options.fastSave ? 120 : 650);
 }
@@ -906,6 +1031,7 @@ async function hydrateServerState() {
       state = loadEmptyState();
       selectedSheetId = state.customSheets.activeId;
       localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+      persistDisplayCache();
       saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
       saveStatus.message = "새 플래너 준비됨";
     }
@@ -1116,6 +1242,7 @@ function storeStateFromServer(payload, message) {
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+  persistDisplayCache();
   saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
   saveStatus.message = message;
 }
@@ -3038,13 +3165,14 @@ function renderFoundation() {
 
   const roles = el("roleGoalTable");
   roles.innerHTML = "";
+  const roleLabels = (settingsLanguageLabels[getAppLanguage()] || settingsLanguageLabels.en).roleLabels;
   state.foundation.roles.forEach((item, index) => {
     const row = document.createElement("div");
     row.className = "role-row";
     row.innerHTML = `
-      <label><span class="row-label">Role</span><input type="text" value="${escapeAttr(item.role)}" /></label>
-      <label><span class="row-label">Goal</span><input type="text" value="${escapeAttr(item.goal)}" /></label>
-      <label><span class="row-label">Recharge</span><input type="text" value="${escapeAttr(item.renewal)}" /></label>
+      <label><span class="row-label">${escapeHtml(roleLabels[0])}</span><input type="text" value="${escapeAttr(item.role)}" /></label>
+      <label><span class="row-label">${escapeHtml(roleLabels[1])}</span><input type="text" value="${escapeAttr(item.goal)}" /></label>
+      <label><span class="row-label">${escapeHtml(roleLabels[2])}</span><input type="text" value="${escapeAttr(item.renewal)}" /></label>
     `;
     const inputs = row.querySelectorAll("input");
     inputs[0].oninput = (event) => updateRole(index, "role", event.target.value);
@@ -3107,6 +3235,56 @@ function applyLanguagePreference() {
     const view = checkbox.dataset.menuVisibility;
     if (label && labels[view]) label.textContent = labels[view];
   });
+  applySettingsLanguagePreference(language);
+}
+
+function applySettingsLanguagePreference(language = getAppLanguage()) {
+  const labels = settingsLanguageLabels[language] || settingsLanguageLabels.en;
+  setText("#view-foundation .page-title .eyebrow", labels.titleEyebrow);
+  setText("#view-foundation .page-title h2", labels.title);
+  setText(".settings-primary-actions .settings-select > span", labels.primaryLanguage);
+  setText("[data-settings-view='year']", labels.shortcuts.year);
+  setText("[data-settings-view='day']", labels.shortcuts.day);
+  setText("[data-settings-view='search']", labels.shortcuts.search);
+  setText("[data-settings-tab='user']", labels.tabs.user);
+  setText("[data-settings-tab='app']", labels.tabs.app);
+  setText("#settingsAppPanel > h3", labels.appTitle);
+  document.querySelectorAll("#settingsAppPanel .planner-option-item").forEach((item, index) => {
+    const [title, description, pill] = labels.appItems[index] || [];
+    if (title) setNodeText(item.querySelector("strong"), title);
+    const small = item.querySelector("small");
+    if (small && description) {
+      const range = small.querySelector("#scheduleRangeLabel")?.outerHTML || "";
+      small.innerHTML = `${escapeHtml(description)}${range ? ` ${range}` : ""}`;
+    }
+    const status = item.querySelector(".setting-status-pill");
+    if (status && pill !== undefined) status.textContent = pill;
+  });
+  document.querySelectorAll("[data-settings-panel='user'] .settings-step-heading").forEach((heading, index) => {
+    const [title, description] = labels.steps[index] || [];
+    if (title) setNodeText(heading.querySelector("h3"), title);
+    if (description) setNodeText(heading.querySelector("p"), description);
+  });
+  setText(".profile-benefit-note", labels.benefit);
+  Object.entries(labels.profileLabels).forEach(([key, text]) => {
+    if (key === "personaTypesSecondary") {
+      setText(`[data-profile-multi="${key}"] > .row-label`, text);
+      return;
+    }
+    const field = document.querySelector(`[data-profile-field="${key}"]`);
+    const label = field?.closest("label")?.querySelector(".row-label");
+    if (label) label.textContent = text;
+  });
+}
+
+function setText(selector, text) {
+  const node = document.querySelector(selector);
+  if (node) node.textContent = text;
+  return node;
+}
+
+function setNodeText(node, text) {
+  if (node) node.textContent = text;
 }
 
 function bindMenuVisibilityControls() {
@@ -3707,33 +3885,96 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
   const day = ensureDay(key);
   const tasks = getDayTasks(key).filter((task) => task.text?.trim());
   const openTasks = tasks.filter((task) => !shouldStrikeTask(task));
+  const highPriorityTasks = openTasks.filter((task) => task.priority === "A");
   const carryovers = getCarryoverTasks(date).filter((task) => !isCarryoverCompletedOn(task, key));
+  const appointmentSummary = getNextAppointmentSummary(day);
   const appointments = Object.values(day.appointments || {}).filter((value) => String(value || "").trim());
   const season = getSeasonalContext(date);
+  const weekday = weekdays[date.getDay()];
+  const personaLabel = getPersonaLabel(state.profile);
+  const identity = summarizeProfileIdentity(state.profile);
+  const topTask = highPriorityTasks[0] || openTasks[0] || null;
   const goals = [state.profile?.goals, state.foundation?.mission, ...(state.year?.goals || [])]
     .filter(Boolean)
     .join(" ")
     .trim();
-  const hash = hashString(`${key}:${tasks.length}:${carryovers.length}:${appointments.length}:${goals.slice(0, 42)}`);
-  const praise = pickByHash(
+  const profileSeed = [
+    personaLabel,
+    identity,
+    state.profile?.goals,
+    state.profile?.currentChallenges,
+    state.profile?.energyWindow,
+    state.profile?.healthStatus,
+  ].filter(Boolean).join("|");
+  const hash = hashString(`${key}:${weekday}:${tasks.length}:${carryovers.length}:${appointments.length}:${goals.slice(0, 80)}:${profileSeed}:${topTask?.text || ""}`);
+  const praise = buildDailyOpeningPraise({ hash, personaLabel, carryovers, appointments, openTasks, goals });
+  const challenge = dailyChallengeText(openTasks, carryovers, appointments, goals, hash, { topTask, appointmentSummary, personaLabel });
+  const firstMove = buildDailyFirstMove({ topTask, appointmentSummary, carryovers, openTasks, goals, hash });
+  return {
+    title: `${formatCompactOpeningDate(date)} ${season.label} 코칭`,
+    message: `${praise} ${season.shortTone} ${firstMove} ${challenge}`,
+    signals: [
+      `${weekday}요일 리듬: ${getWeekdayOpeningSignal(date, hash)}`,
+      personaLabel ? `사용자 유형: ${personaLabel} 관점으로 오늘의 선택을 좁힙니다.` : "사용자 정보를 채우면 내일의 코칭이 더 정확해집니다.",
+      appointments.length
+        ? `다음 일정: ${appointmentSummary.time} ${appointmentSummary.text}`
+        : "시간별 일정이 비어 있습니다. 중요한 일 하나를 실제 시간에 고정하세요.",
+      carryovers.length
+        ? `이월 ${carryovers.length}개: 탓할 짐이 아니라 오늘 결정할 재료입니다.`
+        : "이월 부담이 낮습니다. 오늘은 새 추진력을 만들기 좋습니다.",
+      topTask?.text ? `첫 실행 후보: ${stripTaskTimeText(topTask.text).slice(0, 42)}` : season.signal,
+    ],
+  };
+}
+
+function formatCompactOpeningDate(date) {
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${weekdays[date.getDay()]})`;
+}
+
+function buildDailyOpeningPraise({ hash, personaLabel, carryovers, appointments, openTasks, goals }) {
+  if (carryovers.length >= 5) return "많이 밀린 날일수록 대표님의 판단력은 더 선명해야 합니다.";
+  if (appointments.length >= 4) return "일정이 많은 날에도 하루의 주도권은 첫 선택에서 시작됩니다.";
+  if (openTasks.length && goals) return `${personaLabel ? `${personaLabel}로서 ` : ""}목표와 오늘의 실행을 연결하려는 태도는 이미 좋은 출발입니다.`;
+  return pickByHash(
     [
-      "당신은 이미 오늘을 계획 앞에 세워 둔 사람입니다.",
-      "어제의 무게가 남아 있어도 오늘의 첫 선택은 새롭습니다.",
-      "일을 적는 손은 작아 보여도, 방향을 정하는 힘은 큽니다.",
-      "바쁜 형편 속에서도 기록을 붙드는 태도는 충분히 칭찬받을 일입니다.",
+      "오늘을 기록으로 시작한 것만으로도 이미 방향을 붙든 것입니다.",
+      "어제의 무게가 남아 있어도 오늘의 첫 선택은 새로울 수 있습니다.",
+      "일을 적는 손은 작아 보여도 방향을 정하는 힘은 큽니다.",
+      "바쁜 형편 속에서도 계획을 여는 태도는 충분히 칭찬받을 일입니다.",
     ],
     hash,
   );
-  const challenge = dailyChallengeText(openTasks, carryovers, appointments, goals, hash);
-  return {
-    title: `${season.label} 아침의 작은 용기`,
-    message: `${praise} ${season.shortTone} 오늘은 큰 결심보다 작은 실행 하나면 충분합니다. ${challenge}`,
-    signals: [
-      season.signal,
-      `${appointments.length ? `시간별 일정에 ${appointments.length}개의 일정이 있습니다.` : "시간별 일정이 비어 있으니 중요한 일 하나를 먼저 고정할 수 있습니다."}`,
-      `${carryovers.length ? `이월 ${carryovers.length}개는 탓할 짐이 아니라 오늘 결단할 재료입니다.` : "이월이 적습니다. 오늘은 새 추진력을 만들기 좋습니다."}`,
-    ],
+}
+
+function buildDailyFirstMove({ topTask, appointmentSummary, carryovers, openTasks, goals, hash }) {
+  if (topTask?.text) return `첫 승부는 '${stripTaskTimeText(topTask.text).slice(0, 28)}'에서 시작하세요.`;
+  if (appointmentSummary?.time && appointmentSummary.time !== "비어 있음") return `${appointmentSummary.time} 일정을 기준으로 오전의 여백을 지키세요.`;
+  if (carryovers.length) return "먼저 이월된 일 중 버릴 것과 살릴 것을 나누세요.";
+  if (openTasks.length) return "가장 작은 업무 하나를 끝내며 흐름을 여세요.";
+  if (goals) return "목표와 닿은 행동 하나를 오늘 목록에 올리세요.";
+  return pickByHash(["첫 20분을 단단히 여세요.", "작게 시작하고 분명히 끝내세요.", "오늘의 한 칸을 정직하게 채우세요."], hash + 11);
+}
+
+function getWeekdayOpeningSignal(date, hash) {
+  const day = date.getDay();
+  const weekdayMessages = {
+    0: ["이번 주를 조용히 설계하기 좋습니다.", "회복과 준비를 같이 잡으면 한 주가 가벼워집니다."],
+    1: ["시작이 완벽하지 않아도 방향만 선명하면 됩니다.", "새 일을 늘리기보다 이번 주 첫 결과를 정하세요."],
+    2: ["월요일의 생각을 실행으로 바꾸기 좋은 날입니다.", "오전의 집중 블록 하나가 주중 흐름을 만듭니다."],
+    3: ["중간 점검이 성과를 구합니다.", "오늘은 더하기보다 조정이 강한 선택입니다."],
+    4: ["마감 전 병목을 발견하기 좋은 날입니다.", "위임·취소·연기를 선명히 할수록 금요일이 가벼워집니다."],
+    5: ["한 주의 끝을 그냥 닫지 말고 결과로 남기세요.", "끝낼 일 하나와 넘길 일 하나를 구분하세요."],
+    6: ["정리와 회복이 다음 실행의 연료가 됩니다.", "느린 점검 하나가 다음 주 속도를 만듭니다."],
   };
+  return pickByHash(weekdayMessages[day] || weekdayMessages[1], hash + day);
+}
+
+function stripTaskTimeText(text = "") {
+  return String(text || "")
+    .replace(/\((오전|오후)?\s*\d{1,2}(?:(?::|시\s*)[0-5]\d)?\s*(?:분)?\)/g, "")
+    .replace(/(^|[^\d])((오전|오후)?\s*\d{1,2}:[0-5]\d)(?!\d)/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
 function getSeasonalContext(date) {
@@ -3770,10 +4011,11 @@ function getSeasonalContext(date) {
   };
 }
 
-function dailyChallengeText(openTasks, carryovers, appointments, goals, hash) {
+function dailyChallengeText(openTasks, carryovers, appointments, goals, hash, context = {}) {
   if (carryovers.length >= 5) return "남길 일과 보낼 일을 분명히 나누세요.";
   if (openTasks.length >= 8) return "A업무 두 개만 남겨도 충분히 강합니다.";
   if (!appointments.length && openTasks.length) return "중요한 일 하나를 시간별 일정에 앉히세요.";
+  if (context.topTask?.priority === "A") return "A업무는 생각으로 이기지 말고 시간칸으로 이기세요.";
   if (goals) return "목표와 닿은 작은 행동 하나를 끝내세요.";
   return pickByHash(
     [
