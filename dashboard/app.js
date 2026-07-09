@@ -3160,14 +3160,21 @@ function setupDaySwipePager() {
   if (!node) return;
   let startX = 0;
   let startY = 0;
+  let startTime = 0;
   let startPanel = currentDayPanel;
   let wheelLock = false;
   let scrollTimer = 0;
+  const clearPointerStart = () => {
+    startX = 0;
+    startY = 0;
+    startTime = 0;
+  };
 
   node.addEventListener("pointerdown", (event) => {
     if (!isPagedDaySwipe() || isSwipeInteractiveTarget(event.target)) return;
     startX = event.clientX;
     startY = event.clientY;
+    startTime = Date.now();
     startPanel = closestDayPanel();
   });
 
@@ -3175,12 +3182,22 @@ function setupDaySwipePager() {
     if (!startX) return;
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
-    startX = 0;
-    startY = 0;
-    if (!isPagedDaySwipe() || Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.24) return;
+    const elapsed = Date.now() - startTime;
+    clearPointerStart();
+    if (!isPagedDaySwipe()) return;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const distanceThreshold = Math.min(92, Math.max(46, node.clientWidth * 0.12));
+    const fastSwipe = elapsed < 280 && absX > 38;
+    if ((absX < distanceThreshold && !fastSwipe) || absX < absY * 1.18) {
+      settleDayPanelScroll();
+      return;
+    }
     event.preventDefault();
     stepDayPanel(dx < 0 ? 1 : -1, startPanel);
   });
+
+  node.addEventListener("pointercancel", clearPointerStart, { passive: true });
 
   node.addEventListener("wheel", (event) => {
     if (!isPagedDaySwipe() || wheelLock) return;
@@ -3198,7 +3215,7 @@ function setupDaySwipePager() {
     window.clearTimeout(scrollTimer);
     scrollTimer = window.setTimeout(() => {
       settleDayPanelScroll();
-    }, 140);
+    }, 90);
   }, { passive: true });
 }
 
