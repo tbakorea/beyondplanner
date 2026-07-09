@@ -369,6 +369,7 @@ let state = loadState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
 let activeCoachSection = "";
+let activeCoachTab = "guide";
 let saveStatus = { ready: false, environment: "db", message: "저장 확인 중", saving: false };
 let accountSaveReady = false;
 let accountSaveTimer = 0;
@@ -2080,6 +2081,7 @@ function setupSelectors() {
   el("topSearchClose").onclick = closeTopSearch;
   el("coachBubble").onclick = () => {
     activeCoachSection = "";
+    activeCoachTab = "guide";
     showView("coach");
     renderAll();
   };
@@ -2087,6 +2089,12 @@ function setupSelectors() {
     togglePlannerMode();
   };
   el("refreshCoach").onclick = () => renderCoach();
+  document.querySelectorAll("[data-coach-tab]").forEach((button) => {
+    button.onclick = () => {
+      activeCoachTab = button.dataset.coachTab === "coach" ? "coach" : "guide";
+      renderCoach();
+    };
+  });
   el("aiTaskSuggest").onclick = () => openSectionCoach("tasks");
   el("aiCompassSuggest").onclick = () => openSectionCoach("week");
   el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
@@ -2261,11 +2269,13 @@ function closeSearch() {
 
 function closeCoach() {
   activeCoachSection = "";
+  activeCoachTab = "guide";
   closeToDailyPage();
 }
 
 function openSectionCoach(section = "day") {
   activeCoachSection = section;
+  activeCoachTab = "guide";
   showView("coach");
   renderAll();
 }
@@ -4406,16 +4416,29 @@ function hashString(value) {
 
 function renderCoach() {
   bindProfileFields();
+  updateCoachTabState();
   const message = el("coachMessage");
   const suggestions = el("coachSuggestions");
-  if (!message || !suggestions) return;
+  const guide = el("coachGuide");
+  if (!message || !suggestions || !guide) return;
   const analysis = activeCoachSection ? buildSectionCoachAnalysis(activeCoachSection) : buildCoachAnalysis();
+  const usage = buildCoachUsageGuide(activeCoachSection || "main");
+  guide.innerHTML = `
+    <strong>${escapeHtml(usage.title)}</strong>
+    <p>${escapeHtml(usage.summary)}</p>
+    <ul>
+      ${usage.steps.map((step) => `<li>${escapeHtml(step)}</li>`).join("")}
+    </ul>
+    <small>${escapeHtml(usage.tip)}</small>
+  `;
   message.className = `coach-card severity-${analysis.severity}`;
   message.innerHTML = `
     <strong>${escapeHtml(analysis.title)}</strong>
     <p>${escapeHtml(analysis.message)}</p>
     <small>${escapeHtml(analysis.detail)}</small>
   `;
+  guide.hidden = activeCoachTab !== "guide";
+  message.hidden = activeCoachTab !== "coach";
   suggestions.innerHTML = "";
   analysis.suggestions.forEach((text) => {
     const item = document.createElement("button");
@@ -4425,6 +4448,143 @@ function renderCoach() {
     item.onclick = () => addSuggestedTask(text);
     suggestions.appendChild(item);
   });
+  suggestions.hidden = activeCoachTab !== "coach";
+}
+
+function updateCoachTabState() {
+  document.querySelectorAll("[data-coach-tab]").forEach((button) => {
+    const active = button.dataset.coachTab === activeCoachTab;
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-selected", String(active));
+    button.tabIndex = active ? 0 : -1;
+  });
+}
+
+function buildCoachUsageGuide(section = "main") {
+  const guides = {
+    main: {
+      title: "Beyond Work 전체 사용법",
+      summary: "이 아이콘은 전체 플래너의 사용 흐름과 오늘의 코칭을 여는入口입니다.",
+      steps: [
+        "먼저 Today에서 Top Tasks와 Schedule을 정리합니다.",
+        "Weekly, Month, Projects, Money는 오늘 업무의 근거가 되는 상위 계획으로 사용합니다.",
+        "설정의 사용자 정보를 채울수록 코칭은 더 개인화됩니다.",
+        "코칭 탭에서는 미완료, 일정 과밀, 빈 시간, 목표 연결성을 기준으로 다음 행동을 제안합니다.",
+      ],
+      tip: "처음 사용하는 사용자는 Today → Weekly → Money/Projects 순서로 익히는 것이 가장 안정적입니다.",
+    },
+    day: {
+      title: "Today 사용법",
+      summary: "오늘 실행할 일과 시간 배치를 한 화면에서 결정합니다.",
+      steps: [
+        "A/B/C 중요도를 정하고, 완료·진행중·위임·연기를 명확히 표시합니다.",
+        "업무 내용에 10:00처럼 시간을 넣으면 해당 시간별 일정에 자동 반영됩니다.",
+        "Weekly와 Memo는 좌우 스와이프 또는 배너 양쪽 버튼으로 이동합니다.",
+      ],
+      tip: "오늘은 많이 적는 것보다 실제 시간표에 올라간 A업무가 있는지가 중요합니다.",
+    },
+    tasks: {
+      title: "Top Tasks 사용법",
+      summary: "오늘 반드시 처리할 일을 선별하고 상태를 관리하는 섹션입니다.",
+      steps: [
+        "A는 반드시 시간별 일정에 배치할 일, B는 중요하지만 유연한 일, C는 여유가 있을 때 처리할 일입니다.",
+        "완료, 취소, 연기, 위임 상태는 붉은 선으로 명확히 구분됩니다.",
+        "반복업무는 업무 추가 과정에서 설정하고, 필요 시 반복업무 관리 창에서 수정합니다.",
+      ],
+      tip: "A업무가 3개를 넘으면 실제 실행률이 떨어지므로 우선순위를 다시 줄이는 것이 좋습니다.",
+    },
+    schedule: {
+      title: "Schedule 사용법",
+      summary: "중요업무를 실제 시간 블록으로 바꾸는 섹션입니다.",
+      steps: [
+        "30분 또는 1시간 단위는 설정에서 관리합니다.",
+        "일정칸에 입력하면 해당 시간대가 강조되고, 필요한 경우 인접 시간과 병합할 수 있습니다.",
+        "우선업무에 시간 표현이 있으면 일정에 자동으로 연결됩니다.",
+      ],
+      tip: "시간표가 비어 있으면 업무는 계획에 머물 가능성이 큽니다. A업무 하나는 반드시 시간칸에 넣으세요.",
+    },
+    week: {
+      title: "Weekly Focus 사용법",
+      summary: "이번 주 주요일정과 역할별 핵심행동을 정리합니다.",
+      steps: [
+        "금주의 주요일정은 체크 전까지 다음 주로 이월됩니다.",
+        "개인, 가족, 일, 성장 등 역할별 핵심행동을 1-2개만 잡습니다.",
+        "오늘 섹션의 Weekly 버튼이나 좌우 스와이프로 빠르게 확인합니다.",
+      ],
+      tip: "주간 계획은 많은 목표보다 오늘로 내려올 수 있는 행동이어야 합니다.",
+    },
+    memo: {
+      title: "Memo 사용법",
+      summary: "회의, 결정, 배운 점, 내일 넘길 일을 기록하는 섹션입니다.",
+      steps: [
+        "메모 페이지에는 자유 기록을 남깁니다.",
+        "Daily Note에는 오늘의 결정, 진행, 배운 점을 짧게 정리합니다.",
+        "검색/질문에서 메모 내용도 함께 검색할 수 있습니다.",
+      ],
+      tip: "결정과 후속조치를 분리해서 적으면 나중에 검색 가치가 커집니다.",
+    },
+    foundation: {
+      title: "About Me 사용법",
+      summary: "AI가 사용자의 정체성, 목표, 리듬을 이해하는 기준 정보입니다.",
+      steps: [
+        "사용자 유형, 직업, 역할, 목표를 먼저 입력합니다.",
+        "현재 과제, 강점, 리스크, 에너지 시간대를 보강합니다.",
+        "건강·운동 정보는 무리 없는 일정 조정과 코칭에 활용됩니다.",
+      ],
+      tip: "사용자 정보가 선명할수록 AI 추천은 일반론에서 벗어납니다.",
+    },
+    year: {
+      title: "Year Plan 사용법",
+      summary: "올해 반드시 남길 결과와 큰 방향을 정리합니다.",
+      steps: [
+        "연간 목표는 3-5개 이내로 압축합니다.",
+        "목표마다 이번 달 행동으로 내려올 수 있는 표현을 씁니다.",
+        "추상적인 문장은 월간·주간 계획에서 실행 단위로 바꿉니다.",
+      ],
+      tip: "연간 목표는 오늘 업무를 거절하는 기준으로도 작동해야 합니다.",
+    },
+    month: {
+      title: "Month Plan 사용법",
+      summary: "월간 초점, 달력, 기념일, 주요 마감을 관리합니다.",
+      steps: [
+        "월간 초점은 이번 달 가장 중요한 결과 하나를 적습니다.",
+        "기념일과 주요 마감은 일간·주간 달력에 함께 반영됩니다.",
+        "월 제목이나 화살표로 월을 이동합니다.",
+      ],
+      tip: "월간 계획은 주간과 오늘 업무로 내려올 때 의미가 생깁니다.",
+    },
+    projects: {
+      title: "Projects 사용법",
+      summary: "프로젝트 목록과 세부 실행, 자금 시뮬레이션을 연결합니다.",
+      steps: [
+        "프로젝트 목록에서 항목을 선택하면 세부 페이지가 열립니다.",
+        "다음 행동, 담당, 일정, 예산을 기록합니다.",
+        "프로젝트 자금 항목은 예상 수입·비용 흐름을 확인하는 데 사용합니다.",
+      ],
+      tip: "프로젝트는 반드시 다음 행동 하나가 오늘 업무로 내려와야 진행됩니다.",
+    },
+    finance: {
+      title: "Money 사용법",
+      summary: "반복지출, 수입, 자금 이슈를 일정과 우선업무에 연결합니다.",
+      steps: [
+        "반복지출은 시작일과 도래일을 기준으로 우선업무에 올라옵니다.",
+        "금액은 설정에서 보이기/감추기를 선택할 수 있습니다.",
+        "항목을 클릭하면 Money 섹션에서 세부 내용을 관리합니다.",
+      ],
+      tip: "Money 항목은 한 달 이내에 실제 확인할 이슈만 우선업무에 올리는 것이 적절합니다.",
+    },
+    sheets: {
+      title: "Sheets 사용법",
+      summary: "반복 양식, 비교표, 체크리스트를 자유롭게 만드는 공간입니다.",
+      steps: [
+        "목록에서 시트를 선택하면 오른쪽으로 상세 화면이 열립니다.",
+        "행·열 제목을 선택하고 경계선을 드래그해 크기를 조정합니다.",
+        "필요한 경우 템플릿으로 새 시트를 시작합니다.",
+      ],
+      tip: "시트는 플래너의 보조 도구입니다. 핵심 업무는 Today와 Projects에 남기는 것이 좋습니다.",
+    },
+  };
+  return guides[section] || guides.day;
 }
 
 function bindProfileFields() {

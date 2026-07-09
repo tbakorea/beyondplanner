@@ -4684,6 +4684,86 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   padding: 12px;
 }
 
+.coach-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 3px;
+  border: 1px solid rgba(221, 216, 203, 0.76);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.72);
+}
+
+.coach-tab {
+  min-height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(38, 50, 56, 0.72);
+  padding: 0 14px;
+  font-size: 0.92rem;
+  font-weight: 820;
+  cursor: pointer;
+}
+
+.coach-tab.is-active {
+  background: var(--forest);
+  color: #fffefa;
+  box-shadow: 0 8px 18px rgba(38, 50, 56, 0.12);
+}
+
+.coach-guide-card {
+  border: 1px solid rgba(95, 118, 104, 0.18);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(247, 245, 239, 0.76));
+  padding: 14px;
+}
+
+.coach-guide-card strong,
+.coach-guide-card p,
+.coach-guide-card small {
+  display: block;
+}
+
+.coach-guide-card p {
+  margin: 8px 0 10px;
+  color: var(--ink);
+  line-height: 1.52;
+}
+
+.coach-guide-card ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coach-guide-card li {
+  position: relative;
+  padding-left: 16px;
+  color: rgba(38, 50, 56, 0.84);
+  line-height: 1.48;
+}
+
+.coach-guide-card li::before {
+  content: "";
+  position: absolute;
+  top: 0.68em;
+  left: 1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--forest);
+  transform: translateY(-50%);
+}
+
+.coach-guide-card small {
+  margin-top: 12px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .coach-card strong,
 .coach-card p,
 .coach-card small {
