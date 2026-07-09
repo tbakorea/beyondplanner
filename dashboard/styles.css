@@ -9556,37 +9556,49 @@ body.ceo-mode .daily-panel-chip {
 
 /* Compass Spark: AI coaching mark inspired by a compass inside a lightbulb. */
 .compass-spark-icon {
+  --spark-navy: #243a78;
+  --spark-teal: #16a89c;
+  --spark-gold: #f2c94c;
   position: relative;
-  display: block;
-  width: 28px;
+  display: inline-block;
+  width: 30px;
   height: 32px;
   color: var(--forest);
   background:
-    linear-gradient(currentColor, currentColor) 50% 83% / 17px 3px no-repeat,
-    linear-gradient(currentColor, currentColor) 50% 93% / 12px 3px no-repeat,
-    radial-gradient(ellipse at 50% 100%, currentColor 0 5px, transparent 5.5px);
+    linear-gradient(90deg, var(--spark-navy), var(--spark-teal)) 50% 88% / 17px 3px no-repeat,
+    linear-gradient(90deg, var(--spark-navy), var(--spark-teal)) 50% 96% / 11px 3px no-repeat;
+  filter: drop-shadow(0 5px 10px rgba(38, 50, 56, 0.12));
 }
 
 .compass-spark-icon::before {
   content: "";
   position: absolute;
-  inset: 2px 3px 9px;
-  border: 3px solid currentColor;
-  border-bottom-width: 2px;
-  border-radius: 999px 999px 52% 52%;
-  clip-path: polygon(0 0, 100% 0, 100% 78%, 64% 78%, 58% 100%, 42% 100%, 36% 78%, 0 78%);
-  opacity: 0.9;
+  inset: 2px 2px 8px;
+  border-radius: 50%;
+  background:
+    linear-gradient(180deg, var(--spark-teal) 0 43%, var(--spark-navy) 44% 100%) 50% 50% / 7px 21px no-repeat,
+    radial-gradient(circle at 50% 50%, rgba(255, 253, 248, 0.95) 0 3px, transparent 3.6px),
+    conic-gradient(from 212deg, var(--spark-navy) 0 43%, transparent 43% 52%, var(--spark-teal) 52% 86%, transparent 86% 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) 50% 50% / 7px 22px no-repeat,
+    radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.4px));
+  mask:
+    linear-gradient(#000 0 0) 50% 50% / 7px 22px no-repeat,
+    radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.4px));
+  -webkit-mask-composite: source-over;
+  mask-composite: add;
 }
 
 .compass-spark-icon::after {
   content: "";
   position: absolute;
-  top: 7px;
-  left: 5px;
-  width: 18px;
-  height: 18px;
-  background: currentColor;
+  top: 2px;
+  right: -1px;
+  width: 14px;
+  height: 14px;
+  background: radial-gradient(circle, #fff3aa 0 22%, var(--spark-gold) 42% 100%);
   clip-path: polygon(50% 0, 58% 38%, 100% 50%, 58% 62%, 50% 100%, 42% 62%, 0 50%, 42% 38%);
+  filter: drop-shadow(0 0 5px rgba(242, 201, 76, 0.68));
 }
 
 .coach-bubble {
@@ -9625,28 +9637,39 @@ body.ceo-mode .daily-panel-chip {
 
 .section-ai-button::before,
 [data-section-ai]::before {
-  width: 21px;
+  width: 22px;
   height: 24px;
-  border: 2px solid rgba(47, 65, 56, 0.82);
-  border-bottom-width: 1.5px;
-  border-radius: 999px 999px 50% 50%;
+  border: 0;
+  border-radius: 0;
   background:
-    linear-gradient(rgba(47, 65, 56, 0.82), rgba(47, 65, 56, 0.82)) 50% 82% / 14px 2px no-repeat,
-    linear-gradient(rgba(47, 65, 56, 0.82), rgba(47, 65, 56, 0.82)) 50% 94% / 10px 2px no-repeat;
-  clip-path: polygon(0 0, 100% 0, 100% 78%, 62% 78%, 58% 100%, 42% 100%, 38% 78%, 0 78%);
+    linear-gradient(90deg, #243a78, #16a89c) 50% 88% / 13px 2px no-repeat,
+    linear-gradient(90deg, #243a78, #16a89c) 50% 97% / 9px 2px no-repeat,
+    linear-gradient(180deg, #16a89c 0 43%, #243a78 44% 100%) 50% 44% / 5px 15px no-repeat,
+    radial-gradient(circle at 50% 43%, rgba(255, 253, 248, 0.95) 0 2px, transparent 2.5px),
+    conic-gradient(from 212deg, #243a78 0 43%, transparent 43% 52%, #16a89c 52% 86%, transparent 86% 100%);
+  -webkit-mask:
+    linear-gradient(#000 0 0) 50% 44% / 5px 16px no-repeat,
+    radial-gradient(circle at 50% 44%, transparent 9px, #000 9.5px 12px, transparent 12.6px),
+    linear-gradient(#000 0 0) 50% 88% / 13px 2px no-repeat,
+    linear-gradient(#000 0 0) 50% 97% / 9px 2px no-repeat;
+  mask:
+    linear-gradient(#000 0 0) 50% 44% / 5px 16px no-repeat,
+    radial-gradient(circle at 50% 44%, transparent 9px, #000 9.5px 12px, transparent 12.6px),
+    linear-gradient(#000 0 0) 50% 88% / 13px 2px no-repeat,
+    linear-gradient(#000 0 0) 50% 97% / 9px 2px no-repeat;
   transform: none;
 }
 
 .section-ai-button::after,
 [data-section-ai]::after {
-  top: 10px;
-  right: 11px;
-  width: 13px;
-  height: 13px;
+  top: 7px;
+  right: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 0;
-  background: rgba(47, 65, 56, 0.9);
+  background: radial-gradient(circle, #fff1a7 0 22%, #f2c94c 42% 100%);
   clip-path: polygon(50% 0, 58% 38%, 100% 50%, 58% 62%, 50% 100%, 42% 62%, 0 50%, 42% 38%);
-  box-shadow: none;
+  box-shadow: 0 0 7px rgba(242, 201, 76, 0.52);
 }
 
 #modeToggle {
