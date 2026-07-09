@@ -8038,23 +8038,23 @@ function renderMoneyRows(node, rows, options = {}) {
     const memo = row.querySelector(".finance-memo");
     const repeatEndMode = row.querySelector(".finance-repeat-end-mode");
     const repeatEndDate = row.querySelector(".finance-repeat-end-date");
-    type.onchange = () => updateMoneyItem(rows, index, "type", type.value, options);
-    title.oninput = () => updateMoneyItem(rows, index, "title", title.value, options);
-    amount.oninput = () => updateMoneyItem(rows, index, "amount", sanitizeMoneyInput(amount.value), options);
+    type.onchange = () => updateMoneyItemById(rows, item.id, "type", type.value, options);
+    title.oninput = () => updateMoneyItemById(rows, item.id, "title", title.value, options);
+    amount.oninput = () => updateMoneyItemById(rows, item.id, "amount", sanitizeMoneyInput(amount.value), options);
     amount.onblur = () => {
-      if (showAmounts) amount.value = formatMoneyInputValue(rows[index]?.amount || "", true);
+      if (showAmounts) amount.value = formatMoneyInputValue(item.amount || "", true);
     };
-    dueDay.oninput = () => updateMoneyItem(rows, index, "dueDay", dueDay.value, options);
-    status.onchange = () => updateMoneyItem(rows, index, "status", status.value, options);
-    memo.oninput = () => updateMoneyItem(rows, index, "memo", memo.value, options);
+    dueDay.oninput = () => updateMoneyItemById(rows, item.id, "dueDay", dueDay.value, options);
+    status.onchange = () => updateMoneyItemById(rows, item.id, "status", status.value, options);
+    memo.oninput = () => updateMoneyItemById(rows, item.id, "memo", memo.value, options);
     if (repeatEndMode) {
       repeatEndMode.onchange = () => {
-        updateMoneyItem(rows, index, "repeatEndMode", repeatEndMode.value, options);
+        updateMoneyItemById(rows, item.id, "repeatEndMode", repeatEndMode.value, options);
         if (repeatEndDate) repeatEndDate.disabled = repeatEndMode.value !== "date";
       };
     }
-    if (repeatEndDate) repeatEndDate.oninput = () => updateMoneyItem(rows, index, "repeatEndDate", repeatEndDate.value, options);
-    row.querySelector(".finance-delete").onclick = () => removeMoneyRow(rows, index, options);
+    if (repeatEndDate) repeatEndDate.oninput = () => updateMoneyItemById(rows, item.id, "repeatEndDate", repeatEndDate.value, options);
+    row.querySelector(".finance-delete").onclick = () => removeMoneyRowById(rows, item.id, options);
     node.appendChild(row);
   });
 }
@@ -8075,6 +8075,18 @@ function removeMoneyRow(rows, index, options = {}) {
   if (removed?.id === activeMoneyDraftId) activeMoneyDraftId = "";
   saveState();
   renderNotes();
+}
+
+function removeMoneyRowById(rows, id, options = {}) {
+  const index = rows.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  removeMoneyRow(rows, index, options);
+}
+
+function updateMoneyItemById(rows, id, field, value, options = {}) {
+  const index = rows.findIndex((item) => item.id === id);
+  if (index < 0) return;
+  updateMoneyItem(rows, index, field, value, options);
 }
 
 function updateMoneyItem(rows, index, field, value, options = {}) {
