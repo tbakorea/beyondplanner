@@ -3241,6 +3241,10 @@ function isSmartphoneDevice() {
   return /iPhone|iPod|Windows Phone|Android.+Mobile/i.test(navigator.userAgent || "");
 }
 
+function isMobilePhoneFocusLayout() {
+  return isSmartphoneDevice() && isSmartphoneLayout();
+}
+
 function markDailyFieldEditing(duration = 900) {
   dailyFieldEditingUntil = Date.now() + duration;
 }
@@ -3258,7 +3262,7 @@ function isEditingDailyField() {
 }
 
 function resetMobileDayFocusToSplit(options = {}) {
-  if (!isSmartphoneLayout() || mobileDayFocusMode === "split") return;
+  if (!isMobilePhoneFocusLayout() || mobileDayFocusMode === "split") return;
   dailyTextEditingActive = false;
   if (options.blur && isEditingDailyField()) document.activeElement.blur();
   const panel = document.querySelector(".day-main-panel");
@@ -3277,7 +3281,62 @@ function setupMobileDayFocus() {
   if (!panel || !taskPanel || !schedulePanel) return;
   setupPressFocusGesture(taskPanel, "tasks");
   setupPressFocusGesture(schedulePanel, "schedule");
+  setupSplitEditGate(taskPanel, "tasks");
+  setupSplitEditGate(schedulePanel, "schedule");
+  setupPullDownFocusDismiss(panel, taskPanel, schedulePanel);
   applyMobileDayFocusMode();
+}
+
+function isEditableDayControl(target) {
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
+}
+
+function setupSplitEditGate(node, mode) {
+  let suppressClick = false;
+  const expandInsteadOfEdit = (event) => {
+    if (!isMobilePhoneFocusLayout() || mobileDayFocusMode !== "split" || !isEditableDayControl(event.target)) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClick = true;
+    setMobileDayFocusMode(mode);
+    return true;
+  };
+  node.addEventListener("pointerdown", expandInsteadOfEdit, { capture: true });
+  node.addEventListener("click", (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    suppressClick = false;
+  }, { capture: true });
+}
+
+function setupPullDownFocusDismiss(panel, taskPanel, schedulePanel) {
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+  const visibleFocusPanel = () => mobileDayFocusMode === "tasks" ? taskPanel : mobileDayFocusMode === "schedule" ? schedulePanel : null;
+  panel.addEventListener("pointerdown", (event) => {
+    const visible = visibleFocusPanel();
+    if (!isMobilePhoneFocusLayout() || !visible || isSwipeInteractiveTarget(event.target)) return;
+    if (visible.scrollTop > 2) return;
+    startX = event.clientX;
+    startY = event.clientY;
+    tracking = true;
+  }, { passive: true });
+  panel.addEventListener("pointermove", (event) => {
+    if (!tracking) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (dy > 76 && Math.abs(dy) > Math.abs(dx) * 1.25) {
+      tracking = false;
+      resetMobileDayFocusToSplit({ blur: true });
+    }
+  }, { passive: true });
+  ["pointerup", "pointercancel"].forEach((eventName) => {
+    panel.addEventListener(eventName, () => {
+      tracking = false;
+    }, { passive: true });
+  });
 }
 
 function setupPressFocusGesture(node, mode) {
@@ -3292,15 +3351,11 @@ function setupPressFocusGesture(node, mode) {
     longPressTimer = 0;
   };
   const toggle = () => {
-    if (!isSmartphoneLayout()) return;
-    if (mobileDayFocusMode === mode) {
-      resetMobileDayFocusToSplit({ blur: true });
-      return;
-    }
+    if (!isMobilePhoneFocusLayout() || mobileDayFocusMode === mode) return;
     setMobileDayFocusMode(mode);
   };
   node.addEventListener("pointerdown", (event) => {
-    if (!isSmartphoneLayout() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isMobilePhoneFocusLayout() || isSwipeInteractiveTarget(event.target)) return;
     startX = event.clientX;
     startY = event.clientY;
     longPressFired = false;
@@ -3322,7 +3377,7 @@ function setupPressFocusGesture(node, mode) {
       lastTapAt = 0;
       return;
     }
-    if (!isSmartphoneLayout() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isMobilePhoneFocusLayout() || isSwipeInteractiveTarget(event.target)) return;
     const moved = Math.abs(event.clientX - startX) > 12 || Math.abs(event.clientY - startY) > 12;
     if (moved) return;
     const now = Date.now();
@@ -3335,7 +3390,7 @@ function setupPressFocusGesture(node, mode) {
   }, { passive: true });
   node.addEventListener("pointercancel", clearLongPress, { passive: true });
   node.addEventListener("contextmenu", (event) => {
-    if (!isSmartphoneLayout() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isMobilePhoneFocusLayout() || isSwipeInteractiveTarget(event.target)) return;
     event.preventDefault();
   });
 }
@@ -3349,7 +3404,7 @@ function setMobileDayFocusMode(mode) {
 function applyMobileDayFocusMode() {
   const panel = document.querySelector(".day-main-panel");
   if (!panel) return;
-  const activeMode = isSmartphoneLayout() ? mobileDayFocusMode : "split";
+  const activeMode = isMobilePhoneFocusLayout() ? mobileDayFocusMode : "split";
   const swipe = el("daySwipe");
   panel.classList.toggle("is-focus-tasks", activeMode === "tasks");
   panel.classList.toggle("is-focus-schedule", activeMode === "schedule");
