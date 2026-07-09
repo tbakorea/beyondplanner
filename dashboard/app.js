@@ -305,7 +305,7 @@ const settingsLanguageLabels = {
       ["프로젝트", "프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.", "슬라이드 상세"],
       ["시트", "Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.", "템플릿"],
       ["검색 · AI", "입력한 목표, 업무, 일정, 사용자 정보를 바탕으로 질문과 섹션별 코칭을 제공합니다.", "허용 계정"],
-      ["보안 · 데이터 파일", "잠금, 보안 블라인드, JSON 가져오기/내보내기, 엑셀 파일은 상단 기본 메뉴에서 사용합니다.", "상단 메뉴"],
+      ["보안 · 데이터 파일", "잠금, 보안 블라인드, Excel 가져오기/내보내기는 상단 기본 메뉴에서 사용합니다.", "상단 메뉴"],
     ],
     steps: [
       ["나의 기준", "선택을 이끌어 줄 간단한 이유와 원칙을 적습니다."],
@@ -1911,13 +1911,11 @@ function setupSelectors() {
     renderAll();
   };
   el("printButton").onclick = () => window.print();
-  el("exportButton").onclick = exportPlanner;
-  el("excelExportButton").onclick = exportPlannerWorkbook;
+  el("exportButton").onclick = exportPlannerWorkbook;
   el("importButton").onclick = () => el("importFile").click();
   el("topPrintButton").onclick = () => window.print();
   el("saveNowButton").onclick = () => flushPlannerSave("지금 저장 중");
-  el("topExportButton").onclick = exportPlanner;
-  el("topExcelExportButton").onclick = exportPlannerWorkbook;
+  el("topExportButton").onclick = exportPlannerWorkbook;
   el("topImportButton").onclick = () => el("importFile").click();
   el("lockNowButton").onclick = () => lockPlanner("수동 잠금");
   el("logoutButton").onclick = logoutPlanner;
@@ -1942,7 +1940,7 @@ function setupSelectors() {
   setupPulsePanelSwipe();
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   if (el("settingsLogoutButton")) el("settingsLogoutButton").onclick = logoutPlanner;
-  if (el("settingsExportButton")) el("settingsExportButton").onclick = exportPlanner;
+  if (el("settingsExportButton")) el("settingsExportButton").onclick = exportPlannerWorkbook;
   if (el("settingsImportButton")) el("settingsImportButton").onclick = () => el("importFile").click();
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
   el("privacyTimeoutSelect").onchange = (event) => savePrivacyTimeout(Number(event.target.value));
@@ -2008,7 +2006,6 @@ function setupSelectors() {
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
   el("scheduleStartTime").onchange = updateScheduleRangeSetting;
   el("scheduleEndTime").onchange = updateScheduleRangeSetting;
-  el("settingsExcelExportButton").onclick = exportPlannerWorkbook;
   el("financeAmountVisibilityToggle").onchange = () => {
     state.finance ||= createFinanceState();
     normalizeFinanceState(state.finance);
@@ -8648,6 +8645,17 @@ function createPlannerBackupEnvelope() {
 function exportPlannerWorkbook() {
   const generatedAt = new Date().toLocaleString("ko-KR");
   const tables = buildPlannerWorkbookTables();
+  const backupJson = JSON.stringify(createPlannerBackupEnvelope());
+  const restoreSection = `
+    <section class="restore-data">
+      <h2>Restore Data</h2>
+      <table>
+        <tbody>
+          <tr><td>BEYOND_WORK_BACKUP_JSON</td><td>${escapeHtml(backupJson)}</td></tr>
+        </tbody>
+      </table>
+    </section>
+  `;
   const sections = tables.map((table) => `
     <h2>${escapeHtml(table.title)}</h2>
     <table>
@@ -8669,11 +8677,13 @@ function exportPlannerWorkbook() {
     table { border-collapse: collapse; width: 100%; margin-bottom: 16px; }
     th, td { border: 1px solid #d9d4c8; padding: 8px; vertical-align: top; mso-number-format:"\\@"; }
     th { background: #eef2ec; font-weight: 800; }
+    .restore-data { display: none; mso-hide: all; }
   </style>
 </head>
 <body>
   <h1>Beyond Work Export Report</h1>
-  <p>생성: ${escapeHtml(generatedAt)} · 다시 가져오기는 함께 내려받는 .beyondwork.json 파일을 사용하세요.</p>
+  <p>생성: ${escapeHtml(generatedAt)} · 이 Excel 파일은 설정에서 다시 가져와 복원할 수 있습니다.</p>
+  ${restoreSection}
   ${sections}
 </body>
 </html>`;
@@ -8737,13 +8747,30 @@ function downloadTextFile(content, filename, type) {
   URL.revokeObjectURL(url);
 }
 
+function parsePlannerImportPayload(rawText) {
+  const text = String(rawText || "").trim();
+  if (!text) throw new Error("빈 파일입니다.");
+  if (text.startsWith("PK")) {
+    throw new Error("현재 가져오기는 앱에서 내보낸 Excel(.xls) 백업 파일을 사용해야 합니다. 일반 .xlsx 파일은 지원하지 않습니다.");
+  }
+  if (text.startsWith("<")) {
+    const doc = new DOMParser().parseFromString(text, "text/html");
+    const cells = Array.from(doc.querySelectorAll("td, th"));
+    const marker = cells.find((cell) => cell.textContent.trim() === "BEYOND_WORK_BACKUP_JSON");
+    const dataCell = marker?.nextElementSibling || marker?.parentElement?.children?.[1];
+    if (!dataCell) throw new Error("복원 데이터가 없는 Excel 파일입니다.");
+    return JSON.parse(dataCell.textContent || "{}");
+  }
+  return JSON.parse(text);
+}
+
 function importPlanner(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      const parsed = JSON.parse(String(reader.result || "{}"));
+      const parsed = parsePlannerImportPayload(reader.result);
       const importedState = parsed?.format === "beyond-work-planner-backup" ? parsed.state : parsed;
       if (!importedState?.foundation || !importedState?.year || !importedState?.days) throw new Error("Invalid planner file");
       if (!hasPlannerContent(importedState)) {
@@ -8765,8 +8792,8 @@ function importPlanner(event) {
       selectedSheetId = state.customSheets.activeId;
       saveState();
       renderAll();
-    } catch {
-      alert("가져오기 파일을 읽을 수 없습니다.");
+    } catch (error) {
+      alert(error?.message || "가져오기 파일을 읽을 수 없습니다.");
     } finally {
       event.target.value = "";
     }

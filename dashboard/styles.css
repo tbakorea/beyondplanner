@@ -3814,16 +3814,22 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .task-row.is-repeat-task {
-  box-shadow: inset 1.5px 0 0 rgba(182, 155, 99, 0.48);
+  border-bottom-color: rgba(172, 139, 72, 0.58);
+  outline: 1px solid rgba(172, 139, 72, 0.34);
+  outline-offset: -1px;
+  box-shadow:
+    inset 3px 0 0 rgba(172, 139, 72, 0.9),
+    inset 0 0 0 1px rgba(172, 139, 72, 0.2);
+  background: linear-gradient(90deg, rgba(172, 139, 72, 0.12), rgba(255, 253, 248, 0) 34%);
 }
 
 .task-row.is-repeat-task .task-cycle {
-  border-color: rgba(182, 155, 99, 0.68);
-  background: rgba(255, 253, 248, 0.82);
+  border-color: rgba(172, 139, 72, 0.92);
+  background: rgba(255, 250, 232, 0.96);
 }
 
 .task-row.is-repeat-task .task-status-cell {
-  outline: 1px solid rgba(182, 155, 99, 0.2);
+  outline: 1px solid rgba(172, 139, 72, 0.45);
   outline-offset: -1px;
 }
 

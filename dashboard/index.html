@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260709h" />
+    <link rel="stylesheet" href="./styles.css?v=20260709i" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -69,7 +69,6 @@
                 <button id="saveNowButton" type="button">저장 확인</button>
                 <button id="topPrintButton" type="button">인쇄</button>
                 <button id="topExportButton" type="button">내보내기</button>
-                <button id="topExcelExportButton" type="button">엑셀</button>
                 <button id="topImportButton" type="button">가져오기</button>
                 <button id="lockNowButton" type="button">잠금</button>
                 <div class="password-change-panel" aria-label="계정 비밀번호 변경">
@@ -97,9 +96,8 @@
           <div class="tool-actions">
             <button id="printButton" type="button">인쇄</button>
             <button id="exportButton" type="button">내보내기</button>
-            <button id="excelExportButton" type="button">엑셀</button>
             <button id="importButton" type="button">가져오기</button>
-            <input id="importFile" type="file" accept="application/json,.json,.beyondwork" hidden />
+            <input id="importFile" type="file" accept=".xls,.html,.json,.beyondwork,application/vnd.ms-excel,application/json" hidden />
           </div>
         </section>
         <nav class="tabs" aria-label="플래너 섹션">
@@ -155,7 +153,6 @@
             </label>
             <button class="mini-action" id="settingsExportButton" type="button">내보내기</button>
             <button class="mini-action" id="settingsImportButton" type="button">가져오기</button>
-            <button class="mini-action" id="settingsExcelExportButton" type="button">엑셀</button>
             <button class="mini-action danger-action" id="settingsLogoutButton" type="button">로그아웃</button>
           </div>
           <div class="settings-shortcuts" aria-label="설정 바로가기">
@@ -259,7 +256,7 @@
                 <div class="planner-option-item app-setting-section">
                   <span>
                     <strong>보안 · 데이터 파일</strong>
-                    <small>잠금, 보안 블라인드, JSON 가져오기/내보내기, 엑셀 파일은 상단 기본 메뉴에서 사용합니다.</small>
+                    <small>잠금, 보안 블라인드, Excel 가져오기/내보내기는 상단 기본 메뉴에서 사용합니다.</small>
                   </span>
                   <span class="setting-status-pill">상단 메뉴</span>
                 </div>
@@ -847,6 +844,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260709h"></script>
+    <script src="./app.js?v=20260709i"></script>
   </body>
 </html>
