@@ -89,6 +89,7 @@ const repeatCarryOptions = [
 const REPEAT_PRIORITY_MIN_ROWS = 12;
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
+const moneyCategories = ["", "카드대금", "적금/이자", "할부금", "렌탈", "관리비", "세금", "보험", "인건비", "생활비", "사업비", "기타"];
 const moneyStatuses = ["예정", "확인", "보류", "완료"];
 const projectStatuses = ["대기", "진행", "보류", "완료"];
 const projectMoneyTypes = ["수입", "비용"];
@@ -958,6 +959,7 @@ function normalizeMoneyItem(item, fallbackType = "지출") {
     title: item?.title || "",
     amount: item?.amount || "",
     dueDay: item?.dueDay || "",
+    category: normalizeMoneyCategory(item?.category, item),
     status: moneyStatuses.includes(item?.status) ? item.status : "예정",
     memo: item?.memo || "",
     taskDate: item?.taskDate || "",
@@ -965,6 +967,27 @@ function normalizeMoneyItem(item, fallbackType = "지출") {
     repeatEndMode: item?.repeatEndMode === "date" ? "date" : "none",
     repeatEndDate: item?.repeatEndDate || "",
   };
+}
+
+function normalizeMoneyCategory(category = "", item = {}) {
+  if (moneyCategories.includes(category)) return category;
+  return inferMoneyCategory(item);
+}
+
+function inferMoneyCategory(item = {}) {
+  const source = `${item.title || ""} ${item.memo || ""} ${item.type || ""}`.toLowerCase();
+  if (!source.trim()) return "";
+  if (/카드|체크|신용|대금|롯데|삼성|현대|국민|신한|비씨|bc|우리카드|하나카드/.test(source)) return "카드대금";
+  if (/적금|예금|이자|대출|원리금|상환/.test(source)) return "적금/이자";
+  if (/할부|분납/.test(source)) return "할부금";
+  if (/렌탈|리스|구독|임대료/.test(source)) return "렌탈";
+  if (/관리비|전기|수도|가스|수선|공과금|통신|인터넷/.test(source)) return "관리비";
+  if (/세금|부가세|종소세|소득세|재산세|취득세|원천세|4대보험/.test(source)) return "세금";
+  if (/보험/.test(source)) return "보험";
+  if (/급여|인건비|임금|상여|퇴직/.test(source)) return "인건비";
+  if (/식비|생활|마트|교통|용돈/.test(source)) return "생활비";
+  if (/사업|거래처|재료|용역|광고|마케팅|사무|비품/.test(source)) return "사업비";
+  return "";
 }
 
 function createProjectState() {
@@ -1468,10 +1491,10 @@ function plannerContentScore(source = state) {
   });
   score += countValues([...(source.notes?.projects || []), ...(source.notes?.references || []), source.notes?.freeform]);
   (source.finance?.fixed || []).forEach((item) => {
-    score += countValues([item.title, item.amount, item.dueDay, item.memo, item.taskDate, item.repeatEndDate]) ? 1 : 0;
+    score += countValues([item.title, item.amount, item.dueDay, item.category, item.memo, item.taskDate, item.repeatEndDate]) ? 1 : 0;
   });
   Object.values(source.finance?.months || {}).flat().forEach((item) => {
-    score += countValues([item.title, item.amount, item.dueDay, item.memo, item.taskDate]) ? 1 : 0;
+    score += countValues([item.title, item.amount, item.dueDay, item.category, item.memo, item.taskDate]) ? 1 : 0;
   });
   score += countValues([source.finance?.issueMemo, source.finance?.decisionMemo]);
   (source.customSheets?.items || []).forEach((sheet) => {
@@ -1507,7 +1530,7 @@ function dayHasContent(day) {
 
 function financeHasContent(finance) {
   if (!finance) return false;
-  const moneyHasContent = (item) => ["title", "amount", "dueDay", "memo", "taskDate", "repeatEndDate"].some((field) => String(item?.[field] || "").trim());
+  const moneyHasContent = (item) => ["title", "amount", "dueDay", "category", "memo", "taskDate", "repeatEndDate"].some((field) => String(item?.[field] || "").trim());
   return (finance.fixed || []).some(moneyHasContent) ||
     Object.values(finance.months || {}).flat().some(moneyHasContent) ||
     ["issueMemo", "decisionMemo"].some((field) => String(finance[field] || "").trim());
@@ -8012,6 +8035,9 @@ function renderMoneyRows(node, rows, options = {}) {
       <select class="finance-type" aria-label="구분">
         ${moneyTypes.map((type) => `<option value="${type}" ${item.type === type ? "selected" : ""}>${type}</option>`).join("")}
       </select>
+      <select class="finance-category" aria-label="분류">
+        ${moneyCategories.map((category) => `<option value="${category}" ${item.category === category ? "selected" : ""}>${category || "분류"}</option>`).join("")}
+      </select>
       <input class="finance-title" type="text" value="${escapeAttr(item.title)}" placeholder="내용" />
       <input class="finance-amount" type="${showAmounts ? "text" : "password"}" inputmode="numeric" value="${escapeAttr(formatMoneyInputValue(item.amount, showAmounts))}" placeholder="${showAmounts ? "금액" : "숨김"}" />
       <input class="finance-due" type="number" min="1" max="31" value="${escapeAttr(item.dueDay)}" placeholder="일" />
@@ -8031,6 +8057,7 @@ function renderMoneyRows(node, rows, options = {}) {
       <button class="finance-delete" type="button" aria-label="자금 항목 삭제" title="삭제">×</button>
     `;
     const type = row.querySelector(".finance-type");
+    const category = row.querySelector(".finance-category");
     const title = row.querySelector(".finance-title");
     const amount = row.querySelector(".finance-amount");
     const dueDay = row.querySelector(".finance-due");
@@ -8039,14 +8066,21 @@ function renderMoneyRows(node, rows, options = {}) {
     const repeatEndMode = row.querySelector(".finance-repeat-end-mode");
     const repeatEndDate = row.querySelector(".finance-repeat-end-date");
     type.onchange = () => updateMoneyItemById(rows, item.id, "type", type.value, options);
-    title.oninput = () => updateMoneyItemById(rows, item.id, "title", title.value, options);
+    category.onchange = () => updateMoneyItemById(rows, item.id, "category", category.value, options);
+    title.oninput = () => {
+      updateMoneyItemById(rows, item.id, "title", title.value, options);
+      if (category && !category.value && item.category) category.value = item.category;
+    };
     amount.oninput = () => updateMoneyItemById(rows, item.id, "amount", sanitizeMoneyInput(amount.value), options);
     amount.onblur = () => {
       if (showAmounts) amount.value = formatMoneyInputValue(item.amount || "", true);
     };
     dueDay.oninput = () => updateMoneyItemById(rows, item.id, "dueDay", dueDay.value, options);
     status.onchange = () => updateMoneyItemById(rows, item.id, "status", status.value, options);
-    memo.oninput = () => updateMoneyItemById(rows, item.id, "memo", memo.value, options);
+    memo.oninput = () => {
+      updateMoneyItemById(rows, item.id, "memo", memo.value, options);
+      if (category && !category.value && item.category) category.value = item.category;
+    };
     if (repeatEndMode) {
       repeatEndMode.onchange = () => {
         updateMoneyItemById(rows, item.id, "repeatEndMode", repeatEndMode.value, options);
@@ -8093,6 +8127,9 @@ function updateMoneyItem(rows, index, field, value, options = {}) {
   const item = rows[index];
   if (!item) return;
   item[field] = value;
+  if (field !== "category" && !item.category) {
+    item.category = inferMoneyCategory(item);
+  }
   if (moneyItemHasInput(item) && item.id === activeMoneyDraftId) activeMoneyDraftId = "";
   if (options.fixed && !item.startDate && moneyItemHasInput(item)) item.startDate = iso(todayInPlanner());
   if (options.fixed && field === "dueDay") sortMoneyRowsByDueDay(rows);
@@ -8507,9 +8544,9 @@ function collectSearchResults(query) {
     ["memo", "record", "wins", "carry", "lesson"].forEach((field) => push("day", `${key} ${labels.dayFields[field] || field}`, day[field], key));
   });
   Object.entries(state.finance?.months || {}).forEach(([key, rows]) => {
-    rows.forEach((item, index) => push("notes", `${key} 자금 ${index + 1} ${item.type} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.memo}`, `${key}-01`));
+    rows.forEach((item, index) => push("notes", `${key} 자금 ${index + 1} ${item.type} ${item.category || ""} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.category || ""} ${item.memo}`, `${key}-01`));
   });
-  state.finance?.fixed?.forEach((item, index) => push("notes", `반복 지출 ${index + 1} ${item.type} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.memo}`));
+  state.finance?.fixed?.forEach((item, index) => push("notes", `반복 지출 ${index + 1} ${item.type} ${item.category || ""} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.category || ""} ${item.memo}`));
   push("notes", "경영자 메모", state.finance?.issueMemo || "");
   push("notes", "이번 달 판단", state.finance?.decisionMemo || "");
   state.notes.projects.forEach((value, index) => push("notes", `프로젝트 ${index + 1}`, value));
@@ -8817,9 +8854,9 @@ function buildPlannerWorkbookTables() {
     });
   });
   const moneyRows = [];
-  (state.finance?.fixed || []).forEach((item) => moneyRows.push(["반복", item.dueDay || "", item.type || "", item.status || "", item.title || "", item.amount || "", item.memo || ""]));
+  (state.finance?.fixed || []).forEach((item) => moneyRows.push(["반복", item.dueDay || "", item.type || "", item.category || "", item.status || "", item.title || "", item.amount || "", item.memo || ""]));
   Object.entries(state.finance?.months || {}).sort().forEach(([key, rows]) => {
-    rows.forEach((item) => moneyRows.push([key, item.dueDay || "", item.type || "", item.status || "", item.title || "", item.amount || "", item.memo || ""]));
+    rows.forEach((item) => moneyRows.push([key, item.dueDay || "", item.type || "", item.category || "", item.status || "", item.title || "", item.amount || "", item.memo || ""]));
   });
   const projectRows = (state.projects?.items || []).map((project) => [
     project.status || "", project.title || "", project.owner || "", project.startDate || "", project.endDate || "", project.goal || "", project.nextAction || "", project.budget || "", project.actual || "", project.notes || "",
@@ -8830,7 +8867,7 @@ function buildPlannerWorkbookTables() {
     { title: "Top Tasks", headers: ["Date", "Priority", "Status", "Done", "Task", "Delegate"], rows: taskRows },
     { title: "Schedule", headers: ["Date", "Start", "End", "Text"], rows: appointmentRows },
     { title: "Weekly Focus", headers: ["Week", "Group", "Item", "Text"], rows: weekRows },
-    { title: "Money", headers: ["월/반복", "일", "구분", "상태", "내용", "금액", "메모"], rows: moneyRows },
+    { title: "Money", headers: ["월/반복", "일", "구분", "분류", "상태", "내용", "금액", "메모"], rows: moneyRows },
     { title: "Projects", headers: ["Status", "Project", "Owner", "Start", "End", "Goal", "Next Action", "Budget", "Actual", "Memo"], rows: projectRows },
   ];
 }
