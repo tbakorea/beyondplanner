@@ -1680,6 +1680,7 @@ function ensureAppointmentSlots(day, unit = day?.scheduleUnit || "30") {
 function normalizeAppointmentMerges(day) {
   if (!day) return;
   day.appointmentMerges ||= {};
+  day.appointments ||= {};
   const slots = getScheduleSlotsForDay(day);
   const normalized = {};
   Object.entries(day.appointmentMerges || {}).forEach(([slot, span]) => {
@@ -1689,6 +1690,18 @@ function normalizeAppointmentMerges(day) {
     normalized[slot] = Math.min(nextSpan, slots.length - index);
   });
   day.appointmentMerges = normalized;
+  Object.entries(day.appointmentMerges).forEach(([startSlot, span]) => {
+    const startIndex = slots.indexOf(startSlot);
+    if (startIndex < 0) return;
+    const covered = slots.slice(startIndex + 1, startIndex + span);
+    const texts = [day.appointments[startSlot], ...covered.map((slot) => day.appointments[slot])]
+      .map((value) => String(value || "").trim())
+      .filter(Boolean);
+    if (texts.length) day.appointments[startSlot] = [...new Set(texts)].join(" ");
+    covered.forEach((slot) => {
+      if (day.appointments[slot]) day.appointments[slot] = "";
+    });
+  });
 }
 
 function convertAppointmentUnit(day, fromUnit, toUnit) {
