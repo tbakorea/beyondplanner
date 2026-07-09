@@ -3810,23 +3810,13 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .task-row.is-repeat-task {
-  border-bottom-color: rgba(172, 139, 72, 0.58);
-  outline: 1px solid rgba(172, 139, 72, 0.34);
-  outline-offset: -1px;
-  box-shadow:
-    inset 3px 0 0 rgba(172, 139, 72, 0.9),
-    inset 0 0 0 1px rgba(172, 139, 72, 0.2);
-  background: linear-gradient(90deg, rgba(172, 139, 72, 0.12), rgba(255, 253, 248, 0) 34%);
+  border-bottom-color: rgba(221, 216, 203, 0.66);
 }
 
-.task-row.is-repeat-task .task-cycle {
-  border-color: rgba(172, 139, 72, 0.92);
-  background: rgba(255, 250, 232, 0.96);
-}
-
-.task-row.is-repeat-task .task-status-cell {
-  outline: 1px solid rgba(172, 139, 72, 0.45);
-  outline-offset: -1px;
+.task-row.is-repeat-task .task-text-input {
+  border: 1px solid rgba(172, 139, 72, 0.58);
+  border-radius: 5px;
+  box-shadow: inset 3px 0 0 rgba(172, 139, 72, 0.68);
 }
 
 .carryover-row {
@@ -3854,8 +3844,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .task-row.priority-a input[type="text"] {
   border-color: transparent;
-  background: linear-gradient(180deg, rgba(255, 248, 166, 0.95), rgba(255, 242, 119, 0.9));
-  box-shadow: inset 0 -7px 0 rgba(255, 225, 75, 0.42);
+  background: transparent;
+  box-shadow: none;
 }
 
 .task-text-input {
@@ -3870,8 +3860,8 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 .task-row.priority-a .task-text-input {
   border: 0;
   border-radius: 0;
-  background: linear-gradient(180deg, rgba(255, 248, 166, 0.95), rgba(255, 242, 119, 0.9));
-  box-shadow: inset 0 -7px 0 rgba(255, 225, 75, 0.42);
+  background: transparent;
+  box-shadow: none;
 }
 
 .task-link-tags {
@@ -6684,9 +6674,9 @@ body.ceo-mode .day-main-panel .panel {
   }
 
   .task-row.priority-a .task-text-input {
-    border-radius: 2px !important;
-    background: linear-gradient(180deg, rgba(255, 248, 166, 0.95), rgba(255, 242, 119, 0.9)) !important;
-    box-shadow: inset 0 -7px 0 rgba(255, 225, 75, 0.42) !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   .postpone-date-label {
@@ -10006,6 +9996,21 @@ body.ceo-mode .daily-panel-chip {
 
 .task-row {
   border-color: rgba(221, 216, 203, 0.66);
+}
+
+.task-row.is-repeat-task .task-text-input {
+  border: 1px solid rgba(172, 139, 72, 0.62) !important;
+  border-radius: 5px !important;
+  background: rgba(255, 253, 248, 0.72) !important;
+  box-shadow: inset 3px 0 0 rgba(172, 139, 72, 0.7) !important;
+}
+
+.task-row.priority-a .task-text-input {
+  background: transparent !important;
+}
+
+.task-row.priority-a.is-repeat-task .task-text-input {
+  background: rgba(255, 253, 248, 0.72) !important;
 }
 
 .task-text-input::placeholder,
