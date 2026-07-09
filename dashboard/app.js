@@ -6226,10 +6226,11 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
     changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
   }
   const current = String(day.appointments[targetSlot] || "").trim();
+  const previousText = String(existingLink?.text || task.scheduledText || "").trim();
   if (!current) {
     day.appointments[targetSlot] = hint.text;
     changed = true;
-  } else if (current === previousText) {
+  } else if (previousText && current === previousText) {
     day.appointments[targetSlot] = hint.text;
     changed = true;
   } else if (!current.includes(hint.text)) {
