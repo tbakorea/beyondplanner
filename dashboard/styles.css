@@ -4375,13 +4375,13 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   min-height: 32px;
   font-size: 15.5px;
   font-weight: 760;
-  line-height: 1.35;
+  line-height: 1.28;
   padding-top: 7px;
   padding-bottom: 7px;
   text-align: center;
   white-space: pre-wrap;
-  overflow-wrap: normal;
-  word-break: keep-all;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .appointment-row.is-merged textarea::placeholder {
@@ -9334,7 +9334,7 @@ body.ceo-mode .sheet-grid-wrap {
 .appointment-row.is-merged textarea {
   font-size: clamp(15px, 1.25vw, 17px);
   font-weight: 780;
-  line-height: 1.35;
+  line-height: 1.28;
   display: block;
   align-self: center;
   min-height: 32px;
@@ -9342,8 +9342,8 @@ body.ceo-mode .sheet-grid-wrap {
   padding: 7px 8px;
   text-align: center;
   white-space: pre-wrap;
-  overflow-wrap: normal;
-  word-break: keep-all;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .appointment-row.is-merged textarea {
@@ -9358,13 +9358,13 @@ body.ceo-mode .sheet-grid-wrap {
 
 @media (max-width: 640px) {
   .appointment-row.is-merged {
-    grid-template-columns: 68px minmax(0, 1fr);
+    grid-template-columns: 58px minmax(0, 1fr);
     gap: 6px;
   }
 
   .appointment-row.is-merged input[type="text"],
   .appointment-row.is-merged textarea {
-    font-size: 15px;
+    font-size: 14.5px;
   }
 
   .appointment-row.is-merged textarea {
