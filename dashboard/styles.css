@@ -414,7 +414,7 @@ body.ceo-mode .day-swipe {
   display: flex;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
-  touch-action: pan-y;
+  touch-action: pan-x pan-y;
 }
 
 body.ceo-mode .swipe-panel,
@@ -5280,7 +5280,7 @@ input[type="checkbox"]:checked::after {
     overscroll-behavior-x: contain;
     scroll-snap-type: x mandatory;
     scroll-padding-inline: 0;
-    touch-action: pan-y;
+    touch-action: pan-x pan-y;
     -webkit-overflow-scrolling: touch;
   }
 

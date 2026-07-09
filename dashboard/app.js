@@ -374,6 +374,7 @@ let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
 let daySwipeKey = "";
+let dayPanelProgrammaticScrollUntil = 0;
 let plannerMode = localStorage.getItem("beyondWorkMode") || "";
 let settingsTab = "user";
 const installationId = getInstallationId();
@@ -2185,7 +2186,7 @@ function openSectionCoach(section = "day") {
 function closeToDailyPage() {
   showView("day");
   renderAll();
-  positionDaySwipe();
+  positionDaySwipe(currentDayPanel || "main");
 }
 
 function setupAutoLock() {
@@ -2438,6 +2439,8 @@ function shiftDay(delta, animate = true) {
   closeDailyCalendar();
   const next = new Date(selectedDate);
   next.setDate(next.getDate() + delta);
+  currentDayPanel = "main";
+  daySwipeKey = "";
   if (animate) {
     animateDateTitle(delta, next);
     return;
@@ -2859,6 +2862,8 @@ function animateDateTitle(delta, nextDate) {
   title.classList.add(delta > 0 ? "slide-out-next" : "slide-out-prev");
   dateSlideTimer = window.setTimeout(() => {
     selectedDate = nextDate;
+    currentDayPanel = "main";
+    daySwipeKey = "";
     renderAll();
     animatePageTurn(delta);
     const refreshedTitle = el("dayTitle");
@@ -3185,7 +3190,7 @@ function applyMobileDayFocusMode() {
 }
 
 function isSwipeInteractiveTarget(target) {
-  return Boolean(target.closest("textarea, select, button, summary"));
+  return Boolean(target.closest("input, textarea, select, button, summary, [contenteditable='true']"));
 }
 
 function closestDayPanel() {
@@ -3206,6 +3211,7 @@ function stepDayPanel(delta, fromPanel = currentDayPanel) {
 }
 
 function settleDayPanelScroll() {
+  if (Date.now() < dayPanelProgrammaticScrollUntil) return;
   const closest = closestDayPanel();
   const currentIndex = dayPanelOrder.indexOf(currentDayPanel);
   const closestIndex = dayPanelOrder.indexOf(closest);
@@ -5394,7 +5400,7 @@ function renderDayCompass() {
   });
 }
 
-function positionDaySwipe(panel = "main", force = false) {
+function positionDaySwipe(panel = currentDayPanel || "main", force = false) {
   const node = el("daySwipe");
   if (!node || !isPagedDaySwipe()) return;
   const key = `${iso(selectedDate)}:${panel}`;
@@ -5410,6 +5416,7 @@ function scrollDayPanel(panel, behavior = "smooth") {
   if (!node) return;
   const target = node.querySelector(`[data-panel="${panel}"]`);
   if (!target) return;
+  dayPanelProgrammaticScrollUntil = Date.now() + (behavior === "smooth" ? 520 : 140);
   currentDayPanel = panel;
   updateDayGuideState();
   window.requestAnimationFrame(() => {
@@ -6107,28 +6114,27 @@ function extractTaskTimeHint(text = "") {
 function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
   if (!task) return false;
   day.appointments ||= {};
+  day.autoTaskScheduleLinks ||= {};
   const slots = getScheduleSlotsForDay(day);
   const hint = extractTaskTimeHint(task.text);
-  const previousSlot = task.scheduledSlot || "";
-  const previousText = task.scheduledText || "";
+  const linkId = getTaskScheduleLinkId(task);
+  const existingLink = day.autoTaskScheduleLinks[linkId] || (task.scheduledSlot && task.scheduledText ? { type: "task", slot: task.scheduledSlot, text: task.scheduledText } : null);
   let changed = false;
-  if (previousSlot && previousText && day.appointments[previousSlot]) {
-    const cleaned = removeSchedulePart(day.appointments[previousSlot], previousText);
-    if (cleaned !== day.appointments[previousSlot]) {
-      day.appointments[previousSlot] = cleaned;
-      changed = true;
-    }
-  }
   if (shouldStrikeTask(task)) {
+    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
     delete task.scheduledSlot;
     delete task.scheduledText;
     return changed;
   }
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
   if (!hint || !targetSlot || !hint.text) {
+    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
     delete task.scheduledSlot;
     delete task.scheduledText;
     return changed;
+  }
+  if (existingLink && (existingLink.slot !== targetSlot || existingLink.text !== hint.text)) {
+    changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
   }
   const current = String(day.appointments[targetSlot] || "").trim();
   if (!current) {
@@ -6141,9 +6147,17 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
     day.appointments[targetSlot] = `${current} / ${hint.text}`;
     changed = true;
   }
+  if (!day.autoTaskScheduleLinks[linkId] || day.autoTaskScheduleLinks[linkId].slot !== targetSlot || day.autoTaskScheduleLinks[linkId].text !== hint.text) {
+    day.autoTaskScheduleLinks[linkId] = { type: "task", slot: targetSlot, text: hint.text };
+    changed = true;
+  }
   task.scheduledSlot = targetSlot;
   task.scheduledText = hint.text;
   return changed;
+}
+
+function getTaskScheduleLinkId(task = {}) {
+  return `task:${task.id || task.financeItemId || task.projectTaskId || task.repeatId || task.text || "unknown"}`;
 }
 
 function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
@@ -6231,10 +6245,10 @@ function clearAutoTaskScheduleLinks(day = ensureDay(), predicate = () => true) {
   return changed;
 }
 
-function clearAutoTaskScheduleLink(day = ensureDay(), linkId = "") {
-  if (!linkId) return false;
+function clearAutoTaskScheduleLink(day = ensureDay(), linkId = "", fallbackLink = null) {
+  if (!linkId && !fallbackLink) return false;
   day.autoTaskScheduleLinks ||= {};
-  const link = day.autoTaskScheduleLinks[linkId];
+  const link = day.autoTaskScheduleLinks[linkId] || fallbackLink;
   if (!link) return false;
   let changed = false;
   if (link.slot && link.text && day.appointments?.[link.slot]) {
@@ -6244,7 +6258,7 @@ function clearAutoTaskScheduleLink(day = ensureDay(), linkId = "") {
       changed = true;
     }
   }
-  delete day.autoTaskScheduleLinks[linkId];
+  if (linkId) delete day.autoTaskScheduleLinks[linkId];
   return changed || true;
 }
 
@@ -6351,12 +6365,16 @@ function renderAppointments(day) {
     resizeMergedAppointmentField(input);
     let valueBeforeEdit = value;
     input.onfocus = () => {
+      markDailyFieldEditing(10 * 60 * 1000);
       valueBeforeEdit = day.appointments[slot] || "";
     };
     input.oninput = (event) => {
+      markDailyFieldEditing(10 * 60 * 1000);
       const nextValue = event.target.value;
       if (!nextValue.trim() && valueBeforeEdit.trim()) {
+        day.appointments[slot] = nextValue;
         row.classList.remove("is-filled");
+        resizeMergedAppointmentField(input);
         return;
       }
       day.appointments[slot] = nextValue;
@@ -6366,11 +6384,13 @@ function renderAppointments(day) {
       renderSidebar();
     };
     input.onblur = () => {
+      markDailyFieldEditing(0);
       const nextValue = input.value;
       if (!nextValue.trim() && valueBeforeEdit.trim()) {
         if (!confirmDelete(`${slot} 일정 '${valueBeforeEdit}'을 삭제할까요?`)) {
           input.value = valueBeforeEdit;
           day.appointments[slot] = valueBeforeEdit;
+          saveState({ fastSave: true });
           row.classList.add("is-filled");
           renderSidebar();
           return;
@@ -8360,7 +8380,7 @@ function showView(name) {
   document.querySelectorAll(".tab").forEach((item) => item.classList.toggle("active", item.dataset.view === name));
   document.querySelectorAll("[data-top-view]").forEach((item) => item.classList.toggle("is-active", item.dataset.topView === name));
   document.querySelectorAll(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${name}`));
-  if (name === "day") positionDaySwipe();
+  if (name === "day") positionDaySwipe(previousView === "day" ? currentDayPanel : "main", previousView !== "day");
   keepActiveTopViewVisible(name);
 }
 
