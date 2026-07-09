@@ -1721,7 +1721,7 @@ function convertAppointmentUnit(day, fromUnit, toUnit) {
 function createWeeklyPriorities(key, sourceState = null) {
   const previousKey = previousWeekKey(key);
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
-  const carried = previous.filter((item) => item?.text && !item.done).map((item) => ({ text: item.text, done: false }));
+  const carried = previous.filter((item) => item?.text && !item.done).map((item) => ({ text: item.text, done: false, carryoverFromWeek: previousKey }));
   while (carried.length < 5) carried.push({ text: "", done: false });
   return carried;
 }
@@ -1730,6 +1730,7 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
   if (!week || !key) return;
   const previousKey = previousWeekKey(key);
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
+  removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous);
   const carriedTexts = previous
     .filter((item) => item?.text && !item.done)
     .map((item) => String(item.text).trim())
@@ -1744,9 +1745,59 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
     const target = empty || { text: "", done: false };
     target.text = text;
     target.done = false;
+    target.carryoverFromWeek = previousKey;
     if (!empty) week.priorities.push(target);
     existingTexts.add(text);
   });
+}
+
+function removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous = []) {
+  if (!week?.priorities?.length || !previousKey) return false;
+  const checkedTexts = new Set(previous
+    .filter((item) => item?.text && item.done)
+    .map((item) => String(item.text).trim())
+    .filter(Boolean));
+  if (!checkedTexts.size) return false;
+  let changed = false;
+  week.priorities = week.priorities.map((item) => {
+    const text = String(item?.text || "").trim();
+    const isCarried = !item?.carryoverFromWeek || item.carryoverFromWeek === previousKey;
+    if (text && checkedTexts.has(text) && !item.done && isCarried) {
+      changed = true;
+      return { text: "", done: false };
+    }
+    return item;
+  });
+  if (changed) compactWeeklyPriorities(week);
+  return changed;
+}
+
+function compactWeeklyPriorities(week) {
+  if (!week?.priorities) return;
+  const filled = week.priorities.filter((item) => String(item?.text || "").trim() || item?.done);
+  week.priorities = filled;
+  while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
+}
+
+function removeWeeklyPriorityCarryoversAfterWeek(sourceWeekKey, text) {
+  const normalizedText = String(text || "").trim();
+  if (!sourceWeekKey || !normalizedText) return false;
+  let changed = false;
+  Object.keys(state.weeks || {}).sort().forEach((key) => {
+    if (key <= sourceWeekKey) return;
+    const week = state.weeks[key];
+    if (!week?.priorities?.length) return;
+    const before = JSON.stringify(week.priorities);
+    week.priorities = week.priorities.map((item) => {
+      const itemText = String(item?.text || "").trim();
+      const isCarried = !item?.carryoverFromWeek || item.carryoverFromWeek >= sourceWeekKey;
+      if (itemText === normalizedText && !item.done && isCarried) return { text: "", done: false };
+      return item;
+    });
+    compactWeeklyPriorities(week);
+    if (JSON.stringify(week.priorities) !== before) changed = true;
+  });
+  return changed;
 }
 
 function createWeeklyCompass(key, sourceState = state) {
@@ -5358,11 +5409,13 @@ function renderDayCompass() {
     const text = row.querySelector(".weekly-priority-text");
     checkbox.onchange = () => {
       item.done = checkbox.checked;
+      if (item.done) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
       saveState();
       renderDayCompass();
     };
     text.oninput = () => {
       item.text = text.value;
+      delete item.carryoverFromWeek;
       saveState();
     };
     priorityBlock.appendChild(row);
