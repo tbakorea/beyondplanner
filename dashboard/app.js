@@ -6122,6 +6122,11 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
       changed = true;
     }
   }
+  if (shouldStrikeTask(task)) {
+    delete task.scheduledSlot;
+    delete task.scheduledText;
+    return changed;
+  }
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
   if (!hint || !targetSlot || !hint.text) {
     delete task.scheduledSlot;
@@ -6151,12 +6156,13 @@ function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
   getTaskRefs(day).forEach(({ task }) => {
     if (isFutureCarryoverTask(task, selectedKey)) return;
     if (syncTaskTimeHintToSchedule(task, day)) changed = true;
+    if (shouldStrikeTask(task)) return;
     const slot = getTaskTimeHintSlot(task.text, day);
     if (slot) directTaskSlots.add(slot);
   });
   if (shouldSyncCarryoverTimeHints(selectedKey)) {
     carryovers.forEach((task) => {
-      if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots, linkId: getCarryoverScheduleLinkId(task) })) changed = true;
+      if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots, linkId: getCarryoverScheduleLinkId(task), inactive: shouldStrikeTask(task) })) changed = true;
     });
   } else if (clearAutoTaskScheduleLinks(day, (link) => link.type === "carryover")) {
     changed = true;
@@ -6174,6 +6180,10 @@ function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = 
   const linkId = options.linkId || "";
   let changed = false;
   const existingLink = linkId ? day.autoTaskScheduleLinks[linkId] : null;
+  if (options.inactive) {
+    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId) || changed;
+    return changed;
+  }
   if (!hint || !targetSlot || !hint.text) {
     if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId) || changed;
     return changed;
