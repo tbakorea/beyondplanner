@@ -5,13 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260710g" />
+    <link rel="stylesheet" href="./styles.css?v=20260711b" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
       <div class="boot-card">
         <span class="boot-mark">BW</span>
         <strong>Beyond Work</strong>
+        <span class="boot-dayline" id="bootDayline">오늘의 장면을 준비합니다</span>
         <div class="boot-coaching" aria-label="오늘의 코칭">
           <span class="boot-coaching-kicker">오늘의 코칭</span>
           <p id="bootCoachingMessage">오늘의 첫 선택이 하루의 방향을 만듭니다.</p>
@@ -19,7 +20,10 @@
             <li>중요한 일 하나를 실제 시간에 앉히세요.</li>
           </ul>
         </div>
-        <small id="bootMessage">마지막 작업을 불러오는 중</small>
+        <div class="boot-stage" aria-label="앱 준비 상태">
+          <span id="bootMessage">오늘의 우선순위를 정렬하는 중</span>
+          <i aria-hidden="true"></i>
+        </div>
       </div>
     </div>
     <header class="app-header">
@@ -47,15 +51,17 @@
           <button type="button" data-top-view="projects">Projects</button>
           <button type="button" data-top-view="notes">Money</button>
           <button type="button" data-top-view="sheets">Sheets</button>
-          <button class="settings-nav-button" type="button" data-top-view="foundation" aria-label="설정" title="설정">⚙</button>
+          <button class="settings-nav-button utility-icon" type="button" data-top-view="foundation" aria-label="설정" title="설정">
+            <span aria-hidden="true">⚙</span>
+          </button>
           <div class="top-status" aria-label="플래너 상태">
             <span id="topYearProgress">Year 0%</span>
             <span id="topCarryover">이월 0</span>
             <span id="topSearchCount">검색 0</span>
-            <span id="topSaveStatus" title="저장 확인 중">저장 확인 중</span>
+            <span id="topSaveStatus" class="utility-icon save-status-icon" title="저장 확인 중" aria-label="저장 상태">저장 확인 중</span>
             <span id="topAccountStatus">-</span>
             <details class="top-more-menu">
-              <summary aria-label="관리" title="관리">⋯</summary>
+              <summary class="utility-icon" aria-label="관리 메뉴" title="관리 메뉴"><span aria-hidden="true">☰</span></summary>
               <div class="top-more-panel">
                 <button id="privacyNowButton" type="button">보안모드</button>
                 <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
@@ -850,6 +856,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260710g"></script>
+    <script src="./app.js?v=20260711b"></script>
   </body>
 </html>

@@ -1142,7 +1142,7 @@ async function hydrateServerState() {
       const serverIsNewer = !localUpdatedAt || !localDirtyIsFresh || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent);
       const localIsNewer = localDirtyIsFresh && localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt);
       if (serverIsNewer) {
-        setBootMessage("저장된 플래너를 불러오는 중");
+        setBootMessage("오늘의 화면을 최신 기준으로 맞추는 중");
         storeStateFromServer(payload, "저장됨");
       } else if (localMeta.dirty || localIsNewer) {
         saveStatus.message = "최신 변경 저장 중";
@@ -2030,6 +2030,9 @@ function setupSelectors() {
   document.querySelectorAll("[data-section-ai]").forEach((button) => {
     button.setAttribute("aria-label", "AI 코칭");
     button.setAttribute("title", "AI 코칭");
+    if (!button.querySelector(".compass-spark-icon")) {
+      button.innerHTML = `<span class="compass-spark-icon" aria-hidden="true"></span><span class="visually-hidden">AI 코칭</span>`;
+    }
     button.onclick = () => openSectionCoach(button.dataset.sectionAi || "day");
   });
   el("dailyPulseToggle")?.addEventListener("click", toggleDailyPulseDetails);
@@ -3749,6 +3752,7 @@ function renderSidebar() {
   if (saveStatusNode) {
     saveStatusNode.textContent = saveStatus.saving ? "저장 중" : saveStatus.message;
     saveStatusNode.title = saveStatusNode.textContent || "저장 상태";
+    saveStatusNode.setAttribute("aria-label", `저장 상태: ${saveStatusNode.textContent || "확인 중"}`);
     const statusText = saveStatusNode.textContent || "";
     saveStatusNode.dataset.saveState = saveStatus.saving ? "saving" : /실패|오류|필요|로그인/.test(statusText) ? "alert" : /대기|확인/.test(statusText) ? "waiting" : "saved";
     saveStatusNode.classList.toggle("is-warning", saveStatusNode.dataset.saveState === "alert" || saveStatusNode.dataset.saveState === "waiting");
@@ -9560,8 +9564,10 @@ function setBootMessage(message) {
 function renderBootCoaching() {
   const message = el("bootCoachingMessage");
   const signals = el("bootCoachingSignals");
+  const dayline = el("bootDayline");
   if (!message || !signals) return;
   const note = buildDailyOpeningNote(iso(todayInPlanner()));
+  if (dayline) dayline.textContent = note.title;
   message.textContent = note.message;
   signals.innerHTML = note.signals.slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
@@ -9584,13 +9590,14 @@ async function setup() {
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
-  setBootMessage(hasInitialDeviceCache ? "플래너를 여는 중" : "저장된 플래너를 불러오는 중");
+  setBootMessage(hasInitialDeviceCache ? "마지막 실행 흐름을 펼치는 중" : "오늘의 첫 장면을 구성하는 중");
   renderAll();
   renderBootCoaching();
   if (hasInitialDeviceCache) hideBootScreen(820);
   await hydrateServerState();
   renderAll();
   renderBootCoaching();
+  setBootMessage("오늘의 우선순위를 화면에 앉히는 중");
   hideBootScreen(hasInitialDeviceCache ? 820 : 220);
   window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   positionDaySwipe("main", true);
