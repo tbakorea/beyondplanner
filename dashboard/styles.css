@@ -10874,3 +10874,127 @@ body.ceo-mode .daily-panel-chip {
     min-height: 36px !important;
   }
 }
+
+/* Focused Top Tasks refinement: inline tags, readable edit scale, fixed confirm action. */
+.task-text-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+
+.task-text-cell .task-text-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.task-text-cell .task-link-tags {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  grid-column: auto;
+  margin: 0;
+}
+
+.task-text-cell .task-link-tags span,
+.task-text-cell .task-money-link {
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid rgba(95, 118, 104, 0.2);
+  border-radius: 999px;
+  background: rgba(95, 118, 104, 0.08);
+  color: rgba(47, 65, 56, 0.78);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.task-text-cell .task-money-link {
+  min-width: auto;
+  cursor: pointer;
+}
+
+.task-row:has(.task-money-link) {
+  grid-template-columns: 22px 30px minmax(0, 1fr) 22px;
+}
+
+@media (max-width: 640px) {
+  .day-main-panel.is-focus-tasks .day-task-panel > .panel-title-row,
+  .day-main-panel.is-focus-schedule .day-schedule-panel > .panel-title-row {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 58 !important;
+    align-items: center !important;
+    min-height: 54px;
+    padding-right: 12px !important;
+    background: linear-gradient(180deg, #fffefa 0%, #fffefa 86%, rgba(255, 254, 250, 0.96) 100%) !important;
+    box-shadow: 0 1px 0 rgba(221, 216, 203, 0.82), 0 9px 18px rgba(247, 245, 239, 0.95) !important;
+  }
+
+  .day-main-panel.is-focus-tasks .panel-actions,
+  .day-main-panel.is-focus-schedule .schedule-title-actions {
+    margin-left: auto;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+  .day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    min-height: 36px;
+    padding: 0 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    box-shadow: 0 7px 16px rgba(36, 63, 53, 0.14);
+  }
+
+  .day-main-panel.is-focus-tasks .task-row,
+  .day-main-panel.is-focus-tasks .carryover-row,
+  .day-main-panel.is-focus-tasks .task-row:has(.task-money-link) {
+    grid-template-columns: 24px 32px minmax(0, 1fr) 24px !important;
+    column-gap: 6px !important;
+    min-height: 50px !important;
+  }
+
+  .day-main-panel.is-focus-tasks .task-text-cell {
+    gap: 6px;
+  }
+
+  .day-main-panel.is-focus-tasks .task-text-input,
+  .day-main-panel.is-focus-tasks .task-row input[type="text"] {
+    min-height: 42px !important;
+    padding-inline: 5px !important;
+    font-size: 23px !important;
+    font-weight: 760 !important;
+    line-height: 1.18 !important;
+  }
+
+  .day-main-panel.is-focus-tasks .task-link-tags span,
+  .day-main-panel.is-focus-tasks .task-money-link {
+    min-height: 22px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  .day-main-panel.is-focus-tasks .task-status-label.is-priority-letter {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 430px) {
+  .day-main-panel.is-focus-tasks .task-text-input,
+  .day-main-panel.is-focus-tasks .task-row input[type="text"] {
+    font-size: 21px !important;
+  }
+
+  .day-main-panel.is-focus-tasks .task-link-tags span,
+  .day-main-panel.is-focus-tasks .task-money-link {
+    max-width: 62px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}

@@ -6237,12 +6237,15 @@ function renderTaskRow(task, priority, index) {
   row.className = `task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${task.status === "위임" ? "is-delegated" : ""} ${isStruck ? "done" : ""}`;
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
+  const inlineTags = task.financeItemId ? linkTags.filter((tag) => tag !== "Money") : linkTags;
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
-    <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" placeholder="업무 내용" />
-    ${renderTaskLinkTags(linkTags)}
-    ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
+    <div class="task-text-cell">
+      <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" placeholder="업무 내용" />
+      ${renderTaskLinkTags(inlineTags)}
+      ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
+    </div>
     <button class="task-delete" type="button" aria-label="우선업무 삭제">×</button>
   `;
   const cycle = row.querySelector(".task-cycle");
@@ -6649,17 +6652,22 @@ function renderCarryoverTask(task) {
   const menuValue = getPriorityMenuValue(task, priority);
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
+  const inlineTags = task.financeItemId ? linkTags.filter((tag) => tag !== "Money") : linkTags;
   row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${completedHere ? "done" : ""}`;
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
-    <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
-    ${renderTaskLinkTags(linkTags)}
+    <div class="task-text-cell">
+      <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
+      ${renderTaskLinkTags(inlineTags)}
+      ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
+    </div>
     <button class="task-delete" type="button" aria-label="이월 우선업무 삭제">×</button>
   `;
   const prioritySelect = row.querySelector(".priority-select");
   const delegateInput = row.querySelector(".delegate-input");
   const postponeDateButton = row.querySelector(".postpone-date-button");
+  const moneyLink = row.querySelector(".task-money-link");
   row.querySelector(".task-cycle").onclick = () => {
     updateCarryoverTaskMarker(task);
   };
@@ -6691,6 +6699,7 @@ function renderCarryoverTask(task) {
     updateCarryoverTaskText(task, event.target.value);
   };
   row.querySelector(".task-delete").onclick = () => deleteCarryoverTask(task);
+  if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
   return row;
 }
 
