@@ -3468,7 +3468,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .weekly-priority-row.done .weekly-priority-text {
-  color: #8c2d27;
+  color: var(--ink);
   text-decoration: line-through;
   text-decoration-color: #d7372f;
   text-decoration-thickness: 3px;
@@ -3852,6 +3852,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   border: 0;
   border-radius: 0;
   background: transparent;
+  color: var(--ink);
   min-height: 22px;
   padding: 2px 3px;
   box-shadow: none;
@@ -4117,10 +4118,21 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .task-row.done .task-text-input {
-  color: #8c2d27;
+  color: var(--ink);
   text-decoration: line-through;
   text-decoration-color: #d7372f;
   text-decoration-thickness: 3px;
+}
+
+.task-row .task-text-input,
+.task-row.done .task-text-input,
+.task-row.marker-check .task-text-input,
+.task-row.marker-delegate .task-text-input,
+.task-row.marker-postpone .task-text-input,
+.task-row.priority-a .task-text-input,
+.task-row.is-repeat-task .task-text-input,
+.carryover-row .task-text-input {
+  color: var(--ink) !important;
 }
 
 .task-delete,
