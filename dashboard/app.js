@@ -387,6 +387,7 @@ let dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMo
 let dailyCalendarSwipeSuppressClick = false;
 let weekCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
+let activePostponeCalendar = null;
 let monthCalendarSwipeSuppressClick = false;
 let monthDateTap = { key: "", at: 0 };
 let mobileDayFocusResetTimer = 0;
@@ -2163,6 +2164,7 @@ function setupSelectors() {
   };
   setupQuickStrip();
   setupDailyCalendarDismissal();
+  setupGlobalSundayDatePicker();
   setupTopViews();
   setupDailyDateSwipe();
   setupWeekDateSwipe();
@@ -2930,6 +2932,152 @@ function renderWeekCalendar() {
   }
 }
 
+function closePostponeDatePicker() {
+  if (!activePostponeCalendar) return;
+  activePostponeCalendar.cleanup?.();
+  activePostponeCalendar.node?.remove();
+  activePostponeCalendar = null;
+}
+
+function openPostponeDatePicker(anchor, initialValue, onSelect) {
+  openSundayDatePicker(anchor, initialValue, onSelect, { label: "연기 날짜 선택" });
+}
+
+function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
+  if (!anchor) return;
+  closePostponeDatePicker();
+  const parsed = parseDate(initialValue);
+  const initialDate = Number.isNaN(parsed.getTime()) ? new Date(selectedDate) : parsed;
+  let pickerMonth = new Date(initialDate.getFullYear(), initialDate.getMonth(), 1);
+  const popover = document.createElement("section");
+  popover.className = "daily-calendar-popover sunday-date-popover";
+  popover.setAttribute("role", "dialog");
+  popover.setAttribute("aria-label", options.label || "날짜 선택");
+  document.body.appendChild(popover);
+
+  const render = () => {
+    const year = pickerMonth.getFullYear();
+    const month = pickerMonth.getMonth();
+    const monthStart = new Date(year, month, 1);
+    const gridStart = new Date(monthStart);
+    gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+    const todayKey = iso(todayInPlanner());
+    const selectedKey = iso(initialDate);
+    popover.innerHTML = `
+      <div class="daily-calendar-toolbar">
+        <button class="daily-calendar-nav" data-postpone-prev type="button" aria-label="이전 달">‹</button>
+        <strong>${escapeHtml(formatYearMonth(new Date(year, month, 1)))}</strong>
+        <button class="daily-calendar-nav" data-postpone-next type="button" aria-label="다음 달">›</button>
+        <button class="icon-close daily-calendar-close" data-postpone-close type="button" aria-label="달력 닫기">×</button>
+      </div>
+      <div class="daily-calendar-grid" role="grid" aria-label="연기 날짜"></div>
+    `;
+    const grid = popover.querySelector(".daily-calendar-grid");
+    weekdays.forEach((weekday, index) => {
+      const label = document.createElement("span");
+      label.className = `daily-calendar-weekday ${index === 0 ? "is-sunday" : ""} ${index === 6 ? "is-saturday" : ""}`;
+      label.textContent = weekday;
+      label.setAttribute("aria-hidden", "true");
+      grid.appendChild(label);
+    });
+    for (let index = 0; index < 42; index += 1) {
+      const date = new Date(gridStart);
+      date.setDate(gridStart.getDate() + index);
+      const key = iso(date);
+      const annotation = getCalendarAnnotation(date);
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = [
+        "daily-calendar-day",
+        date.getMonth() !== month ? "is-outside" : "",
+        key === selectedKey ? "is-selected" : "",
+        key === todayKey ? "is-today" : "",
+        annotation.hasHoliday ? "has-holiday" : "",
+        annotation.lunarLabel ? "has-lunar" : "",
+      ].filter(Boolean).join(" ");
+      button.setAttribute("role", "gridcell");
+      button.setAttribute("aria-label", calendarAriaLabel(date, annotation.events, annotation.lunarLabel, false));
+      button.setAttribute("aria-selected", String(key === selectedKey));
+      button.innerHTML = `
+        <span class="daily-calendar-date-number">${date.getDate()}</span>
+        ${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel, { compact: true })}
+      `;
+      button.onclick = () => {
+        onSelect?.(key);
+        closePostponeDatePicker();
+      };
+      grid.appendChild(button);
+    }
+    popover.querySelector("[data-postpone-prev]").onclick = () => {
+      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() - 1, 1);
+      render();
+    };
+    popover.querySelector("[data-postpone-next]").onclick = () => {
+      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() + 1, 1);
+      render();
+    };
+    popover.querySelector("[data-postpone-close]").onclick = closePostponeDatePicker;
+  };
+
+  const position = () => {
+    const rect = anchor.getBoundingClientRect();
+    const width = Math.min(300, window.innerWidth - 16);
+    const left = Math.max(8, Math.min(window.scrollX + rect.left, window.scrollX + window.innerWidth - width - 8));
+    popover.style.left = `${left}px`;
+    popover.style.top = `${window.scrollY + rect.bottom + 8}px`;
+  };
+  render();
+  position();
+  const handleOutside = (event) => {
+    if (popover.contains(event.target) || anchor.contains(event.target)) return;
+    closePostponeDatePicker();
+  };
+  const handleKeydown = (event) => {
+    if (event.key === "Escape") closePostponeDatePicker();
+  };
+  const handleResize = () => position();
+  setTimeout(() => document.addEventListener("pointerdown", handleOutside), 0);
+  document.addEventListener("keydown", handleKeydown);
+  window.addEventListener("resize", handleResize);
+  activePostponeCalendar = {
+    node: popover,
+    cleanup: () => {
+      document.removeEventListener("pointerdown", handleOutside);
+      document.removeEventListener("keydown", handleKeydown);
+      window.removeEventListener("resize", handleResize);
+    },
+  };
+}
+
+function setupGlobalSundayDatePicker() {
+  const openForInput = (input, event) => {
+    if (!input || input.disabled || input.readOnly) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    input.focus({ preventScroll: true });
+    openSundayDatePicker(
+      input,
+      input.value || iso(selectedDate),
+      (dateKey) => {
+        input.value = dateKey;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+      },
+      { label: input.getAttribute("aria-label") || "날짜 선택" },
+    );
+    return true;
+  };
+  document.addEventListener("pointerdown", (event) => {
+    const input = event.target.closest?.("input[type='date']");
+    if (input) openForInput(input, event);
+  }, { capture: true });
+  document.addEventListener("keydown", (event) => {
+    const input = event.target.closest?.("input[type='date']");
+    if (!input || !["Enter", " ", "ArrowDown"].includes(event.key)) return;
+    openForInput(input, event);
+  }, { capture: true });
+}
+
 function setupDailyCalendarDismissal() {
   document.addEventListener("pointerdown", (event) => {
     const popover = el("dailyCalendarPopover");
@@ -3188,6 +3336,7 @@ function setupDaySwipePager() {
 
   node.addEventListener("pointerdown", (event) => {
     if (!isPagedDaySwipe() || isSwipeInteractiveTarget(event.target)) return;
+    if (isMobileDayFocusActive()) return;
     startX = event.clientX;
     startY = event.clientY;
     startTime = Date.now();
@@ -3200,7 +3349,7 @@ function setupDaySwipePager() {
     const dy = event.clientY - startY;
     const elapsed = Date.now() - startTime;
     clearPointerStart();
-    if (!isPagedDaySwipe()) return;
+    if (!isPagedDaySwipe() || isMobileDayFocusActive()) return;
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
     const distanceThreshold = Math.min(92, Math.max(46, node.clientWidth * 0.12));
@@ -3217,6 +3366,7 @@ function setupDaySwipePager() {
 
   node.addEventListener("wheel", (event) => {
     if (!isPagedDaySwipe() || wheelLock) return;
+    if (isMobileDayFocusActive()) return;
     if (Math.abs(event.deltaX) < 34 || Math.abs(event.deltaX) < Math.abs(event.deltaY) * 1.15) return;
     event.preventDefault();
     wheelLock = true;
@@ -3249,6 +3399,10 @@ function isSmartphoneDevice() {
 
 function isMobilePhoneFocusLayout() {
   return isSmartphoneDevice() && isSmartphoneLayout();
+}
+
+function isMobileDayFocusActive() {
+  return isMobilePhoneFocusLayout() && mobileDayFocusMode !== "split";
 }
 
 function markDailyFieldEditing(duration = 900) {
@@ -3339,7 +3493,7 @@ function setupMobileDayFocus() {
   setupPressFocusGesture(schedulePanel, "schedule");
   setupSplitEditGate(taskPanel, "tasks");
   setupSplitEditGate(schedulePanel, "schedule");
-  setupPullDownFocusDismiss(panel, taskPanel, schedulePanel);
+  setupMobileFocusCloseButtons(panel);
   applyMobileDayFocusMode();
 }
 
@@ -3366,32 +3520,13 @@ function setupSplitEditGate(node, mode) {
   }, { capture: true });
 }
 
-function setupPullDownFocusDismiss(panel, taskPanel, schedulePanel) {
-  let startX = 0;
-  let startY = 0;
-  let tracking = false;
-  const visibleFocusPanel = () => mobileDayFocusMode === "tasks" ? taskPanel : mobileDayFocusMode === "schedule" ? schedulePanel : null;
-  panel.addEventListener("pointerdown", (event) => {
-    const visible = visibleFocusPanel();
-    if (!isMobilePhoneFocusLayout() || !visible || isSwipeInteractiveTarget(event.target)) return;
-    if (visible.scrollTop > 2) return;
-    startX = event.clientX;
-    startY = event.clientY;
-    tracking = true;
-  }, { passive: true });
-  panel.addEventListener("pointermove", (event) => {
-    if (!tracking) return;
-    const dx = event.clientX - startX;
-    const dy = event.clientY - startY;
-    if (dy > 76 && Math.abs(dy) > Math.abs(dx) * 1.25) {
-      tracking = false;
+function setupMobileFocusCloseButtons(panel) {
+  panel.querySelectorAll("[data-mobile-focus-close]").forEach((button) => {
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       resetMobileDayFocusToSplit({ blur: true });
-    }
-  }, { passive: true });
-  ["pointerup", "pointercancel"].forEach((eventName) => {
-    panel.addEventListener(eventName, () => {
-      tracking = false;
-    }, { passive: true });
+    };
   });
 }
 
@@ -3483,6 +3618,7 @@ function closestDayPanel() {
 }
 
 function stepDayPanel(delta, fromPanel = currentDayPanel) {
+  if (isMobileDayFocusActive()) resetMobileDayFocusToSplit({ blur: true });
   const index = dayPanelOrder.indexOf(fromPanel);
   const nextIndex = Math.max(0, Math.min(dayPanelOrder.length - 1, index + delta));
   scrollDayPanel(dayPanelOrder[nextIndex], "smooth");
@@ -5973,6 +6109,7 @@ function positionDaySwipe(panel = currentDayPanel || "main", force = false) {
 function scrollDayPanel(panel, behavior = "smooth") {
   const node = el("daySwipe");
   if (!node) return;
+  if (isMobileDayFocusActive()) resetMobileDayFocusToSplit({ blur: true });
   const target = node.querySelector(`[data-panel="${panel}"]`);
   if (!target) return;
   dayPanelProgrammaticScrollUntil = Date.now() + (behavior === "smooth" ? 520 : 140);
@@ -6107,8 +6244,7 @@ function renderTaskRow(task, priority, index) {
   const cycle = row.querySelector(".task-cycle");
   const prioritySelect = row.querySelector(".priority-select");
   const delegateInput = row.querySelector(".delegate-input");
-  const postponeSelect = row.querySelector(".postpone-select");
-  const postponeDate = row.querySelector(".postpone-date");
+  const postponeDateButton = row.querySelector(".postpone-date-button");
   const text = row.querySelector(".task-text-input");
   const moneyLink = row.querySelector(".task-money-link");
   const deleteButton = row.querySelector(".task-delete");
@@ -6133,15 +6269,12 @@ function renderTaskRow(task, priority, index) {
       saveState({ fastSave: true });
     };
   }
-  if (postponeSelect) {
-    postponeSelect.onchange = () => {
-      task.postponeMode = postponeSelect.value;
-      saveState({ fastSave: true });
-      renderAll();
-    };
-  }
-  if (postponeDate) {
-    postponeDate.onchange = () => schedulePostponedTask(task, priority, postponeDate.value);
+  if (postponeDateButton) {
+    postponeDateButton.onclick = () => openPostponeDatePicker(
+      postponeDateButton,
+      task.postponeDate || iso(selectedDate),
+      (dateKey) => schedulePostponedTask(task, priority, dateKey),
+    );
   }
   bindDailyTaskTextInput(text);
   text.oninput = () => {
@@ -6224,8 +6357,8 @@ function matchesProjectContext(text = "") {
 function getTaskStatusLabel(task, menuValue) {
   if (task.status === "위임") return task.delegate?.trim() || "위임";
   if (task.status === "연기") {
-    if (task.postponeMode === "date" && task.postponeDate) return formatCompactMonthDay(task.postponeDate);
-    return task.postponeMode === "date" ? "날자" : "미정";
+    if (task.postponeDate) return formatCompactMonthDay(task.postponeDate);
+    return "미정";
   }
   return menuValue === "선택" ? "?" : menuValue || "?";
 }
@@ -6238,7 +6371,7 @@ function formatCompactMonthDay(value) {
 
 function getTaskStatusDisplay(task, menuValue) {
   if (task.status === "위임") return "";
-  if (task.status === "연기" && task.postponeMode === "date" && task.postponeDate) {
+  if (task.status === "연기" && task.postponeDate) {
     const date = parseDate(task.postponeDate);
     if (Number.isNaN(date.getTime())) return "";
     return `<span class="postpone-date-label"><b>${date.getMonth() + 1}</b><b>${date.getDate()}</b></span>`;
@@ -6253,17 +6386,8 @@ function getTaskStatusControl(task, menuValue) {
     return `<input class="delegate-input" type="text" value="${escapeAttr(task.delegate || "")}" placeholder="위임자" />`;
   }
   if (task.status === "연기") {
-    const mode = task.postponeMode === "date" ? "date" : "";
-    if (mode === "date" && task.postponeDate) {
-      return `<input class="postpone-date" type="date" value="${escapeAttr(task.postponeDate)}" />`;
-    }
-    return `
-      <select class="postpone-select" aria-label="연기 일정 선택">
-        <option value="" ${mode === "" ? "selected" : ""}>미정</option>
-        <option value="date" ${mode === "date" ? "selected" : ""}>날자기입</option>
-      </select>
-      ${mode === "date" ? `<input class="postpone-date" type="date" value="${escapeAttr(task.postponeDate || "")}" />` : ""}
-    `;
+    const label = task.postponeDate ? formatCompactMonthDay(task.postponeDate) : "미정";
+    return `<button class="postpone-date-button" type="button" aria-label="연기 날짜 선택">${escapeHtml(label)}</button>`;
   }
   return `
     <select class="priority-select" aria-label="중요도 선택">
@@ -6531,8 +6655,7 @@ function renderCarryoverTask(task) {
   `;
   const prioritySelect = row.querySelector(".priority-select");
   const delegateInput = row.querySelector(".delegate-input");
-  const postponeSelect = row.querySelector(".postpone-select");
-  const postponeDate = row.querySelector(".postpone-date");
+  const postponeDateButton = row.querySelector(".postpone-date-button");
   row.querySelector(".task-cycle").onclick = () => {
     updateCarryoverTaskMarker(task);
   };
@@ -6549,11 +6672,12 @@ function renderCarryoverTask(task) {
   if (delegateInput) {
     delegateInput.oninput = () => updateCarryoverDelegate(task, delegateInput.value);
   }
-  if (postponeSelect) {
-    postponeSelect.onchange = () => updateCarryoverPostponeMode(task, postponeSelect.value);
-  }
-  if (postponeDate) {
-    postponeDate.onchange = () => scheduleCarryoverPostponedTask(task, postponeDate.value);
+  if (postponeDateButton) {
+    postponeDateButton.onclick = () => openPostponeDatePicker(
+      postponeDateButton,
+      task.postponeDate || iso(selectedDate),
+      (dateKey) => scheduleCarryoverPostponedTask(task, dateKey),
+    );
   }
   const textInput = row.querySelector(".task-text-input");
   bindDailyTaskTextInput(textInput);
@@ -6629,14 +6753,6 @@ function updateCarryoverDelegate(taskRef, value) {
   if (!source) return;
   source.delegate = value;
   saveState({ fastSave: true });
-}
-
-function updateCarryoverPostponeMode(taskRef, value) {
-  const source = materializeCarryoverTask(taskRef)?.task;
-  if (!source) return;
-  source.postponeMode = value;
-  saveState({ fastSave: true });
-  renderAll();
 }
 
 function scheduleCarryoverPostponedTask(taskRef, targetDate) {
@@ -8937,7 +9053,7 @@ function getCarryoverTasks(date) {
       const deletedFrom = task.carryoverDeletedFrom || "";
       if (deletedFrom && deletedFrom <= currentKey) return false;
       if (completedKey && completedKey < currentKey) return false;
-      if (task.status === "연기" && task.postponeMode === "date" && task.postponeDate) return false;
+      if (task.status === "연기" && task.postponeDate) return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });

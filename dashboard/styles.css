@@ -1796,6 +1796,11 @@ body.is-privacy-blind .app-shell {
   font-weight: 760;
 }
 
+.sunday-date-popover {
+  z-index: 1200;
+  width: min(300px, calc(100vw - 16px));
+}
+
 .daily-score {
   min-width: 120px;
   padding: 8px 12px;
@@ -4090,7 +4095,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   appearance: none;
 }
 
-.postpone-date {
+.postpone-date-button {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -4098,12 +4103,22 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   width: 30px;
   min-height: 28px;
   max-width: 30px;
-  border: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: transparent;
   padding: 0;
-  opacity: 0.02;
   cursor: pointer;
+  font-size: 9px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button {
+  border-color: var(--soft-line);
+  background: var(--stone);
+  color: var(--slate);
+  opacity: 1;
 }
 
 .delegate-input {
@@ -5927,7 +5942,8 @@ input[type="checkbox"]:checked::after {
   }
 
   .priority-select,
-  .postpone-select {
+  .postpone-select,
+  .postpone-date-button {
     opacity: 0;
     min-height: 28px;
     max-width: 28px;
@@ -5936,14 +5952,13 @@ input[type="checkbox"]:checked::after {
     border-radius: 6px;
   }
 
-  .postpone-date {
+  .postpone-date-button {
     position: absolute;
     inset: 0;
     width: 28px;
     max-width: 28px;
     min-height: 28px;
     padding: 0;
-    opacity: 0.02;
   }
 
   .delegate-input {
@@ -6356,7 +6371,7 @@ body.ceo-mode .day-main-panel .panel {
 
   .priority-select,
   .postpone-select,
-  .postpone-date {
+  .postpone-date-button {
     max-width: 24px;
     width: 24px;
     min-height: 24px;
@@ -6710,7 +6725,7 @@ body.ceo-mode .day-main-panel .panel {
 
   .priority-select,
   .postpone-select,
-  .postpone-date {
+  .postpone-date-button {
     width: 22px;
     max-width: 22px;
     min-height: 22px;
@@ -7174,7 +7189,7 @@ button {
 
   .priority-select,
   .postpone-select,
-  .postpone-date {
+  .postpone-date-button {
     width: 28px;
     max-width: 28px;
     min-height: 28px;
@@ -7373,6 +7388,10 @@ button {
   display: none;
 }
 
+.mobile-focus-done {
+  display: none;
+}
+
 body.smartphone-device #privacyNowButton,
 body.smartphone-device #privacyTimeoutSelect,
 body.smartphone-device .privacy-blind-screen {
@@ -7402,6 +7421,28 @@ body.smartphone-device .privacy-blind-screen {
 
   .mobile-day-focus-controls {
     display: none !important;
+  }
+
+  .mobile-focus-done {
+    display: none;
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid rgba(95, 118, 104, 0.28);
+    border-radius: 999px;
+    background: var(--forest);
+    color: #fffefa;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+  .day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .day-swipe.is-mobile-focus-active,
@@ -8895,7 +8936,7 @@ body.ceo-mode .sheet-grid-wrap {
   .task-status-cell,
   .priority-select,
   .postpone-select,
-  .postpone-date {
+  .postpone-date-button {
     width: 27px;
     max-width: 27px;
     min-height: 27px;
@@ -10242,7 +10283,7 @@ body.ceo-mode .daily-panel-chip {
 
   .priority-select,
   .postpone-select,
-  .postpone-date {
+  .postpone-date-button {
     width: 24px;
     max-width: 24px;
     min-height: 26px;
@@ -10547,4 +10588,8 @@ body.ceo-mode .daily-panel-chip {
 .quick-strip > .top-status #topSearchCount,
 .quick-strip > .top-status #topAccountStatus {
   display: none !important;
+}
+
+.task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button {
+  opacity: 1;
 }
