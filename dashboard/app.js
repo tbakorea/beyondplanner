@@ -244,42 +244,42 @@ const settingsLanguageLabels = {
       ["Roles & Goals", "Name your key roles and the results you want from each one."],
       ["About Me", "Tell the planner who you are, what you do, and what rhythm works for you."],
     ],
-    benefit: "The clearer this is, the better AI can suggest tasks, schedule blocks, and coaching that fit your real life.",
+    benefit: "Answer only the simple questions first. Add deeper details later so coaching improves without making setup feel heavy.",
     profileLabels: {
-      personaType: "Main Type",
-      personaTypesSecondary: "Also Me",
-      personaCustom: "My Work",
-      age: "Age",
-      job: "Job",
-      roles: "Roles",
-      goals: "Big Goals",
-      decisionPrinciples: "My Rules",
-      currentChallenges: "Current Blocks",
-      strengths: "Strengths",
-      risks: "Watch-outs",
-      energyWindow: "Best Time",
-      coachingStyle: "Coach Style",
-      healthStatus: "Health",
-      medications: "Care",
-      exerciseLimits: "Limits",
-      activityLevel: "Activity",
-      exerciseGoal: "Fitness Goal",
-      recoveryPattern: "Rest",
+      personaType: "Closest Type",
+      personaTypesSecondary: "Other Type",
+      personaCustom: "What I Do",
+      age: "Life Stage",
+      job: "Work Title",
+      roles: "People / Duties",
+      goals: "What I Want to Change",
+      decisionPrinciples: "Rules I Keep",
+      currentChallenges: "What Worries Me",
+      strengths: "How Work Goes Well",
+      risks: "When I Delay",
+      energyWindow: "Best Energy",
+      coachingStyle: "Helpful Tone",
+      healthStatus: "Body Status",
+      medications: "Care / Medication",
+      exerciseLimits: "Exercise Limits",
+      activityLevel: "Activity Level",
+      exerciseGoal: "Movement Goal",
+      recoveryPattern: "Sleep / Recovery",
     },
     placeholders: {
       mission: "What do I stand for? What rule should guide my choices?",
       value: "What matters",
-      personaCustom: "e.g. developer, CEO, student, store owner",
-      age: "e.g. 42",
+      personaCustom: "e.g. I handle real estate development and operations",
+      age: "e.g. 40s, 52",
       job: "e.g. CEO, manager, trainer",
       roles: "e.g. leader, parent, investor, coach",
-      goals: "Add or edit goals. Press Enter/Return to update coaching.",
-      decisionPrinciples: "e.g. trust, cash flow, family time, growth",
-      currentChallenges: "What feels heavy or stuck right now?",
-      strengths: "What kind of work gives you energy?",
-      risks: "Things you delay, overload, or repeat too often",
-      energyWindow: "e.g. morning focus, afternoon meetings",
-      coachingStyle: "e.g. direct, warm, numbers first",
+      goals: "e.g. stabilize cash flow, recover health, finish delayed projects",
+      decisionPrinciples: "e.g. no overpromising, check cash first, protect family time",
+      currentChallenges: "e.g. delayed schedule, money checks, low energy",
+      strengths: "e.g. faster alone, clearer with numbers, stronger after meetings",
+      risks: "e.g. delay big tasks, cannot refuse requests, work late at night",
+      energyWindow: "e.g. 9-11 AM, after 10 PM",
+      coachingStyle: "e.g. short and direct, warm, numbers first",
       healthStatus: "e.g. back pain, blood pressure, fatigue",
       medications: "Medicine, checkups, care routines",
       exerciseLimits: "Movements or intensity to avoid",
@@ -314,42 +314,42 @@ const settingsLanguageLabels = {
       ["역할과 목표", "내 주요 역할과 각 역할에서 원하는 결과를 정리합니다."],
       ["나의 정보", "내가 누구인지, 어떤 일을 하는지, 어떤 리듬이 맞는지 알려주세요."],
     ],
-    benefit: "이 내용을 선명하게 적을수록 AI가 실제 생활에 맞는 업무, 시간 배치, 코칭을 더 정확하게 제안합니다.",
+    benefit: "짧게 답할수록 좋습니다. 처음에는 필수 질문만 적고, 필요할 때 아래 단계를 조금씩 채우면 코칭이 더 정확해집니다.",
     profileLabels: {
-      personaType: "대표 유형",
-      personaTypesSecondary: "겸하는 역할",
-      personaCustom: "하는 일",
-      age: "나이",
-      job: "직업",
-      roles: "역할",
-      goals: "큰 목표",
-      decisionPrinciples: "나의 원칙",
-      currentChallenges: "현재 부담",
-      strengths: "강점",
-      risks: "주의점",
-      energyWindow: "좋은 시간대",
-      coachingStyle: "코칭 방식",
-      healthStatus: "건강",
+      personaType: "가장 가까운 모습",
+      personaTypesSecondary: "다른 모습",
+      personaCustom: "요즘 주로 하는 일",
+      age: "연령대",
+      job: "직함",
+      roles: "챙겨야 할 사람/일",
+      goals: "바꾸고 싶은 것",
+      decisionPrinciples: "꼭 지킬 것",
+      currentChallenges: "신경 쓰이는 일",
+      strengths: "일이 잘 풀리는 방식",
+      risks: "자주 미루는 상황",
+      energyWindow: "집중이 잘 되는 시간",
+      coachingStyle: "도움 되는 말투",
+      healthStatus: "몸 상태",
       medications: "관리/투약",
       exerciseLimits: "운동 제한",
       activityLevel: "활동량",
       exerciseGoal: "운동 목표",
-      recoveryPattern: "회복/수면",
+      recoveryPattern: "수면/회복",
     },
     placeholders: {
       mission: "나는 무엇을 기준으로 선택할 것인가? 오늘과 미래를 이끄는 원칙을 적어보세요.",
       value: "중요한 가치",
-      personaCustom: "예: 대표, 매장 운영자, 학생, 팀장, 프리랜서",
-      age: "예: 42",
-      job: "예: CEO, 매니저, 트레이너",
+      personaCustom: "예: 부동산 개발과 운영을 챙깁니다",
+      age: "예: 40대, 52세",
+      job: "예: 대표, 매니저, 트레이너",
       roles: "예: 대표, 부모, 투자자, 리더",
-      goals: "큰 목표를 적어주세요. 입력할수록 코칭이 정확해집니다.",
-      decisionPrinciples: "예: 신뢰, 현금흐름, 가족시간, 성장",
-      currentChallenges: "지금 부담되거나 막혀 있는 일을 적어주세요.",
-      strengths: "어떤 일에서 에너지가 나는지 적어주세요.",
-      risks: "자주 미루거나 과하게 떠안는 패턴을 적어주세요.",
-      energyWindow: "예: 오전 집중, 오후 미팅, 밤 정리",
-      coachingStyle: "예: 단호하게, 따뜻하게, 숫자 중심으로",
+      goals: "예: 현금흐름 안정, 건강 회복, 미뤄둔 프로젝트 끝내기",
+      decisionPrinciples: "예: 무리한 약속 금지, 현금 먼저 확인, 가족시간 지키기",
+      currentChallenges: "예: 일정이 밀림, 자금 확인, 체력 저하, 가족시간 부족",
+      strengths: "예: 혼자 정리할 때, 숫자로 볼 때, 사람을 만나면 빨라짐",
+      risks: "예: 일이 너무 크면 미룸, 부탁을 거절 못함, 밤에 몰아서 함",
+      energyWindow: "예: 오전 9-11시, 밤 10시 이후",
+      coachingStyle: "예: 짧고 단호하게, 따뜻하게, 숫자로",
       healthStatus: "예: 허리 통증, 혈압 관리, 피로감",
       medications: "복용약, 검진, 관리 루틴",
       exerciseLimits: "피해야 할 동작이나 운동 강도",
@@ -392,6 +392,8 @@ let monthDateTap = { key: "", at: 0 };
 let mobileDayFocusResetTimer = 0;
 let dailyFieldEditingUntil = 0;
 let dailyTextEditingActive = false;
+let activeInputEditingUntil = 0;
+let activeTextEditingUntil = 0;
 let dailyTaskRefreshTimer = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
@@ -1104,7 +1106,7 @@ function flushDailyTaskRelatedRefresh() {
 }
 
 function renderSidebarAfterDailyInput() {
-  if (dailyTextEditingActive || isDailyFieldEditingRecent()) {
+  if (isAnyPlannerInputEditing()) {
     scheduleDailyTaskRelatedRefresh(700);
     return;
   }
@@ -1346,7 +1348,7 @@ async function pullServerStateIfNewer(options = {}) {
   }
   const localMeta = getStateMeta();
   if (!options.force && localMeta.dirty && Date.now() - timestampMs(localMeta.updatedAt) < 3000) return;
-  if (dailyTextEditingActive || isDailyFieldEditingRecent()) {
+  if (isAnyPlannerInputEditing()) {
     saveStatus.message = "입력 완료 후 최신 확인";
     renderSidebarAfterDailyInput();
     return;
@@ -1433,6 +1435,10 @@ function queuePassiveServerPull() {
   if (!accountSaveReady || document.hidden) return;
   window.clearTimeout(passiveRefreshTimer);
   passiveRefreshTimer = window.setTimeout(() => {
+    if (isAnyPlannerInputEditing()) {
+      queuePassiveServerPull();
+      return;
+    }
     pullServerStateIfNewer();
   }, 420);
 }
@@ -3253,6 +3259,56 @@ function isDailyFieldEditingRecent() {
   return Date.now() < dailyFieldEditingUntil;
 }
 
+function markPlannerInputEditing(duration = 1200) {
+  activeInputEditingUntil = Date.now() + duration;
+}
+
+function markPlannerTextEditing(duration = 1200) {
+  activeTextEditingUntil = Date.now() + duration;
+  markPlannerInputEditing(duration);
+}
+
+function isEditablePlannerTarget(target = document.activeElement) {
+  return Boolean(target?.matches?.("input, textarea, select, [contenteditable='true']"));
+}
+
+function isTextEntryPlannerTarget(target = document.activeElement) {
+  return Boolean(target?.matches?.("input:not([type='checkbox']):not([type='radio']):not([type='button']):not([type='submit']), textarea, [contenteditable='true']"));
+}
+
+function isAnyPlannerInputEditing() {
+  return dailyTextEditingActive || isDailyFieldEditingRecent() || Date.now() < activeInputEditingUntil || isEditablePlannerTarget();
+}
+
+function isAnyPlannerTextEditing() {
+  return dailyTextEditingActive || isDailyFieldEditingRecent() || Date.now() < activeTextEditingUntil || isTextEntryPlannerTarget();
+}
+
+function setupGlobalInputEditingGuard() {
+  const mark = (target, duration = 2500) => {
+    if (isTextEntryPlannerTarget(target)) markPlannerTextEditing(duration);
+    else markPlannerInputEditing(duration);
+  };
+  document.addEventListener("focusin", (event) => {
+    if (isEditablePlannerTarget(event.target)) mark(event.target, 10 * 60 * 1000);
+  }, true);
+  document.addEventListener("input", (event) => {
+    if (isEditablePlannerTarget(event.target)) mark(event.target);
+  }, true);
+  document.addEventListener("compositionstart", (event) => {
+    if (isEditablePlannerTarget(event.target)) mark(event.target, 10 * 60 * 1000);
+  }, true);
+  document.addEventListener("compositionend", (event) => {
+    if (isEditablePlannerTarget(event.target)) mark(event.target);
+  }, true);
+  document.addEventListener("keydown", (event) => {
+    if (isEditablePlannerTarget(event.target)) mark(event.target, 10 * 60 * 1000);
+  }, true);
+  document.addEventListener("focusout", (event) => {
+    if (isEditablePlannerTarget(event.target)) mark(event.target, 500);
+  }, true);
+}
+
 function isEditingDailyField() {
   const active = document.activeElement;
   return dailyTextEditingActive || isDailyFieldEditingRecent() || Boolean(
@@ -4047,6 +4103,7 @@ function renderWeek() {
 
 function renderDay() {
   const day = ensureDay();
+  const editing = isAnyPlannerTextEditing();
   const formattedDate = formatDate(selectedDate);
   el("dayTitle").textContent = formattedDate;
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
@@ -4058,12 +4115,14 @@ function renderDay() {
   el("dailyCompletion").textContent = `${done}/${total}`;
   renderDailyPulse(day, allTasks, carryovers, { done, total });
   renderOnboarding(day);
-  renderDayCompass();
-  renderTaskBoard(day);
-  syncVisibleTaskTimeHints(day, carryovers);
-  renderRepeatPriorityList();
+  if (!editing) {
+    renderDayCompass();
+    renderTaskBoard(day);
+    syncVisibleTaskTimeHints(day, carryovers);
+    renderRepeatPriorityList();
+  }
   renderScheduleUnitControls(day);
-  renderAppointments(day);
+  if (!editing) renderAppointments(day);
   renderCoach();
   document.querySelectorAll("[data-day-field]").forEach((field) => {
     field.value = day[field.dataset.dayField] || "";
@@ -4569,6 +4628,132 @@ function updateCoachTabState() {
 }
 
 function buildCoachUsageGuide(section = "main") {
+  if (getAppLanguage() === "ko") {
+    const koGuides = {
+      main: {
+        title: "비욘드 워크 전체 사용법",
+        summary: "이 아이콘은 전체 플래너 사용 흐름과 오늘의 코칭을 여는 곳입니다.",
+        steps: [
+          "먼저 오늘 화면에서 우선업무와 시간별 일정을 정리합니다.",
+          "주간, 월간, 프로젝트, 머니는 오늘 업무의 근거가 되는 상위 계획으로 사용합니다.",
+          "설정의 사용자 정보를 채울수록 코칭은 더 개인화됩니다.",
+          "코칭 탭에서는 미완료, 일정 과밀, 빈 시간, 목표 연결성을 기준으로 다음 행동을 제안합니다.",
+        ],
+        tip: "처음 사용하는 사용자는 오늘 → 주간 → 머니/프로젝트 순서로 익히는 것이 가장 안정적입니다.",
+      },
+      day: {
+        title: "오늘 화면 사용법",
+        summary: "오늘 실행할 일과 시간 배치를 한 화면에서 결정합니다.",
+        steps: [
+          "중요도 A/B/C를 정하고, 완료·진행중·위임·연기를 명확히 표시합니다.",
+          "업무 내용에 10:00처럼 시간을 넣으면 해당 시간별 일정에 자동 반영됩니다.",
+          "주간과 메모는 좌우 쓸기 또는 배너 양쪽 버튼으로 이동합니다.",
+        ],
+        tip: "오늘은 많이 적는 것보다 실제 시간표에 올라간 A업무가 있는지가 중요합니다.",
+      },
+      tasks: {
+        title: "우선업무 사용법",
+        summary: "오늘 반드시 처리할 일을 고르고 상태를 관리하는 섹션입니다.",
+        steps: [
+          "A는 반드시 시간별 일정에 배치할 일, B는 중요하지만 유연한 일, C는 여유가 있을 때 처리할 일입니다.",
+          "완료, 취소, 연기, 위임 상태는 붉은 선으로 명확히 구분됩니다.",
+          "반복업무는 업무 추가 과정에서 설정하고, 필요 시 반복업무 관리 창에서 수정합니다.",
+        ],
+        tip: "A업무가 3개를 넘으면 실행률이 떨어지므로 우선순위를 다시 줄이는 것이 좋습니다.",
+      },
+      schedule: {
+        title: "시간별 일정 사용법",
+        summary: "중요업무를 실제 시간 칸으로 바꾸는 섹션입니다.",
+        steps: [
+          "30분 또는 1시간 단위는 설정에서 관리합니다.",
+          "일정칸에 입력하면 해당 시간대가 강조되고, 필요한 경우 인접 시간과 병합할 수 있습니다.",
+          "우선업무에 시간 표현이 있으면 일정에 자동으로 연결됩니다.",
+        ],
+        tip: "시간표가 비어 있으면 업무는 계획에 머물 가능성이 큽니다. A업무 하나는 반드시 시간칸에 넣으세요.",
+      },
+      week: {
+        title: "주간 사용법",
+        summary: "이번 주 주요일정과 역할별 핵심행동을 정리합니다.",
+        steps: [
+          "금주의 주요일정은 체크 전까지 다음 주로 이월됩니다.",
+          "개인, 가족, 일, 성장 등 영역별 핵심행동을 1-2개만 잡습니다.",
+          "오늘 화면의 주간 버튼이나 좌우 쓸기로 빠르게 확인합니다.",
+        ],
+        tip: "주간 계획은 많은 목표보다 오늘로 내려올 수 있는 행동이어야 합니다.",
+      },
+      memo: {
+        title: "메모 사용법",
+        summary: "회의, 결정, 배운 점, 내일 넘길 일을 기록하는 섹션입니다.",
+        steps: [
+          "메모 페이지에는 자유 기록을 남깁니다.",
+          "일일 기록에는 오늘의 결정, 진행, 배운 점을 짧게 정리합니다.",
+          "검색/질문에서 메모 내용도 함께 검색할 수 있습니다.",
+        ],
+        tip: "결정과 후속조치를 분리해서 적으면 나중에 검색 가치가 커집니다.",
+      },
+      foundation: {
+        title: "사용자 설정 사용법",
+        summary: "AI가 사용자의 일, 목표, 하루 습관, 건강 상태를 이해하는 기준 정보입니다.",
+        steps: [
+          "가장 가까운 모습, 요즘 하는 일, 연령대만 먼저 입력합니다.",
+          "올해 바꾸고 싶은 것과 요즘 신경 쓰이는 일을 보강합니다.",
+          "건강·운동 정보는 무리 없는 일정 조정과 코칭에 활용됩니다.",
+        ],
+        tip: "사용자 정보가 구체적일수록 AI 추천은 일반론에서 벗어납니다.",
+      },
+      year: {
+        title: "연간 계획 사용법",
+        summary: "올해 반드시 남길 결과와 큰 방향을 정리합니다.",
+        steps: [
+          "연간 목표는 3-5개 이내로 압축합니다.",
+          "목표마다 이번 달 행동으로 내려올 수 있는 표현을 씁니다.",
+          "추상적인 문장은 월간·주간 계획에서 실행 단위로 바꿉니다.",
+        ],
+        tip: "연간 목표는 오늘 업무를 거절하는 기준으로도 작동해야 합니다.",
+      },
+      month: {
+        title: "월간 계획 사용법",
+        summary: "월간 초점, 달력, 기념일, 주요 마감을 관리합니다.",
+        steps: [
+          "월간 초점은 이번 달 가장 중요한 결과 하나를 적습니다.",
+          "기념일과 주요 마감은 일간·주간 달력에 함께 반영됩니다.",
+          "월 제목이나 화살표로 월을 이동합니다.",
+        ],
+        tip: "월간 계획은 주간과 오늘 업무로 내려올 때 의미가 생깁니다.",
+      },
+      projects: {
+        title: "프로젝트 사용법",
+        summary: "프로젝트 목록과 세부 실행, 자금 흐름을 연결합니다.",
+        steps: [
+          "프로젝트 목록에서 항목을 선택하면 세부 페이지가 열립니다.",
+          "다음 행동, 담당, 일정, 예산을 기록합니다.",
+          "프로젝트 자금 항목은 예상 수입·비용 흐름을 확인하는 데 사용합니다.",
+        ],
+        tip: "프로젝트는 반드시 다음 행동 하나가 오늘 업무로 내려와야 진행됩니다.",
+      },
+      finance: {
+        title: "머니 사용법",
+        summary: "반복지출, 수입, 자금 이슈를 일정과 우선업무에 연결합니다.",
+        steps: [
+          "반복지출은 시작일과 도래일을 기준으로 우선업무에 올라옵니다.",
+          "금액은 설정에서 보이기/감추기를 선택할 수 있습니다.",
+          "항목을 클릭하면 머니 섹션에서 세부 내용을 관리합니다.",
+        ],
+        tip: "머니 항목은 한 달 이내에 실제 확인할 이슈만 우선업무에 올리는 것이 적절합니다.",
+      },
+      sheets: {
+        title: "시트 사용법",
+        summary: "반복 양식, 비교표, 체크리스트를 자유롭게 만드는 공간입니다.",
+        steps: [
+          "목록에서 시트를 선택하면 오른쪽으로 상세 화면이 열립니다.",
+          "행·열 제목을 선택하고 경계선을 드래그해 크기를 조정합니다.",
+          "필요한 경우 템플릿으로 새 시트를 시작합니다.",
+        ],
+        tip: "시트는 플래너의 보조 도구입니다. 핵심 업무는 오늘과 프로젝트에 남기는 것이 좋습니다.",
+      },
+    };
+    return koGuides[section] || koGuides.day;
+  }
   const guides = {
     main: {
       title: "Beyond Work 전체 사용법",
@@ -6143,6 +6328,14 @@ function shouldStrikeTask(task) {
   return task.done || ["완료", "위임", "취소", "연기"].includes(task.status);
 }
 
+function shouldRemoveTaskScheduleLink(task = {}) {
+  return ["위임", "취소", "연기"].includes(task.status);
+}
+
+function isTaskCompleted(task = {}) {
+  return Boolean(task.done || task.status === "완료");
+}
+
 function handlePriorityMenuChange(task, fromPriority, index, value) {
   if (value === "취소" || value === "연기") {
     task.status = value;
@@ -6494,7 +6687,7 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
   const linkId = getTaskScheduleLinkId(task);
   const existingLink = day.autoTaskScheduleLinks[linkId] || (task.scheduledSlot && task.scheduledText ? { type: "task", slot: task.scheduledSlot, text: task.scheduledText } : null);
   let changed = false;
-  if (shouldStrikeTask(task)) {
+  if (shouldRemoveTaskScheduleLink(task)) {
     if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
     delete task.scheduledSlot;
     delete task.scheduledText;
@@ -6502,9 +6695,11 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
   }
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
   if (!hint || !targetSlot || !hint.text) {
-    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
-    delete task.scheduledSlot;
-    delete task.scheduledText;
+    if (!isTaskCompleted(task)) {
+      if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
+      delete task.scheduledSlot;
+      delete task.scheduledText;
+    }
     return changed;
   }
   if (existingLink && (existingLink.slot !== targetSlot || existingLink.text !== hint.text)) {
@@ -6542,13 +6737,13 @@ function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
   getTaskRefs(day).forEach(({ task }) => {
     if (isFutureCarryoverTask(task, selectedKey)) return;
     if (syncTaskTimeHintToSchedule(task, day)) changed = true;
-    if (shouldStrikeTask(task)) return;
+    if (shouldRemoveTaskScheduleLink(task)) return;
     const slot = getTaskTimeHintSlot(task.text, day);
     if (slot) directTaskSlots.add(slot);
   });
   if (shouldSyncCarryoverTimeHints(selectedKey)) {
     carryovers.forEach((task) => {
-      if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots, linkId: getCarryoverScheduleLinkId(task), inactive: shouldStrikeTask(task) })) changed = true;
+      if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots, linkId: getCarryoverScheduleLinkId(task), inactive: shouldRemoveTaskScheduleLink(task) })) changed = true;
     });
   } else if (clearAutoTaskScheduleLinks(day, (link) => link.type === "carryover")) {
     changed = true;
@@ -9266,6 +9461,7 @@ function hideBootScreen(delay = 120) {
 }
 
 async function setup() {
+  setupGlobalInputEditingGuard();
   setupSelectors();
   setupTabs();
   selectedDate = todayInPlanner();

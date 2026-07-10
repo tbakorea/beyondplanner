@@ -4523,6 +4523,41 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   gap: 12px;
 }
 
+.profile-interview-map {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.profile-interview-map span {
+  align-items: center;
+  background: rgba(248, 247, 242, 0.86);
+  border: 1px solid rgba(221, 216, 203, 0.88);
+  border-radius: 999px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 0.82rem;
+  font-weight: 850;
+  gap: 6px;
+  justify-content: center;
+  min-height: 32px;
+  padding: 6px 9px;
+  white-space: nowrap;
+}
+
+.profile-interview-map strong {
+  background: rgba(38, 61, 51, 0.08);
+  border: 1px solid rgba(38, 61, 51, 0.14);
+  border-radius: 999px;
+  color: var(--forest);
+  display: inline-grid;
+  font-size: 0.74rem;
+  height: 18px;
+  place-items: center;
+  width: 18px;
+}
+
 .profile-stage {
   border: 1px solid rgba(221, 216, 203, 0.86);
   border-radius: 12px;
@@ -4533,6 +4568,10 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 .profile-stage.is-essential {
   border-color: rgba(95, 118, 104, 0.28);
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(238, 243, 235, 0.62));
+}
+
+.profile-stage.is-deep {
+  background: rgba(250, 249, 245, 0.72);
 }
 
 .profile-stage summary {
@@ -4633,6 +4672,16 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   color: var(--muted);
   font-size: 0.92rem;
   line-height: 1.55;
+}
+
+@media (max-width: 640px) {
+  .profile-interview-map {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-interview-map span {
+    justify-content: flex-start;
+  }
 }
 
 .settings-step-heading {
