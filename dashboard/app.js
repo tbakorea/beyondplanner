@@ -9570,13 +9570,36 @@ function setBootMessage(message) {
   if (node) node.textContent = message;
 }
 
+function buildBootValuePhrases(note = {}) {
+  const isKo = getAppLanguage() === "ko";
+  const day = ensureDay(iso(todayInPlanner()));
+  const tasks = getDayTasks(iso(todayInPlanner())).filter((task) => task.text?.trim());
+  const appointmentCount = Object.values(day.appointments || {}).filter((value) => String(value || "").trim()).length;
+  if (!isKo) {
+    return [
+      "Turn priorities into real time blocks.",
+      appointmentCount ? "See tasks, schedule, and decisions in one flow." : "Bring one important task into your calendar.",
+      tasks.length ? "The more you record, the sharper coaching becomes." : "Start with one task. The system learns from action.",
+    ];
+  }
+  return [
+    "중요한 일을 시간표에 연결합니다.",
+    appointmentCount ? "업무, 일정, 결정 흐름을 한 화면에서 정리합니다." : "가장 중요한 일 하나를 실제 시간에 앉힙니다.",
+    tasks.length ? "기록이 쌓일수록 코칭은 더 정확해집니다." : "첫 업무 하나가 오늘의 실행 흐름을 만듭니다.",
+  ];
+}
+
 function renderBootCoaching() {
   const message = el("bootCoachingMessage");
   const signals = el("bootCoachingSignals");
   const dayline = el("bootDayline");
+  const valueStrip = el("bootValueStrip");
   if (!message || !signals) return;
   const note = buildDailyOpeningNote(iso(todayInPlanner()));
   if (dayline) dayline.textContent = note.title;
+  if (valueStrip) {
+    valueStrip.innerHTML = buildBootValuePhrases(note).map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
+  }
   message.textContent = note.message;
   signals.innerHTML = note.signals.slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
