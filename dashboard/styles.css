@@ -11695,7 +11695,7 @@ body.ceo-mode .daily-panel-chip {
   grid-template-columns: minmax(0, 1fr);
   gap: 0;
   margin: -2px 0 7px;
-  padding: 6px;
+  padding: 6px 6px 6px 86px;
   border: 1px solid rgba(221, 216, 203, 0.62);
   border-radius: 13px;
   background: rgba(255, 253, 248, 0.58);
@@ -11710,17 +11710,17 @@ body.ceo-mode .daily-panel-chip {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   grid-auto-flow: row;
-  gap: 4px;
+  gap: 3px;
 }
 
 .daily-calendar-month-grid button,
 .daily-calendar-year-wheel button {
-  min-height: 23px;
+  min-height: 22px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
   color: rgba(47, 65, 56, 0.82);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 850;
   cursor: pointer;
 }
@@ -11736,16 +11736,16 @@ body.ceo-mode .daily-panel-chip {
   position: absolute;
   top: 0;
   bottom: auto;
-  left: 0;
+  left: -42px;
   right: auto;
   z-index: 5;
   display: grid;
   gap: 3px;
-  width: 84px;
+  width: 78px;
   max-height: 118px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 4px 6px;
+  padding: 4px 5px;
   border: 1px solid rgba(95, 118, 104, 0.28);
   border-radius: 14px;
   background: rgba(255, 253, 248, 0.96);
@@ -11893,5 +11893,204 @@ body.ceo-mode .daily-panel-chip {
   .day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"] {
     padding-left: 8px !important;
     padding-right: 30px !important;
+  }
+}
+
+/* Lausanne-grade visual pass: quiet hierarchy, precise rhythm, restrained surfaces. */
+:root {
+  --paper: #f6f4ee;
+  --sheet: #fffdfa;
+  --line: #ded9ce;
+  --soft-line: #eee9df;
+  --shadow: 0 18px 48px rgba(38, 50, 56, 0.07);
+}
+
+body {
+  background:
+    linear-gradient(180deg, rgba(251, 249, 243, 0.98), rgba(246, 244, 238, 0.98) 34%, rgba(242, 240, 233, 0.96)),
+    var(--paper) !important;
+}
+
+body::before {
+  opacity: 0.28;
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.26), transparent 38%) !important;
+}
+
+.app-header {
+  border-bottom-color: rgba(221, 216, 203, 0.52) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(255, 253, 248, 0.78)),
+    rgba(255, 253, 248, 0.82) !important;
+  box-shadow: 0 16px 44px rgba(38, 50, 56, 0.045) !important;
+  backdrop-filter: blur(20px);
+}
+
+.brand-row h1,
+.brand-block h1 {
+  letter-spacing: -0.045em !important;
+  font-weight: 920 !important;
+}
+
+.quick-strip {
+  gap: 6px !important;
+  border-color: rgba(221, 216, 203, 0.5) !important;
+  border-radius: 24px !important;
+  background: rgba(255, 253, 248, 0.58) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.54) !important;
+}
+
+.quick-strip button,
+.top-search-toggle,
+.mini-action,
+.daily-calendar-nav,
+.daily-calendar-today,
+.icon-button,
+.today-jump {
+  border-color: rgba(221, 216, 203, 0.66) !important;
+  background: rgba(255, 253, 248, 0.72) !important;
+  box-shadow: none !important;
+}
+
+.quick-strip button.is-active,
+.quick-strip button[aria-current="page"],
+.quick-strip button:hover,
+.daily-calendar-month-grid button.is-active,
+.daily-calendar-year-wheel button.is-active {
+  background: var(--forest) !important;
+  color: #fffefa !important;
+}
+
+.daily-title {
+  border-color: rgba(221, 216, 203, 0.56) !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(255, 253, 248, 0.76)),
+    rgba(255, 253, 248, 0.82) !important;
+  box-shadow: 0 14px 36px rgba(38, 50, 56, 0.055) !important;
+}
+
+.daily-heading,
+.daily-date-button {
+  letter-spacing: -0.04em !important;
+}
+
+.daily-pulse-row,
+.daily-pulse,
+.pulse-ticker {
+  border-color: rgba(221, 216, 203, 0.5) !important;
+  background: rgba(255, 253, 248, 0.52) !important;
+  box-shadow: none !important;
+}
+
+.day-swipe > .panel,
+.day-main-panel > .panel,
+.panel,
+.coach-card,
+.coach-guide-card,
+.finance-month-card,
+.weekly-priority-block {
+  border-color: rgba(221, 216, 203, 0.58) !important;
+  border-radius: 16px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.82), rgba(255, 253, 248, 0.7)),
+    rgba(255, 253, 248, 0.74) !important;
+  box-shadow: 0 12px 34px rgba(38, 50, 56, 0.045) !important;
+}
+
+.panel-title-row,
+.day-task-panel > .panel-title-row,
+.day-schedule-panel > .panel-title-row {
+  min-height: 56px !important;
+  border-bottom-color: rgba(221, 216, 203, 0.52) !important;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.78), rgba(255, 253, 248, 0.44)) !important;
+}
+
+.panel-title-row > span:first-child,
+.day-task-panel > .panel-title-row > span:first-child,
+.day-schedule-panel > .panel-title-row > span:first-child {
+  letter-spacing: -0.035em !important;
+  font-weight: 920 !important;
+}
+
+.task-row,
+.carryover-row,
+.appointment-row {
+  border-bottom-color: rgba(221, 216, 203, 0.54) !important;
+}
+
+.task-row:hover,
+.appointment-row:hover {
+  background: rgba(174, 191, 177, 0.07) !important;
+}
+
+.task-text-input,
+.appointment-row input[type="text"],
+.appointment-row textarea,
+.finance-row input,
+.finance-row select {
+  color: var(--ink) !important;
+  letter-spacing: -0.015em !important;
+}
+
+.task-text-input::placeholder,
+.appointment-row input[type="text"]::placeholder,
+.appointment-row textarea::placeholder {
+  color: rgba(112, 117, 111, 0.32) !important;
+}
+
+.daily-calendar-popover {
+  border-color: rgba(221, 216, 203, 0.58) !important;
+  border-radius: 18px !important;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(255, 253, 248, 0.86)),
+    rgba(255, 253, 248, 0.9) !important;
+  box-shadow: 0 24px 64px rgba(38, 50, 56, 0.11) !important;
+  backdrop-filter: blur(18px);
+}
+
+.daily-calendar-day {
+  border-radius: 9px !important;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
+}
+
+.daily-calendar-day:hover,
+.daily-calendar-day:focus-visible {
+  transform: translateY(-1px);
+}
+
+.daily-calendar-picker {
+  border-color: rgba(221, 216, 203, 0.46) !important;
+  background: rgba(255, 253, 248, 0.48) !important;
+}
+
+.daily-calendar-year-wheel {
+  background: rgba(255, 253, 248, 0.98) !important;
+  box-shadow: 0 14px 32px rgba(38, 50, 56, 0.12) !important;
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    box-shadow: 0 10px 30px rgba(38, 50, 56, 0.04) !important;
+  }
+
+  .quick-strip {
+    border-radius: 22px !important;
+  }
+
+  .daily-title {
+    border-radius: 14px !important;
+  }
+
+  .day-swipe > .panel,
+  .day-main-panel > .panel,
+  .panel {
+    border-radius: 14px !important;
+  }
+
+  .panel-title-row,
+  .day-task-panel > .panel-title-row,
+  .day-schedule-panel > .panel-title-row {
+    min-height: 52px !important;
   }
 }
