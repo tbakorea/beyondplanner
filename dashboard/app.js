@@ -8702,7 +8702,7 @@ function renderMoneyRows(node, rows, options = {}) {
       </select>
       <input class="finance-title" type="text" value="${escapeAttr(item.title)}" placeholder="내용" />
       <input class="finance-amount" type="${showAmounts ? "text" : "password"}" inputmode="numeric" value="${escapeAttr(formatMoneyInputValue(item.amount, showAmounts))}" placeholder="${showAmounts ? "금액" : "숨김"}" />
-      <input class="finance-due" type="number" min="1" max="31" value="${escapeAttr(item.dueDay)}" placeholder="일" />
+      <input class="finance-due" type="text" inputmode="numeric" value="${escapeAttr(item.dueDay)}" placeholder="일" />
       <select class="finance-status" aria-label="상태">
         ${moneyStatuses.map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${status}</option>`).join("")}
       </select>
@@ -8729,30 +8729,61 @@ function renderMoneyRows(node, rows, options = {}) {
     const repeatEndDate = row.querySelector(".finance-repeat-end-date");
     type.onchange = () => updateMoneyItemById(rows, item.id, "type", type.value, options);
     category.onchange = () => updateMoneyItemById(rows, item.id, "category", category.value, options);
-    title.oninput = () => {
+    bindMoneyCommitInput(title, () => {
       updateMoneyItemById(rows, item.id, "title", title.value, options);
       if (category && !category.value && item.category) category.value = item.category;
-    };
-    amount.oninput = () => updateMoneyItemById(rows, item.id, "amount", sanitizeMoneyInput(amount.value), options);
-    amount.onblur = () => {
-      if (showAmounts) amount.value = formatMoneyInputValue(item.amount || "", true);
-    };
-    dueDay.oninput = () => updateMoneyItemById(rows, item.id, "dueDay", dueDay.value, options);
+    });
+    bindMoneyCommitInput(amount, () => {
+      const value = sanitizeMoneyInput(amount.value);
+      updateMoneyItemById(rows, item.id, "amount", value, options);
+      if (showAmounts) amount.value = formatMoneyInputValue(value, true);
+    }, { sanitizeLive: (value) => value.replace(/[^\d,.-]/g, "") });
+    bindMoneyCommitInput(dueDay, () => {
+      const value = sanitizeDueDayInput(dueDay.value);
+      dueDay.value = value;
+      updateMoneyItemById(rows, item.id, "dueDay", value, options);
+    }, { sanitizeLive: (value) => value.replace(/[^\d]/g, "") });
     status.onchange = () => updateMoneyItemById(rows, item.id, "status", status.value, options);
-    memo.oninput = () => {
+    bindMoneyCommitInput(memo, () => {
       updateMoneyItemById(rows, item.id, "memo", memo.value, options);
       if (category && !category.value && item.category) category.value = item.category;
-    };
+    });
     if (repeatEndMode) {
       repeatEndMode.onchange = () => {
         updateMoneyItemById(rows, item.id, "repeatEndMode", repeatEndMode.value, options);
         if (repeatEndDate) repeatEndDate.disabled = repeatEndMode.value !== "date";
       };
     }
-    if (repeatEndDate) repeatEndDate.oninput = () => updateMoneyItemById(rows, item.id, "repeatEndDate", repeatEndDate.value, options);
+    if (repeatEndDate) {
+      repeatEndDate.onchange = () => updateMoneyItemById(rows, item.id, "repeatEndDate", repeatEndDate.value, options);
+    }
     row.querySelector(".finance-delete").onclick = () => removeMoneyRowById(rows, item.id, options);
     node.appendChild(row);
   });
+}
+
+function bindMoneyCommitInput(input, onCommit, options = {}) {
+  if (!input || typeof onCommit !== "function") return;
+  let committedValue = input.value;
+  const commit = () => {
+    const nextValue = input.value;
+    if (nextValue === committedValue) return;
+    committedValue = nextValue;
+    onCommit();
+  };
+  input.addEventListener("input", () => {
+    if (typeof options.sanitizeLive === "function") {
+      const clean = options.sanitizeLive(input.value);
+      if (clean !== input.value) input.value = clean;
+    }
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    commit();
+    input.blur();
+  });
+  input.addEventListener("blur", commit);
 }
 
 function addMoneyRow(rows, options = {}) {
@@ -8846,6 +8877,13 @@ function sanitizeMoneyInput(value = "") {
   const source = String(value || "").replace(/,/g, "").replace(/[^\d.-]/g, "");
   if (!source || source === "-" || source === "." || source === "-.") return source;
   return source;
+}
+
+function sanitizeDueDayInput(value = "") {
+  const source = String(value || "").replace(/[^\d]/g, "");
+  if (!source) return "";
+  const day = Math.min(31, Math.max(1, Number(source)));
+  return Number.isFinite(day) ? String(day) : "";
 }
 
 function formatMoneyInputValue(value = "", visible = true) {

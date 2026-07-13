@@ -11432,3 +11432,133 @@ body.ceo-mode .daily-panel-chip {
     padding-right: 38px !important;
   }
 }
+
+/* Top task priority/status cell: keep priority compact and remove box styling in action modes. */
+.task-status-cell {
+  width: 28px !important;
+  min-width: 24px !important;
+  max-width: 30px !important;
+  min-height: 26px !important;
+}
+
+.priority-select,
+.postpone-select {
+  width: 28px !important;
+  max-width: 28px !important;
+  min-height: 26px !important;
+  padding: 2px 6px 2px 2px !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+}
+
+.task-status-label {
+  font-size: 10.5px;
+}
+
+.task-status-label.is-priority-letter {
+  font-size: 14px;
+}
+
+.delegate-input,
+.postpone-date-button,
+.task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button,
+.task-status-cell:has(.postpone-date-label) .postpone-date-button {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.delegate-input {
+  width: 34px !important;
+  max-width: 34px !important;
+  min-height: 26px !important;
+  padding: 2px 1px !important;
+  color: var(--slate) !important;
+  text-align: center;
+}
+
+.delegate-input::placeholder {
+  color: transparent;
+}
+
+.postpone-date-button {
+  width: 28px !important;
+  max-width: 28px !important;
+  min-height: 26px !important;
+  color: transparent !important;
+}
+
+.task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button {
+  color: transparent !important;
+}
+
+.postpone-date-label {
+  inset: 2px 4px !important;
+}
+
+@media (max-width: 640px) {
+  .task-status-cell {
+    width: 26px !important;
+    max-width: 28px !important;
+  }
+
+  .priority-select,
+  .postpone-select,
+  .postpone-date-button {
+    width: 26px !important;
+    max-width: 26px !important;
+    min-height: 26px !important;
+  }
+
+  .delegate-input {
+    width: 32px !important;
+    max-width: 32px !important;
+  }
+}
+
+/* A priority should not create a fluorescent task text highlight. */
+.task-row.priority-a .task-text-input,
+.task-row.priority-a input[type="text"],
+.day-main-panel.is-focus-tasks .task-row.priority-a .task-text-input,
+.day-main-panel.is-focus-tasks .task-row.priority-a input[type="text"] {
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+
+.task-row.priority-a.is-repeat-task .task-text-input,
+.day-main-panel.is-focus-tasks .task-row.priority-a.is-repeat-task .task-text-input {
+  background: rgba(255, 253, 248, 0.72) !important;
+  box-shadow: inset 3px 0 0 rgba(172, 139, 72, 0.7) !important;
+}
+
+/* Merged schedule text: readable first, centered only by the cell rhythm. */
+.appointment-row.is-merged input[type="text"],
+.appointment-row.is-merged textarea {
+  padding-left: 10px !important;
+  padding-right: 34px !important;
+  text-align: left !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+
+.day-main-panel.is-focus-schedule .appointment-row.is-merged textarea,
+.day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"] {
+  padding-left: 12px !important;
+  padding-right: 34px !important;
+  text-align: left !important;
+  white-space: normal !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+
+@media (max-width: 640px) {
+  .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea,
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged textarea,
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"] {
+    padding-left: 8px !important;
+    padding-right: 30px !important;
+  }
+}
