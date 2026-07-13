@@ -369,7 +369,7 @@ let state = loadState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
 let activeCoachSection = "";
-let activeCoachTab = "guide";
+let activeCoachTab = "coach";
 let saveStatus = { ready: false, environment: "db", message: "저장 확인 중", saving: false };
 let accountSaveReady = false;
 let accountSaveTimer = 0;
@@ -2127,7 +2127,7 @@ function setupSelectors() {
   el("topSearchClose").onclick = closeTopSearch;
   el("coachBubble").onclick = () => {
     activeCoachSection = "";
-    activeCoachTab = "guide";
+    activeCoachTab = "coach";
     showView("coach");
     renderAll();
   };
@@ -2316,13 +2316,13 @@ function closeSearch() {
 
 function closeCoach() {
   activeCoachSection = "";
-  activeCoachTab = "guide";
+  activeCoachTab = "coach";
   closeToDailyPage();
 }
 
 function openSectionCoach(section = "day") {
   activeCoachSection = section;
-  activeCoachTab = "guide";
+  activeCoachTab = "coach";
   showView("coach");
   renderAll();
 }
