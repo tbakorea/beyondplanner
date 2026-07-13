@@ -385,6 +385,7 @@ let currentDayPanel = "main";
 let dateSlideTimer = 0;
 let dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
+let dailyCalendarPickerOpen = false;
 let weekCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
 let activePostponeCalendar = null;
@@ -2016,10 +2017,9 @@ function setupSelectors() {
     }
     toggleDailyCalendar();
   };
-  el("dailyCalendarPrevYear").onclick = () => shiftDailyCalendarYear(-1);
   el("dailyCalendarPrevMonth").onclick = () => shiftDailyCalendarMonth(-1);
   el("dailyCalendarNextMonth").onclick = () => shiftDailyCalendarMonth(1);
-  el("dailyCalendarNextYear").onclick = () => shiftDailyCalendarYear(1);
+  el("dailyCalendarMonthTitle").onclick = toggleDailyCalendarPicker;
   el("dailyCalendarClose").onclick = () => closeDailyCalendar(true);
   el("dailyCalendarToday").onclick = () => selectDailyCalendarDate(todayInPlanner());
   el("weekCalendarToggle").onclick = () => {
@@ -2606,6 +2606,7 @@ function toggleDailyCalendar() {
 function closeDailyCalendar(restoreFocus = false) {
   const popover = el("dailyCalendarPopover");
   if (!popover || popover.hidden) return;
+  closeDailyCalendarPicker();
   popover.hidden = true;
   el("dailyCalendarToggle")?.setAttribute("aria-expanded", "false");
   if (restoreFocus) el("dailyCalendarToggle")?.focus();
@@ -2621,6 +2622,19 @@ function shiftDailyCalendarYear(delta) {
   const next = new Date(dailyCalendarMonth.getFullYear() + delta, dailyCalendarMonth.getMonth(), 1);
   dailyCalendarMonth = next;
   renderDailyCalendar();
+}
+
+function toggleDailyCalendarPicker() {
+  dailyCalendarPickerOpen = !dailyCalendarPickerOpen;
+  renderDailyCalendar();
+}
+
+function closeDailyCalendarPicker() {
+  dailyCalendarPickerOpen = false;
+  const picker = el("dailyCalendarPicker");
+  const title = el("dailyCalendarMonthTitle");
+  if (picker) picker.hidden = true;
+  title?.setAttribute("aria-expanded", "false");
 }
 
 function isDailyCalendarOpen() {
@@ -2867,9 +2881,14 @@ function renderDailyCalendar() {
   const todayKey = iso(todayInPlanner());
   const selectedKey = iso(selectedDate);
 
-  el("dailyCalendarMonthTitle").textContent = formatYearMonth(new Date(year, month, 1));
+  const titleButton = el("dailyCalendarMonthTitle");
+  if (titleButton) {
+    titleButton.textContent = formatYearMonth(new Date(year, month, 1));
+    titleButton.setAttribute("aria-expanded", String(dailyCalendarPickerOpen));
+  }
   el("dailyCalendarPrevMonth").disabled = false;
   el("dailyCalendarNextMonth").disabled = false;
+  renderDailyCalendarPicker(year, month);
   grid.innerHTML = "";
 
   weekdays.forEach((weekday, index) => {
@@ -2912,6 +2931,48 @@ function renderDailyCalendar() {
     };
     grid.appendChild(button);
   }
+}
+
+function renderDailyCalendarPicker(year, month) {
+  const picker = el("dailyCalendarPicker");
+  const monthGrid = el("dailyCalendarMonthGrid");
+  const yearWheel = el("dailyCalendarYearWheel");
+  if (!picker || !monthGrid || !yearWheel) return;
+  picker.hidden = !dailyCalendarPickerOpen;
+  if (!dailyCalendarPickerOpen) {
+    monthGrid.innerHTML = "";
+    yearWheel.innerHTML = "";
+    return;
+  }
+  monthGrid.innerHTML = "";
+  Array.from({ length: 12 }, (_, index) => index).forEach((monthIndex) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = monthIndex === month ? "is-active" : "";
+    button.textContent = `${monthIndex + 1}월`;
+    button.onclick = () => {
+      dailyCalendarMonth = new Date(year, monthIndex, 1);
+      dailyCalendarPickerOpen = false;
+      renderDailyCalendar();
+    };
+    monthGrid.appendChild(button);
+  });
+
+  yearWheel.innerHTML = "";
+  for (let nextYear = year - 6; nextYear <= year + 6; nextYear += 1) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = nextYear === year ? "is-active" : "";
+    button.textContent = String(nextYear);
+    button.onclick = () => {
+      dailyCalendarMonth = new Date(nextYear, month, 1);
+      renderDailyCalendar();
+    };
+    yearWheel.appendChild(button);
+  }
+  window.requestAnimationFrame(() => {
+    yearWheel.querySelector(".is-active")?.scrollIntoView({ block: "center", inline: "nearest" });
+  });
 }
 
 function renderWeekCalendar() {

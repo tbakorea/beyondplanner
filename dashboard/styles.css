@@ -11654,6 +11654,99 @@ body.ceo-mode .daily-panel-chip {
   font-size: 11px !important;
 }
 
+/* Daily date picker: compact month grid and in-place year wheel. */
+.daily-calendar-toolbar {
+  grid-template-columns: 30px minmax(0, 1fr) 30px 28px !important;
+  gap: 5px !important;
+}
+
+.daily-calendar-title {
+  min-width: 0;
+  min-height: 32px;
+  border: 1px solid rgba(221, 216, 203, 0.72);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--forest);
+  padding: 0 12px;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.daily-calendar-title[aria-expanded="true"] {
+  border-color: rgba(95, 118, 104, 0.34);
+  background: rgba(174, 191, 177, 0.18);
+}
+
+.daily-calendar-picker {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  gap: 8px;
+  margin: -1px 0 8px;
+  padding: 8px;
+  border: 1px solid rgba(221, 216, 203, 0.62);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.72);
+  animation: calendarPickerIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.daily-calendar-picker[hidden] {
+  display: none !important;
+}
+
+.daily-calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.daily-calendar-month-grid button,
+.daily-calendar-year-wheel button {
+  min-height: 26px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: rgba(47, 65, 56, 0.82);
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.daily-calendar-month-grid button.is-active,
+.daily-calendar-year-wheel button.is-active {
+  border-color: rgba(95, 118, 104, 0.28);
+  background: var(--forest);
+  color: #fffefa;
+}
+
+.daily-calendar-year-wheel {
+  display: grid;
+  gap: 4px;
+  max-height: 118px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 2px;
+  scroll-snap-type: y proximity;
+  mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+}
+
+.daily-calendar-year-wheel button {
+  min-height: 28px;
+  scroll-snap-align: center;
+}
+
+@keyframes calendarPickerIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes bootSlideOneByOne {
   0%,
   8% {
