@@ -11660,7 +11660,16 @@ body.ceo-mode .daily-panel-chip {
   gap: 5px !important;
 }
 
+.daily-calendar-title-wrap {
+  position: relative;
+  min-width: 0;
+}
+
 .daily-calendar-title {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   min-width: 0;
   min-height: 32px;
   border: 1px solid rgba(221, 216, 203, 0.72);
@@ -11671,23 +11680,25 @@ body.ceo-mode .daily-panel-chip {
   font-size: 14px;
   font-weight: 900;
   letter-spacing: -0.01em;
+  text-align: center;
   cursor: pointer;
 }
 
 .daily-calendar-title[aria-expanded="true"] {
   border-color: rgba(95, 118, 104, 0.34);
   background: rgba(174, 191, 177, 0.18);
+  color: transparent;
 }
 
 .daily-calendar-picker {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 82px;
-  gap: 8px;
-  margin: -1px 0 8px;
-  padding: 8px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  margin: -2px 0 7px;
+  padding: 6px;
   border: 1px solid rgba(221, 216, 203, 0.62);
-  border-radius: 14px;
-  background: rgba(255, 253, 248, 0.72);
+  border-radius: 13px;
+  background: rgba(255, 253, 248, 0.58);
   animation: calendarPickerIn 160ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
@@ -11697,18 +11708,18 @@ body.ceo-mode .daily-panel-chip {
 
 .daily-calendar-month-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 5px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
 }
 
 .daily-calendar-month-grid button,
 .daily-calendar-year-wheel button {
-  min-height: 26px;
+  min-height: 23px;
   border: 1px solid transparent;
   border-radius: 999px;
   background: transparent;
   color: rgba(47, 65, 56, 0.82);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 850;
   cursor: pointer;
 }
@@ -11721,25 +11732,76 @@ body.ceo-mode .daily-panel-chip {
 }
 
 .daily-calendar-year-wheel {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
   display: grid;
-  gap: 4px;
+  gap: 3px;
   max-height: 118px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding-right: 2px;
+  padding: 4px 6px;
+  border: 1px solid rgba(95, 118, 104, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.96);
+  box-shadow: 0 10px 26px rgba(38, 50, 56, 0.1);
   scroll-snap-type: y proximity;
+  text-align: center;
   mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  animation: calendarYearWheelIn 140ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.daily-calendar-year-wheel[hidden] {
+  display: none !important;
 }
 
 .daily-calendar-year-wheel button {
-  min-height: 28px;
+  min-height: 24px;
+  font-size: 12px;
+  text-align: center;
   scroll-snap-align: center;
+}
+
+.daily-calendar-day .calendar-event,
+.daily-calendar-day .lunar-mark {
+  display: block;
+  max-width: calc(100% - 2px);
+  overflow: hidden;
+  color: rgba(47, 65, 56, 0.66);
+  font-size: 7.8px;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.daily-calendar-day .calendar-event.event-holiday,
+.daily-calendar-day .calendar-event.event-national {
+  color: #a23b35;
+  font-weight: 860;
+}
+
+.daily-calendar-day.has-holiday:not(.is-selected) {
+  border-color: rgba(162, 59, 53, 0.22);
+  background: rgba(244, 232, 224, 0.46);
 }
 
 @keyframes calendarPickerIn {
   from {
     opacity: 0;
     transform: translateY(-4px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes calendarYearWheelIn {
+  from {
+    opacity: 0;
+    transform: translateY(-3px) scale(0.98);
   }
   to {
     opacity: 1;

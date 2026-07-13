@@ -2855,6 +2855,12 @@ function getCalendarAnnotation(date) {
 function renderCalendarAnnotationMarkup(events, lunarLabel, options = {}) {
   const limit = options.compact ? 1 : events.length;
   const visibleEvents = events.slice(0, limit);
+  if (options.compact) {
+    return [
+      ...visibleEvents.map((event) => `<small class="calendar-event event-${event.type}">${escapeHtml(event.label)}</small>`),
+      !visibleEvents.length && lunarLabel ? `<em class="lunar-mark">음 ${escapeHtml(lunarLabel)}</em>` : "",
+    ].join("");
+  }
   return [
     lunarLabel ? `<em class="lunar-mark">음 ${escapeHtml(lunarLabel)}</em>` : "",
     ...visibleEvents.map((event) => `<small class="calendar-event event-${event.type}">${escapeHtml(event.label)}</small>`),
@@ -2939,6 +2945,7 @@ function renderDailyCalendarPicker(year, month) {
   const yearWheel = el("dailyCalendarYearWheel");
   if (!picker || !monthGrid || !yearWheel) return;
   picker.hidden = !dailyCalendarPickerOpen;
+  yearWheel.hidden = !dailyCalendarPickerOpen;
   if (!dailyCalendarPickerOpen) {
     monthGrid.innerHTML = "";
     yearWheel.innerHTML = "";
@@ -2966,6 +2973,7 @@ function renderDailyCalendarPicker(year, month) {
     button.textContent = String(nextYear);
     button.onclick = () => {
       dailyCalendarMonth = new Date(nextYear, month, 1);
+      dailyCalendarPickerOpen = false;
       renderDailyCalendar();
     };
     yearWheel.appendChild(button);
