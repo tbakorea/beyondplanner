@@ -1697,15 +1697,49 @@ function getScheduleSlotsForUnit(unit = "30") {
 }
 
 function getScheduleSlotsForDay(day = ensureDay()) {
-  return getScheduleSlotsForUnit(day.scheduleUnit || getEffectiveScheduleUnit(iso(selectedDate)));
+  const unit = day.scheduleUnit || getEffectiveScheduleUnit(iso(selectedDate));
+  const range = getScheduleRangeForDay(day, unit);
+  return generateScheduleSlots(unit, range);
 }
 
 function ensureAppointmentSlots(day, unit = day?.scheduleUnit || "30") {
   if (!day) return;
   day.appointments ||= {};
-  getScheduleSlotsForUnit(unit).forEach((slot) => {
+  getScheduleSlotsForDay(day).forEach((slot) => {
     if (day.appointments[slot] === undefined) day.appointments[slot] = "";
   });
+}
+
+function getScheduleRangeForDay(day = ensureDay(), unit = day?.scheduleUnit || "30") {
+  const base = getScheduleSettingsRange();
+  const step = normalizeScheduleUnit(unit) === "60" ? 60 : 30;
+  let start = timeToMinutes(base.start);
+  let end = timeToMinutes(base.end);
+  collectDayScheduleTimes(day).forEach((slot) => {
+    const minutes = timeToMinutes(slot);
+    if (!Number.isFinite(minutes)) return;
+    start = Math.min(start, floorToStep(minutes, step));
+    end = Math.max(end, floorToStep(minutes, step) + step);
+  });
+  end = Math.min(24 * 60, Math.max(end, start + step));
+  return { start: minutesToTime(start), end: minutesToTime(end) };
+}
+
+function collectDayScheduleTimes(day = ensureDay()) {
+  const times = new Set();
+  Object.entries(day?.appointments || {}).forEach(([slot, value]) => {
+    if (String(value || "").trim() && /^([01]\d|2[0-3]):[0-5]\d$/.test(slot)) times.add(slot);
+  });
+  getTaskRefs(day).forEach(({ task }) => {
+    if (shouldRemoveTaskScheduleLink(task)) return;
+    const hint = extractTaskTimeHint(task.text);
+    if (hint?.slot) times.add(hint.slot);
+  });
+  return times;
+}
+
+function floorToStep(minutes, step = 30) {
+  return Math.max(0, Math.floor(minutes / step) * step);
 }
 
 function normalizeAppointmentMerges(day) {
@@ -1982,8 +2016,10 @@ function setupSelectors() {
     }
     toggleDailyCalendar();
   };
+  el("dailyCalendarPrevYear").onclick = () => shiftDailyCalendarYear(-1);
   el("dailyCalendarPrevMonth").onclick = () => shiftDailyCalendarMonth(-1);
   el("dailyCalendarNextMonth").onclick = () => shiftDailyCalendarMonth(1);
+  el("dailyCalendarNextYear").onclick = () => shiftDailyCalendarYear(1);
   el("dailyCalendarClose").onclick = () => closeDailyCalendar(true);
   el("dailyCalendarToday").onclick = () => selectDailyCalendarDate(todayInPlanner());
   el("weekCalendarToggle").onclick = () => {
@@ -2577,6 +2613,12 @@ function closeDailyCalendar(restoreFocus = false) {
 
 function shiftDailyCalendarMonth(delta) {
   const next = new Date(dailyCalendarMonth.getFullYear(), dailyCalendarMonth.getMonth() + delta, 1);
+  dailyCalendarMonth = next;
+  renderDailyCalendar();
+}
+
+function shiftDailyCalendarYear(delta) {
+  const next = new Date(dailyCalendarMonth.getFullYear() + delta, dailyCalendarMonth.getMonth(), 1);
   dailyCalendarMonth = next;
   renderDailyCalendar();
 }
@@ -6256,7 +6298,8 @@ function renderTaskRow(task, priority, index) {
   const moneyLink = row.querySelector(".task-money-link");
   const deleteButton = row.querySelector(".task-delete");
   cycle.onclick = () => {
-    cycleTaskMarker(task);
+    const feedback = cycleTaskMarker(task);
+    showTaskCycleFeedback(cycle, feedback);
     saveState({ fastSave: true });
     renderAll();
   };
@@ -6412,10 +6455,10 @@ function getTaskMarker(task) {
 }
 
 function getTaskMarkerLabel(marker) {
-  if (marker === "check") return "✓";
+  if (marker === "check") return "v";
   if (marker === "dot") return "•";
-  if (marker === "delegate") return "위임";
-  if (marker === "postpone") return "연기";
+  if (marker === "delegate") return "↗";
+  if (marker === "postpone") return "→";
   return "";
 }
 
@@ -6424,29 +6467,43 @@ function cycleTaskMarker(task) {
   if (marker === "empty") {
     task.done = true;
     task.status = "완료";
-    return;
+    return "완료";
   }
   if (marker === "check") {
     task.done = false;
     task.status = "진행중";
-    return;
+    return "진행중";
   }
   if (marker === "dot") {
     task.done = false;
     task.status = "위임";
     task.delegate ||= "";
-    return;
+    return "위임";
   }
   if (marker === "delegate") {
     task.done = false;
     task.status = "연기";
     task.postponeMode ||= "";
-    return;
+    return "연기";
   }
   task.done = false;
   task.status = "미완료";
   task.delegate = "";
   task.postponeMode = "";
+  task.postponeDate = "";
+  return "해제";
+}
+
+function showTaskCycleFeedback(anchor, label = "") {
+  if (!anchor || !label) return;
+  const rect = anchor.getBoundingClientRect();
+  const node = document.createElement("span");
+  node.className = "task-cycle-feedback";
+  node.textContent = label;
+  node.style.left = `${Math.round(rect.left + rect.width / 2)}px`;
+  node.style.top = `${Math.round(rect.top)}px`;
+  document.body.appendChild(node);
+  window.setTimeout(() => node.remove(), 980);
 }
 
 function getPriorityMenuValue(task, priority) {
@@ -6668,8 +6725,9 @@ function renderCarryoverTask(task) {
   const delegateInput = row.querySelector(".delegate-input");
   const postponeDateButton = row.querySelector(".postpone-date-button");
   const moneyLink = row.querySelector(".task-money-link");
-  row.querySelector(".task-cycle").onclick = () => {
-    updateCarryoverTaskMarker(task);
+  const cycle = row.querySelector(".task-cycle");
+  cycle.onclick = () => {
+    updateCarryoverTaskMarker(task, cycle);
   };
   if (prioritySelect) {
     let handledValue = "";
@@ -6718,18 +6776,12 @@ function deleteCarryoverTask(taskRef) {
   renderAll();
 }
 
-function updateCarryoverTaskMarker(taskRef) {
-  const sourceRef = findTaskSource(taskRef);
+function updateCarryoverTaskMarker(taskRef, anchor = null) {
+  const sourceRef = materializeCarryoverTask(taskRef);
   const source = sourceRef?.task;
   if (!source) return;
-  const completedKey = iso(selectedDate);
-  if (isCarryoverCompletedOn(source, completedKey)) {
-    delete source.carryoverDoneDate;
-  } else {
-    source.carryoverDoneDate = completedKey;
-  }
-  source.done = false;
-  if (source.status === "완료") source.status = "미완료";
+  const feedback = cycleTaskMarker(source);
+  showTaskCycleFeedback(anchor, feedback);
   saveState({ fastSave: true });
   renderAll();
 }
