@@ -7331,12 +7331,14 @@ function renderAppointments(day) {
         valueBeforeEdit = "";
       }
     };
-    row.querySelector(".split-appointment")?.addEventListener("click", () => {
-      captureUndo("시간별 일정 분리");
-      delete day.appointmentMerges[slot];
-      saveState();
-      renderAppointments(day);
-      showUndoNotice("시간별 일정을 분리했습니다.");
+    row.querySelector(".split-appointment")?.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    row.querySelector(".split-appointment")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      splitAppointmentSlot(day, slot);
     });
     row.querySelector(".appointment-merge-button")?.addEventListener("click", () => mergeAppointmentSlot(day, slot));
     row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
@@ -7403,6 +7405,34 @@ function getAppointmentEndLabel(slotIndex, span, slots = timeSlots) {
 function getScheduleSlotIntervalMinutes(slots = timeSlots) {
   if (slots.length < 2) return 30;
   return Math.max(30, slotToMinutes(slots[1]) - slotToMinutes(slots[0]));
+}
+
+function splitAppointmentSlot(day, slot) {
+  const slots = getScheduleSlotsForDay(day);
+  const startIndex = slots.indexOf(slot);
+  if (startIndex < 0) return;
+  normalizeAppointmentMerges(day);
+  const span = getAppointmentSpan(day, slot);
+  if (span <= 1) return;
+  captureUndo("시간별 일정 분리");
+  const targetEndIndex = Math.min(slots.length, startIndex + span);
+  Object.entries({ ...(day.appointmentMerges || {}) }).forEach(([startSlot, startSpan]) => {
+    const mergeStartIndex = slots.indexOf(startSlot);
+    if (mergeStartIndex < 0) {
+      delete day.appointmentMerges[startSlot];
+      return;
+    }
+    const mergeEndIndex = Math.min(slots.length, mergeStartIndex + Math.max(1, Number(startSpan) || 1));
+    const intersects = mergeStartIndex < targetEndIndex && mergeEndIndex > startIndex;
+    if (intersects) delete day.appointmentMerges[startSlot];
+  });
+  slots.slice(startIndex, targetEndIndex).forEach((coveredSlot) => {
+    day.appointments[coveredSlot] ||= "";
+  });
+  saveState();
+  renderAppointments(day);
+  renderSidebar();
+  showUndoNotice("시간별 일정을 분리했습니다.");
 }
 
 function mergeAppointmentSlot(day, slot) {
