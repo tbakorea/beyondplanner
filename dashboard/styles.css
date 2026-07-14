@@ -4089,6 +4089,78 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   animation: taskCycleFeedbackOut 980ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.undo-notice {
+  position: fixed;
+  left: 50%;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(520px, calc(100vw - 28px));
+  padding: 10px 12px 10px 14px;
+  border: 1px solid rgba(221, 216, 203, 0.74);
+  border-radius: 999px;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(248, 245, 236, 0.92)),
+    rgba(255, 253, 248, 0.94);
+  box-shadow: 0 18px 48px rgba(38, 50, 56, 0.16);
+  color: var(--ink);
+  transform: translate(-50%, 18px);
+  opacity: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+  backdrop-filter: blur(18px) saturate(1.06);
+}
+
+.undo-notice.is-visible {
+  transform: translate(-50%, 0);
+  opacity: 1;
+}
+
+.undo-notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-notice-action,
+.undo-notice-close {
+  flex: 0 0 auto;
+  border: 1px solid rgba(42, 70, 57, 0.18);
+  background: rgba(255, 253, 248, 0.78);
+  color: var(--forest);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 860;
+}
+
+.undo-notice-action {
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+}
+
+.undo-notice-close {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.undo-notice-action:hover,
+.undo-notice-close:hover {
+  background: var(--forest);
+  color: #fffefa;
+}
+
 @keyframes taskCycleFeedbackOut {
   0% {
     opacity: 0;
@@ -12092,5 +12164,68 @@ body::before {
   .day-task-panel > .panel-title-row,
   .day-schedule-panel > .panel-title-row {
     min-height: 52px !important;
+  }
+}
+
+/* Mobile date header: keep the weekday visible instead of truncating it. */
+@media (max-width: 640px) {
+  .day-date-nav {
+    gap: 4px !important;
+  }
+
+  .daily-date-button {
+    flex: 1 1 0 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding-inline: 4px !important;
+    justify-content: center !important;
+    overflow: visible !important;
+  }
+
+  #dayTitle {
+    width: 100% !important;
+    max-width: none !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+    text-overflow: clip !important;
+    text-align: center !important;
+    font-size: clamp(18px, 4.9vw, 20px) !important;
+    line-height: 1 !important;
+    letter-spacing: -0.075em !important;
+  }
+
+  .daily-title .icon-button.compact {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  .daily-title .today-jump {
+    min-width: 42px !important;
+    padding-inline: 7px !important;
+    font-size: 14px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .daily-date-button {
+    padding-inline: 2px !important;
+  }
+
+  #dayTitle {
+    font-size: clamp(16px, 4.65vw, 18px) !important;
+    letter-spacing: -0.085em !important;
+  }
+
+  .daily-title .icon-button.compact {
+    width: 30px !important;
+    min-width: 30px !important;
+  }
+
+  .daily-title .today-jump {
+    min-width: 38px !important;
+    padding-inline: 5px !important;
+    font-size: 13px !important;
   }
 }

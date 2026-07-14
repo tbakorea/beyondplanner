@@ -414,6 +414,8 @@ let sheetSlideOpening = false;
 let sheetSwipeSuppressClick = false;
 let sheetHeaderResizeSuppressClick = false;
 let mobileDayFocusMode = "split";
+let pendingUndoAction = null;
+let undoNoticeTimer = 0;
 
 function el(id) {
   return document.getElementById(id);
@@ -421,6 +423,75 @@ function el(id) {
 
 function confirmDelete(message = "삭제할까요? 이 작업은 되돌리기 어렵습니다.") {
   return window.confirm(message);
+}
+
+function clonePlannerState(source = state) {
+  return JSON.parse(JSON.stringify(source));
+}
+
+function captureUndo(label = "작업") {
+  pendingUndoAction = {
+    label,
+    state: clonePlannerState(state),
+    selectedDate: iso(selectedDate),
+    selectedFinanceMonth,
+    selectedSheetId,
+    selectedSheetCell,
+    activeView,
+  };
+}
+
+function getUndoNoticeNode() {
+  let node = el("undoNotice");
+  if (node) return node;
+  node = document.createElement("div");
+  node.id = "undoNotice";
+  node.className = "undo-notice";
+  node.hidden = true;
+  node.innerHTML = `
+    <span class="undo-notice-text"></span>
+    <button class="undo-notice-action" type="button">되돌리기</button>
+    <button class="undo-notice-close" type="button" aria-label="닫기">×</button>
+  `;
+  node.querySelector(".undo-notice-action").addEventListener("click", restoreUndoAction);
+  node.querySelector(".undo-notice-close").addEventListener("click", hideUndoNotice);
+  document.body.appendChild(node);
+  return node;
+}
+
+function showUndoNotice(message = "작업을 완료했습니다.") {
+  if (!pendingUndoAction) return;
+  const node = getUndoNoticeNode();
+  node.querySelector(".undo-notice-text").textContent = message;
+  node.hidden = false;
+  node.classList.add("is-visible");
+  window.clearTimeout(undoNoticeTimer);
+  undoNoticeTimer = window.setTimeout(hideUndoNotice, 9000);
+}
+
+function hideUndoNotice() {
+  const node = el("undoNotice");
+  if (!node) return;
+  node.classList.remove("is-visible");
+  window.clearTimeout(undoNoticeTimer);
+  undoNoticeTimer = window.setTimeout(() => {
+    node.hidden = true;
+  }, 180);
+}
+
+function restoreUndoAction() {
+  if (!pendingUndoAction) return;
+  const snapshot = pendingUndoAction;
+  pendingUndoAction = null;
+  state = migrateState(snapshot.state);
+  selectedDate = parseDate(snapshot.selectedDate || iso(todayInPlanner()));
+  selectedFinanceMonth = snapshot.selectedFinanceMonth || monthKey(selectedDate);
+  selectedSheetId = snapshot.selectedSheetId || state.customSheets?.activeId || "";
+  selectedSheetCell = snapshot.selectedSheetCell || "A1";
+  if (snapshot.activeView) activeView = snapshot.activeView;
+  saveState({ fastSave: true });
+  renderAll();
+  hideUndoNotice();
 }
 
 function requirePlannerAuth() {
@@ -662,12 +733,31 @@ function normalizeTask(task = {}) {
   return task;
 }
 
+function getTaskOrder(task = {}) {
+  const order = Number(task.order);
+  return Number.isFinite(order) ? order : Number.MAX_SAFE_INTEGER;
+}
+
+function assignTaskOrder(day, task) {
+  day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
+  const maxOrder = priorities
+    .flatMap(([priority]) => day.tasks?.[priority] || [])
+    .reduce((max, item) => Math.max(max, Number(item?.order) || 0), 0);
+  day.taskOrderCounter = Math.max(day.taskOrderCounter, maxOrder + 1);
+  task.order = day.taskOrderCounter++;
+  return task.order;
+}
+
 function normalizeDayTasks(day) {
   if (!day) return;
   day.tasks ||= { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) };
+  day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
   priorities.forEach(([priority]) => {
     day.tasks[priority] ||= emptyTasks(5);
-    day.tasks[priority].forEach(normalizeTask);
+    day.tasks[priority].forEach((task) => {
+      normalizeTask(task);
+      if (!Number.isFinite(Number(task.order))) assignTaskOrder(day, task);
+    });
   });
 }
 
@@ -3283,7 +3373,11 @@ function handleOnboardingAction(action) {
   if (action === "task") {
     const day = ensureDay();
     const hasEmptySlot = day.tasks.A.some((task) => !task.text?.trim());
-    if (!hasEmptySlot) day.tasks.A.push({ text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
+    if (!hasEmptySlot) {
+      const task = { text: "", status: "미완료", done: false, delegate: "", priorityUnset: true };
+      assignTaskOrder(day, task);
+      day.tasks.A.push(task);
+    }
     showView("day");
     renderAll();
     window.requestAnimationFrame(() => document.querySelector(".day-task-panel .task-text-input")?.focus());
@@ -5536,7 +5630,9 @@ function generateTaskSuggestions(context = buildPlannerContext()) {
 function addSuggestedTask(text) {
   const day = ensureDay();
   const priority = suggestedTaskPriority(text);
-  day.tasks[priority].push({ text, status: "미완료", done: false, priorityUnset: false });
+  const task = { text, status: "미완료", done: false, priorityUnset: false };
+  assignTaskOrder(day, task);
+  day.tasks[priority].push(task);
   saveState();
   showView("day");
   renderAll();
@@ -5804,7 +5900,7 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
     if (existingTask) {
       return;
     }
-    day.tasks[priority].push({
+    const task = {
       text: rule.text.trim(),
       status: "미완료",
       done: false,
@@ -5812,7 +5908,9 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
       repeatStartDate: rule.startDate,
       repeatSourceDate: key,
       priorityUnset: false,
-    });
+    };
+    assignTaskOrder(day, task);
+    day.tasks[priority].push(task);
   });
 }
 
@@ -5977,6 +6075,7 @@ function renderRepeatPriorityList() {
     };
     row.querySelector(".repeat-delete").onclick = () => {
       if (!confirmDelete("이 반복 우선업무를 삭제할까요? 이전 기록은 유지되고 오늘 이후 반복만 중단됩니다.")) return;
+      captureUndo("반복 우선업무 삭제");
       rule.active = false;
       rule.deletedFrom = iso(selectedDate || todayInPlanner());
       rule.removed = true;
@@ -5984,6 +6083,7 @@ function renderRepeatPriorityList() {
       saveState();
       renderRepeatPriorityList();
       renderDay();
+      showUndoNotice("반복 우선업무를 삭제했습니다.");
     };
     scroller.appendChild(row);
     node.appendChild(scroller);
@@ -6302,7 +6402,9 @@ function renderTaskBoard(day) {
   add.className = "add-row task-add-primary";
   add.textContent = "일반 업무 추가";
   add.onclick = () => {
-    day.tasks.A.push({ text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
+    const task = { text: "", status: "미완료", done: false, delegate: "", priorityUnset: true };
+    assignTaskOrder(day, task);
+    day.tasks.A.push(task);
     saveState({ fastSave: true });
     renderDay();
   };
@@ -6317,13 +6419,12 @@ function renderTaskBoard(day) {
 }
 
 function getTaskRefs(day) {
-  const priorityOrder = Object.fromEntries(priorities.map(([priority], index) => [priority, index]));
   return priorities
     .flatMap(([priority]) => day.tasks[priority].map((task, index) => ({ task, priority, index })))
     .sort((a, b) => {
       const activeDelta = Number(isActiveTaskSlot(b.task)) - Number(isActiveTaskSlot(a.task));
       if (activeDelta) return activeDelta;
-      return (priorityOrder[a.priority] || 0) - (priorityOrder[b.priority] || 0) || a.index - b.index;
+      return getTaskOrder(a.task) - getTaskOrder(b.task) || a.index - b.index;
     });
 }
 
@@ -6632,6 +6733,7 @@ function deleteTask(priority, index) {
   const task = day.tasks?.[priority]?.[index];
   if (!task) return;
   if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
+  captureUndo("우선업무 삭제");
   if (task.repeatId) {
     day.deletedRepeatIds ||= [];
     if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
@@ -6639,6 +6741,7 @@ function deleteTask(priority, index) {
   day.tasks[priority].splice(index, 1);
   saveState({ fastSave: true });
   renderAll();
+  showUndoNotice("우선업무를 삭제했습니다.");
 }
 
 function schedulePostponedTask(task, priority, targetDate) {
@@ -6666,6 +6769,7 @@ function schedulePostponedTask(task, priority, targetDate) {
       postponedSourceDate: iso(selectedDate),
       originalPriority: targetPriority,
     };
+    assignTaskOrder(targetDay, existingTask);
     targetDay.tasks[targetPriority].push(existingTask);
   } else if (existingTask) {
     existingTask.text = task.text.trim();
@@ -6757,6 +6861,7 @@ function materializeCarryoverTask(taskRef) {
       carryoverSourceDate: taskRef.date,
       repeatSourceDate: source.task.repeatSourceDate || taskRef.date,
     };
+    assignTaskOrder(day, targetTask);
     day.tasks[targetPriority].push(targetTask);
     targetPriority = source.priority;
   }
@@ -6834,6 +6939,7 @@ function deleteCarryoverTask(taskRef) {
   const source = findTaskSource(taskRef);
   if (!source) return;
   if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘 이후 이월에서 제외됩니다.")) return;
+  captureUndo("이월 우선업무 삭제");
   if (source.task.repeatId) {
     const selectedKey = iso(selectedDate);
     const day = ensureDay(selectedKey);
@@ -6843,6 +6949,7 @@ function deleteCarryoverTask(taskRef) {
   source.task.carryoverDeletedFrom = iso(selectedDate);
   saveState({ fastSave: true });
   renderAll();
+  showUndoNotice("이월 우선업무를 삭제했습니다.");
 }
 
 function updateCarryoverTaskMarker(taskRef, anchor = null) {
@@ -7215,17 +7322,21 @@ function renderAppointments(day) {
           renderSidebar();
           return;
         }
+        captureUndo("시간별 일정 삭제");
         day.appointments[slot] = "";
         saveState();
         row.classList.remove("is-filled");
         renderSidebar();
+        showUndoNotice("시간별 일정을 삭제했습니다.");
         valueBeforeEdit = "";
       }
     };
     row.querySelector(".split-appointment")?.addEventListener("click", () => {
+      captureUndo("시간별 일정 분리");
       delete day.appointmentMerges[slot];
       saveState();
       renderAppointments(day);
+      showUndoNotice("시간별 일정을 분리했습니다.");
     });
     row.querySelector(".appointment-merge-button")?.addEventListener("click", () => mergeAppointmentSlot(day, slot));
     row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
@@ -7301,6 +7412,7 @@ function mergeAppointmentSlot(day, slot) {
   const span = getAppointmentSpan(day, slot);
   const nextIndex = startIndex + span;
   if (nextIndex >= slots.length) return;
+  captureUndo("시간별 일정 병합");
   const nextSlot = slots[nextIndex];
   const nextSpan = getAppointmentSpan(day, nextSlot);
   const currentText = day.appointments[slot] || "";
@@ -7312,6 +7424,7 @@ function mergeAppointmentSlot(day, slot) {
   delete day.appointmentMerges[nextSlot];
   saveState();
   renderAppointments(day);
+  showUndoNotice("시간별 일정을 병합했습니다.");
 }
 
 function mergeAppointmentRange(day, range) {
@@ -7333,6 +7446,7 @@ function mergeAppointmentRange(day, range) {
     return minutes >= rangeStart && minutes < rangeEnd;
   });
   if (!selected.length) return;
+  captureUndo("시간별 일정 빠른 병합");
   const startIndex = slots.indexOf(selected[0]);
   const span = selected.length;
   const startSlot = slots[startIndex];
@@ -7355,6 +7469,7 @@ function mergeAppointmentRange(day, range) {
   day.appointmentMerges[startSlot] = span;
   saveState();
   renderAppointments(day);
+  showUndoNotice("시간별 일정을 병합했습니다.");
 }
 
 function renderNotes() {
@@ -7570,6 +7685,7 @@ function deleteCurrentSheet() {
   if (state.customSheets.items.length <= 1) return;
   const sheet = getCurrentSheet();
   if (!confirmDelete(`'${sheet.name}' 시트를 삭제할까요? 이 시트의 모든 셀 내용이 사라집니다.`)) return;
+  captureUndo("시트 삭제");
   const index = state.customSheets.items.findIndex((item) => item.id === sheet.id);
   state.customSheets.items.splice(index, 1);
   const next = state.customSheets.items[Math.max(0, index - 1)] || state.customSheets.items[0];
@@ -7578,6 +7694,7 @@ function deleteCurrentSheet() {
   state.customSheets.activeId = next.id;
   saveState();
   renderSheets();
+  showUndoNotice("시트를 삭제했습니다.");
 }
 
 function resizeCurrentSheet(axis, delta) {
@@ -8596,6 +8713,7 @@ function linkProjectToTask(project) {
   task.done = false;
   task.priorityUnset = false;
   task.projectTaskId = project.id;
+  if (!Number.isFinite(Number(task.order))) assignTaskOrder(targetDay, task);
   if (!targetDay.tasks.B.includes(task)) targetDay.tasks.B.push(task);
 }
 
@@ -8866,11 +8984,13 @@ function addMoneyRow(rows, options = {}) {
 
 function removeMoneyRow(rows, index, options = {}) {
   if (!confirmDelete("이 자금 항목을 삭제할까요? 연결된 우선업무도 함께 정리됩니다.")) return;
+  captureUndo("Money 항목 삭제");
   const [removed] = rows.splice(index, 1);
   if (removed?.id) removeFinanceLinkedTask(removed.id, Boolean(options.fixed));
   if (removed?.id === activeMoneyDraftId) activeMoneyDraftId = "";
   saveState();
   renderNotes();
+  showUndoNotice("Money 항목을 삭제했습니다.");
 }
 
 function removeMoneyRowById(rows, id, options = {}) {
@@ -9150,6 +9270,7 @@ function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
   task.done = item.status === "완료";
   task.priorityUnset = false;
   task.financeItemId = linkId;
+  if (!Number.isFinite(Number(task.order))) assignTaskOrder(targetDay, task);
   if (!existing && !targetDay.tasks[targetPriority].includes(task)) targetDay.tasks[targetPriority].push(task);
   item.taskDate = targetDate;
 }
