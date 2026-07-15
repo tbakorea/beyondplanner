@@ -4038,6 +4038,13 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 .task-row.marker-check .task-cycle {
   border-color: #b9b3a7;
   color: #d7372f;
+  overflow: visible;
+  font-size: 20px;
+  font-weight: 950;
+  line-height: 0.75;
+  text-indent: -1px;
+  transform: translateY(-1px);
+  text-shadow: 0 1px 0 rgba(255, 253, 248, 0.8);
 }
 
 .task-row.marker-dot .task-cycle {
@@ -4211,46 +4218,22 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 
 .postpone-date-label {
   position: absolute;
-  inset: 3px 6px 3px 4px;
+  inset: 0;
   z-index: 1;
-  display: grid;
-  align-content: center;
-  justify-items: center;
-  gap: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--slate);
-  font-size: 9px;
-  font-weight: 900;
-  line-height: 0.92;
+  font-size: 10px;
+  font-weight: 920;
+  letter-spacing: -0.08em;
+  line-height: 1;
+  white-space: nowrap;
   pointer-events: none;
 }
 
 .postpone-date-label::after {
-  content: "/";
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  color: currentColor;
-  font-size: 8px;
-  font-weight: 900;
-  line-height: 1;
-  transform: translate(-50%, -50%) rotate(-12deg);
-}
-
-.postpone-date-label b {
-  display: block;
-  font: inherit;
-}
-
-.postpone-date-label b:first-child {
-  min-width: 12px;
-  padding-bottom: 2px;
-  text-align: center;
-}
-
-.postpone-date-label b + b {
-  min-width: 12px;
-  padding-top: 1px;
-  text-align: center;
+  content: none;
 }
 
 .task-status-cell:has(.postpone-date-label)::before {
@@ -12227,5 +12210,81 @@ body::before {
     min-width: 38px !important;
     padding-inline: 5px !important;
     font-size: 13px !important;
+  }
+}
+
+/* Final task marker polish: checked V breaks the box edge, postponed dates use slash text. */
+.task-row.marker-check .task-cycle {
+  overflow: visible !important;
+  color: #d7372f !important;
+  font-size: 21px !important;
+  font-weight: 950 !important;
+  line-height: 0.72 !important;
+  text-indent: -2px !important;
+  transform: translate(1px, -2px) rotate(-7deg) !important;
+}
+
+.postpone-date-label {
+  inset: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10.5px !important;
+  font-weight: 930 !important;
+  letter-spacing: -0.095em !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.postpone-date-label::after {
+  content: none !important;
+}
+
+/* Schedule quick merge menu: make all-day / morning / afternoon easy to read. */
+.appointment-range-options {
+  gap: 4px !important;
+  padding: 4px !important;
+}
+
+.appointment-range-options button {
+  width: 42px !important;
+  min-width: 42px !important;
+  min-height: 32px !important;
+  padding: 0 7px !important;
+  font-size: 12px !important;
+}
+
+.appointment-range-options span {
+  display: inline !important;
+}
+
+.appointment-range-options b {
+  display: none !important;
+}
+
+.appointment-row:focus-within input[type="text"],
+.appointment-row:focus-within textarea {
+  padding-right: 150px !important;
+}
+
+@media (max-width: 640px) {
+  .appointment-range-options {
+    right: 3px !important;
+    display: inline-flex !important;
+    gap: 3px !important;
+    padding: 3px !important;
+  }
+
+  .appointment-range-options button {
+    width: 38px !important;
+    min-width: 38px !important;
+    min-height: 30px !important;
+    padding: 0 5px !important;
+    font-size: 11.5px !important;
+  }
+
+  .appointment-row:focus-within input[type="text"],
+  .appointment-row:focus-within textarea {
+    padding-right: 132px !important;
   }
 }

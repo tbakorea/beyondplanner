@@ -6594,7 +6594,7 @@ function getTaskStatusDisplay(task, menuValue) {
   if (task.status === "연기" && task.postponeDate) {
     const date = parseDate(task.postponeDate);
     if (Number.isNaN(date.getTime())) return "";
-    return `<span class="postpone-date-label"><b>${date.getMonth() + 1}</b><b>${date.getDate()}</b></span>`;
+    return `<span class="postpone-date-label">${date.getMonth() + 1}/${date.getDate()}</span>`;
   }
   const label = getTaskStatusLabel(task, menuValue);
   const isPriorityLetter = ["A", "B", "C", "?"].includes(label);
@@ -7411,10 +7411,15 @@ function splitAppointmentSlot(day, slot) {
   const slots = getScheduleSlotsForDay(day);
   const startIndex = slots.indexOf(slot);
   if (startIndex < 0) return;
+  const rawSpan = Math.max(1, Math.floor(Number(day.appointmentMerges?.[slot] || 1)));
+  if (rawSpan <= 1) return;
+  captureUndo("시간별 일정 분리");
   normalizeAppointmentMerges(day);
   const span = getAppointmentSpan(day, slot);
-  if (span <= 1) return;
-  captureUndo("시간별 일정 분리");
+  if (span <= 1) {
+    pendingUndoAction = null;
+    return;
+  }
   const targetEndIndex = Math.min(slots.length, startIndex + span);
   Object.entries({ ...(day.appointmentMerges || {}) }).forEach(([startSlot, startSpan]) => {
     const mergeStartIndex = slots.indexOf(startSlot);
@@ -7454,13 +7459,13 @@ function mergeAppointmentSlot(day, slot) {
   delete day.appointmentMerges[nextSlot];
   saveState();
   renderAppointments(day);
+  renderSidebar();
   showUndoNotice("시간별 일정을 병합했습니다.");
 }
 
 function mergeAppointmentRange(day, range) {
   const slots = getScheduleSlotsForDay(day);
   if (!slots.length) return;
-  normalizeAppointmentMerges(day);
   const firstStart = slotToMinutes(slots[0]);
   const lastEnd = slotToMinutes(getAppointmentEndLabel(slots.length - 1, 1, slots));
   const noon = 12 * 60;
@@ -7477,6 +7482,7 @@ function mergeAppointmentRange(day, range) {
   });
   if (!selected.length) return;
   captureUndo("시간별 일정 빠른 병합");
+  normalizeAppointmentMerges(day);
   const startIndex = slots.indexOf(selected[0]);
   const span = selected.length;
   const startSlot = slots[startIndex];
@@ -7499,6 +7505,7 @@ function mergeAppointmentRange(day, range) {
   day.appointmentMerges[startSlot] = span;
   saveState();
   renderAppointments(day);
+  renderSidebar();
   showUndoNotice("시간별 일정을 병합했습니다.");
 }
 
