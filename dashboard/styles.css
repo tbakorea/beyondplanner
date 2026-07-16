@@ -12217,11 +12217,11 @@ body::before {
 .task-row.marker-check .task-cycle {
   overflow: visible !important;
   color: #d7372f !important;
-  font-size: 21px !important;
+  font-size: 24px !important;
   font-weight: 950 !important;
-  line-height: 0.72 !important;
-  text-indent: -2px !important;
-  transform: translate(1px, -2px) rotate(-7deg) !important;
+  line-height: 0.68 !important;
+  text-indent: -3px !important;
+  transform: translate(2px, -3px) rotate(-8deg) !important;
 }
 
 .postpone-date-label {

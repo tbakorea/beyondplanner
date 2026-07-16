@@ -738,6 +738,10 @@ function getTaskOrder(task = {}) {
   return Number.isFinite(order) ? order : Number.MAX_SAFE_INTEGER;
 }
 
+function hasTaskOrder(task = {}) {
+  return Number.isFinite(Number(task.order));
+}
+
 function assignTaskOrder(day, task) {
   day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
   const maxOrder = priorities
@@ -748,6 +752,11 @@ function assignTaskOrder(day, task) {
   return task.order;
 }
 
+function ensureTaskOrder(day, task) {
+  if (!task || hasTaskOrder(task)) return;
+  assignTaskOrder(day, task);
+}
+
 function normalizeDayTasks(day) {
   if (!day) return;
   day.tasks ||= { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) };
@@ -756,7 +765,7 @@ function normalizeDayTasks(day) {
     day.tasks[priority] ||= emptyTasks(5);
     day.tasks[priority].forEach((task) => {
       normalizeTask(task);
-      if (!Number.isFinite(Number(task.order))) assignTaskOrder(day, task);
+      if (isActiveTaskSlot(task) && !hasTaskOrder(task)) assignTaskOrder(day, task);
     });
   });
 }
@@ -6501,6 +6510,7 @@ function renderTaskRow(task, priority, index) {
     dailyTextEditingActive = true;
     markDailyFieldEditing(10 * 60 * 1000);
     task.text = text.value;
+    if (task.text.trim()) ensureTaskOrder(ensureDay(), task);
     if (syncTaskTimeHintToSchedule(task, ensureDay())) renderAppointments(ensureDay());
     saveState({ fastSave: true });
   };
@@ -6625,7 +6635,7 @@ function getTaskMarker(task) {
 }
 
 function getTaskMarkerLabel(marker) {
-  if (marker === "check") return "v";
+  if (marker === "check") return "✓";
   if (marker === "dot") return "•";
   if (marker === "delegate") return "↗";
   if (marker === "postpone") return "→";
@@ -6637,6 +6647,9 @@ function cycleTaskMarker(task) {
   if (marker === "empty") {
     task.done = true;
     task.status = "완료";
+    task.delegate = "";
+    task.postponeMode = "";
+    task.postponeDate = "";
     return "완료";
   }
   if (marker === "check") {
@@ -6695,6 +6708,7 @@ function isTaskCompleted(task = {}) {
 }
 
 function handlePriorityMenuChange(task, fromPriority, index, value) {
+  ensureTaskOrder(ensureDay(), task);
   if (value === "취소" || value === "연기") {
     task.status = value;
     task.done = false;
@@ -9369,7 +9383,13 @@ function getDayTasks(key) {
   const day = state.days[key];
   if (!day) return [];
   normalizeDayTasks(day);
-  return priorities.flatMap(([priority]) => day.tasks[priority].map((task, index) => ({ ...task, priority, date: key, index })));
+  return priorities
+    .flatMap(([priority]) => day.tasks[priority].map((task, index) => ({ ...task, priority, date: key, index })))
+    .sort((a, b) => {
+      const activeDelta = Number(isActiveTaskSlot(b)) - Number(isActiveTaskSlot(a));
+      if (activeDelta) return activeDelta;
+      return getTaskOrder(a) - getTaskOrder(b) || a.index - b.index;
+    });
 }
 
 function getCarryoverTasks(date) {
