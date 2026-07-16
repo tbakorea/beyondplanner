@@ -87,6 +87,8 @@ const repeatCarryOptions = [
   ["none", "이월안함"],
 ];
 const REPEAT_PRIORITY_MIN_ROWS = 12;
+const DAILY_EMPTY_TASK_MIN = 3;
+const DAILY_EMPTY_TASK_MAX = 5;
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
 const moneyCategories = ["", "카드대금", "적금/이자", "할부금", "렌탈", "관리비", "세금", "보험", "인건비", "생활비", "사업비", "기타"];
@@ -759,15 +761,38 @@ function ensureTaskOrder(day, task) {
 
 function normalizeDayTasks(day) {
   if (!day) return;
-  day.tasks ||= { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) };
+  day.tasks ||= { A: emptyTasks(DAILY_EMPTY_TASK_MIN), B: [], C: [] };
   day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
   priorities.forEach(([priority]) => {
-    day.tasks[priority] ||= emptyTasks(5);
+    day.tasks[priority] ||= [];
     day.tasks[priority].forEach((task) => {
       normalizeTask(task);
       if (isActiveTaskSlot(task) && !hasTaskOrder(task)) assignTaskOrder(day, task);
     });
   });
+  compactEmptyDailyTaskSlots(day);
+}
+
+function compactEmptyDailyTaskSlots(day) {
+  if (!day?.tasks) return;
+  const emptyRefs = priorities.flatMap(([priority]) =>
+    (day.tasks[priority] || []).map((task, index) => ({ priority, task, index })).filter(({ task }) => !isActiveTaskSlot(task)),
+  );
+  if (emptyRefs.length > DAILY_EMPTY_TASK_MAX) {
+    emptyRefs
+      .slice(DAILY_EMPTY_TASK_MAX)
+      .sort((a, b) => b.index - a.index)
+      .forEach(({ priority, task }) => {
+        const list = day.tasks[priority] || [];
+        const index = list.indexOf(task);
+        if (index >= 0) list.splice(index, 1);
+      });
+  }
+  let emptyCount = priorities.reduce((sum, [priority]) => sum + (day.tasks[priority] || []).filter((task) => !isActiveTaskSlot(task)).length, 0);
+  while (emptyCount < DAILY_EMPTY_TASK_MIN) {
+    day.tasks.A.push({ id: newTaskId(), text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
+    emptyCount += 1;
+  }
 }
 
 function loadState() {
@@ -1682,7 +1707,7 @@ function ensureWeek(key = weekKey()) {
 function ensureDay(key = iso(selectedDate)) {
   const scheduleUnit = getEffectiveScheduleUnit(key);
   state.days[key] ||= {
-    tasks: { A: emptyTasks(5), B: emptyTasks(5), C: emptyTasks(5) },
+    tasks: { A: emptyTasks(DAILY_EMPTY_TASK_MIN), B: [], C: [] },
     appointments: Object.fromEntries(getScheduleSlotsForUnit(scheduleUnit).map((slot) => [slot, ""])),
     appointmentMerges: {},
     autoTaskScheduleLinks: {},
