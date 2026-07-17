@@ -439,7 +439,7 @@ function captureUndo(label = "작업") {
     selectedFinanceMonth,
     selectedSheetId,
     selectedSheetCell,
-    activeView,
+    activeView: document.querySelector(".view.active")?.id?.replace("view-", "") || "day",
   };
 }
 
@@ -490,8 +490,8 @@ function restoreUndoAction() {
   selectedFinanceMonth = snapshot.selectedFinanceMonth || monthKey(selectedDate);
   selectedSheetId = snapshot.selectedSheetId || state.customSheets?.activeId || "";
   selectedSheetCell = snapshot.selectedSheetCell || "A1";
-  if (snapshot.activeView) activeView = snapshot.activeView;
   saveState({ fastSave: true });
+  if (snapshot.activeView) showView(snapshot.activeView);
   renderAll();
   hideUndoNotice();
 }
@@ -3568,20 +3568,23 @@ function setupDaySwipePager() {
   let startY = 0;
   let startTime = 0;
   let startPanel = currentDayPanel;
+  let startTarget = null;
   let wheelLock = false;
   let scrollTimer = 0;
   const clearPointerStart = () => {
     startX = 0;
     startY = 0;
     startTime = 0;
+    startTarget = null;
   };
 
   node.addEventListener("pointerdown", (event) => {
-    if (!isPagedDaySwipe() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isPagedDaySwipe()) return;
     if (isMobileDayFocusActive()) return;
     startX = event.clientX;
     startY = event.clientY;
     startTime = Date.now();
+    startTarget = event.target;
     startPanel = closestDayPanel();
   });
 
@@ -3601,6 +3604,7 @@ function setupDaySwipePager() {
       return;
     }
     event.preventDefault();
+    if (isEditablePlannerTarget(startTarget)) startTarget.blur?.();
     stepDayPanel(dx < 0 ? 1 : -1, startPanel);
   });
 
@@ -6348,7 +6352,9 @@ function positionDaySwipe(panel = currentDayPanel || "main", force = false) {
   const node = el("daySwipe");
   if (!node || !isPagedDaySwipe()) return;
   const key = `${iso(selectedDate)}:${panel}`;
-  if (!force && daySwipeKey === key && panel === "main") return;
+  const target = node.querySelector(`[data-panel="${panel}"]`);
+  const distance = target ? Math.abs(target.offsetLeft - node.scrollLeft) : 0;
+  if (!force && daySwipeKey === key && panel === "main" && distance < 6) return;
   daySwipeKey = key;
   currentDayPanel = panel;
   updateDayGuideState();
@@ -6364,8 +6370,14 @@ function scrollDayPanel(panel, behavior = "smooth") {
   dayPanelProgrammaticScrollUntil = Date.now() + (behavior === "smooth" ? 520 : 140);
   currentDayPanel = panel;
   updateDayGuideState();
+  const left = target.offsetLeft;
   window.requestAnimationFrame(() => {
-    node.scrollTo({ left: target.offsetLeft, behavior });
+    node.scrollTo({ left, behavior });
+    if (behavior === "auto") {
+      window.setTimeout(() => {
+        if (Math.abs(node.scrollLeft - left) > 4) node.scrollTo({ left, behavior: "auto" });
+      }, 80);
+    }
   });
 }
 
@@ -7407,6 +7419,23 @@ function renderAppointments(day) {
         valueBeforeEdit = "";
       }
     };
+    const bindAppointmentAction = (button, action) => {
+      if (!button) return;
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        action();
+      });
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+    };
+    bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(day, slot));
+    bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(day, slot));
+    row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
+      bindAppointmentAction(button, () => mergeAppointmentRange(day, button.dataset.rowMergeRange));
+    });
     node.appendChild(row);
   });
 }
