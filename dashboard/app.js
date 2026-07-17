@@ -7296,6 +7296,40 @@ function resizeMergedAppointmentField(field) {
 function renderAppointments(day) {
   const node = el("appointmentList");
   node.innerHTML = "";
+  let pointerActionHandledAt = 0;
+  const runAppointmentAction = (event) => {
+    const actionButton = event.target.closest(".appointment-merge-button, .split-appointment, [data-row-merge-range]");
+    if (!actionButton || !node.contains(actionButton)) return false;
+    const row = actionButton.closest(".appointment-row");
+    const slot = row?.dataset.appointmentSlot;
+    if (!slot) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    if (actionButton.classList.contains("split-appointment")) {
+      splitAppointmentSlot(day, slot);
+      return true;
+    }
+    if (actionButton.classList.contains("appointment-merge-button")) {
+      mergeAppointmentSlot(day, slot);
+      return true;
+    }
+    if (actionButton.dataset.rowMergeRange) {
+      mergeAppointmentRange(day, actionButton.dataset.rowMergeRange);
+      return true;
+    }
+    return false;
+  };
+  node.onpointerdown = (event) => {
+    if (runAppointmentAction(event)) pointerActionHandledAt = Date.now();
+  };
+  node.onclick = (event) => {
+    if (Date.now() - pointerActionHandledAt < 450) {
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
+    runAppointmentAction(event);
+  };
   ensureAppointmentSlots(day, day.scheduleUnit);
   normalizeAppointmentMerges(day);
   const slots = getScheduleSlotsForDay(day);
@@ -7309,6 +7343,7 @@ function renderAppointments(day) {
     const currentTimeLabel = isCurrent ? getCurrentAppointmentTimeLabel(slotIndex, span, slots) : "";
     const currentProgress = span > 1 && isCurrent ? getCurrentAppointmentProgress(slotIndex, span, slots) : 0;
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
+    row.dataset.appointmentSlot = slot;
     row.style.setProperty("--slot-span", span);
     if (currentTimeLabel && span > 1) row.style.setProperty("--current-segment-top", `${currentProgress}%`);
     const nextIndex = slotIndex + span;
@@ -7332,6 +7367,7 @@ function renderAppointments(day) {
     let valueBeforeEdit = value;
     input.onfocus = () => {
       markDailyFieldEditing(10 * 60 * 1000);
+      row.classList.add("is-menu-open");
       valueBeforeEdit = day.appointments[slot] || "";
     };
     input.oninput = (event) => {
@@ -7351,6 +7387,7 @@ function renderAppointments(day) {
     };
     input.onblur = () => {
       markDailyFieldEditing(0);
+      window.setTimeout(() => row.classList.remove("is-menu-open"), 160);
       const nextValue = input.value;
       if (!nextValue.trim() && valueBeforeEdit.trim()) {
         if (!confirmDelete(`${slot} 일정 '${valueBeforeEdit}'을 삭제할까요?`)) {
@@ -7370,35 +7407,6 @@ function renderAppointments(day) {
         valueBeforeEdit = "";
       }
     };
-    row.querySelector(".split-appointment")?.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    row.querySelector(".split-appointment")?.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      splitAppointmentSlot(day, slot);
-    });
-    row.querySelector(".appointment-merge-button")?.addEventListener("pointerdown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    row.querySelector(".appointment-merge-button")?.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      mergeAppointmentSlot(day, slot);
-    });
-    row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
-      button.addEventListener("pointerdown", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        mergeAppointmentRange(day, button.dataset.rowMergeRange);
-      });
-    });
     node.appendChild(row);
   });
 }
@@ -7498,10 +7506,16 @@ function mergeAppointmentSlot(day, slot) {
   const slots = getScheduleSlotsForDay(day);
   const startIndex = slots.indexOf(slot);
   if (startIndex < 0) return;
+  day.appointments ||= {};
+  day.appointmentMerges ||= {};
+  captureUndo("시간별 일정 병합");
+  normalizeAppointmentMerges(day);
   const span = getAppointmentSpan(day, slot);
   const nextIndex = startIndex + span;
-  if (nextIndex >= slots.length) return;
-  captureUndo("시간별 일정 병합");
+  if (nextIndex >= slots.length) {
+    pendingUndoAction = null;
+    return;
+  }
   const nextSlot = slots[nextIndex];
   const nextSpan = getAppointmentSpan(day, nextSlot);
   const currentText = day.appointments[slot] || "";
@@ -7520,6 +7534,8 @@ function mergeAppointmentSlot(day, slot) {
 function mergeAppointmentRange(day, range) {
   const slots = getScheduleSlotsForDay(day);
   if (!slots.length) return;
+  day.appointments ||= {};
+  day.appointmentMerges ||= {};
   const firstStart = slotToMinutes(slots[0]);
   const lastEnd = slotToMinutes(getAppointmentEndLabel(slots.length - 1, 1, slots));
   const noon = 12 * 60;

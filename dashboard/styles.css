@@ -12338,6 +12338,14 @@ body::before {
 }
 
 .appointment-row:focus-within .appointment-range-options {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translate(0, -50%) scale(1) !important;
+}
+
+.appointment-row.is-menu-open .appointment-range-options {
+  opacity: 1 !important;
+  pointer-events: auto !important;
   transform: translate(0, -50%) scale(1) !important;
 }
 
@@ -12347,6 +12355,7 @@ body::before {
   min-height: 30px !important;
   padding: 0 6px !important;
   font-size: 12px !important;
+  pointer-events: auto !important;
 }
 
 .appointment-range-options span {
@@ -12374,5 +12383,47 @@ body::before {
   .appointment-row.is-merged textarea {
     padding-left: 34px !important;
     padding-right: 50px !important;
+  }
+}
+
+.appointment-merge-button,
+.split-appointment {
+  pointer-events: auto !important;
+  touch-action: manipulation !important;
+}
+
+.appointment-row:focus-within .appointment-merge-button,
+.appointment-row.is-menu-open .appointment-merge-button,
+.appointment-merge-button:active {
+  opacity: 1 !important;
+  color: var(--sage-dark) !important;
+  background: rgba(255, 253, 248, 0.96) !important;
+}
+
+/* Mobile focus views: keep the return action visible while the task/schedule list scrolls. */
+@media (max-width: 640px) {
+  .day-main-panel.is-focus-tasks,
+  .day-main-panel.is-focus-schedule {
+    contain: none !important;
+    overflow: visible !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel,
+  .day-main-panel.is-focus-schedule .day-schedule-panel {
+    overflow: visible !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel > .panel-title-row,
+  .day-main-panel.is-focus-schedule .day-schedule-panel > .panel-title-row {
+    position: sticky !important;
+    top: calc(env(safe-area-inset-top) + 0px) !important;
+    z-index: 90 !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+  .day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+    position: sticky !important;
+    top: calc(env(safe-area-inset-top) + 8px) !important;
+    z-index: 95 !important;
   }
 }
