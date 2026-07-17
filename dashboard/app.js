@@ -7379,10 +7379,25 @@ function renderAppointments(day) {
       event.stopPropagation();
       splitAppointmentSlot(day, slot);
     });
-    row.querySelector(".appointment-merge-button")?.addEventListener("click", () => mergeAppointmentSlot(day, slot));
+    row.querySelector(".appointment-merge-button")?.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    row.querySelector(".appointment-merge-button")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      mergeAppointmentSlot(day, slot);
+    });
     row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
-      button.addEventListener("mousedown", (event) => event.preventDefault());
-      button.addEventListener("click", () => mergeAppointmentRange(day, button.dataset.rowMergeRange));
+      button.addEventListener("pointerdown", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      });
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        mergeAppointmentRange(day, button.dataset.rowMergeRange);
+      });
     });
     node.appendChild(row);
   });

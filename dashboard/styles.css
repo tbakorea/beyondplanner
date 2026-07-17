@@ -12288,3 +12288,91 @@ body::before {
     padding-right: 132px !important;
   }
 }
+
+/* Final schedule merge behavior: vertical quick menu and centered schedule text. */
+.appointment-row {
+  overflow: visible !important;
+}
+
+.appointment-row input[type="text"] {
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+.appointment-row textarea {
+  text-align: center !important;
+}
+
+.appointment-row.is-merged {
+  align-items: stretch !important;
+}
+
+.appointment-row.is-merged input[type="text"],
+.appointment-row.is-merged textarea {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: calc(30px + (var(--slot-span, 1) - 1) * 34px) !important;
+  padding: 6px 40px !important;
+  text-align: center !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  word-break: keep-all !important;
+  line-height: 1.24 !important;
+}
+
+.appointment-row.is-merged textarea {
+  align-content: center !important;
+  resize: none !important;
+}
+
+.appointment-range-options {
+  top: 50% !important;
+  right: 4px !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  gap: 4px !important;
+  padding: 4px !important;
+  border-radius: 15px !important;
+  transform: translate(6px, -50%) scale(0.98) !important;
+}
+
+.appointment-row:focus-within .appointment-range-options {
+  transform: translate(0, -50%) scale(1) !important;
+}
+
+.appointment-range-options button {
+  width: 44px !important;
+  min-width: 44px !important;
+  min-height: 30px !important;
+  padding: 0 6px !important;
+  font-size: 12px !important;
+}
+
+.appointment-range-options span {
+  display: inline !important;
+}
+
+.appointment-range-options b {
+  display: none !important;
+}
+
+.appointment-row:focus-within input[type="text"],
+.appointment-row:focus-within textarea {
+  padding-right: 58px !important;
+}
+
+@media (max-width: 640px) {
+  .appointment-range-options button {
+    width: 42px !important;
+    min-width: 42px !important;
+    min-height: 29px !important;
+    font-size: 11.5px !important;
+  }
+
+  .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea {
+    padding-left: 34px !important;
+    padding-right: 50px !important;
+  }
+}
