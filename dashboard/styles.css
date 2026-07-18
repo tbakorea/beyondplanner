@@ -12520,7 +12520,8 @@ body::before {
 /* Final mobile daily interaction model: fixed date+banner, focused panels scroll internally only. */
 @media (max-width: 640px) {
   :root {
-    --daily-pulse-height: 34px;
+    --daily-title-height: 44px;
+    --daily-pulse-height: 44px;
   }
 
   #view-day {
@@ -12535,21 +12536,103 @@ body::before {
     left: 5px !important;
     right: 5px !important;
     z-index: 42 !important;
+    box-sizing: border-box !important;
+    height: var(--daily-title-height) !important;
+    min-height: var(--daily-title-height) !important;
+    max-height: var(--daily-title-height) !important;
+    padding: 4px 7px !important;
+    gap: 6px !important;
     margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  .daily-title .eyebrow {
+    display: none !important;
+  }
+
+  .daily-heading,
+  .day-date-nav {
+    min-height: 0 !important;
+  }
+
+  .day-date-nav {
+    gap: 4px !important;
+  }
+
+  .daily-title .icon-button.compact {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    border-radius: 10px !important;
+    font-size: 25px !important;
+  }
+
+  .daily-title .today-jump {
+    min-width: 38px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding-inline: 8px !important;
+    border-radius: 10px !important;
+    font-size: 12px !important;
+  }
+
+  .daily-date-button {
+    min-height: 32px !important;
+    padding: 0 4px !important;
+    border-radius: 10px !important;
+  }
+
+  #dayTitle {
+    width: 100% !important;
+    overflow: visible !important;
+    white-space: nowrap !important;
+    color: var(--ink) !important;
+    font-size: 18px !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0 !important;
+    text-align: center !important;
+    text-overflow: clip !important;
+  }
+
+  .daily-score {
+    min-width: 48px !important;
+    padding-left: 7px !important;
+  }
+
+  .daily-score span {
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+  .daily-score strong {
+    font-size: 22px !important;
+    line-height: 1 !important;
   }
 
   .daily-pulse-row {
     position: fixed !important;
-    top: calc(var(--app-header-height) + var(--daily-title-height) + 2px) !important;
+    top: calc(var(--app-header-height) + var(--daily-title-height) + 1px) !important;
     left: 7px !important;
     right: 7px !important;
     z-index: 41 !important;
+    height: var(--daily-pulse-height) !important;
     min-height: var(--daily-pulse-height) !important;
     margin: 0 !important;
-    padding: 0 !important;
+    padding: 5px 0 !important;
     border-radius: 999px !important;
     background: rgba(246, 244, 238, 0.86) !important;
     backdrop-filter: blur(14px) !important;
+  }
+
+  .daily-pulse-nav,
+  .daily-pulse-center,
+  .pulse-ticker {
+    min-height: 32px !important;
+  }
+
+  .pulse-ticker-item {
+    min-height: 28px !important;
   }
 
   .daily-pulse-details {
