@@ -7569,6 +7569,10 @@ button {
   display: none;
 }
 
+.mobile-focus-open {
+  display: none;
+}
+
 body.smartphone-device #privacyNowButton,
 body.smartphone-device #privacyTimeoutSelect,
 body.smartphone-device .privacy-blind-screen {
@@ -7613,6 +7617,28 @@ body.smartphone-device .privacy-blind-screen {
     letter-spacing: 0;
     line-height: 1;
     white-space: nowrap;
+  }
+
+  .mobile-focus-open {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid rgba(95, 118, 104, 0.22);
+    border-radius: 999px;
+    background: rgba(255, 254, 250, 0.92);
+    color: rgba(47, 65, 56, 0.82);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  .day-main-panel.is-focus-tasks .mobile-focus-open,
+  .day-main-panel.is-focus-schedule .mobile-focus-open {
+    display: none;
   }
 
   .day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,

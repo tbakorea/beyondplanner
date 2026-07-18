@@ -3826,6 +3826,7 @@ function setupMobileDayFocus() {
   setupPressFocusGesture(schedulePanel, "schedule");
   setupSplitEditGate(taskPanel, "tasks");
   setupSplitEditGate(schedulePanel, "schedule");
+  setupMobileFocusOpenButtons(panel);
   setupMobileFocusCloseButtons(panel);
   applyMobileDayFocusMode();
 }
@@ -3896,6 +3897,29 @@ function isFocusTapBlockedTarget(target) {
 
 function isFocusHeaderTarget(target) {
   return Boolean(target?.closest?.(".day-task-panel > .panel-title-row, .day-schedule-panel > .panel-title-row"));
+}
+
+function setupMobileFocusOpenButtons(panel) {
+  if (!document.body.dataset.mobileFocusOpenBound) {
+    document.body.dataset.mobileFocusOpenBound = "true";
+    document.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-mobile-focus-open]");
+      if (!button) return;
+      const mode = button.dataset.mobileFocusOpen;
+      if (!["tasks", "schedule"].includes(mode)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (isMobilePhoneFocusLayout()) setMobileDayFocusMode(mode);
+    }, true);
+  }
+  panel.querySelectorAll("[data-mobile-focus-open]").forEach((button) => {
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const mode = button.dataset.mobileFocusOpen;
+      if (["tasks", "schedule"].includes(mode)) setMobileDayFocusMode(mode);
+    };
+  });
 }
 
 function setupMobileFocusCloseButtons(panel) {
