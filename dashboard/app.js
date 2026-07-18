@@ -7493,13 +7493,17 @@ function renderAppointments(day) {
   node.innerHTML = "";
   let pointerActionHandledAt = 0;
   const runAppointmentAction = (event) => {
-    const actionButton = event.target.closest(".appointment-merge-button, .split-appointment, [data-row-merge-range]");
+    const actionButton = event.target.closest(".appointment-delete, .appointment-merge-button, .split-appointment, [data-row-merge-range]");
     if (!actionButton || !node.contains(actionButton)) return false;
     const row = actionButton.closest(".appointment-row");
     const slot = row?.dataset.appointmentSlot;
     if (!slot) return false;
     event.preventDefault();
     event.stopPropagation();
+    if (actionButton.classList.contains("appointment-delete")) {
+      deleteAppointmentSlot(day, slot);
+      return true;
+    }
     if (actionButton.classList.contains("split-appointment")) {
       splitAppointmentSlot(day, slot);
       return true;
@@ -7554,6 +7558,7 @@ function renderAppointments(day) {
         <button type="button" data-row-merge-range="am" aria-label="오전 병합"><span>오전</span><b>오</b></button>
         <button type="button" data-row-merge-range="pm" aria-label="오후 병합"><span>오후</span><b>후</b></button>
       </span>
+      ${value ? `<button class="appointment-delete" type="button" title="일정 삭제" aria-label="${escapeAttr(slot)} 일정 삭제">×</button>` : ""}
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
     `;
@@ -7614,6 +7619,7 @@ function renderAppointments(day) {
         event.stopPropagation();
       });
     };
+    bindAppointmentAction(row.querySelector(".appointment-delete"), () => deleteAppointmentSlot(day, slot));
     bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(day, slot));
     bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(day, slot));
     row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
@@ -7621,6 +7627,29 @@ function renderAppointments(day) {
     });
     node.appendChild(row);
   });
+}
+
+function deleteAppointmentSlot(day, slot) {
+  if (!day) return;
+  const slots = getScheduleSlotsForDay(day);
+  const startSlot = findAppointmentMergeStartForSlot(day, slot, slots) || slot;
+  const startIndex = slots.indexOf(startSlot);
+  if (startIndex < 0) return;
+  const span = getAppointmentSpan(day, startSlot);
+  const currentText = String(day.appointments?.[startSlot] || day.appointments?.[slot] || "").trim();
+  if (!currentText && span <= 1) return;
+  if (!confirmDelete(`${startSlot} 일정${span > 1 ? " 구간" : ""}을 삭제할까요?`)) return;
+  captureUndo("시간별 일정 삭제");
+  day.appointments ||= {};
+  day.appointmentMerges ||= {};
+  slots.slice(startIndex, Math.min(slots.length, startIndex + span)).forEach((coveredSlot) => {
+    day.appointments[coveredSlot] = "";
+    delete day.appointmentMerges[coveredSlot];
+  });
+  saveState();
+  renderAppointments(day);
+  renderSidebar();
+  showUndoNotice("시간별 일정을 삭제했습니다.");
 }
 
 function isCurrentAppointmentSlot(slotIndex, span, slots = timeSlots) {

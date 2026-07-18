@@ -4628,6 +4628,36 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   cursor: pointer;
 }
 
+.appointment-delete {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  z-index: 11;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 1px solid rgba(151, 72, 66, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.82);
+  color: rgba(151, 72, 66, 0.72);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.appointment-delete:hover,
+.appointment-delete:focus-visible {
+  border-color: rgba(151, 72, 66, 0.28);
+  background: rgba(255, 253, 248, 0.98);
+  color: rgba(151, 72, 66, 0.92);
+}
+
 .schedule-title-actions {
   display: inline-flex;
   align-items: center;
@@ -12413,7 +12443,8 @@ body::before {
 }
 
 .appointment-merge-button,
-.split-appointment {
+.split-appointment,
+.appointment-delete {
   pointer-events: auto !important;
   touch-action: manipulation !important;
 }
@@ -12637,7 +12668,7 @@ body::before {
   .appointment-row.is-merged .split-appointment {
     z-index: 22 !important;
     top: 7px !important;
-    right: 7px !important;
+    right: 45px !important;
     width: 34px !important;
     min-width: 34px !important;
     height: 34px !important;
@@ -12646,5 +12677,38 @@ body::before {
     background: rgba(255, 253, 248, 0.94) !important;
     box-shadow: 0 5px 14px rgba(38, 50, 56, 0.11) !important;
     font-size: 18px !important;
+  }
+
+  .appointment-delete {
+    position: absolute !important;
+    top: 50% !important;
+    right: 5px !important;
+    z-index: 24 !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    padding: 0 !important;
+    border: 1px solid rgba(151, 72, 66, 0.16) !important;
+    border-radius: 999px !important;
+    background: rgba(255, 253, 248, 0.9) !important;
+    color: rgba(151, 72, 66, 0.78) !important;
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    line-height: 1 !important;
+    transform: translateY(-50%) !important;
+    box-shadow: 0 4px 12px rgba(38, 50, 56, 0.07) !important;
+  }
+
+  .appointment-row.is-filled input[type="text"],
+  .appointment-row.is-filled textarea {
+    padding-right: 38px !important;
+  }
+
+  .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea {
+    padding-right: 86px !important;
   }
 }
