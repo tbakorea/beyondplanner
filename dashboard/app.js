@@ -3699,7 +3699,7 @@ function setupDaySwipePager() {
     if (!isPagedDaySwipe()) return;
     if (isMobileDayFocusActive()) {
       window.clearTimeout(scrollTimer);
-      scrollDayPanel("main", "auto");
+      currentDayPanel = "main";
       return;
     }
     window.clearTimeout(scrollTimer);
@@ -7683,13 +7683,14 @@ function getScheduleSlotIntervalMinutes(slots = timeSlots) {
 
 function splitAppointmentSlot(day, slot) {
   const slots = getScheduleSlotsForDay(day);
-  const startIndex = slots.indexOf(slot);
+  const splitSlot = findAppointmentMergeStartForSlot(day, slot, slots) || slot;
+  const startIndex = slots.indexOf(splitSlot);
   if (startIndex < 0) return;
-  const rawSpan = Math.max(1, Math.floor(Number(day.appointmentMerges?.[slot] || 1)));
+  const rawSpan = Math.max(1, Math.floor(Number(day.appointmentMerges?.[splitSlot] || 1)));
   if (rawSpan <= 1) return;
   captureUndo("시간별 일정 분리");
   normalizeAppointmentMerges(day);
-  const span = getAppointmentSpan(day, slot);
+  const span = getAppointmentSpan(day, splitSlot);
   if (span <= 1) {
     pendingUndoAction = null;
     return;
@@ -7712,6 +7713,18 @@ function splitAppointmentSlot(day, slot) {
   renderAppointments(day);
   renderSidebar();
   showUndoNotice("시간별 일정을 분리했습니다.");
+}
+
+function findAppointmentMergeStartForSlot(day, slot, slots = getScheduleSlotsForDay(day)) {
+  if (!day?.appointmentMerges) return "";
+  const index = slots.indexOf(slot);
+  if (index < 0) return "";
+  if (Number(day.appointmentMerges[slot] || 1) > 1) return slot;
+  return Object.entries(day.appointmentMerges).find(([startSlot, span]) => {
+    const startIndex = slots.indexOf(startSlot);
+    const endIndex = startIndex + Math.max(1, Number(span) || 1);
+    return startIndex >= 0 && startIndex <= index && index < endIndex;
+  })?.[0] || "";
 }
 
 function mergeAppointmentSlot(day, slot) {

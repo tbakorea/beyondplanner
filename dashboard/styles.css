@@ -12485,3 +12485,166 @@ body::before {
     touch-action: pan-x pan-y !important;
   }
 }
+
+/* Final mobile daily interaction model: fixed date+banner, focused panels scroll internally only. */
+@media (max-width: 640px) {
+  :root {
+    --daily-pulse-height: 34px;
+  }
+
+  #view-day {
+    position: relative !important;
+    padding-top: calc(var(--daily-title-height) + var(--daily-pulse-height) + 10px) !important;
+  }
+
+  body.ceo-mode .daily-title,
+  .daily-title {
+    position: fixed !important;
+    top: var(--app-header-height) !important;
+    left: 5px !important;
+    right: 5px !important;
+    z-index: 42 !important;
+    margin: 0 !important;
+  }
+
+  .daily-pulse-row {
+    position: fixed !important;
+    top: calc(var(--app-header-height) + var(--daily-title-height) + 2px) !important;
+    left: 7px !important;
+    right: 7px !important;
+    z-index: 41 !important;
+    min-height: var(--daily-pulse-height) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-radius: 999px !important;
+    background: rgba(246, 244, 238, 0.86) !important;
+    backdrop-filter: blur(14px) !important;
+  }
+
+  .daily-pulse-details {
+    position: fixed !important;
+    top: calc(var(--app-header-height) + var(--daily-title-height) + var(--daily-pulse-height) + 6px) !important;
+    left: 8px !important;
+    right: 8px !important;
+    z-index: 43 !important;
+    max-height: min(46dvh, 320px) !important;
+    overflow-y: auto !important;
+  }
+
+  .day-swipe {
+    height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
+    min-height: 0 !important;
+    overscroll-behavior-x: contain !important;
+  }
+
+  .day-swipe.is-mobile-focus-active {
+    position: fixed !important;
+    top: calc(var(--app-header-height) + var(--daily-title-height) + var(--daily-pulse-height) + 7px) !important;
+    left: 5px !important;
+    right: 5px !important;
+    bottom: max(4px, env(safe-area-inset-bottom)) !important;
+    z-index: 30 !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    scroll-snap-type: none !important;
+    touch-action: pan-y !important;
+  }
+
+  .day-swipe.is-mobile-focus-active .day-main-panel {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    contain: none !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel,
+  .day-main-panel.is-focus-schedule .day-schedule-panel {
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    scroll-padding-top: 64px !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel > .panel-title-row,
+  .day-main-panel.is-focus-schedule .day-schedule-panel > .panel-title-row {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 95 !important;
+    min-height: 58px !important;
+    background: linear-gradient(180deg, #fffefa 0%, rgba(255, 254, 250, 0.98) 88%, rgba(255, 254, 250, 0.88) 100%) !important;
+    box-shadow: 0 1px 0 rgba(221, 216, 203, 0.82), 0 10px 18px rgba(247, 245, 239, 0.94) !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+  .day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+    position: static !important;
+  }
+
+  .onboarding-panel.is-collapsed {
+    position: static !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .onboarding-panel.is-collapsed .onboarding-restore {
+    position: fixed !important;
+    right: 10px !important;
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    z-index: 45 !important;
+    width: auto !important;
+    min-height: 32px !important;
+    padding: 0 11px !important;
+    border-radius: 999px !important;
+    background: rgba(255, 253, 248, 0.9) !important;
+    box-shadow: 0 8px 22px rgba(38, 50, 56, 0.12) !important;
+  }
+
+  .onboarding-panel.is-collapsed .onboarding-restore span {
+    font-size: 0 !important;
+  }
+
+  .onboarding-panel.is-collapsed .onboarding-restore span::after {
+    content: "흐름" !important;
+    font-size: 11px !important;
+  }
+
+  .onboarding-panel.is-collapsed .onboarding-restore b {
+    font-size: 0 !important;
+  }
+
+  .onboarding-panel.is-collapsed .onboarding-restore b::after {
+    content: "보기" !important;
+    font-size: 11px !important;
+  }
+
+  .appointment-row.is-merged .appointment-range-options {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .appointment-row.is-merged .split-appointment {
+    z-index: 22 !important;
+    top: 7px !important;
+    right: 7px !important;
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    border-radius: 999px !important;
+    background: rgba(255, 253, 248, 0.94) !important;
+    box-shadow: 0 5px 14px rgba(38, 50, 56, 0.11) !important;
+    font-size: 18px !important;
+  }
+}
