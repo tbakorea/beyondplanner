@@ -3568,25 +3568,39 @@ function setupDaySwipePager() {
   let startY = 0;
   let startTime = 0;
   let startPanel = currentDayPanel;
-  let startTarget = null;
+  let startScrollLeft = 0;
+  let horizontalSwipeActive = false;
+  let lastTouchSwipeAt = 0;
   let wheelLock = false;
   let scrollTimer = 0;
   const clearPointerStart = () => {
     startX = 0;
     startY = 0;
     startTime = 0;
-    startTarget = null;
+    horizontalSwipeActive = false;
   };
 
   node.addEventListener("pointerdown", (event) => {
     if (!isPagedDaySwipe()) return;
+    if (Date.now() - lastTouchSwipeAt < 420) return;
     if (isMobileDayFocusActive()) return;
+    if (isDaySwipeBlockedTarget(event.target)) return;
     startX = event.clientX;
     startY = event.clientY;
     startTime = Date.now();
-    startTarget = event.target;
     startPanel = closestDayPanel();
-  });
+    startScrollLeft = node.scrollLeft;
+  }, { capture: true });
+
+  node.addEventListener("pointermove", (event) => {
+    if (!startX || horizontalSwipeActive) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (Math.abs(dx) > 22 && Math.abs(dx) > Math.abs(dy) * 1.45) {
+      horizontalSwipeActive = true;
+      event.preventDefault();
+    }
+  }, { capture: true, passive: false });
 
   node.addEventListener("pointerup", (event) => {
     if (!startX) return;
@@ -3597,18 +3611,73 @@ function setupDaySwipePager() {
     if (!isPagedDaySwipe() || isMobileDayFocusActive()) return;
     const absX = Math.abs(dx);
     const absY = Math.abs(dy);
-    const distanceThreshold = Math.min(92, Math.max(46, node.clientWidth * 0.12));
-    const fastSwipe = elapsed < 280 && absX > 38;
-    if ((absX < distanceThreshold && !fastSwipe) || absX < absY * 1.18) {
+    const distanceThreshold = Math.min(104, Math.max(58, node.clientWidth * 0.16));
+    const fastSwipe = elapsed < 260 && absX > 54;
+    const movedScroll = Math.abs(node.scrollLeft - startScrollLeft);
+    if ((absX < distanceThreshold && !fastSwipe) || absX < absY * 1.35 || movedScroll > node.clientWidth * 0.72) {
       settleDayPanelScroll();
       return;
     }
     event.preventDefault();
-    if (isEditablePlannerTarget(startTarget)) startTarget.blur?.();
     stepDayPanel(dx < 0 ? 1 : -1, startPanel);
-  });
+  }, { capture: true });
 
-  node.addEventListener("pointercancel", clearPointerStart, { passive: true });
+  node.addEventListener("pointercancel", clearPointerStart, { capture: true, passive: true });
+
+  node.addEventListener("touchstart", (event) => {
+    if (!isPagedDaySwipe()) return;
+    if (isMobileDayFocusActive()) return;
+    if (isDaySwipeBlockedTarget(event.target)) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    startX = touch.clientX;
+    startY = touch.clientY;
+    startTime = Date.now();
+    startPanel = closestDayPanel();
+    startScrollLeft = node.scrollLeft;
+  }, { capture: true, passive: true });
+
+  node.addEventListener("touchmove", (event) => {
+    if (!startX || horizontalSwipeActive) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    if (Math.abs(dx) > 22 && Math.abs(dx) > Math.abs(dy) * 1.45) {
+      horizontalSwipeActive = true;
+      event.preventDefault();
+    }
+  }, { capture: true, passive: false });
+
+  node.addEventListener("touchend", (event) => {
+    if (!startX) return;
+    const touch = event.changedTouches?.[0];
+    if (!touch) {
+      clearPointerStart();
+      return;
+    }
+    const dx = touch.clientX - startX;
+    const dy = touch.clientY - startY;
+    const elapsed = Date.now() - startTime;
+    const fromPanel = startPanel;
+    const scrollLeftAtStart = startScrollLeft;
+    clearPointerStart();
+    if (!isPagedDaySwipe() || isMobileDayFocusActive()) return;
+    const absX = Math.abs(dx);
+    const absY = Math.abs(dy);
+    const distanceThreshold = Math.min(104, Math.max(58, node.clientWidth * 0.16));
+    const fastSwipe = elapsed < 260 && absX > 54;
+    const movedScroll = Math.abs(node.scrollLeft - scrollLeftAtStart);
+    if ((absX < distanceThreshold && !fastSwipe) || absX < absY * 1.35 || movedScroll > node.clientWidth * 0.72) {
+      settleDayPanelScroll();
+      return;
+    }
+    event.preventDefault();
+    lastTouchSwipeAt = Date.now();
+    stepDayPanel(dx < 0 ? 1 : -1, fromPanel);
+  }, { capture: true, passive: false });
+
+  node.addEventListener("touchcancel", clearPointerStart, { capture: true, passive: true });
 
   node.addEventListener("wheel", (event) => {
     if (!isPagedDaySwipe() || wheelLock) return;
@@ -3624,8 +3693,14 @@ function setupDaySwipePager() {
 
   node.addEventListener("scroll", () => {
     if (!isPagedDaySwipe()) return;
+    if (isMobileDayFocusActive()) {
+      window.clearTimeout(scrollTimer);
+      scrollDayPanel("main", "auto");
+      return;
+    }
     window.clearTimeout(scrollTimer);
     scrollTimer = window.setTimeout(() => {
+      if (isMobileDayFocusActive()) return;
       settleDayPanelScroll();
     }, 90);
   }, { passive: true });
@@ -3648,7 +3723,9 @@ function isMobilePhoneFocusLayout() {
 }
 
 function isMobileDayFocusActive() {
-  return isMobilePhoneFocusLayout() && mobileDayFocusMode !== "split";
+  const panel = document.querySelector(".day-main-panel");
+  const classActive = Boolean(panel?.classList.contains("is-focus-tasks") || panel?.classList.contains("is-focus-schedule"));
+  return isMobilePhoneFocusLayout() && (mobileDayFocusMode !== "split" || classActive);
 }
 
 function markDailyFieldEditing(duration = 900) {
@@ -3846,10 +3923,19 @@ function applyMobileDayFocusMode() {
   panel.classList.toggle("is-focus-tasks", activeMode === "tasks");
   panel.classList.toggle("is-focus-schedule", activeMode === "schedule");
   swipe?.classList.toggle("is-mobile-focus-active", activeMode !== "split");
+  if (activeMode !== "split") scrollDayPanel("main", "auto");
 }
 
 function isSwipeInteractiveTarget(target) {
   return Boolean(target.closest("input, textarea, select, button, summary, [contenteditable='true']"));
+}
+
+function isDaySwipeBlockedTarget(target) {
+  if (!target) return false;
+  if (target.closest("button, select, summary, textarea, [contenteditable='true']")) return true;
+  const input = target.closest("input");
+  if (!input) return false;
+  return Boolean(input.closest(".day-main-panel"));
 }
 
 function closestDayPanel() {
@@ -6359,6 +6445,13 @@ function positionDaySwipe(panel = currentDayPanel || "main", force = false) {
   currentDayPanel = panel;
   updateDayGuideState();
   window.requestAnimationFrame(() => scrollDayPanel(panel, "auto"));
+}
+
+function stabilizeDaySwipePosition(panel = "main") {
+  positionDaySwipe(panel, true);
+  [80, 220, 520, 980].forEach((delay) => {
+    window.setTimeout(() => positionDaySwipe(panel, true), delay);
+  });
 }
 
 function scrollDayPanel(panel, behavior = "smooth") {
@@ -10054,8 +10147,7 @@ async function setup() {
   setBootMessage("오늘의 우선순위를 화면에 앉히는 중");
   hideBootScreen(hasInitialDeviceCache ? 820 : 220);
   window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
-  positionDaySwipe("main", true);
-  window.setTimeout(() => positionDaySwipe("main", true), 180);
+  stabilizeDaySwipePosition("main");
   window.setInterval(pullServerStateIfNewer, 15000);
   window.addEventListener("focus", pullServerStateIfNewer);
   document.addEventListener("visibilitychange", () => {
