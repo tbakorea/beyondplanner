@@ -3584,7 +3584,9 @@ function setupDaySwipePager() {
     if (!isPagedDaySwipe()) return;
     if (Date.now() - lastTouchSwipeAt < 420) return;
     if (isMobileDayFocusActive()) return;
-    if (isDaySwipeBlockedTarget(event.target)) return;
+    const mobileEdgeSwipe = isMobilePhoneFocusLayout() && isDaySwipeEdgeStart(event.clientX);
+    if (isMobilePhoneFocusLayout() && !mobileEdgeSwipe) return;
+    if (!mobileEdgeSwipe && isDaySwipeBlockedTarget(event.target)) return;
     startX = event.clientX;
     startY = event.clientY;
     startTime = Date.now();
@@ -3627,9 +3629,11 @@ function setupDaySwipePager() {
   node.addEventListener("touchstart", (event) => {
     if (!isPagedDaySwipe()) return;
     if (isMobileDayFocusActive()) return;
-    if (isDaySwipeBlockedTarget(event.target)) return;
     const touch = event.touches?.[0];
     if (!touch) return;
+    const mobileEdgeSwipe = isMobilePhoneFocusLayout() && isDaySwipeEdgeStart(touch.clientX);
+    if (isMobilePhoneFocusLayout() && !mobileEdgeSwipe) return;
+    if (!mobileEdgeSwipe && isDaySwipeBlockedTarget(event.target)) return;
     startX = touch.clientX;
     startY = touch.clientY;
     startTime = Date.now();
@@ -3726,6 +3730,12 @@ function isMobileDayFocusActive() {
   const panel = document.querySelector(".day-main-panel");
   const classActive = Boolean(panel?.classList.contains("is-focus-tasks") || panel?.classList.contains("is-focus-schedule"));
   return isMobilePhoneFocusLayout() && (mobileDayFocusMode !== "split" || classActive);
+}
+
+function isDaySwipeEdgeStart(clientX) {
+  const width = window.innerWidth || document.documentElement.clientWidth || 0;
+  const edgeSize = Math.min(46, Math.max(32, width * 0.11));
+  return clientX <= edgeSize || clientX >= width - edgeSize;
 }
 
 function markDailyFieldEditing(duration = 900) {
@@ -3826,24 +3836,79 @@ function isEditableDayControl(target) {
 
 function setupSplitEditGate(node, mode) {
   let suppressClick = false;
-  const expandInsteadOfEdit = (event) => {
-    if (!isMobilePhoneFocusLayout() || mobileDayFocusMode !== "split" || !isEditableDayControl(event.target)) return false;
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTarget = null;
+  const clearTouchStart = () => {
+    touchStartX = 0;
+    touchStartY = 0;
+    touchStartTarget = null;
+  };
+  node.addEventListener("touchstart", (event) => {
+    if (!isMobilePhoneFocusLayout() || mobileDayFocusMode !== "split" || !isFocusHeaderTarget(event.target)) return;
+    if (isFocusTapBlockedTarget(event.target)) return;
+    const touch = event.touches?.[0];
+    if (!touch) return;
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTarget = event.target;
+  }, { capture: true, passive: true });
+  node.addEventListener("touchend", (event) => {
+    if (!touchStartTarget) return;
+    const touch = event.changedTouches?.[0];
+    if (!touch) {
+      clearTouchStart();
+      return;
+    }
+    const dx = touch.clientX - touchStartX;
+    const dy = touch.clientY - touchStartY;
+    const moved = Math.abs(dx) > 14 || Math.abs(dy) > 14;
+    const horizontalSwipe = Math.abs(dx) > 42 && Math.abs(dx) > Math.abs(dy) * 1.35;
+    const target = touchStartTarget;
+    clearTouchStart();
+    if (horizontalSwipe || moved) return;
+    if (!isMobilePhoneFocusLayout() || mobileDayFocusMode !== "split" || !isFocusHeaderTarget(target) || isFocusTapBlockedTarget(target)) return;
     event.preventDefault();
     event.stopPropagation();
     suppressClick = true;
     setMobileDayFocusMode(mode);
-    return true;
-  };
-  node.addEventListener("pointerdown", expandInsteadOfEdit, { capture: true });
+  }, { capture: true, passive: false });
+  node.addEventListener("touchcancel", clearTouchStart, { capture: true, passive: true });
   node.addEventListener("click", (event) => {
-    if (!suppressClick) return;
+    if (suppressClick) {
+      event.preventDefault();
+      event.stopPropagation();
+      suppressClick = false;
+      return;
+    }
+    if (!isMobilePhoneFocusLayout() || mobileDayFocusMode !== "split") return;
+    if (!isFocusHeaderTarget(event.target)) return;
+    if (isFocusTapBlockedTarget(event.target)) return;
     event.preventDefault();
     event.stopPropagation();
-    suppressClick = false;
+    setMobileDayFocusMode(mode);
   }, { capture: true });
 }
 
+function isFocusTapBlockedTarget(target) {
+  return Boolean(target?.closest?.("button, a, select, textarea, summary, [data-section-ai], [data-mobile-focus-close], [contenteditable='true']"));
+}
+
+function isFocusHeaderTarget(target) {
+  return Boolean(target?.closest?.(".day-task-panel > .panel-title-row, .day-schedule-panel > .panel-title-row"));
+}
+
 function setupMobileFocusCloseButtons(panel) {
+  if (!document.body.dataset.mobileFocusCloseBound) {
+    document.body.dataset.mobileFocusCloseBound = "true";
+    document.addEventListener("click", (event) => {
+      const button = event.target?.closest?.("[data-mobile-focus-close]");
+      if (!button) return;
+      event.preventDefault();
+      event.stopPropagation();
+      resetMobileDayFocusToSplit({ blur: true });
+    }, true);
+  }
   panel.querySelectorAll("[data-mobile-focus-close]").forEach((button) => {
     button.onclick = (event) => {
       event.preventDefault();
@@ -3869,7 +3934,7 @@ function setupPressFocusGesture(node, mode) {
     setMobileDayFocusMode(mode);
   };
   node.addEventListener("pointerdown", (event) => {
-    if (!isMobilePhoneFocusLayout() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isMobilePhoneFocusLayout() || !isFocusHeaderTarget(event.target) || isSwipeInteractiveTarget(event.target)) return;
     startX = event.clientX;
     startY = event.clientY;
     longPressFired = false;
@@ -3891,7 +3956,7 @@ function setupPressFocusGesture(node, mode) {
       lastTapAt = 0;
       return;
     }
-    if (!isMobilePhoneFocusLayout() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isMobilePhoneFocusLayout() || !isFocusHeaderTarget(event.target) || isSwipeInteractiveTarget(event.target)) return;
     const moved = Math.abs(event.clientX - startX) > 12 || Math.abs(event.clientY - startY) > 12;
     if (moved) return;
     const now = Date.now();
@@ -3904,7 +3969,7 @@ function setupPressFocusGesture(node, mode) {
   }, { passive: true });
   node.addEventListener("pointercancel", clearLongPress, { passive: true });
   node.addEventListener("contextmenu", (event) => {
-    if (!isMobilePhoneFocusLayout() || isSwipeInteractiveTarget(event.target)) return;
+    if (!isMobilePhoneFocusLayout() || !isFocusHeaderTarget(event.target) || isSwipeInteractiveTarget(event.target)) return;
     event.preventDefault();
   });
 }
@@ -3935,6 +4000,7 @@ function isDaySwipeBlockedTarget(target) {
   if (target.closest("button, select, summary, textarea, [contenteditable='true']")) return true;
   const input = target.closest("input");
   if (!input) return false;
+  if (input.closest(".day-main-panel") && isMobilePhoneFocusLayout() && mobileDayFocusMode === "split") return false;
   return Boolean(input.closest(".day-main-panel"));
 }
 
@@ -6457,7 +6523,7 @@ function stabilizeDaySwipePosition(panel = "main") {
 function scrollDayPanel(panel, behavior = "smooth") {
   const node = el("daySwipe");
   if (!node) return;
-  if (isMobileDayFocusActive()) resetMobileDayFocusToSplit({ blur: true });
+  if (isMobileDayFocusActive() && panel !== "main") resetMobileDayFocusToSplit({ blur: true });
   const target = node.querySelector(`[data-panel="${panel}"]`);
   if (!target) return;
   dayPanelProgrammaticScrollUntil = Date.now() + (behavior === "smooth" ? 520 : 140);
