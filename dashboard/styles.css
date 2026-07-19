@@ -12651,7 +12651,33 @@ body::before {
   .day-swipe {
     height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
     min-height: 0 !important;
+    margin-top: 6px !important;
     overscroll-behavior-x: contain !important;
+  }
+
+  .day-main-panel > .panel,
+  .day-task-panel,
+  .day-schedule-panel {
+    padding-top: 0 !important;
+  }
+
+  .day-task-panel > .panel-title-row,
+  .day-schedule-panel > .panel-title-row {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 28 !important;
+    min-height: 58px !important;
+    display: flex !important;
+    align-items: center !important;
+    background: linear-gradient(180deg, #fffefa 0%, rgba(255, 254, 250, 0.96) 100%) !important;
+    box-shadow: 0 1px 0 rgba(221, 216, 203, 0.72), 0 8px 16px rgba(247, 245, 239, 0.78) !important;
+  }
+
+  .mobile-focus-open,
+  .mobile-focus-done {
+    position: relative !important;
+    z-index: 31 !important;
+    flex: 0 0 auto !important;
   }
 
   .day-swipe.is-mobile-focus-active {
