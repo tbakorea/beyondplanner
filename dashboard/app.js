@@ -2776,6 +2776,16 @@ function selectDailyCalendarDate(date) {
   animateDateTitle(delta, date);
 }
 
+function openDailyPageForDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
+  closeDailyCalendar();
+  closeWeekCalendar();
+  closeMonthPicker();
+  selectedDate = new Date(date);
+  showView("day");
+  renderAll();
+}
+
 function toggleWeekCalendar() {
   const popover = el("weekCalendarPopover");
   if (!popover) return;
@@ -2806,10 +2816,7 @@ function isWeekCalendarOpen() {
 }
 
 function selectWeekCalendarDate(date) {
-  closeWeekCalendar();
-  selectedDate = date;
-  showView("week");
-  renderAll();
+  openDailyPageForDate(date);
 }
 
 function shiftWeek(delta) {
@@ -4542,9 +4549,7 @@ function renderMonthCalendar() {
       const now = Date.now();
       if (monthDateTap.key === key && now - monthDateTap.at < 420) {
         monthDateTap = { key: "", at: 0 };
-        selectedDate = date;
-        showView("day");
-        renderAll();
+        openDailyPageForDate(date);
         return;
       }
       monthDateTap = { key, at: now };
@@ -4553,9 +4558,7 @@ function renderMonthCalendar() {
     };
     cell.ondblclick = () => {
       if (monthCalendarSwipeSuppressClick) return;
-      selectedDate = date;
-      showView("day");
-      renderAll();
+      openDailyPageForDate(date);
     };
     node.appendChild(cell);
   }
