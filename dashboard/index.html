@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260720c" />
+    <link rel="stylesheet" href="./styles.css?v=20260722a" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -546,7 +546,13 @@
             <article class="panel swipe-panel day-compass-panel" data-panel="week">
               <h3 class="panel-title-row">
                 <span class="day-compass-title-text">Weekly Focus</span>
-                <button class="mini-action section-ai-button" id="aiCompassSuggest" type="button" data-section-ai="week">AI</button>
+                <span class="panel-actions">
+                  <button class="day-panel-return" type="button" data-day-panel-jump="main" aria-label="오늘의 우선업무와 시간별 일정으로 이동">
+                    <span aria-hidden="true">›</span>
+                    <b>Today</b>
+                  </button>
+                  <button class="mini-action section-ai-button" id="aiCompassSuggest" type="button" data-section-ai="week">AI</button>
+                </span>
               </h3>
               <div class="weekly-compass" id="dayCompass"></div>
             </article>
@@ -579,7 +585,13 @@
             <article class="panel swipe-panel day-memo-panel" data-panel="memo">
               <h3 class="panel-title-row">
                 <span>메모 페이지</span>
-                <button class="mini-action" id="aiMemoSuggest" type="button" data-section-ai="memo">AI</button>
+                <span class="panel-actions">
+                  <button class="day-panel-return day-panel-return-left" type="button" data-day-panel-jump="main" aria-label="오늘의 우선업무와 시간별 일정으로 이동">
+                    <span aria-hidden="true">‹</span>
+                    <b>Today</b>
+                  </button>
+                  <button class="mini-action" id="aiMemoSuggest" type="button" data-section-ai="memo">AI</button>
+                </span>
               </h3>
               <textarea data-day-field="memo" rows="18" placeholder="떠오른 생각, 회의 메모, 후속 조치를 자유롭게 적습니다."></textarea>
               <h3 class="subhead">Daily Note</h3>
