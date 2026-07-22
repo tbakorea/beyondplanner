@@ -2508,6 +2508,44 @@ body.is-privacy-blind .app-shell {
   flex-wrap: wrap;
 }
 
+.backup-email-controls {
+  min-width: min(520px, 100%);
+}
+
+.backup-email-row {
+  display: grid;
+  grid-template-columns: minmax(96px, 0.36fr) minmax(180px, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.backup-email-row label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.backup-email-row select,
+.backup-email-row input {
+  min-height: 36px;
+  border: 1px solid rgba(221, 216, 203, 0.95);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.98);
+  color: var(--ink);
+  font: inherit;
+  padding: 7px 9px;
+}
+
+.backup-email-status {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .menu-visibility-option {
   align-items: start;
 }
@@ -4823,6 +4861,15 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   gap: 12px;
 }
 
+.profile-basic-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.profile-basic-grid label:nth-child(3),
+.profile-basic-grid label:nth-child(4) {
+  grid-column: span 1;
+}
+
 .profile-interview-map {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -4863,11 +4910,13 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   border-radius: 12px;
   background: rgba(255, 253, 248, 0.68);
   padding: 12px;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 .profile-stage.is-essential {
   border-color: rgba(95, 118, 104, 0.28);
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(238, 243, 235, 0.62));
+  box-shadow: 0 10px 24px rgba(38, 50, 56, 0.045);
 }
 
 .profile-stage.is-deep {
@@ -4900,6 +4949,14 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   content: "접기";
 }
 
+.profile-stage:not([open]) {
+  background: rgba(255, 253, 248, 0.5);
+}
+
+.profile-stage:not([open]) summary {
+  margin-bottom: 0;
+}
+
 .profile-stage-title,
 .profile-stage summary {
   margin-bottom: 10px;
@@ -4929,6 +4986,10 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   color: var(--muted);
   font-size: 12.5px;
   line-height: 1.45;
+}
+
+.profile-stage summary > small {
+  grid-column: 2;
 }
 
 .profile-grid label {
@@ -4975,6 +5036,10 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 @media (max-width: 640px) {
+  .profile-basic-grid {
+    grid-template-columns: 1fr;
+  }
+
   .profile-interview-map {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -5118,6 +5183,48 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   margin-top: 10px;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.coach-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.coach-signal-grid span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid rgba(95, 118, 104, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.74);
+}
+
+.coach-signal-grid small,
+.coach-signal-grid b,
+.coach-signal-grid em {
+  margin: 0;
+}
+
+.coach-signal-grid small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 780;
+}
+
+.coach-signal-grid b {
+  color: var(--forest);
+  font-size: 0.96rem;
+  line-height: 1.15;
+}
+
+.coach-signal-grid em {
+  color: rgba(38, 50, 56, 0.72);
+  font-size: 0.76rem;
+  font-style: normal;
+  line-height: 1.28;
 }
 
 .coach-card.severity-warm {
@@ -10691,6 +10798,15 @@ body.ceo-mode .daily-panel-chip {
 
   .settings-control-stack {
     justify-items: start;
+  }
+
+  .backup-email-row {
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .backup-email-status {
+    text-align: left;
   }
 
   .time-range-controls {

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260722d" />
+    <link rel="stylesheet" href="./styles.css?v=20260723c" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -266,10 +266,27 @@
                 </div>
                 <div class="planner-option-item app-setting-section">
                   <span>
-                    <strong>보안 · 데이터 파일</strong>
-                    <small>잠금, 보안 블라인드, Excel 가져오기/내보내기는 상단 기본 메뉴에서 사용합니다.</small>
+                    <strong>메일 백업</strong>
+                    <small>상단 내보내기와 같은 Excel 백업을 메일로 받을 주기만 정합니다.</small>
                   </span>
-                  <span class="setting-status-pill">상단 메뉴</span>
+                  <div class="settings-control-stack backup-email-controls">
+                    <span class="backup-email-row">
+                      <label>주기
+                        <select id="backupEmailFrequency">
+                          <option value="off">끄기</option>
+                          <option value="weekly">매주</option>
+                          <option value="monthly">매월</option>
+                        </select>
+                      </label>
+                      <label>받을 메일
+                        <input id="backupEmailRecipient" type="email" autocomplete="email" placeholder="you@example.com" />
+                      </label>
+                    </span>
+                    <span class="settings-action-row">
+                      <button class="mini-action" id="sendBackupEmailButton" type="button">지금 메일로 보내기</button>
+                    </span>
+                    <small class="backup-email-status" id="backupEmailStatus">파일 내보내기/가져오기는 설정 상단 버튼을 사용합니다.</small>
+                  </div>
                 </div>
               </div>
             </article>
@@ -311,21 +328,21 @@
                   <p>내가 누구인지, 어떤 일을 하는지, 어떤 리듬이 맞는지 알려주세요.</p>
                 </div>
               </div>
-              <p class="profile-benefit-note">짧게 답할수록 좋습니다. 처음에는 필수 질문만 적고, 필요할 때 아래 단계를 조금씩 채우면 코칭이 더 정확해집니다.</p>
+              <p class="profile-benefit-note">AI 코칭에 바로 필요한 기본 정보만 먼저 적습니다. 세부 입력은 필요할 때 조금씩 채우면 일정 제안과 우선순위 판단이 더 정확해집니다.</p>
               <div class="profile-interview-map" aria-label="사용자 인터뷰 단계">
-                <span><strong>1</strong> 지금의 나</span>
-                <span><strong>2</strong> 바꾸고 싶은 것</span>
-                <span><strong>3</strong> 하루 습관</span>
+                <span><strong>1</strong> 기본 입력</span>
+                <span><strong>2</strong> 일의 방향</span>
+                <span><strong>3</strong> 실행 리듬</span>
                 <span><strong>4</strong> 건강·회복</span>
               </div>
               <div class="profile-onboarding">
                 <section class="profile-stage is-essential">
                   <div class="profile-stage-title">
-                    <span>1분 입력</span>
-                    <strong>지금의 나</strong>
-                    <small>분류보다 현재 상황을 파악하는 질문입니다. 짧게만 적어도 됩니다.</small>
+                    <span>기본 입력</span>
+                    <strong>AI 코칭의 최소 정보</strong>
+                    <small>이 다섯 가지만 입력해도 오늘의 업무, 일정, 코칭 문장이 사용자 상황에 맞게 조정됩니다.</small>
                   </div>
-                  <div class="profile-grid compact-profile">
+                  <div class="profile-grid compact-profile profile-basic-grid">
                     <label><span class="row-label">가장 가까운 모습</span><select data-profile-field="personaType">
                       <option value="">선택</option>
                       <option value="ceo">CEO/대표</option>
@@ -338,48 +355,49 @@
                       <option value="secondLife">은퇴 준비/인생 2막</option>
                       <option value="other">기타</option>
                     </select></label>
-                    <label><span class="row-label">요즘 주로 하는 일</span><input data-profile-field="personaCustom" type="text" placeholder="예: 부동산 개발과 운영을 챙깁니다" /></label>
-                    <label><span class="row-label">연령대</span><input data-profile-field="age" type="text" placeholder="예: 40대, 52세" /></label>
+                    <label><span class="row-label">지금 하는 일</span><input data-profile-field="personaCustom" type="text" placeholder="예: 부동산 개발과 운영을 챙깁니다" /></label>
+                    <label><span class="row-label">올해 바꾸고 싶은 것</span><textarea data-profile-field="goals" rows="2" placeholder="예: 현금흐름 안정, 건강 회복, 미뤄둔 프로젝트 끝내기"></textarea></label>
+                    <label><span class="row-label">이번 달 가장 신경 쓰이는 일</span><textarea data-profile-field="currentChallenges" rows="2" placeholder="예: 일정이 밀림, 자금 확인, 체력 저하, 가족시간 부족"></textarea></label>
+                    <label><span class="row-label">원하는 코칭 방식</span><input data-profile-field="coachingStyle" type="text" placeholder="예: 짧고 단호하게, 따뜻하게, 숫자로" /></label>
                   </div>
                 </section>
-                <details class="profile-stage" open>
+                <details class="profile-stage">
                   <summary>
-                    <span>2단계</span>
-                    <strong>바꾸고 싶은 것</strong>
-                    <small>올해와 이번 달에 실제로 달라졌으면 하는 것을 적습니다.</small>
+                    <span>세부 입력 1</span>
+                    <strong>일의 방향</strong>
+                    <small>어떤 역할을 맡고 있고, 결정할 때 무엇을 지켜야 하는지 정리합니다.</small>
                   </summary>
                   <div class="profile-grid compact-profile">
-                    <label><span class="row-label">올해 꼭 달라졌으면 하는 것</span><textarea data-profile-field="goals" rows="3" placeholder="예: 현금흐름 안정, 건강 회복, 미뤄둔 프로젝트 끝내기"></textarea></label>
-                    <label><span class="row-label">요즘 가장 신경 쓰이는 일</span><textarea data-profile-field="currentChallenges" rows="3" placeholder="예: 일정이 밀림, 자금 확인, 체력 저하, 가족시간 부족"></textarea></label>
-                    <label><span class="row-label">결정할 때 꼭 지킬 것</span><textarea data-profile-field="decisionPrinciples" rows="3" placeholder="예: 무리한 약속 금지, 현금 먼저 확인, 가족시간 지키기"></textarea></label>
+                    <label><span class="row-label">연령대</span><input data-profile-field="age" type="text" placeholder="예: 40대, 52세" /></label>
+                    <label><span class="row-label">직함/현재 역할</span><input data-profile-field="job" type="text" placeholder="예: 대표, 매니저, 트레이너" /></label>
+                    <label><span class="row-label">챙겨야 할 사람/일</span><textarea data-profile-field="roles" rows="2" placeholder="예: 회사 운영, 가족, 투자, 건강, 팀 관리"></textarea></label>
+                    <label><span class="row-label">결정할 때 꼭 지킬 것</span><textarea data-profile-field="decisionPrinciples" rows="2" placeholder="예: 무리한 약속 금지, 현금 먼저 확인, 가족시간 지키기"></textarea></label>
                   </div>
                 </details>
                 <details class="profile-stage">
                   <summary>
-                    <span>3단계</span>
-                    <strong>하루 습관</strong>
-                    <small>언제 잘하고, 언제 무너지는지 알면 일정 배치가 현실적이 됩니다.</small>
+                    <span>세부 입력 2</span>
+                    <strong>실행 리듬</strong>
+                    <small>언제 집중하고, 어떤 상황에서 미루는지 알면 일정 배치가 현실적이 됩니다.</small>
                   </summary>
                   <div class="profile-grid compact-profile">
                     <label><span class="row-label">집중이 잘 되는 시간</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 9-11시, 밤 10시 이후" /></label>
-                    <label><span class="row-label">일이 잘 풀리는 방식</span><textarea data-profile-field="strengths" rows="3" placeholder="예: 혼자 정리할 때, 숫자로 볼 때, 사람을 만나면 빨라짐"></textarea></label>
-                    <label><span class="row-label">자주 미루는 상황</span><textarea data-profile-field="risks" rows="3" placeholder="예: 일이 너무 크면 미룸, 부탁을 거절 못함, 밤에 몰아서 함"></textarea></label>
-                    <label><span class="row-label">도움 되는 말투</span><input data-profile-field="coachingStyle" type="text" placeholder="예: 짧고 단호하게, 따뜻하게, 숫자로" /></label>
+                    <label><span class="row-label">일이 잘 풀리는 방식</span><textarea data-profile-field="strengths" rows="2" placeholder="예: 혼자 정리할 때, 숫자로 볼 때, 사람을 만나면 빨라짐"></textarea></label>
+                    <label><span class="row-label">자주 미루는 상황</span><textarea data-profile-field="risks" rows="2" placeholder="예: 일이 너무 크면 미룸, 부탁을 거절 못함, 밤에 몰아서 함"></textarea></label>
                   </div>
                 </details>
                 <details class="profile-stage is-deep">
                   <summary>
-                    <span>4단계</span>
+                    <span>세부 입력 3</span>
                     <strong>건강과 회복</strong>
-                    <small>몸 상태와 회복 리듬은 일정 과부하를 막는 핵심 데이터입니다.</small>
+                    <small>몸 상태와 회복 리듬은 일정 과부하를 막는 선택 정보입니다.</small>
                   </summary>
                   <div class="profile-grid compact-profile">
-                    <label><span class="row-label">몸 상태</span><textarea data-profile-field="healthStatus" rows="3" placeholder="예: 허리 통증, 혈압 관리, 피로감"></textarea></label>
-                    <label><span class="row-label">관리/투약</span><textarea data-profile-field="medications" rows="3" placeholder="복용약, 검진, 관리 루틴"></textarea></label>
-                    <label><span class="row-label">운동 제한</span><textarea data-profile-field="exerciseLimits" rows="3" placeholder="피해야 할 동작이나 운동 강도"></textarea></label>
+                    <label><span class="row-label">몸 상태</span><textarea data-profile-field="healthStatus" rows="2" placeholder="예: 허리 통증, 혈압 관리, 피로감"></textarea></label>
                     <label><span class="row-label">활동량</span><input data-profile-field="activityLevel" type="text" placeholder="예: 앉아 있는 시간이 많음, 주 2회 걷기" /></label>
                     <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기, 근력 회복" /></label>
                     <label><span class="row-label">수면/회복</span><input data-profile-field="recoveryPattern" type="text" placeholder="예: 6시간 수면, 점심 이후 피곤함" /></label>
+                    <label><span class="row-label">주의할 점</span><textarea data-profile-field="exerciseLimits" rows="2" placeholder="피해야 할 운동, 관리 중인 건강 이슈, 검진/투약 메모"></textarea></label>
                   </div>
                 </details>
               </div>
@@ -881,6 +899,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260722c"></script>
+    <script src="./app.js?v=20260723c"></script>
   </body>
 </html>

@@ -9,6 +9,7 @@ Run:
 from __future__ import annotations
 
 import argparse
+import base64
 import datetime as dt
 import json
 import os
@@ -77,6 +78,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/state":
             self.handle_save_state()
+            return
+        if path == "/api/email-backup":
+            self.handle_email_backup()
             return
         self.send_error(404, "Not found")
 
@@ -263,6 +267,45 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
 
         self.write_json(200, {"answer": answer, "model": model})
 
+    def handle_email_backup(self):
+        try:
+            user = require_signed_in_user(self.headers)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace") if exc.fp else str(exc.reason or "")
+            self.write_json(normalize_http_status(exc.code), {"error": "로그인 세션을 확인할 수 없습니다.", "detail": detail[:500]})
+            return
+        except RuntimeError as exc:
+            self.write_json(503, {"error": str(exc)})
+            return
+        except Exception as exc:
+            self.write_json(502, {"error": "인증 서버 연결 중 오류가 발생했습니다.", "detail": str(exc)})
+            return
+
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            self.write_json(400, {"error": "요청 JSON을 읽을 수 없습니다."})
+            return
+
+        try:
+            result = send_backup_email(user, payload)
+        except ValueError as exc:
+            self.write_json(400, {"error": str(exc)})
+            return
+        except RuntimeError as exc:
+            self.write_json(503, {"error": str(exc)})
+            return
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            self.write_json(normalize_http_status(exc.code), {"error": "메일 발송 서비스 요청에 실패했습니다.", "detail": detail[:800]})
+            return
+        except Exception as exc:
+            self.write_json(502, {"error": "백업 메일 발송 중 오류가 발생했습니다.", "detail": str(exc)})
+            return
+
+        self.write_json(200, result)
+
     def write_json(self, status: int, payload: dict):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -402,6 +445,15 @@ def require_ai_user(headers) -> dict:
     return call_supabase_user(token)
 
 
+def require_signed_in_user(headers) -> dict:
+    if not supabase_configured():
+        return {}
+    token = bearer_token(headers)
+    if not token:
+        raise urllib.error.HTTPError("", 401, "로그인 세션이 필요합니다.", {}, None)
+    return call_supabase_user(token)
+
+
 def ai_allowed_for_user(user: dict) -> bool:
     email = str(user.get("email") or "").strip().lower()
     return email in allowed_ai_emails()
@@ -413,6 +465,65 @@ def allowed_ai_emails() -> set[str]:
     if values:
         return set(values)
     return {"j3010@ymail.com", "projch@naver.com"}
+
+
+def send_backup_email(user: dict, payload: dict) -> dict:
+    api_key = os.environ.get("RESEND_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("RESEND_API_KEY 환경변수가 설정되어 있지 않습니다. Vercel/서버 환경변수에 RESEND_API_KEY와 BACKUP_MAIL_FROM을 추가해야 메일 발송이 가능합니다.")
+    user_email = str(user.get("email") or "").strip().lower()
+    recipient = str(payload.get("recipient") or user_email).strip().lower()
+    if "@" not in recipient or "." not in recipient.rsplit("@", 1)[-1]:
+        raise ValueError("올바른 수신 이메일 주소가 필요합니다.")
+    filename = sanitize_backup_filename(str(payload.get("filename") or "beyond-work-backup.xls"))
+    content = str(payload.get("content") or "")
+    if not content:
+        raise ValueError("메일로 보낼 백업 파일 내용이 없습니다.")
+    content_type = str(payload.get("contentType") or "application/vnd.ms-excel")
+    exported_at = str(payload.get("exportedAt") or utc_now())
+    sender = os.environ.get("BACKUP_MAIL_FROM", "").strip() or "Beyond Work <onboarding@resend.dev>"
+    attachment_content = base64.b64encode(content.encode("utf-8")).decode("ascii")
+    request_payload = {
+        "from": sender,
+        "to": [recipient],
+        "subject": f"Beyond Work 백업 파일 · {exported_at[:10]}",
+        "html": (
+            "<h2>Beyond Work 백업 파일</h2>"
+            "<p>첨부된 Excel 파일은 앱 설정에서 다시 가져와 복원할 수 있습니다.</p>"
+            f"<p>계정: {escape_html(user_email or recipient)}<br />생성: {escape_html(exported_at)}</p>"
+        ),
+        "attachments": [
+            {
+                "filename": filename,
+                "content": attachment_content,
+                "content_type": content_type,
+            }
+        ],
+    }
+    request = urllib.request.Request(
+        "https://api.resend.com/emails",
+        data=json.dumps(request_payload, ensure_ascii=False).encode("utf-8"),
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        data = json.loads(response.read().decode("utf-8") or "{}")
+    return {"ok": True, "id": data.get("id") or "", "recipient": recipient, "sentAt": utc_now()}
+
+
+def sanitize_backup_filename(value: str) -> str:
+    safe = "".join(ch for ch in value if ch.isalnum() or ch in {"-", "_", ".", " "}).strip()
+    return safe or "beyond-work-backup.xls"
+
+
+def escape_html(value: str) -> str:
+    return (
+        str(value or "")
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
 
 
 def normalize_http_status(status) -> int:
