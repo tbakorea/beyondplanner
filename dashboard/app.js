@@ -670,7 +670,7 @@ function formatDailyTitleDate(date) {
 }
 
 function formatShortDate(date) {
-  return formatDate(date);
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${weekdays[date.getDay()]})`;
 }
 
 function formatCompassDate(date) {
@@ -2331,6 +2331,7 @@ function setupSelectors() {
   setupTopViews();
   setupDailyDateSwipe();
   setupWeekDateSwipe();
+  setupWeekBodySwipe();
   setupMonthDateSwipe();
   setupCalendarMonthSwipe();
   setupDailyPageSwipe();
@@ -2416,7 +2417,9 @@ function updateStickyPanelTop() {
   document.documentElement.style.setProperty("--sticky-panel-top", `${height}px`);
   const dailyTitle = document.querySelector("#view-day .daily-title");
   if (dailyTitle) {
-    document.documentElement.style.setProperty("--daily-title-height", `${Math.ceil(dailyTitle.getBoundingClientRect().height)}px`);
+    const fixedMobileHeight = window.matchMedia?.("(max-width: 640px)")?.matches;
+    document.documentElement.style.setProperty("--daily-title-height", fixedMobileHeight ? "58px" : `${Math.ceil(dailyTitle.getBoundingClientRect().height)}px`);
+    document.documentElement.style.setProperty("--daily-pulse-height", fixedMobileHeight ? "48px" : "44px");
   }
 }
 
@@ -3508,6 +3511,39 @@ function setupWeekDateSwipe() {
     }
     shiftWeek(dx < 0 ? 1 : -1);
   });
+}
+
+function setupWeekBodySwipe() {
+  const node = el("weekDays");
+  if (!node) return;
+  let startX = 0;
+  let startY = 0;
+  let wheelLock = false;
+  node.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("input, textarea, select, button, [contenteditable='true']")) return;
+    startX = event.clientX;
+    startY = event.clientY;
+  }, { passive: true });
+  node.addEventListener("pointerup", (event) => {
+    if (!startY) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    startX = 0;
+    startY = 0;
+    if (Math.abs(dy) < 82 || Math.abs(dy) < Math.abs(dx) * 1.35) return;
+    event.preventDefault();
+    shiftWeek(dy < 0 ? 1 : -1);
+  });
+  node.addEventListener("wheel", (event) => {
+    if (!document.querySelector("#view-week.active") || wheelLock) return;
+    if (Math.abs(event.deltaY) < 56 || Math.abs(event.deltaY) < Math.abs(event.deltaX) * 1.25) return;
+    event.preventDefault();
+    wheelLock = true;
+    shiftWeek(event.deltaY > 0 ? 1 : -1);
+    window.setTimeout(() => {
+      wheelLock = false;
+    }, 420);
+  }, { passive: false });
 }
 
 function setupCalendarMonthSwipe() {
