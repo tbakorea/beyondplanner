@@ -13833,7 +13833,7 @@ body::before {
   }
 
   .app-shell {
-    padding: calc(var(--app-header-height) + 6px) 6px 22px !important;
+    padding: calc(var(--daily-title-height) + var(--daily-pulse-height) + 6px) 6px 22px !important;
   }
 
   body.ceo-mode .daily-title,
@@ -13851,7 +13851,7 @@ body::before {
   }
 
   .day-date-nav {
-    grid-template-columns: 34px minmax(0, 1fr) 34px !important;
+    grid-template-columns: 34px minmax(0, 1fr) 34px 42px !important;
   }
 
   .daily-title .today-jump[hidden] {
@@ -13859,10 +13859,25 @@ body::before {
   }
 
   .daily-title .today-jump:not([hidden]) {
-    position: absolute !important;
-    right: 56px !important;
-    bottom: -42px !important;
-    z-index: 66 !important;
+    position: static !important;
+    z-index: auto !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    width: 42px !important;
+    min-width: 42px !important;
+    max-width: 42px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    padding: 0 !important;
+    border-radius: 11px !important;
+    font-size: 13px !important;
+    font-weight: 900 !important;
+  }
+
+  .daily-title .today-jump.is-current-day {
+    border-color: rgba(95, 118, 104, 0.16) !important;
+    background: rgba(247, 245, 239, 0.72) !important;
+    color: rgba(54, 70, 62, 0.62) !important;
   }
 
   #dailyPrevDay,

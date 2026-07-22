@@ -2064,7 +2064,9 @@ function previousWeekKey(key) {
 }
 
 function compassRoleNames() {
-  return state.foundation.roles.map((item) => item.role).filter(Boolean).filter((role) => role !== "일");
+  return getAppLanguage() === "ko"
+    ? ["개인", "가족", "성장", "공헌"]
+    : ["Personal", "Family", "Growth", "Contribution"];
 }
 
 function emptyTasks(count) {
@@ -4258,7 +4260,10 @@ function renderSidebar() {
   }
   const auth = getAuthSession();
   el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : common.loginNeeded;
-  el("dailyTodayButton").hidden = iso(selectedDate) === iso(todayInPlanner());
+  const todayButton = el("dailyTodayButton");
+  todayButton.hidden = false;
+  todayButton.classList.toggle("is-current-day", iso(selectedDate) === iso(todayInPlanner()));
+  todayButton.setAttribute("aria-label", iso(selectedDate) === iso(todayInPlanner()) ? "오늘 날짜입니다" : "오늘 날짜로 이동");
   updateCoachBubble();
 }
 
@@ -4736,15 +4741,8 @@ function renderMonthCalendar() {
     cell.title = calendarAriaLabel(date, annotation.events, annotation.lunarLabel, Boolean(count));
     cell.onclick = () => {
       if (monthCalendarSwipeSuppressClick) return;
-      const now = Date.now();
-      if (monthDateTap.key === key && now - monthDateTap.at < 420) {
-        monthDateTap = { key: "", at: 0 };
-        openDailyPageForDate(date);
-        return;
-      }
-      monthDateTap = { key, at: now };
-      selectedDate = date;
-      renderAll();
+      monthDateTap = { key: "", at: 0 };
+      openDailyPageForDate(date);
     };
     cell.ondblclick = () => {
       if (monthCalendarSwipeSuppressClick) return;
