@@ -19,7 +19,11 @@ if (new URLSearchParams(window.location.search).get("reset") === "1") {
   history.replaceState(null, "", window.location.pathname);
 }
 const monthNames = ["1월", "2월", "3월", "4월", "5월", "6월", "7월", "8월", "9월", "10월", "11월", "12월"];
-const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
+const weekdayLabelsKo = ["日", "月", "火", "水", "木", "金", "土"];
+const weekdayLabelsEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const weekdayNamesKo = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
+const weekdayNamesEn = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const weekdays = weekdayLabelsKo;
 const koreanCalendarEvents = {
   "2026-01-01": [{ label: "신정", type: "holiday" }],
   "2026-02-16": [{ label: "설 연휴", type: "holiday" }],
@@ -312,8 +316,8 @@ const settingsLanguageLabels = {
       ["오늘 · 우선업무", "우선업무를 촘촘하게 유지하고, 미완료 이월과 10:00 같은 시간 표기를 자동 반영합니다.", "DB 저장"],
       ["메인 메뉴", "필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.", ""],
       ["오늘 · 시간별 일정", "30분/1시간 단위와 하루에 보일 시작시간, 종료시간을 설정합니다.", ""],
-      ["주간", "위클리 포커스, 역할별 핵심행동, 일요일 시작 주간, 이월 항목을 관리합니다.", "일요일 시작"],
-      ["월간 · 연간", "일요일 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.", "년. 월. 일."],
+      ["주간", "위클리 포커스, 역할별 핵심행동, 日 시작 주간, 이월 항목을 관리합니다.", "日 시작"],
+      ["월간 · 연간", "日 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.", "년. 월. 일."],
       ["Money", "오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.", ""],
       ["프로젝트", "프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.", "슬라이드 상세"],
       ["시트", "Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.", "템플릿"],
@@ -675,8 +679,24 @@ function parseDate(value) {
   return new Date(`${value}T00:00:00`);
 }
 
+function getWeekdayLabels() {
+  return getAppLanguage() === "ko" ? weekdayLabelsKo : weekdayLabelsEn;
+}
+
+function getWeekdayLabel(dayIndex) {
+  return getWeekdayLabels()[Number(dayIndex)] || "";
+}
+
+function getWeekdayName(dayIndex) {
+  return (getAppLanguage() === "ko" ? weekdayNamesKo : weekdayNamesEn)[Number(dayIndex)] || "";
+}
+
+function getWeekdayIndices() {
+  return weekdayLabelsKo.map((_, index) => index);
+}
+
 function formatDate(date) {
-  return `${date.getFullYear()}. ${pad(date.getMonth() + 1)}. ${pad(date.getDate())}. (${weekdays[date.getDay()]})`;
+  return `${date.getFullYear()}. ${pad(date.getMonth() + 1)}. ${pad(date.getDate())}. (${getWeekdayLabel(date.getDay())})`;
 }
 
 function formatYearMonth(date) {
@@ -688,7 +708,7 @@ function formatDailyTitleDate(date) {
 }
 
 function formatShortDate(date) {
-  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${weekdays[date.getDay()]})`;
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${getWeekdayLabel(date.getDay())})`;
 }
 
 function formatCompassDate(date) {
@@ -2082,7 +2102,7 @@ function emptyRepeatRule() {
     weeklyMode: "every",
     weekOfMonth: "every",
     weekday: baseDate.getDay(),
-    weekdays: weekdays.map((_, index) => index),
+    weekdays: getWeekdayIndices(),
     monthday: baseDate.getDate(),
     month: baseDate.getMonth() + 1,
     startDate: iso(baseDate),
@@ -2115,7 +2135,7 @@ function normalizeRepeatRule(rule = {}) {
   if (rule.weeklyMode === "every") rule.weekOfMonth = "every";
   rule.weekday = clampNumber(rule.weekday, 0, 6, baseDate.getDay());
   rule.weekdays = Array.isArray(rule.weekdays) ? rule.weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [];
-  if (!rule.weekdays.length) rule.weekdays = rule.frequency === "daily" ? weekdays.map((_, index) => index) : [rule.weekday];
+  if (!rule.weekdays.length) rule.weekdays = rule.frequency === "daily" ? getWeekdayIndices() : [rule.weekday];
   rule.weekdays = [...new Set(rule.weekdays)].sort((a, b) => a - b);
   rule.monthday = clampNumber(rule.monthday, 1, 31, baseDate.getDate());
   rule.month = clampNumber(rule.month, 1, 12, baseDate.getMonth() + 1);
@@ -3070,7 +3090,7 @@ function renderDailyCalendar() {
   renderDailyCalendarPicker(year, month);
   grid.innerHTML = "";
 
-  weekdays.forEach((weekday, index) => {
+  getWeekdayLabels().forEach((weekday, index) => {
     const label = document.createElement("span");
     label.className = `daily-calendar-weekday ${index === 0 ? "is-sunday" : ""} ${index === 6 ? "is-saturday" : ""}`;
     label.textContent = weekday;
@@ -3174,7 +3194,7 @@ function renderWeekCalendar() {
   el("weekCalendarNextMonth").disabled = false;
   grid.innerHTML = "";
 
-  weekdays.forEach((weekday, index) => {
+  getWeekdayLabels().forEach((weekday, index) => {
     const label = document.createElement("span");
     label.className = `daily-calendar-weekday ${index === 0 ? "is-sunday" : ""} ${index === 6 ? "is-saturday" : ""}`;
     label.textContent = weekday;
@@ -3260,7 +3280,7 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
       <div class="daily-calendar-grid" role="grid" aria-label="연기 날짜"></div>
     `;
     const grid = popover.querySelector(".daily-calendar-grid");
-    weekdays.forEach((weekday, index) => {
+    getWeekdayLabels().forEach((weekday, index) => {
       const label = document.createElement("span");
       label.className = `daily-calendar-weekday ${index === 0 ? "is-sunday" : ""} ${index === 6 ? "is-saturday" : ""}`;
       label.textContent = weekday;
@@ -4708,7 +4728,7 @@ function renderMonth() {
 function renderMonthCalendar() {
   const node = el("monthCalendar");
   node.innerHTML = "";
-  weekdays.forEach((day) => {
+  getWeekdayLabels().forEach((day) => {
     const cell = document.createElement("div");
     cell.className = "weekday";
     cell.textContent = day;
@@ -4974,12 +4994,12 @@ function buildPatternSignal(date = selectedDate) {
   const weekdayStats = getRecentWeekdayCompletionStats(date);
   if (!trend.total) return { value: "대기", detail: "기록 축적 필요" };
   const best = weekdayStats.find((item) => item.total >= 1);
-  if (best) return { value: `${trend.completionRate}%`, detail: `${weekdays[best.day]}요일 완료율 ${best.rate}%` };
+  if (best) return { value: `${trend.completionRate}%`, detail: `${getWeekdayName(best.day)} 완료율 ${best.rate}%` };
   return { value: `${trend.completionRate}%`, detail: `최근 7일 ${trend.done}/${trend.total}` };
 }
 
 function getRecentWeekdayCompletionStats(anchorDate) {
-  const stats = weekdays.map((_, day) => ({ day, total: 0, done: 0, rate: 0 }));
+  const stats = getWeekdayIndices().map((day) => ({ day, total: 0, done: 0, rate: 0 }));
   for (let offset = 0; offset < 28; offset += 1) {
     const date = new Date(anchorDate);
     date.setDate(anchorDate.getDate() - offset);
@@ -5400,7 +5420,7 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
   const appointmentSummary = getNextAppointmentSummary(day);
   const appointments = Object.values(day.appointments || {}).filter((value) => String(value || "").trim());
   const season = getSeasonalContext(date);
-  const weekday = weekdays[date.getDay()];
+  const weekday = getWeekdayName(date.getDay());
   const personaLabel = getPersonaLabel(state.profile);
   const identity = summarizeProfileIdentity(state.profile);
   const topTask = highPriorityTasks[0] || openTasks[0] || null;
@@ -5424,7 +5444,7 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
     title: `${formatCompactOpeningDate(date)} ${season.label} 코칭`,
     message: `${praise} ${season.shortTone} ${firstMove} ${challenge}`,
     signals: [
-      `${weekday}요일 리듬: ${getWeekdayOpeningSignal(date, hash)}`,
+      `${weekday} 리듬: ${getWeekdayOpeningSignal(date, hash)}`,
       personaLabel ? `사용자 유형: ${personaLabel} 관점으로 오늘의 선택을 좁힙니다.` : "사용자 정보를 채우면 내일의 코칭이 더 정확해집니다.",
       appointments.length
         ? `다음 일정: ${appointmentSummary.time} ${appointmentSummary.text}`
@@ -5438,7 +5458,7 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
 }
 
 function formatCompactOpeningDate(date) {
-  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${weekdays[date.getDay()]})`;
+  return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${getWeekdayLabel(date.getDay())})`;
 }
 
 function buildDailyOpeningPraise({ hash, personaLabel, carryovers, appointments, openTasks, goals }) {
@@ -5470,9 +5490,9 @@ function getWeekdayOpeningSignal(date, hash) {
   const weekdayMessages = {
     0: ["이번 주를 조용히 설계하기 좋습니다.", "회복과 준비를 같이 잡으면 한 주가 가벼워집니다."],
     1: ["시작이 완벽하지 않아도 방향만 선명하면 됩니다.", "새 일을 늘리기보다 이번 주 첫 결과를 정하세요."],
-    2: ["월요일의 생각을 실행으로 바꾸기 좋은 날입니다.", "오전의 집중 블록 하나가 주중 흐름을 만듭니다."],
+    2: ["月曜日의 생각을 실행으로 바꾸기 좋은 날입니다.", "오전의 집중 블록 하나가 주중 흐름을 만듭니다."],
     3: ["중간 점검이 성과를 구합니다.", "오늘은 더하기보다 조정이 강한 선택입니다."],
-    4: ["마감 전 병목을 발견하기 좋은 날입니다.", "위임·취소·연기를 선명히 할수록 금요일이 가벼워집니다."],
+    4: ["마감 전 병목을 발견하기 좋은 날입니다.", "위임·취소·연기를 선명히 할수록 金曜日이 가벼워집니다."],
     5: ["한 주의 끝을 그냥 닫지 말고 결과로 남기세요.", "끝낼 일 하나와 넘길 일 하나를 구분하세요."],
     6: ["정리와 회복이 다음 실행의 연료가 됩니다.", "느린 점검 하나가 다음 주 속도를 만듭니다."],
   };
@@ -6801,7 +6821,7 @@ function closeRepeatManager() {
 
 function setRepeatAnchorToSelectedDate(rule) {
   const baseDate = selectedDate || todayInPlanner();
-  if (rule.frequency === "daily") rule.weekdays = weekdays.map((_, index) => index);
+  if (rule.frequency === "daily") rule.weekdays = getWeekdayIndices();
   if (rule.frequency === "weekly") {
     rule.weekday = baseDate.getDay();
     rule.weekOfMonth = "every";
@@ -6817,14 +6837,15 @@ function setRepeatAnchorToSelectedDate(rule) {
 
 function renderRepeatTargetControl(rule) {
   if (rule.frequency === "daily") {
-    const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : weekdays.map((_, index) => index);
+    const weekdayLabels = getWeekdayLabels();
+    const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : getWeekdayIndices();
     const summary = repeatWeekdaySummary(rule);
     return `
       <div class="repeat-weekday-picker">
         <button class="repeat-weekday-toggle" type="button" aria-label="반복 요일 선택">${escapeHtml(summary || "요일 선택")}</button>
         <div class="repeat-weekday-popover" hidden>
           <div class="repeat-weekdays" aria-label="반복 요일 선택">
-            ${weekdays.map((day, dayIndex) => `
+            ${weekdayLabels.map((day, dayIndex) => `
               <label>
                 <input type="checkbox" value="${dayIndex}" ${selected.includes(dayIndex) ? "checked" : ""} />
                 <span>${day}</span>
@@ -6842,7 +6863,7 @@ function renderRepeatTargetControl(rule) {
           ${repeatWeekOptions.map(([value, label]) => `<option value="${value}" ${String(rule.weekOfMonth || "every") === value ? "selected" : ""}>${label}</option>`).join("")}
         </select>
         <select class="repeat-weekday" aria-label="반복 요일">
-          ${weekdays.map((day, dayIndex) => `<option value="${dayIndex}" ${Number(rule.weekday) === dayIndex ? "selected" : ""}>${day}</option>`).join("")}
+          ${getWeekdayLabels().map((day, dayIndex) => `<option value="${dayIndex}" ${Number(rule.weekday) === dayIndex ? "selected" : ""}>${day}</option>`).join("")}
         </select>
       </div>
     `;
@@ -6869,8 +6890,8 @@ function renderRepeatTargetControl(rule) {
 }
 
 function repeatWeekdaySummary(rule) {
-  const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : weekdays.map((_, index) => index);
-  return selected.length === 7 ? "매일" : selected.map((dayIndex) => weekdays[dayIndex]).filter(Boolean).join(", ");
+  const selected = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : getWeekdayIndices();
+  return selected.length === 7 ? "매일" : selected.map((dayIndex) => getWeekdayLabel(dayIndex)).filter(Boolean).join(", ");
 }
 
 function renderDayCompass() {
