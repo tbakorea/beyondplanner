@@ -411,6 +411,10 @@ let dailyCalendarSwipeSuppressClick = false;
 let dailyCalendarPickerOpen = false;
 let weekCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let weekCalendarSwipeSuppressClick = false;
+let plannerCalendarMode = "";
+let plannerCalendarViewDate = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+let plannerCalendarYearOpen = false;
+let plannerCalendarTriggerId = "";
 let activePostponeCalendar = null;
 let monthCalendarSwipeSuppressClick = false;
 let monthDateTap = { key: "", at: 0 };
@@ -2784,17 +2788,19 @@ function shiftDay(delta, animate = true) {
 }
 
 function toggleDailyCalendar() {
-  const popover = el("dailyCalendarPopover");
-  if (!popover) return;
-  if (!popover.hidden) return;
-  dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-  renderDailyCalendar();
-  popover.hidden = false;
-  el("dailyCalendarToggle").setAttribute("aria-expanded", "true");
+  if (isPlannerCalendarOpen("daily")) {
+    closePlannerCalendar(true);
+    return;
+  }
+  openPlannerCalendar("daily", parseDate(iso(selectedDate)));
 }
 
 function closeDailyCalendar(restoreFocus = false) {
   const popover = el("dailyCalendarPopover");
+  if (isPlannerCalendarOpen("daily")) {
+    closePlannerCalendar(restoreFocus);
+    return;
+  }
   if (!popover || popover.hidden) return;
   closeDailyCalendarPicker();
   popover.hidden = true;
@@ -2803,12 +2809,20 @@ function closeDailyCalendar(restoreFocus = false) {
 }
 
 function shiftDailyCalendarMonth(delta) {
+  if (isPlannerCalendarOpen("daily")) {
+    shiftPlannerCalendarMonth(delta);
+    return;
+  }
   const next = new Date(dailyCalendarMonth.getFullYear(), dailyCalendarMonth.getMonth() + delta, 1);
   dailyCalendarMonth = next;
   renderDailyCalendar();
 }
 
 function shiftDailyCalendarYear(delta) {
+  if (isPlannerCalendarOpen("daily")) {
+    shiftPlannerCalendarYear(delta);
+    return;
+  }
   const next = new Date(dailyCalendarMonth.getFullYear() + delta, dailyCalendarMonth.getMonth(), 1);
   dailyCalendarMonth = next;
   renderDailyCalendar();
@@ -2829,7 +2843,7 @@ function closeDailyCalendarPicker() {
 
 function isDailyCalendarOpen() {
   const popover = el("dailyCalendarPopover");
-  return Boolean(popover && !popover.hidden);
+  return isPlannerCalendarOpen("daily") || Boolean(popover && !popover.hidden);
 }
 
 function selectDailyCalendarDate(date) {
@@ -2853,17 +2867,19 @@ function openDailyPageForDate(date) {
 }
 
 function toggleWeekCalendar() {
-  const popover = el("weekCalendarPopover");
-  if (!popover) return;
-  if (!popover.hidden) return;
-  weekCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-  renderWeekCalendar();
-  popover.hidden = false;
-  el("weekCalendarToggle").setAttribute("aria-expanded", "true");
+  if (isPlannerCalendarOpen("week")) {
+    closePlannerCalendar(true);
+    return;
+  }
+  openPlannerCalendar("week", parseDate(iso(selectedDate)));
 }
 
 function closeWeekCalendar(restoreFocus = false) {
   const popover = el("weekCalendarPopover");
+  if (isPlannerCalendarOpen("week")) {
+    closePlannerCalendar(restoreFocus);
+    return;
+  }
   if (!popover || popover.hidden) return;
   popover.hidden = true;
   el("weekCalendarToggle")?.setAttribute("aria-expanded", "false");
@@ -2871,12 +2887,20 @@ function closeWeekCalendar(restoreFocus = false) {
 }
 
 function shiftWeekCalendarMonth(delta) {
+  if (isPlannerCalendarOpen("week")) {
+    shiftPlannerCalendarMonth(delta);
+    return;
+  }
   const next = new Date(weekCalendarMonth.getFullYear(), weekCalendarMonth.getMonth() + delta, 1);
   weekCalendarMonth = next;
   renderWeekCalendar();
 }
 
 function shiftWeekCalendarYear(delta) {
+  if (isPlannerCalendarOpen("week")) {
+    shiftPlannerCalendarYear(delta);
+    return;
+  }
   const next = new Date(weekCalendarMonth.getFullYear() + delta, weekCalendarMonth.getMonth(), 1);
   weekCalendarMonth = next;
   renderWeekCalendar();
@@ -2884,11 +2908,265 @@ function shiftWeekCalendarYear(delta) {
 
 function isWeekCalendarOpen() {
   const popover = el("weekCalendarPopover");
-  return Boolean(popover && !popover.hidden);
+  return isPlannerCalendarOpen("week") || Boolean(popover && !popover.hidden);
 }
 
 function selectWeekCalendarDate(date) {
-  openDailyPageForDate(date);
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
+  selectedDate = new Date(date);
+  closeWeekCalendar();
+  showView("week");
+  renderAll();
+}
+
+function ensurePlannerCalendarSheet() {
+  let backdrop = el("plannerCalendarBackdrop");
+  let sheet = el("plannerCalendarSheet");
+  if (backdrop && sheet) return { backdrop, sheet };
+
+  backdrop = document.createElement("div");
+  backdrop.id = "plannerCalendarBackdrop";
+  backdrop.className = "planner-calendar-backdrop";
+  backdrop.hidden = true;
+
+  sheet = document.createElement("section");
+  sheet.id = "plannerCalendarSheet";
+  sheet.className = "planner-calendar-sheet";
+  sheet.setAttribute("role", "dialog");
+  sheet.setAttribute("aria-modal", "true");
+  sheet.setAttribute("aria-label", "날짜 선택");
+  sheet.hidden = true;
+  sheet.innerHTML = `
+    <div class="calendar-grabber" aria-hidden="true"></div>
+    <div class="calendar-topline">
+      <div>
+        <strong id="plannerCalendarHeading">날짜 선택</strong>
+        <span id="plannerCalendarSelectedLabel"></span>
+      </div>
+      <button type="button" id="plannerCalendarClose">닫기</button>
+    </div>
+    <div class="calendar-header">
+      <button type="button" id="plannerCalendarPrevYear" class="calendar-year-step" aria-label="이전 연도">«</button>
+      <button type="button" id="plannerCalendarPrevMonth" aria-label="이전 달">‹</button>
+      <div class="calendar-year-control" id="plannerCalendarYearControl">
+        <button type="button" id="plannerCalendarMonthTitle" aria-expanded="false">2026년</button>
+        <div class="calendar-year-wheel" id="plannerCalendarYearGrid" role="listbox" aria-label="연도 선택" hidden></div>
+      </div>
+      <button type="button" id="plannerCalendarNextMonth" aria-label="다음 달">›</button>
+      <button type="button" id="plannerCalendarNextYear" class="calendar-year-step" aria-label="다음 연도">»</button>
+    </div>
+    <div class="calendar-month-grid" id="plannerCalendarMonthGrid" aria-label="월 선택"></div>
+    <div class="calendar-weekdays" id="plannerCalendarWeekdays" aria-hidden="true"></div>
+    <div class="calendar-day-grid" id="plannerCalendarDayGrid" role="grid" aria-label="날짜"></div>
+    <div class="calendar-footer">
+      <button type="button" id="plannerCalendarToday">오늘로 이동</button>
+    </div>
+  `;
+  document.body.append(backdrop, sheet);
+
+  backdrop.onclick = () => closePlannerCalendar();
+  sheet.querySelector("#plannerCalendarClose").onclick = () => closePlannerCalendar(true);
+  sheet.querySelector("#plannerCalendarPrevYear").onclick = () => shiftPlannerCalendarYear(-1);
+  sheet.querySelector("#plannerCalendarNextYear").onclick = () => shiftPlannerCalendarYear(1);
+  sheet.querySelector("#plannerCalendarPrevMonth").onclick = () => shiftPlannerCalendarMonth(-1);
+  sheet.querySelector("#plannerCalendarNextMonth").onclick = () => shiftPlannerCalendarMonth(1);
+  sheet.querySelector("#plannerCalendarMonthTitle").onclick = () => {
+    plannerCalendarYearOpen = !plannerCalendarYearOpen;
+    renderPlannerCalendarSheet();
+  };
+  sheet.querySelector("#plannerCalendarToday").onclick = () => selectPlannerCalendarDate(todayInPlanner());
+  bindPlannerCalendarSwipe(sheet);
+  return { backdrop, sheet };
+}
+
+function isPlannerCalendarOpen(mode = "") {
+  const sheet = el("plannerCalendarSheet");
+  return Boolean(sheet && !sheet.hidden && (!mode || plannerCalendarMode === mode));
+}
+
+function openPlannerCalendar(mode, viewDate = selectedDate) {
+  const { backdrop, sheet } = ensurePlannerCalendarSheet();
+  closeDailyCalendarPicker();
+  closePostponeDatePicker();
+  plannerCalendarMode = mode;
+  plannerCalendarTriggerId = mode === "week" ? "weekCalendarToggle" : "dailyCalendarToggle";
+  plannerCalendarYearOpen = false;
+  plannerCalendarViewDate = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1);
+  sheet.hidden = false;
+  backdrop.hidden = false;
+  sheet.setAttribute("aria-label", mode === "week" ? "주간 날짜 선택" : "일간 날짜 선택");
+  el(plannerCalendarTriggerId)?.setAttribute("aria-expanded", "true");
+  renderPlannerCalendarSheet();
+  window.requestAnimationFrame(() => {
+    sheet.classList.add("is-open");
+    backdrop.classList.add("is-open");
+  });
+}
+
+function closePlannerCalendar(restoreFocus = false) {
+  const sheet = el("plannerCalendarSheet");
+  const backdrop = el("plannerCalendarBackdrop");
+  if (!sheet || sheet.hidden) return;
+  const triggerId = plannerCalendarTriggerId;
+  sheet.classList.remove("is-open");
+  backdrop?.classList.remove("is-open");
+  el(triggerId)?.setAttribute("aria-expanded", "false");
+  window.setTimeout(() => {
+    sheet.hidden = true;
+    if (backdrop) backdrop.hidden = true;
+    plannerCalendarMode = "";
+    plannerCalendarTriggerId = "";
+    plannerCalendarYearOpen = false;
+    if (restoreFocus && triggerId) el(triggerId)?.focus();
+  }, 170);
+}
+
+function shiftPlannerCalendarMonth(delta) {
+  plannerCalendarViewDate = new Date(
+    plannerCalendarViewDate.getFullYear(),
+    plannerCalendarViewDate.getMonth() + delta,
+    1,
+  );
+  plannerCalendarYearOpen = false;
+  renderPlannerCalendarSheet();
+}
+
+function shiftPlannerCalendarYear(delta) {
+  plannerCalendarViewDate = new Date(
+    plannerCalendarViewDate.getFullYear() + delta,
+    plannerCalendarViewDate.getMonth(),
+    1,
+  );
+  renderPlannerCalendarSheet();
+}
+
+function renderPlannerCalendarSheet() {
+  const sheet = el("plannerCalendarSheet");
+  if (!sheet || sheet.hidden) return;
+  const heading = sheet.querySelector("#plannerCalendarHeading");
+  const selectedLabel = sheet.querySelector("#plannerCalendarSelectedLabel");
+  const monthTitle = sheet.querySelector("#plannerCalendarMonthTitle");
+  const yearControl = sheet.querySelector("#plannerCalendarYearControl");
+  const yearGrid = sheet.querySelector("#plannerCalendarYearGrid");
+  const monthGrid = sheet.querySelector("#plannerCalendarMonthGrid");
+  const weekdayGrid = sheet.querySelector("#plannerCalendarWeekdays");
+  const dayGrid = sheet.querySelector("#plannerCalendarDayGrid");
+  const todayButton = sheet.querySelector("#plannerCalendarToday");
+  const year = plannerCalendarViewDate.getFullYear();
+  const month = plannerCalendarViewDate.getMonth();
+  const monthStart = new Date(year, month, 1);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+  const selectedKey = iso(selectedDate);
+  const todayKey = iso(todayInPlanner());
+  const selectedWeekStart = startOfWeek(selectedDate);
+  const selectedWeekEnd = new Date(selectedWeekStart);
+  selectedWeekEnd.setDate(selectedWeekStart.getDate() + 6);
+
+  heading.textContent = plannerCalendarMode === "week" ? "주간 선택" : "날짜 선택";
+  selectedLabel.textContent = plannerCalendarMode === "week"
+    ? `현재 주간 ${formatShortDate(selectedWeekStart)} ~ ${formatShortDate(selectedWeekEnd)}`
+    : formatDate(selectedDate);
+  monthTitle.textContent = `${year}년`;
+  monthTitle.setAttribute("aria-expanded", String(plannerCalendarYearOpen));
+  yearControl.classList.toggle("is-wheel-open", plannerCalendarYearOpen);
+  yearGrid.hidden = !plannerCalendarYearOpen;
+  todayButton.textContent = "오늘로 이동";
+
+  monthGrid.innerHTML = Array.from({ length: 12 }, (_, index) => `
+    <button type="button" class="${index === month ? "is-selected" : ""}" data-planner-calendar-month="${index}">
+      ${index + 1}월
+    </button>
+  `).join("");
+  monthGrid.querySelectorAll("[data-planner-calendar-month]").forEach((button) => {
+    button.onclick = () => {
+      plannerCalendarViewDate = new Date(year, Number(button.dataset.plannerCalendarMonth), 1);
+      plannerCalendarYearOpen = false;
+      renderPlannerCalendarSheet();
+    };
+  });
+
+  yearGrid.innerHTML = Array.from({ length: 21 }, (_, index) => {
+    const value = year - 10 + index;
+    return `<button type="button" role="option" aria-selected="${value === year}" class="${value === year ? "is-selected" : ""}" data-planner-calendar-year="${value}">${value}</button>`;
+  }).join("");
+  yearGrid.querySelectorAll("[data-planner-calendar-year]").forEach((button) => {
+    button.onclick = () => {
+      plannerCalendarViewDate = new Date(Number(button.dataset.plannerCalendarYear), month, 1);
+      plannerCalendarYearOpen = false;
+      renderPlannerCalendarSheet();
+    };
+  });
+  if (plannerCalendarYearOpen) {
+    window.requestAnimationFrame(() => yearGrid.querySelector(".is-selected")?.scrollIntoView({ block: "center" }));
+  }
+
+  weekdayGrid.innerHTML = getWeekdayLabels()
+    .map((weekday, index) => `<span class="${index === 0 ? "is-sunday" : ""} ${index === 6 ? "is-saturday" : ""}">${escapeHtml(weekday)}</span>`)
+    .join("");
+  dayGrid.innerHTML = "";
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const key = iso(date);
+    const hasPlans = Boolean(state.days[key] && dayHasContent(state.days[key]));
+    const annotation = getCalendarAnnotation(date);
+    const isSelectedWeek = plannerCalendarMode === "week" && date >= selectedWeekStart && date <= selectedWeekEnd;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = [
+      date.getMonth() !== month ? "is-outside" : "",
+      key === selectedKey ? "is-selected" : "",
+      key === todayKey ? "is-today" : "",
+      isSelectedWeek ? "is-selected-week" : "",
+      hasPlans ? "has-plans" : "",
+      annotation.hasHoliday ? "has-holiday" : "",
+      annotation.lunarLabel ? "has-lunar" : "",
+    ].filter(Boolean).join(" ");
+    button.setAttribute("role", "gridcell");
+    button.setAttribute("aria-selected", String(plannerCalendarMode === "week" ? isSelectedWeek : key === selectedKey));
+    button.setAttribute("aria-label", calendarAriaLabel(date, annotation.events, annotation.lunarLabel, hasPlans));
+    button.innerHTML = `
+      <span class="daily-calendar-date-number">${date.getDate()}</span>
+      ${renderCalendarAnnotationMarkup(annotation.events, annotation.lunarLabel, { compact: true })}
+      ${hasPlans ? '<i aria-hidden="true"></i>' : ""}
+    `;
+    button.onclick = () => selectPlannerCalendarDate(date);
+    dayGrid.appendChild(button);
+  }
+}
+
+function selectPlannerCalendarDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return;
+  const mode = plannerCalendarMode;
+  closePlannerCalendar();
+  if (mode === "week") {
+    selectedDate = new Date(date);
+    showView("week");
+    renderAll();
+    return;
+  }
+  selectDailyCalendarDate(new Date(date));
+}
+
+function bindPlannerCalendarSwipe(sheet) {
+  let startX = 0;
+  let startY = 0;
+  sheet.addEventListener("pointerdown", (event) => {
+    if (event.target.closest("button")) return;
+    startX = event.clientX;
+    startY = event.clientY;
+  }, { passive: true });
+  sheet.addEventListener("pointerup", (event) => {
+    if (!startX) return;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    startX = 0;
+    startY = 0;
+    if (Math.abs(dx) < 54 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+    event.preventDefault();
+    shiftPlannerCalendarMonth(dx < 0 ? 1 : -1);
+  });
 }
 
 function shiftWeek(delta) {
@@ -3301,16 +3579,18 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
     const gridStart = new Date(monthStart);
     gridStart.setDate(monthStart.getDate() - monthStart.getDay());
     const todayKey = iso(todayInPlanner());
-    const selectedKey = iso(initialDate);
-    popover.innerHTML = `
-      <div class="daily-calendar-toolbar">
-        <button class="daily-calendar-nav" data-postpone-prev type="button" aria-label="이전 달">‹</button>
-        <strong>${escapeHtml(formatYearMonth(new Date(year, month, 1)))}</strong>
-        <button class="daily-calendar-nav" data-postpone-next type="button" aria-label="다음 달">›</button>
-        <button class="icon-close daily-calendar-close" data-postpone-close type="button" aria-label="달력 닫기">×</button>
-      </div>
-      <div class="daily-calendar-grid" role="grid" aria-label="연기 날짜"></div>
-    `;
+	    const selectedKey = iso(initialDate);
+	    popover.innerHTML = `
+	      <div class="daily-calendar-toolbar">
+	        <button class="daily-calendar-nav daily-calendar-year-nav" data-postpone-prev-year type="button" aria-label="이전 연도">«</button>
+	        <button class="daily-calendar-nav" data-postpone-prev type="button" aria-label="이전 달">‹</button>
+	        <strong>${escapeHtml(formatYearMonth(new Date(year, month, 1)))}</strong>
+	        <button class="daily-calendar-nav" data-postpone-next type="button" aria-label="다음 달">›</button>
+	        <button class="daily-calendar-nav daily-calendar-year-nav" data-postpone-next-year type="button" aria-label="다음 연도">»</button>
+	        <button class="icon-close daily-calendar-close" data-postpone-close type="button" aria-label="달력 닫기">×</button>
+	      </div>
+	      <div class="daily-calendar-grid" role="grid" aria-label="연기 날짜"></div>
+	    `;
     const grid = popover.querySelector(".daily-calendar-grid");
     getWeekdayLabels().forEach((weekday, index) => {
       const label = document.createElement("span");
@@ -3347,14 +3627,22 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
       };
       grid.appendChild(button);
     }
-    popover.querySelector("[data-postpone-prev]").onclick = () => {
-      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() - 1, 1);
-      render();
-    };
-    popover.querySelector("[data-postpone-next]").onclick = () => {
-      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() + 1, 1);
-      render();
-    };
+	    popover.querySelector("[data-postpone-prev]").onclick = () => {
+	      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() - 1, 1);
+	      render();
+	    };
+	    popover.querySelector("[data-postpone-next]").onclick = () => {
+	      pickerMonth = new Date(pickerMonth.getFullYear(), pickerMonth.getMonth() + 1, 1);
+	      render();
+	    };
+	    popover.querySelector("[data-postpone-prev-year]").onclick = () => {
+	      pickerMonth = new Date(pickerMonth.getFullYear() - 1, pickerMonth.getMonth(), 1);
+	      render();
+	    };
+	    popover.querySelector("[data-postpone-next-year]").onclick = () => {
+	      pickerMonth = new Date(pickerMonth.getFullYear() + 1, pickerMonth.getMonth(), 1);
+	      render();
+	    };
     popover.querySelector("[data-postpone-close]").onclick = closePostponeDatePicker;
   };
 
@@ -3419,6 +3707,12 @@ function setupGlobalSundayDatePicker() {
 
 function setupDailyCalendarDismissal() {
   document.addEventListener("pointerdown", (event) => {
+    const plannerSheet = el("plannerCalendarSheet");
+    if (plannerSheet && !plannerSheet.hidden) {
+      if (event.target.closest("#plannerCalendarSheet") || event.target.closest("#dailyCalendarToggle") || event.target.closest("#weekCalendarToggle")) return;
+      closePlannerCalendar();
+      return;
+    }
     const popover = el("dailyCalendarPopover");
     if (!popover || popover.hidden) return;
     if (event.target.closest("#dailyCalendarPopover") || event.target.closest("#dailyCalendarToggle")) return;
@@ -3432,6 +3726,7 @@ function setupDailyCalendarDismissal() {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
+      closePlannerCalendar(true);
       closeDailyCalendar(true);
       closeWeekCalendar(true);
       closeRepeatManager();
@@ -4901,6 +5196,7 @@ function renderWeek() {
     days.appendChild(card);
   }
   if (!el("weekCalendarPopover").hidden) renderWeekCalendar();
+  if (isPlannerCalendarOpen("week")) renderPlannerCalendarSheet();
 }
 
 function renderDay() {
@@ -4934,6 +5230,7 @@ function renderDay() {
     };
   });
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
+  if (isPlannerCalendarOpen("daily")) renderPlannerCalendarSheet();
   positionDaySwipe();
 }
 
