@@ -2199,6 +2199,8 @@ function setupSelectors() {
   };
   el("dailyCalendarPrevMonth").onclick = () => shiftDailyCalendarMonth(-1);
   el("dailyCalendarNextMonth").onclick = () => shiftDailyCalendarMonth(1);
+  el("dailyCalendarPrevYear").onclick = () => shiftDailyCalendarYear(-1);
+  el("dailyCalendarNextYear").onclick = () => shiftDailyCalendarYear(1);
   el("dailyCalendarMonthTitle").onclick = toggleDailyCalendarPicker;
   el("dailyCalendarClose").onclick = () => closeDailyCalendar(true);
   el("dailyCalendarToday").onclick = () => selectDailyCalendarDate(todayInPlanner());
@@ -2211,6 +2213,8 @@ function setupSelectors() {
   };
   el("weekCalendarPrevMonth").onclick = () => shiftWeekCalendarMonth(-1);
   el("weekCalendarNextMonth").onclick = () => shiftWeekCalendarMonth(1);
+  el("weekCalendarPrevYear").onclick = () => shiftWeekCalendarYear(-1);
+  el("weekCalendarNextYear").onclick = () => shiftWeekCalendarYear(1);
   el("weekCalendarClose").onclick = () => closeWeekCalendar(true);
   el("monthPrevButton").onclick = () => shiftMonthWithAnimation(-1);
   el("monthNextButton").onclick = () => shiftMonthWithAnimation(1);
@@ -2872,6 +2876,12 @@ function shiftWeekCalendarMonth(delta) {
   renderWeekCalendar();
 }
 
+function shiftWeekCalendarYear(delta) {
+  const next = new Date(weekCalendarMonth.getFullYear() + delta, weekCalendarMonth.getMonth(), 1);
+  weekCalendarMonth = next;
+  renderWeekCalendar();
+}
+
 function isWeekCalendarOpen() {
   const popover = el("weekCalendarPopover");
   return Boolean(popover && !popover.hidden);
@@ -2949,15 +2959,37 @@ function closeMonthPicker(restoreFocus = false) {
 function renderMonthPicker() {
   const grid = el("monthPickerGrid");
   if (!grid) return;
+  const currentYear = selectedDate.getFullYear();
   const currentMonth = selectedDate.getMonth();
-  grid.innerHTML = monthNames.map((name, index) => `
-    <button type="button" data-month-index="${index}" class="${index === currentMonth ? "is-active" : ""}">
-      ${name}
-    </button>
-  `).join("");
+  grid.innerHTML = `
+    <div class="month-picker-year-row">
+      <button type="button" data-month-year-delta="-1" aria-label="이전 연도">‹</button>
+      <strong>${currentYear}</strong>
+      <button type="button" data-month-year-delta="1" aria-label="다음 연도">›</button>
+    </div>
+    <div class="month-picker-months">
+      ${monthNames.map((name, index) => `
+        <button type="button" data-month-index="${index}" class="${index === currentMonth ? "is-active" : ""}">
+          ${name}
+        </button>
+      `).join("")}
+    </div>
+  `;
+  grid.querySelectorAll("[data-month-year-delta]").forEach((button) => {
+    button.onclick = () => shiftMonthYear(Number(button.dataset.monthYearDelta));
+  });
   grid.querySelectorAll("[data-month-index]").forEach((button) => {
     button.onclick = () => selectMonth(Number(button.dataset.monthIndex));
   });
+}
+
+function shiftMonthYear(delta) {
+  if (!Number.isFinite(delta) || !delta) return;
+  const next = new Date(selectedDate);
+  next.setFullYear(selectedDate.getFullYear() + delta);
+  selectedDate = next;
+  renderAll();
+  renderMonthPicker();
 }
 
 function selectMonth(monthIndex) {
