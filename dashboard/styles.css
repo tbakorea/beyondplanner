@@ -13969,3 +13969,36 @@ body::before {
     min-width: 118px !important;
   }
 }
+
+/* Mobile split view: keep overview clean. Destructive and merge controls appear only in focused edit views. */
+@media (max-width: 640px) {
+  .day-main-panel:not(.is-focus-tasks) .task-delete,
+  .day-main-panel:not(.is-focus-tasks) .carryover-row .task-delete,
+  .day-main-panel:not(.is-focus-schedule) .appointment-delete,
+  .day-main-panel:not(.is-focus-schedule) .appointment-merge-button,
+  .day-main-panel:not(.is-focus-schedule) .split-appointment {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .day-main-panel:not(.is-focus-tasks) .task-row,
+  .day-main-panel:not(.is-focus-tasks) .carryover-row,
+  .day-main-panel:not(.is-focus-tasks) .task-row:has(.task-money-link) {
+    grid-template-columns: 22px 28px minmax(0, 1fr) !important;
+  }
+
+  .day-main-panel:not(.is-focus-schedule) .appointment-row {
+    grid-template-columns: 52px minmax(0, 1fr) !important;
+  }
+
+  .day-main-panel.is-focus-tasks .task-delete,
+  .day-main-panel.is-focus-tasks .carryover-row .task-delete,
+  .day-main-panel.is-focus-schedule .appointment-delete,
+  .day-main-panel.is-focus-schedule .appointment-merge-button,
+  .day-main-panel.is-focus-schedule .split-appointment {
+    display: inline-grid !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
