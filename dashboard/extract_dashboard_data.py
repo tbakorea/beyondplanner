@@ -7,7 +7,7 @@ from typing import Any
 
 import openpyxl
 
-ROOT = Path("/Users/bangju/Documents/프랭클린 플래너 생성")
+ROOT = Path("/Users/bangju/Documents/비욘드 플래너")
 SOURCE = ROOT / "outputs/franklin_planner_final/2026_ㅇㅇㅇ_프랭클린플래너_개선판.xlsx"
 OUT = ROOT / "dashboard/data.js"
 

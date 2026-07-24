@@ -1,6 +1,6 @@
 window.FRANKLIN_DASHBOARD_DATA = {
   "source": {
-    "file": "/Users/bangju/Documents/프랭클린 플래너 생성/outputs/franklin_planner_final/2026_ㅇㅇㅇ_프랭클린플래너_개선판.xlsx",
+    "file": "/Users/bangju/Documents/비욘드 플래너/outputs/franklin_planner_final/2026_ㅇㅇㅇ_프랭클린플래너_개선판.xlsx",
     "generatedAt": "2026-06-23T17:49:00",
     "freshness": "개선판 엑셀에서 추출"
   },

@@ -48,18 +48,19 @@ const koreanCalendarEvents = {
   "2026-10-09": [{ label: "한글날", type: "national" }],
   "2026-12-25": [{ label: "성탄절", type: "holiday" }],
 };
-const recurringSolarEvents = {
-  "01-01": [{ label: "신정", type: "holiday" }],
-  "03-01": [{ label: "삼일절", type: "national" }],
-  "05-01": [{ label: "노동절", type: "holiday" }],
-  "05-05": [{ label: "어린이날", type: "holiday" }],
-  "06-06": [{ label: "현충일", type: "holiday" }],
-  "07-17": [{ label: "제헌절", type: "national" }],
-  "08-15": [{ label: "광복절", type: "national" }],
-  "10-03": [{ label: "개천절", type: "national" }],
-  "10-09": [{ label: "한글날", type: "national" }],
-  "12-25": [{ label: "성탄절", type: "holiday" }],
-};
+const solarCalendarEventRules = [
+  { month: 1, day: 1, label: "신정", type: "holiday", substitute: false },
+  { month: 3, day: 1, label: "삼일절", type: "national", substitute: true },
+  { month: 5, day: 1, label: "노동절", type: "holiday", substitute: false },
+  { month: 5, day: 5, label: "어린이날", type: "holiday", substitute: true },
+  { month: 6, day: 6, label: "현충일", type: "holiday", substitute: false },
+  { month: 7, day: 17, label: "제헌절", type: "national", substitute: false },
+  { month: 8, day: 15, label: "광복절", type: "national", substitute: true },
+  { month: 10, day: 3, label: "개천절", type: "national", substitute: true },
+  { month: 10, day: 9, label: "한글날", type: "national", substitute: true },
+  { month: 12, day: 25, label: "성탄절", type: "holiday", substitute: true },
+];
+const koreanHolidayYearCache = new Map();
 const lunarDateFormatter = new Intl.DateTimeFormat("ko-KR-u-ca-chinese", {
   timeZone: "Asia/Seoul",
   month: "numeric",
@@ -90,7 +91,7 @@ const repeatCarryOptions = [
   ["carry", "이월함"],
   ["none", "이월안함"],
 ];
-const REPEAT_PRIORITY_MIN_ROWS = 12;
+const REPEAT_PRIORITY_MIN_ROWS = 0;
 const DAILY_EMPTY_TASK_MIN = 3;
 const DAILY_EMPTY_TASK_MAX = 5;
 const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
@@ -441,6 +442,9 @@ let sheetSlideOpening = false;
 let sheetSwipeSuppressClick = false;
 let sheetHeaderResizeSuppressClick = false;
 let mobileDayFocusMode = "split";
+let repeatManagerMode = "list";
+let repeatEditingIndex = -1;
+let repeatEditingDraft = null;
 let pendingUndoAction = null;
 let undoNoticeTimer = 0;
 let backupEmailCheckTimer = 0;
@@ -3361,7 +3365,7 @@ function renderCalendarAnnotationMarkup(events, lunarLabel, options = {}) {
   if (options.compact) {
     return [
       ...visibleEvents.map((event) => `<small class="calendar-event event-${event.type}">${escapeHtml(event.label)}</small>`),
-      !visibleEvents.length && lunarLabel ? `<em class="lunar-mark">음 ${escapeHtml(lunarLabel)}</em>` : "",
+      lunarLabel ? `<em class="lunar-mark">음 ${escapeHtml(lunarLabel)}</em>` : "",
     ].join("");
   }
   return [
@@ -5014,28 +5018,130 @@ function renderYear() {
 }
 
 function getCalendarEvents(key) {
-  const solarKey = String(key || "").slice(5);
-  const fixedEvents = recurringSolarEvents[solarKey] || [];
+  const date = parseDate(key);
+  const fixedEvents = Number.isNaN(date.getTime()) ? [] : getGeneratedKoreanCalendarEvents(key);
   const datedEvents = koreanCalendarEvents[key] || [];
-  const baseEvents = datedEvents.length ? datedEvents : fixedEvents;
   const customEvents = (state.calendar?.events || [])
     .filter((event) => event.date === key && event.title?.trim())
     .map((event) => ({ label: event.title.trim(), type: "anniversary", id: event.id }));
-  return [...baseEvents, ...customEvents];
+  return dedupeCalendarEvents([...fixedEvents, ...datedEvents, ...customEvents]);
 }
 
-function getLunarDecadeLabel(date) {
+function dedupeCalendarEvents(events) {
+  const seen = new Set();
+  return events.filter((event) => {
+    const key = `${event.type || ""}:${event.label || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getGeneratedKoreanCalendarEvents(dateKey) {
+  const date = parseDate(dateKey);
+  if (Number.isNaN(date.getTime())) return [];
+  const year = date.getFullYear();
+  const eventsByDate = getKoreanHolidayEventsForYear(year);
+  return eventsByDate.get(dateKey) || [];
+}
+
+function getKoreanHolidayEventsForYear(year) {
+  if (koreanHolidayYearCache.has(year)) return koreanHolidayYearCache.get(year);
+  const eventsByDate = new Map();
+  const substituteCandidates = [];
+  const addEvent = (date, event) => {
+    const key = iso(date);
+    const list = eventsByDate.get(key) || [];
+    list.push({ label: event.label, type: event.type });
+    eventsByDate.set(key, dedupeCalendarEvents(list));
+    if (event.substitute) {
+      substituteCandidates.push({
+        date: new Date(date),
+        label: event.label,
+        type: event.type,
+        mode: event.substituteMode || "weekendOrOverlap",
+      });
+    }
+  };
+
+  solarCalendarEventRules.forEach((rule) => {
+    addEvent(new Date(year, rule.month - 1, rule.day), rule);
+  });
+
+  for (let month = 0; month < 12; month += 1) {
+    const lastDate = new Date(year, month + 1, 0).getDate();
+    for (let day = 1; day <= lastDate; day += 1) {
+      const date = new Date(year, month, day);
+      getKoreanLunarHolidayEvents(date).forEach((event) => addEvent(date, event));
+    }
+  }
+
+  const occupied = new Set(eventsByDate.keys());
+  substituteCandidates
+    .filter((candidate) => isSubstituteHolidayRequired(candidate, eventsByDate))
+    .sort((a, b) => a.date - b.date)
+    .forEach(({ date, label, type }) => {
+      let substitute = new Date(date);
+      do {
+        substitute.setDate(substitute.getDate() + 1);
+      } while (substitute.getFullYear() === year && (substitute.getDay() === 0 || substitute.getDay() === 6 || occupied.has(iso(substitute))));
+      if (substitute.getFullYear() === year) {
+        const key = iso(substitute);
+        const list = eventsByDate.get(key) || [];
+        const substituteLabel = label === "부처님오신날" ? "부처님 대체" : `${label} 대체`;
+        list.push({ label: substituteLabel, type: type === "national" ? "holiday" : type });
+        eventsByDate.set(key, dedupeCalendarEvents(list));
+        occupied.add(key);
+      }
+    });
+
+  koreanHolidayYearCache.set(year, eventsByDate);
+  return eventsByDate;
+}
+
+function isSubstituteHolidayRequired(candidate, eventsByDate) {
+  const day = candidate.date.getDay();
+  const overlapsHoliday = (eventsByDate.get(iso(candidate.date)) || []).length > 1;
+  if (overlapsHoliday) return true;
+  if (candidate.mode === "sundayOrOverlap") return day === 0;
+  return day === 0 || day === 6;
+}
+
+function getKoreanLunarHolidayEvents(date) {
+  const { month, day } = getLunarDateParts(date);
+  const tomorrow = new Date(date);
+  tomorrow.setDate(date.getDate() + 1);
+  const tomorrowLunar = getLunarDateParts(tomorrow);
+  const events = [];
+  if (tomorrowLunar.month === 1 && tomorrowLunar.day === 1) {
+    events.push({ label: "설 연휴", type: "holiday", substitute: true, substituteMode: "sundayOrOverlap" });
+  }
+  if (month === 1 && day === 1) events.push({ label: "설날", type: "holiday", substitute: true, substituteMode: "sundayOrOverlap" });
+  if (month === 1 && day === 2) events.push({ label: "설 연휴", type: "holiday", substitute: true, substituteMode: "sundayOrOverlap" });
+  if (month === 4 && day === 8) events.push({ label: "부처님오신날", type: "holiday", substitute: true, substituteMode: "weekendOrOverlap" });
+  if (month === 8 && day === 14) events.push({ label: "추석 연휴", type: "holiday", substitute: true, substituteMode: "sundayOrOverlap" });
+  if (month === 8 && day === 15) events.push({ label: "추석", type: "holiday", substitute: true, substituteMode: "sundayOrOverlap" });
+  if (month === 8 && day === 16) events.push({ label: "추석 연휴", type: "holiday", substitute: true, substituteMode: "sundayOrOverlap" });
+  return events;
+}
+
+function getLunarDateParts(date) {
   try {
     const parts = lunarDateFormatter.formatToParts(date);
     const monthPart = parts.find((part) => part.type === "month");
     const dayPart = parts.find((part) => part.type === "day");
     const month = Number(String(monthPart?.value || "").replace(/\D/g, ""));
     const day = Number(String(dayPart?.value || "").replace(/\D/g, ""));
-    if (!month || ![1, 10, 20].includes(day)) return "";
-    return `${month}/${day}`;
+    return { month, day };
   } catch {
-    return "";
+    return { month: 0, day: 0 };
   }
+}
+
+function getLunarDecadeLabel(date) {
+  const { month, day } = getLunarDateParts(date);
+  if (!month || ![1, 10, 20, 30].includes(day)) return "";
+  return `${month}/${day}`;
 }
 
 function renderMonth() {
@@ -6919,15 +7025,85 @@ function renderRepeatPriorityList() {
   if (!node) return;
   ensureRepeatPriorityRows();
   node.innerHTML = "";
-  getSortedRepeatRuleEntries().forEach(({ rule, index }) => {
-    const scroller = document.createElement("div");
-    scroller.className = "repeat-rule-scroll";
-    scroller.tabIndex = 0;
-    scroller.addEventListener("pointerdown", () => activateRepeatRuleScroller(scroller));
-    scroller.addEventListener("focusin", () => activateRepeatRuleScroller(scroller));
-    const row = document.createElement("div");
-    row.className = "repeat-rule-row";
-    row.innerHTML = `
+  node.classList.toggle("is-editor-open", repeatManagerMode !== "list");
+
+  const shell = document.createElement("div");
+  shell.className = "repeat-manager-layout";
+
+  const editor = renderRepeatRuleEditor();
+  if (editor) shell.appendChild(editor);
+
+  const listSection = document.createElement("section");
+  listSection.className = "repeat-summary-section";
+  listSection.innerHTML = `
+    <div class="repeat-summary-head">
+      <div>
+        <strong>반복업무 목록</strong>
+        <small>연간 · 월간 · 주간 · 매일 순으로 정렬됩니다.</small>
+      </div>
+      <button class="repeat-new-rule" type="button">새 반복업무</button>
+    </div>
+  `;
+  listSection.querySelector(".repeat-new-rule").onclick = () => openRepeatManager("create");
+
+  const list = document.createElement("div");
+  list.className = "repeat-summary-list";
+  const entries = getSortedRepeatRuleEntries();
+  if (!entries.length) {
+    list.innerHTML = `
+      <div class="repeat-empty-state">
+        <strong>아직 반복업무가 없습니다.</strong>
+        <span>매일 운동, 매주 회고, 매월 납부처럼 반복되는 일을 한 건씩 추가하세요.</span>
+      </div>
+    `;
+  }
+  entries.forEach(({ rule, index }) => {
+    const item = document.createElement("article");
+    item.className = "repeat-summary-item";
+    if (index === repeatEditingIndex && repeatManagerMode === "edit") item.classList.add("is-editing");
+    item.innerHTML = `
+      <button class="repeat-summary-main" type="button" data-repeat-edit="${index}">
+        <span class="repeat-summary-priority">${escapeHtml(rule.priority || "A")}</span>
+        <span class="repeat-summary-copy">
+          <strong>${escapeHtml(rule.text || "반복 업무")}</strong>
+          <small>${escapeHtml(repeatRuleMeta(rule))}</small>
+        </span>
+      </button>
+      <button class="repeat-summary-delete" type="button" data-repeat-delete="${index}" aria-label="반복업무 삭제">×</button>
+    `;
+    item.querySelector("[data-repeat-edit]").onclick = () => openRepeatManager("edit", index);
+    item.querySelector("[data-repeat-delete]").onclick = () => deleteRepeatRule(index);
+    list.appendChild(item);
+  });
+  listSection.appendChild(list);
+  shell.appendChild(listSection);
+  node.appendChild(shell);
+}
+
+function cloneRepeatRule(rule = emptyRepeatRule()) {
+  return normalizeRepeatRule(JSON.parse(JSON.stringify(rule || emptyRepeatRule())));
+}
+
+function renderRepeatRuleEditor() {
+  if (repeatManagerMode === "list") return null;
+  const isEdit = repeatManagerMode === "edit" && repeatEditingIndex >= 0;
+  if (!repeatEditingDraft) {
+    repeatEditingDraft = isEdit
+      ? cloneRepeatRule(state.repeats?.priorityTasks?.[repeatEditingIndex] || emptyRepeatRule())
+      : emptyRepeatRule();
+  }
+  const rule = normalizeRepeatRule(repeatEditingDraft);
+  const panel = document.createElement("section");
+  panel.className = "repeat-editor-panel";
+  panel.innerHTML = `
+    <div class="repeat-editor-title">
+      <div>
+        <strong>${isEdit ? "반복업무 수정" : "새 반복업무"}</strong>
+        <small>${isEdit ? "선택한 한 건만 수정합니다." : "필요한 정보만 입력한 뒤 저장하세요."}</small>
+      </div>
+      <button class="repeat-editor-close" type="button" aria-label="편집 닫기">×</button>
+    </div>
+    <div class="repeat-rule-row repeat-editor-row">
       <input class="repeat-active" type="checkbox" ${rule.active ? "checked" : ""} aria-label="반복 사용" />
       <select class="repeat-priority" aria-label="중요도">
         ${["A", "B", "C"].map((priority) => `<option value="${priority}" ${rule.priority === priority ? "selected" : ""}>${priority}</option>`).join("")}
@@ -6949,204 +7125,217 @@ function renderRepeatPriorityList() {
         <option value="date" ${rule.endMode === "date" ? "selected" : ""}>종료일</option>
       </select>
       <input class="repeat-end-date" type="date" value="${escapeAttr(rule.endDate)}" ${rule.endMode === "date" ? "" : "disabled"} aria-label="반복 종료일" />
-      <button class="repeat-delete" type="button" aria-label="반복 우선업무 삭제">×</button>
-    `;
-    const active = row.querySelector(".repeat-active");
-    const priority = row.querySelector(".repeat-priority");
-    const text = row.querySelector(".repeat-text");
-    const frequency = row.querySelector(".repeat-frequency");
-    const carryMode = row.querySelector(".repeat-carry-mode");
-    const startDate = row.querySelector(".repeat-start-date");
-    const endMode = row.querySelector(".repeat-end-mode");
-    const endDate = row.querySelector(".repeat-end-date");
-    active.onchange = () => {
-      if (!active.checked && !confirmDelete("이 반복 우선업무를 비활성화할까요? 오늘 이후 자동 생성이 중단됩니다.")) {
-        active.checked = true;
-        return;
-      }
-      rule.active = active.checked;
-      if (rule.active) markRepeatRuleChanged(rule, index);
-      if (!rule.active) {
-        rule.deletedFrom = iso(selectedDate || todayInPlanner());
-        resetFutureRepeatOccurrences(index, rule.deletedFrom);
-      }
-      saveState();
-      renderAll();
-    };
-    priority.onchange = () => {
-      markRepeatRuleChanged(rule, index);
-      rule.priority = priority.value;
-      saveState();
-      renderAll();
-    };
-    text.oninput = () => {
-      const wasBlank = !rule.text?.trim();
-      if (!wasBlank && rule.text !== text.value) markRepeatRuleChanged(rule, index);
-      rule.text = text.value;
-      if (wasBlank && rule.text.trim()) rule.startDate = iso(selectedDate || todayInPlanner());
-      saveState();
-    };
-    text.onchange = () => renderAll();
-    frequency.onchange = () => {
-      markRepeatRuleChanged(rule, index);
-      rule.frequency = frequency.value;
-      setRepeatAnchorToSelectedDate(rule);
-      saveState();
-      renderAll();
-    };
-    carryMode.onchange = () => {
-      rule.carryMode = carryMode.value;
-      saveState();
-      renderAll();
-    };
-    row.querySelector(".repeat-weekday")?.addEventListener("change", (event) => {
-      markRepeatRuleChanged(rule, index);
-      rule.weekday = Number(event.target.value);
-      saveState();
-      renderAll();
-    });
-    row.querySelector(".repeat-week-of-month")?.addEventListener("change", (event) => {
-      markRepeatRuleChanged(rule, index);
-      rule.weekOfMonth = event.target.value;
-      rule.weeklyMode = rule.weekOfMonth === "every" ? "every" : "nth";
-      saveState();
-      renderAll();
-    });
-    row.querySelector(".repeat-weekday-toggle")?.addEventListener("click", () => {
-      row.querySelector(".repeat-weekday-popover")?.toggleAttribute("hidden");
-    });
-    row.querySelectorAll(".repeat-weekdays input[type='checkbox']").forEach((checkbox) => {
-      checkbox.addEventListener("change", () => {
-        const selected = Array.from(row.querySelectorAll(".repeat-weekdays input[type='checkbox']:checked")).map((item) => Number(item.value));
-        rule.weekdays = selected.length ? selected : [Number(checkbox.value)];
-        if (!selected.length) checkbox.checked = true;
-        markRepeatRuleChanged(rule, index);
-        saveState();
-        const toggle = row.querySelector(".repeat-weekday-toggle");
-        if (toggle) toggle.textContent = repeatWeekdaySummary(rule);
-      });
-    });
-    row.querySelector(".repeat-monthday")?.addEventListener("change", (event) => {
-      markRepeatRuleChanged(rule, index);
-      rule.monthday = Number(event.target.value);
-      saveState();
-      renderAll();
-    });
-    row.querySelector(".repeat-month-date")?.addEventListener("change", (event) => {
-      const date = parseDate(event.target.value);
-      if (Number.isNaN(date.getTime())) return;
-      markRepeatRuleChanged(rule, index);
-      rule.monthday = date.getDate();
-      saveState();
-      renderAll();
-    });
-    row.querySelector(".repeat-month")?.addEventListener("change", (event) => {
-      markRepeatRuleChanged(rule, index);
-      rule.month = Number(event.target.value);
-      saveState();
-      renderAll();
-    });
-    row.querySelector(".repeat-yearly-anniversary")?.addEventListener("click", () => {
-      prepareAnniversaryFromRepeatRule(rule);
-      closeRepeatManager();
-    });
-    startDate.onchange = () => {
-      const previousStart = rule.startDate;
-      rule.startDate = isValidIsoDate(startDate.value) ? startDate.value : previousStart;
-      resetFutureRepeatOccurrences(index, earliestIsoDate(previousStart, rule.startDate, iso(selectedDate || todayInPlanner())));
-      saveState();
-      renderAll();
-    };
-    endMode.onchange = () => {
-      const resetFrom = iso(selectedDate || todayInPlanner());
-      rule.endMode = endMode.value === "date" ? "date" : "none";
-      if (rule.endMode === "date" && !isValidIsoDate(rule.endDate)) rule.endDate = rule.startDate;
-      if (rule.endMode !== "date") rule.endDate = "";
-      resetFutureRepeatOccurrences(index, resetFrom);
-      saveState();
-      renderAll();
-    };
-    endDate.onchange = () => {
-      rule.endDate = isValidIsoDate(endDate.value) ? endDate.value : "";
-      if (rule.endDate) rule.endMode = "date";
-      resetFutureRepeatOccurrences(index, iso(selectedDate || todayInPlanner()));
-      saveState();
-      renderAll();
-    };
-    row.querySelector(".repeat-delete").onclick = () => {
-      if (!confirmDelete("이 반복 우선업무를 삭제할까요? 이전 기록은 유지되고 오늘 이후 반복만 중단됩니다.")) return;
-      captureUndo("반복 우선업무 삭제");
-      rule.active = false;
-      rule.deletedFrom = iso(selectedDate || todayInPlanner());
-      rule.removed = true;
-      resetFutureRepeatOccurrences(index, rule.deletedFrom);
-      saveState();
-      renderRepeatPriorityList();
-      renderDay();
-      showUndoNotice("반복 우선업무를 삭제했습니다.");
-    };
-    scroller.appendChild(row);
-    node.appendChild(scroller);
-  });
-  const add = document.createElement("button");
-  add.className = "add-row repeat-add";
-  add.type = "button";
-  add.textContent = "반복 업무 추가";
-  add.onclick = () => {
-    const hasDraft = (state.repeats.priorityTasks || []).some((rule) => !rule.removed && !rule.text?.trim());
-    if (!hasDraft) state.repeats.priorityTasks.push(emptyRepeatRule());
-    saveState();
-    renderRepeatPriorityList();
-    requestAnimationFrame(() => {
-      const draftInput = Array.from(document.querySelectorAll("#repeatPriorityList .repeat-text")).find((input) => !input.value.trim());
-      draftInput?.focus();
-      draftInput?.scrollIntoView({ block: "nearest", inline: "start" });
-    });
-  };
-  node.appendChild(add);
+    </div>
+    <div class="repeat-editor-actions">
+      ${isEdit ? `<button class="repeat-editor-delete" type="button">삭제</button>` : ""}
+      <span></span>
+      <button class="repeat-editor-cancel" type="button">취소</button>
+      <button class="repeat-editor-save" type="button">저장</button>
+    </div>
+  `;
+  bindRepeatEditor(panel, rule, isEdit);
+  return panel;
 }
 
-function activateRepeatRuleScroller(scroller) {
-  const node = el("repeatPriorityList");
-  if (!node) return;
-  node.querySelectorAll(".repeat-rule-scroll.is-active").forEach((item) => {
-    if (item !== scroller) item.classList.remove("is-active");
+function bindRepeatEditor(panel, rule, isEdit) {
+  const rerenderEditor = () => {
+    repeatEditingDraft = rule;
+    renderRepeatPriorityList();
+    requestAnimationFrame(() => document.querySelector("#repeatPriorityList .repeat-text")?.focus());
+  };
+  panel.querySelector(".repeat-editor-close").onclick = () => openRepeatManager("list");
+  panel.querySelector(".repeat-editor-cancel").onclick = () => openRepeatManager("list");
+  panel.querySelector(".repeat-active").onchange = (event) => {
+    rule.active = event.target.checked;
+  };
+  panel.querySelector(".repeat-priority").onchange = (event) => {
+    rule.priority = event.target.value;
+  };
+  panel.querySelector(".repeat-text").oninput = (event) => {
+    rule.text = event.target.value;
+  };
+  panel.querySelector(".repeat-frequency").onchange = (event) => {
+    rule.frequency = event.target.value;
+    setRepeatAnchorToSelectedDate(rule);
+    rerenderEditor();
+  };
+  panel.querySelector(".repeat-carry-mode").onchange = (event) => {
+    rule.carryMode = event.target.value;
+  };
+  panel.querySelector(".repeat-weekday")?.addEventListener("change", (event) => {
+    rule.weekday = Number(event.target.value);
   });
-  scroller.classList.add("is-active");
+  panel.querySelector(".repeat-week-of-month")?.addEventListener("change", (event) => {
+    rule.weekOfMonth = event.target.value;
+    rule.weeklyMode = rule.weekOfMonth === "every" ? "every" : "nth";
+  });
+  panel.querySelector(".repeat-weekday-toggle")?.addEventListener("click", () => {
+    panel.querySelector(".repeat-weekday-popover")?.toggleAttribute("hidden");
+  });
+  panel.querySelectorAll(".repeat-weekdays input[type='checkbox']").forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const selected = Array.from(panel.querySelectorAll(".repeat-weekdays input[type='checkbox']:checked")).map((item) => Number(item.value));
+      rule.weekdays = selected.length ? selected : [Number(checkbox.value)];
+      if (!selected.length) checkbox.checked = true;
+      const toggle = panel.querySelector(".repeat-weekday-toggle");
+      if (toggle) toggle.textContent = repeatWeekdaySummary(rule);
+    });
+  });
+  panel.querySelector(".repeat-monthday")?.addEventListener("change", (event) => {
+    rule.monthday = Number(event.target.value);
+  });
+  panel.querySelector(".repeat-month-date")?.addEventListener("change", (event) => {
+    const date = parseDate(event.target.value);
+    if (Number.isNaN(date.getTime())) return;
+    rule.monthday = date.getDate();
+  });
+  panel.querySelector(".repeat-month")?.addEventListener("change", (event) => {
+    rule.month = Number(event.target.value);
+  });
+  panel.querySelector(".repeat-yearly-anniversary")?.addEventListener("click", () => {
+    prepareAnniversaryFromRepeatRule(rule);
+    closeRepeatManager();
+  });
+  panel.querySelector(".repeat-start-date").onchange = (event) => {
+    rule.startDate = isValidIsoDate(event.target.value) ? event.target.value : rule.startDate;
+  };
+  const endMode = panel.querySelector(".repeat-end-mode");
+  const endDate = panel.querySelector(".repeat-end-date");
+  endMode.onchange = () => {
+    rule.endMode = endMode.value === "date" ? "date" : "none";
+    if (rule.endMode === "date" && !isValidIsoDate(rule.endDate)) rule.endDate = rule.startDate;
+    if (rule.endMode !== "date") rule.endDate = "";
+    if (endDate) {
+      endDate.disabled = rule.endMode !== "date";
+      endDate.value = rule.endDate;
+    }
+  };
+  endDate.onchange = () => {
+    rule.endDate = isValidIsoDate(endDate.value) ? endDate.value : "";
+    if (rule.endDate) rule.endMode = "date";
+  };
+  panel.querySelector(".repeat-editor-save").onclick = () => saveRepeatEditor(rule, isEdit);
+  panel.querySelector(".repeat-editor-delete")?.addEventListener("click", () => deleteRepeatRule(repeatEditingIndex));
+}
+
+function saveRepeatEditor(rule, isEdit) {
+  normalizeRepeatRule(rule);
+  if (!rule.text.trim()) {
+    alert("반복 업무 내용을 입력하세요.");
+    document.querySelector("#repeatPriorityList .repeat-text")?.focus();
+    return;
+  }
+  state.repeats ||= { priorityTasks: [] };
+  state.repeats.priorityTasks ||= [];
+  if (isEdit && repeatEditingIndex >= 0) {
+    const target = state.repeats.priorityTasks[repeatEditingIndex];
+    if (!target) return;
+    captureUndo("반복 우선업무 수정");
+    const previousStart = target.startDate;
+    Object.assign(target, rule);
+    resetFutureRepeatOccurrences(repeatEditingIndex, earliestIsoDate(previousStart, target.startDate, iso(selectedDate || todayInPlanner())));
+  } else {
+    captureUndo("반복 우선업무 추가");
+    const nextRule = cloneRepeatRule(rule);
+    state.repeats.priorityTasks.push(nextRule);
+    resetFutureRepeatOccurrences(state.repeats.priorityTasks.length - 1, nextRule.startDate);
+  }
+  saveState();
+  repeatManagerMode = "list";
+  repeatEditingIndex = -1;
+  repeatEditingDraft = null;
+  renderRepeatPriorityList();
+  renderDay();
+}
+
+function deleteRepeatRule(index) {
+  const rule = state.repeats?.priorityTasks?.[index];
+  if (!rule) return;
+  if (!confirmDelete("이 반복 우선업무를 삭제할까요? 이전 기록은 유지되고 오늘 이후 반복만 중단됩니다.")) return;
+  captureUndo("반복 우선업무 삭제");
+  rule.active = false;
+  rule.deletedFrom = iso(selectedDate || todayInPlanner());
+  rule.removed = true;
+  resetFutureRepeatOccurrences(index, rule.deletedFrom);
+  saveState();
+  repeatManagerMode = "list";
+  repeatEditingIndex = -1;
+  repeatEditingDraft = null;
+  renderRepeatPriorityList();
+  renderDay();
+  showUndoNotice("반복 우선업무를 삭제했습니다.");
+}
+
+function repeatRuleMeta(rule) {
+  return [getRepeatFrequencyLabel(rule.frequency), repeatRuleTargetLabel(rule), repeatRuleDateLabel(rule)]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function getRepeatFrequencyLabel(value) {
+  return repeatFrequencies.find(([key]) => key === value)?.[1] || "반복";
+}
+
+function repeatRuleTargetLabel(rule) {
+  if (rule.frequency === "daily") return repeatWeekdaySummary(rule);
+  if (rule.frequency === "weekly") {
+    const weekLabel = repeatWeekOptions.find(([value]) => value === String(rule.weekOfMonth || "every"))?.[1] || "매주";
+    return `${weekLabel} ${getWeekdayLabel(Number(rule.weekday))}`;
+  }
+  if (rule.frequency === "monthly") return `${Number(rule.monthday) || 1}일`;
+  if (rule.frequency === "yearly") return `${Number(rule.month) || 1}/${Number(rule.monthday) || 1}`;
+  return "";
+}
+
+function repeatRuleDateLabel(rule) {
+  const start = isValidIsoDate(rule.startDate) ? `시작 ${formatCompactMonthDay(rule.startDate)}` : "";
+  const end = rule.endMode === "date" && isValidIsoDate(rule.endDate) ? `종료 ${formatCompactMonthDay(rule.endDate)}` : "종료없음";
+  return [start, end].filter(Boolean).join(" · ");
 }
 
 function getSortedRepeatRuleEntries() {
   const entries = (state.repeats?.priorityTasks || [])
     .map((rule, index) => ({ rule: normalizeRepeatRule(rule), index }))
-    .filter(({ rule }) => !rule.removed);
-  const filled = entries.filter(({ rule }) => Boolean(rule.text?.trim()));
-  const draft = entries.find(({ rule }) => !rule.text?.trim());
-  return (draft ? [...filled, draft] : filled)
-    .sort((a, b) => {
-      const aFilled = Boolean(a.rule.text?.trim());
-      const bFilled = Boolean(b.rule.text?.trim());
-      if (aFilled !== bFilled) return aFilled ? -1 : 1;
-      if (aFilled && bFilled) {
-        const frequencyDelta = (repeatFrequencySortOrder[a.rule.frequency] ?? 9) - (repeatFrequencySortOrder[b.rule.frequency] ?? 9);
-        if (frequencyDelta) return frequencyDelta;
-      }
-      return a.index - b.index;
-    });
+    .filter(({ rule }) => !rule.removed && Boolean(rule.text?.trim()));
+  return entries.sort((a, b) => {
+    const frequencyDelta = (repeatFrequencySortOrder[a.rule.frequency] ?? 9) - (repeatFrequencySortOrder[b.rule.frequency] ?? 9);
+    if (frequencyDelta) return frequencyDelta;
+    return a.index - b.index;
+  });
 }
 
-function openRepeatManager() {
+function openRepeatManager(mode = "list", index = -1) {
+  if (typeof mode === "object") mode = "list";
   ensureRepeatPriorityRows();
+  if (isMobileDayFocusActive()) resetMobileDayFocusToSplit({ blur: true });
+  repeatManagerMode = ["list", "create", "edit"].includes(mode) ? mode : "list";
+  repeatEditingIndex = repeatManagerMode === "edit" ? Number(index) : -1;
+  repeatEditingDraft = repeatManagerMode === "edit"
+    ? cloneRepeatRule(state.repeats?.priorityTasks?.[repeatEditingIndex] || emptyRepeatRule())
+    : repeatManagerMode === "create"
+      ? emptyRepeatRule()
+      : null;
   renderRepeatPriorityList();
   const dialog = el("repeatManagerDialog");
   if (dialog) dialog.hidden = false;
+  requestAnimationFrame(() => {
+    const focusTarget = repeatManagerMode === "list"
+      ? document.querySelector("#repeatPriorityList .repeat-new-rule")
+      : document.querySelector("#repeatPriorityList .repeat-text");
+    focusTarget?.focus();
+  });
 }
 
 function closeRepeatManager() {
   const dialog = el("repeatManagerDialog");
   if (!dialog || dialog.hidden) return;
   dialog.hidden = true;
+  repeatManagerMode = "list";
+  repeatEditingIndex = -1;
+  repeatEditingDraft = null;
   renderDay();
 }
+
 
 function setRepeatAnchorToSelectedDate(rule) {
   const baseDate = selectedDate || todayInPlanner();
@@ -7428,7 +7617,7 @@ function renderTaskBoard(day) {
   repeat.className = "add-row task-add-repeat";
   repeat.type = "button";
   repeat.textContent = "반복 업무 추가";
-  repeat.onclick = openRepeatManager;
+  repeat.onclick = () => openRepeatManager("create");
   addGroup.append(add, repeat);
   list.appendChild(addGroup);
   board.appendChild(list);
