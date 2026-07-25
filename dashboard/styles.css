@@ -14725,8 +14725,13 @@ body::before {
     display: none !important;
   }
 
-  .day-task-panel .title-compact {
+  .day-task-panel .title-compact,
+  .day-schedule-panel .title-compact {
     display: inline !important;
+  }
+
+  .day-schedule-panel .title-full {
+    display: none !important;
   }
 
   .day-task-panel > .panel-title-row [data-section-ai],
@@ -14787,5 +14792,471 @@ body::before {
 
   .month-picker-months {
     grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Paid-app polish pass: calmer hierarchy, stronger touch rhythm, safer mobile surfaces. */
+:root {
+  --premium-radius: 16px;
+  --premium-hairline: rgba(45, 57, 51, 0.1);
+  --premium-surface: rgba(255, 253, 248, 0.94);
+}
+
+.quick-strip {
+  scrollbar-width: none;
+}
+
+.quick-strip::-webkit-scrollbar,
+.top-status::-webkit-scrollbar,
+.day-swipe::-webkit-scrollbar,
+.task-board::-webkit-scrollbar,
+.appointment-list::-webkit-scrollbar {
+  display: none;
+}
+
+.top-status {
+  color: rgba(47, 65, 56, 0.78);
+}
+
+.top-more-menu > summary,
+.utility-icon,
+.save-status-icon {
+  display: inline-grid !important;
+  place-items: center !important;
+  min-width: 34px !important;
+  min-height: 34px !important;
+  border-radius: 999px !important;
+  font-size: 0 !important;
+}
+
+.top-more-menu > summary span,
+.settings-nav-button span {
+  font-size: 17px !important;
+  line-height: 1 !important;
+}
+
+.save-status-icon::before {
+  content: "✓";
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.day-task-panel > .panel-title-row,
+.day-schedule-panel > .panel-title-row {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 18 !important;
+  border-bottom-color: rgba(221, 216, 203, 0.64) !important;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(255, 253, 248, 0.92)) !important;
+}
+
+.day-task-panel > .panel-title-row > span:first-child,
+.day-schedule-panel > .panel-title-row > span:first-child {
+  letter-spacing: -0.02em !important;
+}
+
+.day-task-panel > .panel-title-row .panel-actions,
+.day-schedule-panel > .panel-title-row .schedule-title-actions {
+  flex-shrink: 0 !important;
+}
+
+.mobile-focus-open,
+.mobile-focus-done {
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 6px 14px rgba(38, 50, 56, 0.08);
+}
+
+.mobile-focus-done {
+  background: var(--forest) !important;
+  color: #fffefa !important;
+}
+
+.task-board,
+.appointment-list {
+  padding-bottom: max(34px, env(safe-area-inset-bottom)) !important;
+}
+
+.task-row,
+.appointment-row {
+  border-bottom-color: rgba(45, 57, 51, 0.11) !important;
+}
+
+.task-text-input,
+.appointment-row textarea,
+.appointment-row input[type="text"] {
+  caret-color: var(--forest);
+}
+
+.appointment-row.is-merged {
+  align-items: stretch !important;
+}
+
+.appointment-row.is-merged input[type="text"],
+.appointment-row.is-merged textarea,
+.day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"],
+.day-main-panel.is-focus-schedule .appointment-row.is-merged textarea {
+  align-self: center !important;
+  justify-self: stretch !important;
+  display: flex !important;
+  align-items: center !important;
+  min-height: 100% !important;
+  padding-block: 6px !important;
+  writing-mode: horizontal-tb !important;
+  text-orientation: mixed !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal !important;
+  word-break: keep-all !important;
+}
+
+.appointment-row.is-merged .split-appointment {
+  box-shadow: 0 4px 12px rgba(38, 50, 56, 0.1) !important;
+}
+
+.daily-calendar-popover,
+.month-picker-popover,
+.ai-suggest-popover,
+.daily-pulse-details {
+  border-radius: var(--premium-radius) !important;
+}
+
+.onboarding-panel {
+  border-radius: var(--premium-radius) !important;
+  box-shadow: 0 12px 30px rgba(38, 50, 56, 0.055) !important;
+}
+
+@media (max-width: 640px) {
+  :root {
+    --app-header-height: 128px !important;
+    --daily-title-height: 50px !important;
+    --daily-pulse-height: 44px !important;
+  }
+
+  .app-header {
+    padding-top: max(9px, env(safe-area-inset-top)) !important;
+    padding-bottom: 8px !important;
+  }
+
+  .brand-row h1 {
+    font-size: clamp(22px, 5.65vw, 26px) !important;
+    line-height: 0.98 !important;
+  }
+
+  .coach-bubble {
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .quick-strip {
+    min-height: 52px !important;
+    padding: 6px !important;
+    gap: 6px !important;
+    border-radius: 22px !important;
+  }
+
+  .quick-strip button,
+  .quick-strip .ghost-button,
+  .quick-strip .pill {
+    min-height: 39px !important;
+    padding: 0 13px !important;
+    font-size: 14px !important;
+  }
+
+  .app-shell {
+    padding-top: calc(var(--daily-title-height) + var(--daily-pulse-height) + 4px) !important;
+  }
+
+  body.ceo-mode .daily-title,
+  .daily-title {
+    height: var(--daily-title-height) !important;
+    min-height: var(--daily-title-height) !important;
+    max-height: var(--daily-title-height) !important;
+    margin-bottom: 4px !important;
+    padding: 5px 6px !important;
+    border-radius: 14px !important;
+    box-shadow: 0 8px 18px rgba(38, 50, 56, 0.06) !important;
+  }
+
+  .day-date-nav {
+    grid-template-columns: 36px minmax(0, 1fr) 36px min-content !important;
+    align-items: center !important;
+  }
+
+  .daily-title .icon-button.compact,
+  #dailyPrevDay,
+  #dailyNextDay {
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    border-radius: 12px !important;
+    font-size: 28px !important;
+  }
+
+  .daily-title .today-jump:not([hidden]) {
+    width: 42px !important;
+    min-width: 42px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  #dayTitle {
+    font-size: clamp(17px, 4.45vw, 18.5px) !important;
+    font-weight: 900 !important;
+  }
+
+  .daily-score {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  .daily-score span {
+    font-size: 9.5px !important;
+  }
+
+  .daily-score strong {
+    font-size: 21px !important;
+    line-height: 1 !important;
+  }
+
+  .daily-pulse-row {
+    top: calc(var(--app-header-height) + var(--daily-title-height) + 2px) !important;
+    height: var(--daily-pulse-height) !important;
+    min-height: var(--daily-pulse-height) !important;
+    max-height: var(--daily-pulse-height) !important;
+    grid-template-columns: 82px minmax(0, 1fr) 74px !important;
+    gap: 5px !important;
+    padding: 2px 0 !important;
+    z-index: 23 !important;
+  }
+
+  .daily-pulse-nav,
+  .daily-pulse-center,
+  .pulse-ticker {
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .daily-pulse-nav {
+    min-width: 0 !important;
+    padding: 0 6px !important;
+  }
+
+  .daily-pulse-nav-arrow {
+    width: 23px !important;
+    height: 23px !important;
+    font-size: 24px !important;
+  }
+
+  .daily-pulse-nav-label {
+    font-size: 10px !important;
+  }
+
+  .pulse-ticker-item {
+    min-height: 30px !important;
+    padding: 3px 8px !important;
+    font-size: 13px !important;
+  }
+
+  .pulse-ticker-item small {
+    font-size: 11.5px !important;
+  }
+
+  #view-day {
+    padding-top: 8px !important;
+  }
+
+  .day-swipe {
+    height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
+  }
+
+  .onboarding-panel {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    margin: 6px 0 10px !important;
+    padding: 9px 10px !important;
+  }
+
+  .onboarding-panel .eyebrow,
+  .onboarding-panel p:not(.eyebrow) {
+    display: none !important;
+  }
+
+  .onboarding-panel h3 {
+    font-size: 15px !important;
+    margin: 0 !important;
+  }
+
+  .onboarding-step-list {
+    display: none !important;
+  }
+
+  .onboarding-actions {
+    justify-content: flex-end !important;
+    margin-top: 0 !important;
+    flex-wrap: nowrap !important;
+  }
+
+  .onboarding-actions button {
+    min-height: 32px !important;
+    font-size: 12px !important;
+    white-space: nowrap !important;
+  }
+
+  .day-task-panel > .panel-title-row,
+  .day-schedule-panel > .panel-title-row {
+    min-height: 50px !important;
+    padding: 8px 8px !important;
+    border-radius: 14px 14px 0 0 !important;
+  }
+
+  .day-task-panel > .panel-title-row > span:first-child,
+  .day-schedule-panel > .panel-title-row > span:first-child {
+    font-size: clamp(15px, 4.3vw, 17px) !important;
+    font-weight: 920 !important;
+  }
+
+  .day-task-panel > .panel-title-row [data-section-ai],
+  .day-schedule-panel > .panel-title-row [data-section-ai] {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+  }
+
+  .mobile-focus-open,
+  .mobile-focus-done {
+    min-width: 42px !important;
+    min-height: 32px !important;
+    padding: 0 9px !important;
+    font-size: 12px !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel,
+  .day-main-panel.is-focus-schedule .day-schedule-panel {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .day-main-panel.is-focus-tasks .day-task-panel > .panel-title-row,
+  .day-main-panel.is-focus-schedule .day-schedule-panel > .panel-title-row {
+    top: 0 !important;
+  }
+
+  .day-main-panel.is-focus-schedule .day-schedule-panel .title-full {
+    display: inline !important;
+  }
+
+  .day-main-panel.is-focus-schedule .day-schedule-panel .title-compact {
+    display: none !important;
+  }
+
+  .day-main-panel.is-focus-tasks .task-row,
+  .day-main-panel.is-focus-tasks .carryover-row {
+    grid-template-columns: 25px minmax(28px, 32px) minmax(0, 1fr) 24px !important;
+    column-gap: 5px !important;
+    min-height: 40px !important;
+  }
+
+  .day-main-panel:not(.is-focus-tasks) .task-row,
+  .day-main-panel:not(.is-focus-tasks) .carryover-row {
+    min-height: 36px !important;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-row {
+    grid-template-columns: 48px minmax(0, 1fr) !important;
+    min-height: calc(40px * var(--slot-span, 1)) !important;
+  }
+
+  .day-main-panel:not(.is-focus-schedule) .appointment-row {
+    min-height: calc(36px * var(--slot-span, 1)) !important;
+  }
+
+  .appointment-row.is-merged input[type="text"],
+  .appointment-row.is-merged textarea,
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"],
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged textarea {
+    padding-left: 46px !important;
+    padding-right: 34px !important;
+    font-size: clamp(13px, 3.65vw, 15px) !important;
+    line-height: 1.25 !important;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"],
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged textarea {
+    white-space: normal !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .appointment-row.is-merged .split-appointment {
+    top: 6px !important;
+    right: 5px !important;
+  }
+
+  .appointment-row.is-merged .appointment-delete {
+    right: 5px !important;
+    bottom: 6px !important;
+  }
+}
+
+@media (min-width: 641px) {
+  .onboarding-panel {
+    grid-template-columns: minmax(0, 0.92fr) minmax(320px, 1.08fr) !important;
+  }
+
+  .onboarding-step-list {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ticker-track,
+  .boot-value-strip span,
+  .boot-coaching li {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+/* Final schedule legibility guard: time labels must never split into two lines. */
+.appointment-time,
+.appointment-row span {
+  white-space: nowrap !important;
+  word-break: keep-all !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+@media (max-width: 640px) {
+  .day-main-panel.is-focus-schedule .appointment-row {
+    grid-template-columns: 62px minmax(0, 1fr) !important;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-row.is-merged {
+    grid-template-columns: 74px minmax(0, 1fr) !important;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-time,
+  .day-main-panel.is-focus-schedule .appointment-row span {
+    display: inline-block !important;
+    width: max-content !important;
+    max-width: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+    font-size: clamp(16px, 4.6vw, 18px) !important;
+    line-height: 1 !important;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-row input[type="text"],
+  .day-main-panel.is-focus-schedule .appointment-row textarea {
+    font-size: clamp(18px, 5.2vw, 21px) !important;
+  }
+
+  .day-main-panel:not(.is-focus-schedule) .appointment-time,
+  .day-main-panel:not(.is-focus-schedule) .appointment-row span {
+    font-size: clamp(13px, 3.85vw, 15px) !important;
   }
 }
