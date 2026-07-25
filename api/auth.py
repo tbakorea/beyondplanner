@@ -21,6 +21,9 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             result = call_supabase_auth(action, payload)
+        except AccessPendingError as exc:
+            self.write_json(403, {"error": str(exc), "code": exc.code, "approvalStatus": exc.status})
+            return
         except ValueError as exc:
             self.write_json(400, {"error": str(exc)})
             return
@@ -116,13 +119,16 @@ def call_supabase_auth(action, payload):
 
     user = data.get("user") or data
     metadata = user.get("user_metadata") or {}
+    access = apply_user_access_policy(action, user, payload)
     return {
         "ok": True,
         "provider": "supabase",
         "user": {
             "email": str(user.get("email") or email).lower(),
             "name": str(metadata.get("name") or ""),
-            "tier": normalize_tier(str(metadata.get("tier") or payload.get("tier") or "staff")),
+            "tier": normalize_tier(str(access.get("tier") or metadata.get("tier") or payload.get("tier") or "staff")),
+            "approvalStatus": access.get("approval_status") or "approved",
+            "isApprovalAdmin": is_access_admin_email(str(user.get("email") or email).lower()),
         },
         "session": {
             "accessToken": data.get("access_token") or "",
@@ -131,6 +137,129 @@ def call_supabase_auth(action, payload):
         },
         "message": "비밀번호가 변경되었습니다." if action == "update_password" else "",
     }
+
+
+class AccessPendingError(Exception):
+    def __init__(self, status):
+        self.status = status or "pending"
+        self.code = "approval_required"
+        messages = {
+            "pending": "관리자 승인 후 사용할 수 있습니다.",
+            "rejected": "사용 승인이 거절된 계정입니다.",
+            "suspended": "사용이 일시 정지된 계정입니다.",
+        }
+        super().__init__(messages.get(self.status, "관리자 승인 후 사용할 수 있습니다."))
+
+
+def service_role_key():
+    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+
+
+def access_admin_emails():
+    configured = os.environ.get("APPROVAL_ADMIN_EMAILS", "")
+    values = [item.strip().lower() for item in configured.split(",") if item.strip()]
+    return set(values or ["j3010@ymail.com"])
+
+
+def is_access_admin_email(email):
+    return str(email or "").strip().lower() in access_admin_emails()
+
+
+def supabase_service_base():
+    supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip().rstrip("/")
+    key = service_role_key()
+    if not supabase_url or not key:
+        raise RuntimeError("사용자 승인 기능에는 SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요합니다.")
+    return supabase_url, key
+
+
+def supabase_service_request(path, method="GET", body=None, headers=None):
+    supabase_url, key = supabase_service_base()
+    data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{supabase_url}{path}",
+        data=data,
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **(headers or {}),
+        },
+        method=method,
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        text = response.read().decode("utf-8")
+    return json.loads(text or "null")
+
+
+def normalize_access_status(status):
+    status = str(status or "pending").strip().lower()
+    return status if status in {"pending", "approved", "rejected", "suspended"} else "pending"
+
+
+def apply_user_access_policy(action, user, payload):
+    email = str(user.get("email") or payload.get("email") or "").strip().lower()
+    user_id = str(user.get("id") or "").strip()
+    metadata = user.get("user_metadata") or {}
+    name = str(metadata.get("name") or payload.get("name") or "").strip()
+    tier = normalize_tier(str(metadata.get("tier") or payload.get("tier") or "staff"))
+    if not email or not user_id or not service_role_key():
+        return {"approval_status": "approved", "tier": tier}
+    try:
+        if is_access_admin_email(email):
+            return upsert_user_access(user_id, email, name, "ceo", "approved")
+        if action == "signup":
+            return upsert_user_access(user_id, email, name, tier, "pending")
+        access = get_user_access(user_id)
+        if not access:
+            access = upsert_user_access(user_id, email, name, tier, "approved")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace") if exc.fp else ""
+        if is_missing_user_access_table(detail):
+            return {"approval_status": "approved", "tier": tier}
+        raise
+    status = normalize_access_status(access.get("approval_status"))
+    if status != "approved":
+        raise AccessPendingError(status)
+    return access
+
+
+def is_missing_user_access_table(detail):
+    text = str(detail or "").lower()
+    return "user_access" in text and ("could not find" in text or "does not exist" in text or "pgrst" in text)
+
+
+def get_user_access(user_id):
+    import urllib.parse
+    encoded = urllib.parse.quote(str(user_id), safe="")
+    rows = supabase_service_request(f"/rest/v1/user_access?user_id=eq.{encoded}&select=*&limit=1")
+    return rows[0] if rows else {}
+
+
+def upsert_user_access(user_id, email, name, tier, status):
+    status = normalize_access_status(status)
+    payload = [{
+        "user_id": user_id,
+        "email": str(email or "").strip().lower(),
+        "name": str(name or ""),
+        "tier": normalize_tier(tier),
+        "approval_status": status,
+        "approved_at": utc_now() if status == "approved" else None,
+        "updated_at": utc_now(),
+    }]
+    rows = supabase_service_request(
+        "/rest/v1/user_access?on_conflict=user_id",
+        method="POST",
+        body=payload,
+        headers={"Prefer": "resolution=merge-duplicates,return=representation"},
+    )
+    return rows[0] if rows else payload[0]
+
+
+def utc_now():
+    import datetime as dt
+    return dt.datetime.now(dt.UTC).isoformat().replace("+00:00", "Z")
 
 
 def normalize_tier(tier):

@@ -2546,6 +2546,81 @@ body.is-privacy-blind .app-shell {
   text-align: right;
 }
 
+.approval-admin-option {
+  align-items: start;
+}
+
+.approval-admin-panel,
+.approval-user-list {
+  display: grid;
+  gap: 8px;
+  min-width: min(620px, 100%);
+}
+
+.approval-admin-status,
+.approval-empty {
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 760;
+  line-height: 1.35;
+  text-align: right;
+}
+
+.approval-user-card {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(88px, auto) minmax(106px, auto) auto;
+  gap: 7px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid rgba(221, 216, 203, 0.72);
+  border-radius: 8px;
+  background: rgba(255, 253, 248, 0.78);
+}
+
+.approval-user-main {
+  min-width: 0;
+}
+
+.approval-user-main strong,
+.approval-user-main small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.approval-user-main strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 880;
+}
+
+.approval-user-main small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+}
+
+.approval-user-card label {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 820;
+}
+
+.approval-user-card select {
+  min-height: 30px;
+  border: 1px solid rgba(221, 216, 203, 0.88);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.94);
+  color: var(--ink);
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 780;
+}
+
 .menu-visibility-option {
   align-items: start;
 }
@@ -15258,5 +15333,44 @@ body::before {
   .day-main-panel:not(.is-focus-schedule) .appointment-time,
   .day-main-panel:not(.is-focus-schedule) .appointment-row span {
     font-size: clamp(13px, 3.85vw, 15px) !important;
+  }
+}
+
+/* Delegated owner label: keep it quieter than the task copy. */
+.delegate-input,
+.day-main-panel.is-focus-tasks .delegate-input,
+.task-row.is-delegated .delegate-input,
+.carryover-row .delegate-input {
+  font-size: clamp(9px, 0.72em, 11px) !important;
+  font-weight: 760 !important;
+  line-height: 1.05 !important;
+  letter-spacing: -0.03em !important;
+}
+
+@media (max-width: 640px) {
+  .delegate-input,
+  .day-main-panel.is-focus-tasks .delegate-input,
+  .task-row.is-delegated .delegate-input,
+  .carryover-row .delegate-input {
+    font-size: clamp(9px, 2.8vw, 10.5px) !important;
+  }
+
+  .approval-admin-option {
+    grid-template-columns: 1fr;
+  }
+
+  .approval-admin-panel,
+  .approval-user-list {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .approval-user-card {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .approval-user-main,
+  .approval-user-card [data-approval-save] {
+    grid-column: 1 / -1;
   }
 }

@@ -48,7 +48,7 @@ if (signupForm) signupForm.onsubmit = async (event) => {
     const result = await requestAuth("signup", { name, email, password, tier });
     cacheRemoteUser(result.user);
     clearSignupPasswordFields();
-    redirectToLogin(result.user.email, "created");
+    redirectToLogin(result.user.email, result.user?.approvalStatus === "pending" ? "pending" : "created");
     return;
   } catch (error) {
     return showMessage(error.message || "회원가입을 완료할 수 없습니다.");
@@ -89,6 +89,8 @@ function saveSession(email, user, remoteSession = {}) {
     JSON.stringify({
       email,
       tier: normalizeTier(user.tier),
+      approvalStatus: user.approvalStatus || "approved",
+      isApprovalAdmin: Boolean(user.isApprovalAdmin),
       name: user.name || "",
       provider: "supabase",
       accessToken: remoteSession.accessToken,
@@ -107,6 +109,8 @@ function cacheRemoteUser(user = {}) {
     email: user.email,
     name: user.name || users[user.email]?.name || "",
     tier: normalizeTier(user.tier),
+    approvalStatus: user.approvalStatus || users[user.email]?.approvalStatus || "approved",
+    isApprovalAdmin: Boolean(user.isApprovalAdmin || users[user.email]?.isApprovalAdmin),
     provider: "supabase",
     updatedAt: new Date().toISOString(),
   };
@@ -169,6 +173,9 @@ function prefillLoginEmail() {
   if (email && loginEmail) loginEmail.value = email;
   if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "created") {
     showMessage("회원가입이 완료되었습니다. 로그인해 주세요.");
+  }
+  if (authPage === "login" && new URLSearchParams(window.location.search).get("status") === "pending") {
+    showMessage("회원가입이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.");
   }
 }
 

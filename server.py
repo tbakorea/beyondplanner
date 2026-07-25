@@ -63,6 +63,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
         if path == "/api/state":
             self.handle_get_state()
             return
+        if path == "/api/admin-users":
+            self.handle_admin_users()
+            return
         if path == "/api/config":
             self.write_json(200, {"environment": PLANNER_ENV, "storage": planner_storage()})
             return
@@ -81,6 +84,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
         if path == "/api/email-backup":
             self.handle_email_backup()
+            return
+        if path == "/api/admin-users":
+            self.handle_admin_users()
             return
         self.send_error(404, "Not found")
 
@@ -173,6 +179,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
 
         try:
             result = call_supabase_auth(action, payload)
+        except AccessPendingError as exc:
+            self.write_json(403, {"error": str(exc), "code": exc.code, "approvalStatus": exc.status})
+            return
         except ValueError as exc:
             self.write_json(400, {"error": str(exc)})
             return
@@ -189,6 +198,46 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
 
         self.write_json(200, result)
+
+    def handle_admin_users(self):
+        try:
+            admin = require_access_admin(self.headers)
+        except RuntimeError as exc:
+            self.write_json(503, {"error": str(exc)})
+            return
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace") if exc.fp else str(exc.reason or "")
+            self.write_json(normalize_http_status(exc.code), {"error": "관리자 권한을 확인할 수 없습니다.", "detail": detail[:500]})
+            return
+        except PermissionError as exc:
+            self.write_json(403, {"error": str(exc)})
+            return
+
+        if self.command == "GET":
+            try:
+                self.write_json(200, {"users": list_access_users(admin), "adminEmail": admin.get("email", "")})
+            except RuntimeError as exc:
+                self.write_json(503, {"error": str(exc)})
+            except urllib.error.HTTPError as exc:
+                detail = exc.read().decode("utf-8", "replace")
+                self.write_json(normalize_http_status(exc.code), {"error": extract_supabase_error(detail) or "승인 목록을 읽을 수 없습니다.", "detail": detail[:800]})
+            return
+
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_length) or b"{}")
+        except (ValueError, json.JSONDecodeError):
+            self.write_json(400, {"error": "요청 JSON을 읽을 수 없습니다."})
+            return
+        try:
+            self.write_json(200, update_access_user(admin, payload))
+        except ValueError as exc:
+            self.write_json(400, {"error": str(exc)})
+        except RuntimeError as exc:
+            self.write_json(503, {"error": str(exc)})
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            self.write_json(normalize_http_status(exc.code), {"error": extract_supabase_error(detail) or "승인 상태를 변경할 수 없습니다.", "detail": detail[:800]})
 
     def handle_ai_question(self):
         try:
@@ -401,13 +450,16 @@ def call_supabase_auth(action: str, payload: dict) -> dict:
 
     user = data.get("user") or data
     metadata = user.get("user_metadata") or {}
+    access = apply_user_access_policy(action, user, payload)
     return {
         "ok": True,
         "provider": "supabase",
         "user": {
             "email": str(user.get("email") or email).lower(),
             "name": str(metadata.get("name") or ""),
-            "tier": normalize_tier(str(metadata.get("tier") or payload.get("tier") or "staff")),
+            "tier": normalize_tier(str(access.get("tier") or metadata.get("tier") or payload.get("tier") or "staff")),
+            "approvalStatus": access.get("approval_status") or "approved",
+            "isApprovalAdmin": is_access_admin_email(str(user.get("email") or email).lower()),
         },
         "session": {
             "accessToken": data.get("access_token") or "",
@@ -416,6 +468,187 @@ def call_supabase_auth(action: str, payload: dict) -> dict:
         },
         "message": "비밀번호가 변경되었습니다." if action == "update_password" else "",
     }
+
+
+class AccessPendingError(Exception):
+    def __init__(self, status: str):
+        self.status = status or "pending"
+        self.code = "approval_required"
+        messages = {
+            "pending": "관리자 승인 후 사용할 수 있습니다.",
+            "rejected": "사용 승인이 거절된 계정입니다.",
+            "suspended": "사용이 일시 정지된 계정입니다.",
+        }
+        super().__init__(messages.get(self.status, "관리자 승인 후 사용할 수 있습니다."))
+
+
+def service_role_key() -> str:
+    return os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip()
+
+
+def access_admin_emails() -> set[str]:
+    configured = os.environ.get("APPROVAL_ADMIN_EMAILS", "")
+    values = [item.strip().lower() for item in configured.split(",") if item.strip()]
+    return set(values or ["j3010@ymail.com"])
+
+
+def is_access_admin_email(email: str) -> bool:
+    return str(email or "").strip().lower() in access_admin_emails()
+
+
+def supabase_service_base() -> tuple[str, str]:
+    supabase_url = os.environ.get("NEXT_PUBLIC_SUPABASE_URL", "").strip().rstrip("/")
+    key = service_role_key()
+    if not supabase_url or not key:
+        raise RuntimeError("사용자 승인 기능에는 SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요합니다.")
+    return supabase_url, key
+
+
+def supabase_service_request(path: str, method: str = "GET", body=None, headers=None):
+    supabase_url, key = supabase_service_base()
+    data = None if body is None else json.dumps(body, ensure_ascii=False).encode("utf-8")
+    request = urllib.request.Request(
+        f"{supabase_url}{path}",
+        data=data,
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **(headers or {}),
+        },
+        method=method,
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        text = response.read().decode("utf-8")
+    return json.loads(text or "null")
+
+
+def normalize_access_status(status: str) -> str:
+    status = str(status or "pending").strip().lower()
+    return status if status in {"pending", "approved", "rejected", "suspended"} else "pending"
+
+
+def apply_user_access_policy(action: str, user: dict, payload: dict) -> dict:
+    email = str(user.get("email") or payload.get("email") or "").strip().lower()
+    user_id = str(user.get("id") or "").strip()
+    name = str((user.get("user_metadata") or {}).get("name") or payload.get("name") or "").strip()
+    tier = normalize_tier(str((user.get("user_metadata") or {}).get("tier") or payload.get("tier") or "staff"))
+    if not email or not user_id or not service_role_key():
+        return {"approval_status": "approved", "tier": tier}
+    try:
+        if is_access_admin_email(email):
+            return upsert_user_access(user_id, email, name, "ceo", "approved")
+        if action == "signup":
+            return upsert_user_access(user_id, email, name, tier, "pending")
+        access = get_user_access(user_id)
+        if not access:
+            access = upsert_user_access(user_id, email, name, tier, "approved")
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace") if exc.fp else ""
+        if is_missing_user_access_table(detail):
+            return {"approval_status": "approved", "tier": tier}
+        raise
+    status = normalize_access_status(access.get("approval_status"))
+    if status != "approved":
+        raise AccessPendingError(status)
+    return access
+
+
+def is_missing_user_access_table(detail: str) -> bool:
+    text = str(detail or "").lower()
+    return "user_access" in text and ("could not find" in text or "does not exist" in text or "pgrst" in text)
+
+
+def get_user_access(user_id: str) -> dict:
+    encoded = urllib.parse.quote(str(user_id), safe="")
+    rows = supabase_service_request(f"/rest/v1/user_access?user_id=eq.{encoded}&select=*&limit=1")
+    return rows[0] if rows else {}
+
+
+def upsert_user_access(user_id: str, email: str, name: str, tier: str, status: str) -> dict:
+    status = normalize_access_status(status)
+    payload = [{
+        "user_id": user_id,
+        "email": str(email or "").strip().lower(),
+        "name": str(name or ""),
+        "tier": normalize_tier(tier),
+        "approval_status": status,
+        "approved_at": utc_now() if status == "approved" else None,
+        "updated_at": utc_now(),
+    }]
+    rows = supabase_service_request(
+        "/rest/v1/user_access?on_conflict=user_id",
+        method="POST",
+        body=payload,
+        headers={"Prefer": "resolution=merge-duplicates,return=representation"},
+    )
+    return rows[0] if rows else payload[0]
+
+
+def require_access_admin(headers) -> dict:
+    user = require_signed_in_user(headers)
+    email = str(user.get("email") or "").strip().lower()
+    if not is_access_admin_email(email):
+        raise PermissionError("사용자 승인 관리는 관리자 계정에서만 사용할 수 있습니다.")
+    if not service_role_key():
+        raise RuntimeError("사용자 승인 기능에는 SUPABASE_SERVICE_ROLE_KEY 환경변수가 필요합니다.")
+    return user
+
+
+def list_auth_users() -> list[dict]:
+    users = []
+    page = 1
+    while page <= 20:
+        data = supabase_service_request(f"/auth/v1/admin/users?page={page}&per_page=100")
+        batch = data.get("users") if isinstance(data, dict) else []
+        if not batch:
+            break
+        users.extend(batch)
+        if len(batch) < 100:
+            break
+        page += 1
+    return users
+
+
+def list_access_users(admin: dict) -> list[dict]:
+    existing = supabase_service_request("/rest/v1/user_access?select=*&order=created_at.desc")
+    by_id = {str(row.get("user_id")): row for row in (existing or [])}
+    for auth_user in list_auth_users():
+        user_id = str(auth_user.get("id") or "")
+        email = str(auth_user.get("email") or "").strip().lower()
+        if not user_id or not email or user_id in by_id:
+            continue
+        metadata = auth_user.get("user_metadata") or {}
+        status = "approved" if is_access_admin_email(email) else "approved"
+        by_id[user_id] = upsert_user_access(user_id, email, str(metadata.get("name") or ""), normalize_tier(str(metadata.get("tier") or "staff")), status)
+    rows = list(by_id.values())
+    status_order = {"pending": 0, "approved": 1, "suspended": 2, "rejected": 3}
+    rows.sort(key=lambda row: (status_order.get(row.get("approval_status"), 9), str(row.get("created_at") or "")), reverse=False)
+    return rows
+
+
+def update_access_user(admin: dict, payload: dict) -> dict:
+    user_id = str(payload.get("userId") or payload.get("user_id") or "").strip()
+    if not user_id:
+        raise ValueError("변경할 사용자 ID가 필요합니다.")
+    status = normalize_access_status(payload.get("approvalStatus") or payload.get("approval_status") or "pending")
+    tier = normalize_tier(str(payload.get("tier") or "staff"))
+    body = {
+        "approval_status": status,
+        "tier": tier,
+        "approved_at": utc_now() if status == "approved" else None,
+        "approved_by": admin.get("id") if status == "approved" else None,
+        "updated_at": utc_now(),
+    }
+    encoded = urllib.parse.quote(user_id, safe="")
+    rows = supabase_service_request(
+        f"/rest/v1/user_access?user_id=eq.{encoded}",
+        method="PATCH",
+        body=body,
+        headers={"Prefer": "return=representation"},
+    )
+    return {"ok": True, "user": rows[0] if rows else body}
 
 
 def supabase_configured() -> bool:
