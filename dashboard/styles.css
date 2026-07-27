@@ -2454,10 +2454,88 @@ body.is-privacy-blind .app-shell {
     rgba(255, 253, 248, 0.78);
 }
 
+.settings-panel-head,
+.settings-profile-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+}
+
+.settings-panel-head {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(221, 216, 203, 0.64);
+}
+
+.settings-panel-head h3,
+.settings-profile-summary h3 {
+  margin: 0;
+}
+
+.settings-panel-head small {
+  max-width: 340px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.45;
+  text-align: right;
+}
+
 .planner-option-grid {
   display: grid;
+  gap: 12px;
+  margin-top: 0;
+}
+
+.settings-group-card {
+  display: grid;
   gap: 8px;
-  margin-top: 8px;
+  border: 1px solid rgba(221, 216, 203, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.54);
+  padding: 10px;
+}
+
+.settings-group-card > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  padding: 2px 2px 6px;
+}
+
+.settings-group-card > header > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(38, 61, 51, 0.08);
+  color: var(--forest);
+  font-size: 11px;
+  font-weight: 940;
+}
+
+.settings-group-card > header strong {
+  display: block;
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 940;
+}
+
+.settings-group-card > header small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.35;
+}
+
+.settings-group-body {
+  display: grid;
+  gap: 7px;
 }
 
 .planner-option-item {
@@ -2466,9 +2544,9 @@ body.is-privacy-blind .app-shell {
   align-items: center;
   gap: 12px;
   border: 1px solid rgba(221, 216, 203, 0.72);
-  border-radius: 10px;
-  background: rgba(255, 253, 248, 0.72);
-  padding: 11px 12px;
+  border-radius: 9px;
+  background: rgba(255, 253, 248, 0.84);
+  padding: 10px 11px;
 }
 
 .app-setting-section {
@@ -2489,6 +2567,40 @@ body.is-privacy-blind .app-shell {
   font-size: 12px;
   font-weight: 720;
   line-height: 1.35;
+}
+
+.settings-profile-summary {
+  align-items: center;
+  background:
+    linear-gradient(135deg, rgba(238, 242, 236, 0.88), rgba(255, 253, 248, 0.86)),
+    rgba(255, 253, 248, 0.8);
+}
+
+.settings-profile-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 8px;
+  min-width: min(620px, 100%);
+}
+
+.settings-profile-summary-grid span {
+  display: grid;
+  gap: 3px;
+  min-height: 58px;
+  border: 1px solid rgba(221, 216, 203, 0.72);
+  border-radius: 12px;
+  background: rgba(255, 253, 248, 0.72);
+  color: var(--muted);
+  padding: 9px 10px;
+  font-size: 12px;
+  font-weight: 760;
+  line-height: 1.32;
+}
+
+.settings-profile-summary-grid strong {
+  color: var(--forest);
+  font-size: 12px;
+  font-weight: 940;
 }
 
 .settings-unit-toggle {
@@ -7970,16 +8082,6 @@ button {
     padding-inline: 10px;
   }
 
-  .quick-strip [data-top-view="notes"] {
-    font-size: 0;
-    padding-inline: 8px;
-  }
-
-  .quick-strip [data-top-view="notes"]::after {
-    content: "Money";
-    font-size: 10px;
-  }
-
   .anniversary-form {
     grid-template-columns: 1fr;
   }
@@ -11080,6 +11182,27 @@ body.ceo-mode .daily-panel-chip {
 }
 
 @media (max-width: 640px) {
+  .settings-panel-head,
+  .settings-profile-summary {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .settings-panel-head small {
+    max-width: none;
+    text-align: left;
+  }
+
+  .settings-profile-summary-grid {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+
+  .settings-group-card {
+    padding: 8px;
+    border-radius: 12px;
+  }
+
   .planner-option-item {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
@@ -15372,5 +15495,146 @@ body::before {
   .approval-user-main,
   .approval-user-card [data-approval-save] {
     grid-column: 1 / -1;
+  }
+}
+
+/* Mobile menu guard: render Money once even if stale text or overlayed labels remain in DOM/cache. */
+.quick-strip button[data-top-view="notes"] {
+  font-size: 0 !important;
+  letter-spacing: 0 !important;
+}
+
+.quick-strip button[data-top-view="notes"]::before {
+  content: "Money";
+  display: inline-block;
+  color: inherit;
+  font-size: 14px;
+  font-weight: inherit;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Compact schedule guard: keep typed text readable and prevent the right edge from being swallowed. */
+.appointment-row:not(.is-merged) input[type="text"] {
+  min-width: 0 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding-left: 6px !important;
+  padding-right: 34px !important;
+  text-align: left !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.appointment-row:not(.is-merged).is-filled input[type="text"] {
+  padding-right: 42px !important;
+}
+
+.appointment-row:not(.is-merged) input[type="text"]:focus {
+  padding-right: 60px !important;
+  text-overflow: clip !important;
+}
+
+@media (max-width: 640px) {
+  .quick-strip button[data-top-view="notes"]::before {
+    font-size: 14px;
+  }
+
+  .day-main-panel:not(.is-focus-schedule) .appointment-row:not(.is-merged) input[type="text"] {
+    font-size: clamp(13px, 3.6vw, 14.5px) !important;
+    padding-right: 38px !important;
+  }
+
+  .day-main-panel.is-focus-schedule .appointment-row:not(.is-merged) input[type="text"] {
+    padding-right: 54px !important;
+  }
+}
+
+/* Focus controls: compact magnifier icons for expand/collapse. */
+.mobile-focus-open,
+.mobile-focus-done {
+  position: relative !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  flex: 0 0 auto !important;
+  width: 42px !important;
+  min-width: 42px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 !important;
+  color: var(--forest) !important;
+  font-size: 0 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  overflow: visible !important;
+}
+
+.mobile-focus-open::before,
+.mobile-focus-done::before {
+  content: "+";
+  position: absolute;
+  left: 7px;
+  top: 5px;
+  display: grid;
+  width: 23px;
+  height: 23px;
+  box-sizing: border-box;
+  place-items: center;
+  border: 2.3px solid currentColor;
+  border-radius: 50%;
+  background: rgba(255, 253, 248, 0.92);
+  font-size: 18px;
+  font-weight: 950;
+  line-height: 0.9;
+}
+
+.mobile-focus-done::before {
+  content: "-";
+  font-size: 21px;
+  line-height: 0.7;
+}
+
+.mobile-focus-open::after,
+.mobile-focus-done::after {
+  content: "";
+  position: absolute;
+  left: 28px;
+  top: 27px;
+  width: 10px;
+  height: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(45deg);
+  transform-origin: left center;
+}
+
+.day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+.day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+  color: var(--forest) !important;
+}
+
+@media (max-width: 640px) {
+  .mobile-focus-open,
+  .mobile-focus-done {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+  }
+
+  .mobile-focus-open::before,
+  .mobile-focus-done::before {
+    left: 7px;
+    top: 5px;
+    width: 24px;
+    height: 24px;
+  }
+
+  .mobile-focus-open::after,
+  .mobile-focus-done::after {
+    left: 29px;
+    top: 28px;
+    width: 10px;
   }
 }

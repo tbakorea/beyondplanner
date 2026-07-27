@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260726a" />
+    <link rel="stylesheet" href="./styles.css?v=20260727b" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -177,130 +177,182 @@
           </div>
           <div class="foundation-grid">
             <article class="panel span-12 planner-options-panel" id="settingsAppPanel" role="tabpanel" aria-labelledby="settingsAppTab" data-settings-panel="app" hidden>
-              <h3>섹션별 설정</h3>
+              <div class="settings-panel-head">
+                <div>
+                  <p class="eyebrow">App Controls</p>
+                  <h3>앱 설정</h3>
+                </div>
+                <small>자주 쓰는 흐름은 위에, 운영과 백업은 아래에 모았습니다.</small>
+              </div>
               <div class="planner-option-grid">
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>오늘 · 우선업무</strong>
-                    <small>우선업무를 촘촘하게 유지하고, 미완료 이월과 10:00 같은 시간 표기를 자동 반영합니다.</small>
-                  </span>
-                  <span class="setting-status-pill">DB 저장</span>
-                </div>
-                <div class="planner-option-item app-setting-section menu-visibility-option">
-                  <span>
-                    <strong>메인 메뉴</strong>
-                    <small>필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.</small>
-                  </span>
-                  <div class="menu-visibility-grid" aria-label="메인 메뉴 표시 설정">
-                    <label><input type="checkbox" data-menu-visibility="week" /> <span>주간</span></label>
-                    <label><input type="checkbox" data-menu-visibility="month" /> <span>월간</span></label>
-                    <label><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
-                    <label><input type="checkbox" data-menu-visibility="notes" /> <span>Money</span></label>
-                    <label><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
-                    <label><input type="checkbox" data-menu-visibility="year" /> <span>연간</span></label>
-                  </div>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>오늘 · 시간별 일정</strong>
-                    <small>
-                      30분/1시간 단위와 하루에 보일 시작시간, 종료시간을 설정합니다.
-                      <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
-                    </small>
-                  </span>
-                  <div class="settings-control-stack">
-                    <span class="schedule-unit-toggle settings-unit-toggle" aria-label="시간 단위 선택">
-                      <button class="mini-action" id="scheduleUnit30" type="button">30분</button>
-                      <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
-                    </span>
-                    <span class="time-range-controls" aria-label="일정 시작 종료 시간">
-                      <label>시작 <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
-                      <label>종료 <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
-                    </span>
-                  </div>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>주간</strong>
-                    <small>위클리 포커스, 역할별 핵심행동, 日 시작 주간, 이월 항목을 관리합니다.</small>
-                  </span>
-                  <span class="setting-status-pill">日 시작</span>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>월간 · 연간</strong>
-                    <small>日 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.</small>
-                  </span>
-                  <span class="setting-status-pill">년. 월. 일.</span>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>Money</strong>
-                    <small>오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.</small>
-                  </span>
-                  <label class="settings-toggle">
-                    <input id="financeAmountVisibilityToggle" type="checkbox" checked />
-                    <span>보이기</span>
-                  </label>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>프로젝트</strong>
-                    <small>프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.</small>
-                  </span>
-                  <span class="setting-status-pill">슬라이드 상세</span>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>시트</strong>
-                    <small>Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.</small>
-                  </span>
-                  <span class="setting-status-pill">템플릿</span>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>검색 · AI</strong>
-                    <small>입력한 목표, 업무, 일정, 사용자 정보를 바탕으로 질문과 섹션별 코칭을 제공합니다.</small>
-                  </span>
-                  <span class="setting-status-pill">허용 계정</span>
-                </div>
-                <div class="planner-option-item app-setting-section approval-admin-option" id="approvalAdminOption" hidden>
-                  <span>
-                    <strong>사용자 승인 관리</strong>
-                    <small>가입한 사용자를 승인, 보류, 정지하고 등급을 조정합니다. 관리자 계정에서만 보입니다.</small>
-                  </span>
-                  <div class="approval-admin-panel">
-                    <div class="settings-action-row">
-                      <button class="mini-action" id="approvalRefreshUsers" type="button">목록 새로고침</button>
+                <section class="settings-group-card">
+                  <header>
+                    <span>01</span>
+                    <div>
+                      <strong>핵심 사용 흐름</strong>
+                      <small>오늘 화면에서 매일 반복해서 쓰는 설정입니다.</small>
                     </div>
-                    <small class="approval-admin-status" id="approvalAdminStatus">승인 목록을 불러오지 않았습니다.</small>
-                    <div class="approval-user-list" id="approvalUserList" aria-label="사용자 승인 목록"></div>
+                  </header>
+                  <div class="settings-group-body">
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>오늘 · 우선업무</strong>
+                        <small>우선업무를 촘촘하게 유지하고, 미완료 이월과 10:00 같은 시간 표기를 자동 반영합니다.</small>
+                      </span>
+                      <span class="setting-status-pill">DB 저장</span>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>오늘 · 시간별 일정</strong>
+                        <small>
+                          30분/1시간 단위와 하루에 보일 시작시간, 종료시간을 설정합니다.
+                          <b id="scheduleRangeLabel">08:00 ~ 19:30</b>
+                        </small>
+                      </span>
+                      <div class="settings-control-stack">
+                        <span class="schedule-unit-toggle settings-unit-toggle" aria-label="시간 단위 선택">
+                          <button class="mini-action" id="scheduleUnit30" type="button">30분</button>
+                          <button class="mini-action" id="scheduleUnit60" type="button">1시간</button>
+                        </span>
+                        <span class="time-range-controls" aria-label="일정 시작 종료 시간">
+                          <label>시작 <input id="scheduleStartTime" type="time" step="1800" value="08:00" /></label>
+                          <label>종료 <input id="scheduleEndTime" type="time" step="1800" value="19:30" /></label>
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div class="planner-option-item app-setting-section">
-                  <span>
-                    <strong>메일 백업</strong>
-                    <small>상단 내보내기와 같은 Excel 백업을 메일로 받을 주기만 정합니다.</small>
-                  </span>
-                  <div class="settings-control-stack backup-email-controls">
-                    <span class="backup-email-row">
-                      <label>주기
-                        <select id="backupEmailFrequency">
-                          <option value="off">끄기</option>
-                          <option value="weekly">매주</option>
-                          <option value="monthly">매월</option>
-                        </select>
+                </section>
+
+                <section class="settings-group-card">
+                  <header>
+                    <span>02</span>
+                    <div>
+                      <strong>화면과 섹션</strong>
+                      <small>메뉴 표시, 달력, Money 표시처럼 화면에 보이는 규칙입니다.</small>
+                    </div>
+                  </header>
+                  <div class="settings-group-body">
+                    <div class="planner-option-item app-setting-section menu-visibility-option">
+                      <span>
+                        <strong>메인 메뉴</strong>
+                        <small>필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.</small>
+                      </span>
+                      <div class="menu-visibility-grid" aria-label="메인 메뉴 표시 설정">
+                        <label><input type="checkbox" data-menu-visibility="week" /> <span>주간</span></label>
+                        <label><input type="checkbox" data-menu-visibility="month" /> <span>월간</span></label>
+                        <label><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
+                        <label><input type="checkbox" data-menu-visibility="notes" /> <span>Money</span></label>
+                        <label><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
+                        <label><input type="checkbox" data-menu-visibility="year" /> <span>연간</span></label>
+                      </div>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>주간</strong>
+                        <small>위클리 포커스, 역할별 핵심행동, 日 시작 주간, 이월 항목을 관리합니다.</small>
+                      </span>
+                      <span class="setting-status-pill">日 시작</span>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>월간 · 연간</strong>
+                        <small>日 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.</small>
+                      </span>
+                      <span class="setting-status-pill">년. 월. 일.</span>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>Money</strong>
+                        <small>오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.</small>
+                      </span>
+                      <label class="settings-toggle">
+                        <input id="financeAmountVisibilityToggle" type="checkbox" checked />
+                        <span>보이기</span>
                       </label>
-                      <label>받을 메일
-                        <input id="backupEmailRecipient" type="email" autocomplete="email" placeholder="you@example.com" />
-                      </label>
-                    </span>
-                    <span class="settings-action-row">
-                      <button class="mini-action" id="sendBackupEmailButton" type="button">지금 메일로 보내기</button>
-                    </span>
-                    <small class="backup-email-status" id="backupEmailStatus">파일 내보내기/가져오기는 설정 상단 버튼을 사용합니다.</small>
+                    </div>
                   </div>
-                </div>
+                </section>
+
+                <section class="settings-group-card">
+                  <header>
+                    <span>03</span>
+                    <div>
+                      <strong>운영과 데이터</strong>
+                      <small>프로젝트, 시트, AI, 사용자 승인, 백업을 한곳에서 관리합니다.</small>
+                    </div>
+                  </header>
+                  <div class="settings-group-body">
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>프로젝트</strong>
+                        <small>프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.</small>
+                      </span>
+                      <span class="setting-status-pill">슬라이드 상세</span>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>시트</strong>
+                        <small>Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.</small>
+                      </span>
+                      <span class="setting-status-pill">템플릿</span>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>검색 · AI</strong>
+                        <small>입력한 목표, 업무, 일정, 사용자 정보를 바탕으로 질문과 섹션별 코칭을 제공합니다.</small>
+                      </span>
+                      <span class="setting-status-pill">허용 계정</span>
+                    </div>
+                    <div class="planner-option-item app-setting-section approval-admin-option" id="approvalAdminOption" hidden>
+                      <span>
+                        <strong>사용자 승인 관리</strong>
+                        <small>가입한 사용자를 승인, 보류, 정지하고 등급을 조정합니다. 관리자 계정에서만 보입니다.</small>
+                      </span>
+                      <div class="approval-admin-panel">
+                        <div class="settings-action-row">
+                          <button class="mini-action" id="approvalRefreshUsers" type="button">목록 새로고침</button>
+                        </div>
+                        <small class="approval-admin-status" id="approvalAdminStatus">승인 목록을 불러오지 않았습니다.</small>
+                        <div class="approval-user-list" id="approvalUserList" aria-label="사용자 승인 목록"></div>
+                      </div>
+                    </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>메일 백업</strong>
+                        <small>상단 내보내기와 같은 Excel 백업을 메일로 받을 주기만 정합니다.</small>
+                      </span>
+                      <div class="settings-control-stack backup-email-controls">
+                        <span class="backup-email-row">
+                          <label>주기
+                            <select id="backupEmailFrequency">
+                              <option value="off">끄기</option>
+                              <option value="weekly">매주</option>
+                              <option value="monthly">매월</option>
+                            </select>
+                          </label>
+                          <label>받을 메일
+                            <input id="backupEmailRecipient" type="email" autocomplete="email" placeholder="you@example.com" />
+                          </label>
+                        </span>
+                        <span class="settings-action-row">
+                          <button class="mini-action" id="sendBackupEmailButton" type="button">지금 메일로 보내기</button>
+                        </span>
+                        <small class="backup-email-status" id="backupEmailStatus">파일 내보내기/가져오기는 설정 상단 버튼을 사용합니다.</small>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              </div>
+            </article>
+            <article class="panel span-12 settings-profile-summary" data-settings-panel="user">
+              <div>
+                <p class="eyebrow">Profile Setup</p>
+                <h3>처음에는 짧게, 필요할 때 깊게 입력합니다</h3>
+              </div>
+              <div class="settings-profile-summary-grid">
+                <span><strong>필수</strong>현재 역할, 올해 목표, 이번 달 이슈</span>
+                <span><strong>선택</strong>역할별 목표, 건강, 회복 리듬</span>
+                <span><strong>효과</strong>AI가 우선순위와 일정 배치를 더 정확히 제안</span>
               </div>
             </article>
             <article class="panel span-6" id="settingsUserPanel" role="tabpanel" aria-labelledby="settingsUserTab" data-settings-panel="user">
@@ -311,7 +363,7 @@
                   <p>Write the simple reason and rule that guide your choices.</p>
                 </div>
               </div>
-              <textarea data-store="foundation.mission" rows="10" placeholder="What do I stand for? What rule should guide my choices?"></textarea>
+              <textarea data-store="foundation.mission" rows="6" placeholder="What do I stand for? What rule should guide my choices?"></textarea>
             </article>
             <article class="panel span-6" data-settings-panel="user">
               <div class="settings-step-heading">
@@ -597,8 +649,8 @@
                   <span><span class="title-full">오늘의 우선업무</span><span class="title-compact">우선업무</span></span>
                   <span class="panel-actions">
                     <button class="mini-action" id="aiTaskSuggest" type="button" data-section-ai="tasks">AI</button>
-                    <button class="mobile-focus-open" type="button" data-mobile-focus-open="tasks" aria-label="우선업무 확대 보기">확대</button>
-                    <button class="mobile-focus-done" type="button" data-mobile-focus-close aria-label="우선업무 확대 닫기">확인</button>
+                    <button class="mobile-focus-open" type="button" data-mobile-focus-open="tasks" aria-label="우선업무 확대">확대</button>
+                    <button class="mobile-focus-done" type="button" data-mobile-focus-close aria-label="우선업무 축소">축소</button>
                   </span>
                 </h3>
                 <div class="ai-suggest-popover" id="taskSuggestPopover" hidden></div>
@@ -609,8 +661,8 @@
                   <span><span class="title-full">시간별 일정</span><span class="title-compact">일정</span></span>
                   <span class="schedule-title-actions">
                     <button class="mini-action" id="aiScheduleSuggest" type="button" data-section-ai="schedule">AI</button>
-                    <button class="mobile-focus-open" type="button" data-mobile-focus-open="schedule" aria-label="시간별 일정 확대 보기">확대</button>
-                    <button class="mobile-focus-done" type="button" data-mobile-focus-close aria-label="시간별 일정 확대 닫기">확인</button>
+                    <button class="mobile-focus-open" type="button" data-mobile-focus-open="schedule" aria-label="시간별 일정 확대">확대</button>
+                    <button class="mobile-focus-done" type="button" data-mobile-focus-close aria-label="시간별 일정 축소">축소</button>
                   </span>
                 </h3>
                 <div class="ai-suggest-popover" id="scheduleSuggestPopover" hidden></div>
@@ -916,6 +968,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260726a"></script>
+    <script src="./app.js?v=20260727b"></script>
   </body>
 </html>

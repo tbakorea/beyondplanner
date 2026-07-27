@@ -234,12 +234,28 @@ const settingsLanguageLabels = {
     title: "My Setup",
     shortcuts: { year: "Year Calendar", day: "Today View", search: "Ask" },
     tabs: { user: "About Me", app: "App Options" },
-    appTitle: "Section Options",
+    appTitle: "App Options",
+    appEyebrow: "App Controls",
+    appIntro: "Daily settings stay first. Operations, approval, and backup stay together below.",
+    appGroups: [
+      ["Core Workflow", "Settings used every day in Today view."],
+      ["View & Sections", "Rules for menus, calendars, and visible Money details."],
+      ["Operations & Data", "Projects, sheets, AI, user approval, and backup in one place."],
+    ],
+    profileSummary: {
+      eyebrow: "Profile Setup",
+      title: "Start short. Add depth only when it helps.",
+      items: [
+        ["Required", "Current role, yearly goal, this month’s issue"],
+        ["Optional", "Role goals, health, recovery rhythm"],
+        ["Result", "AI suggests priorities and schedule blocks more accurately"],
+      ],
+    },
     primaryLanguage: "Language",
     appItems: [
       ["Today · Top Tasks", "Keep the daily task list compact, carry unfinished items forward, and read time hints such as 2:00 or (14:00).", "DB saved"],
-      ["Main Menu", "Choose which sections appear in the main menu. Today and Settings always stay visible.", ""],
       ["Today · Schedule", "Choose 30 min or 1 hour blocks. Set the visible start and end time for your day.", ""],
+      ["Main Menu", "Choose which sections appear in the main menu. Today and Settings always stay visible.", ""],
       ["Week", "Weekly Focus, role actions, Sunday-start weeks, and carry-forward items.", "Sun start"],
       ["Month · Year", "Sunday-start calendars, Korean holidays, lunar notes, anniversaries, and year navigation.", "YYYY. MM. DD."],
       ["Money", "Show or hide amounts when Money items appear in Today or Week.", ""],
@@ -312,12 +328,28 @@ const settingsLanguageLabels = {
     title: "나에게 맞추기",
     shortcuts: { year: "연간 달력", day: "오늘 화면", search: "검색/질문" },
     tabs: { user: "사용자 설정", app: "앱 설정" },
-    appTitle: "섹션별 설정",
+    appTitle: "앱 설정",
+    appEyebrow: "앱 관리",
+    appIntro: "자주 쓰는 흐름은 위에, 운영과 백업은 아래에 모았습니다.",
+    appGroups: [
+      ["핵심 사용 흐름", "오늘 화면에서 매일 반복해서 쓰는 설정입니다."],
+      ["화면과 섹션", "메뉴 표시, 달력, Money 표시처럼 화면에 보이는 규칙입니다."],
+      ["운영과 데이터", "프로젝트, 시트, AI, 사용자 승인, 백업을 한곳에서 관리합니다."],
+    ],
+    profileSummary: {
+      eyebrow: "사용자 입력",
+      title: "처음에는 짧게, 필요할 때 깊게 입력합니다",
+      items: [
+        ["필수", "현재 역할, 올해 목표, 이번 달 이슈"],
+        ["선택", "역할별 목표, 건강, 회복 리듬"],
+        ["효과", "AI가 우선순위와 일정 배치를 더 정확히 제안"],
+      ],
+    },
     primaryLanguage: "언어",
     appItems: [
       ["오늘 · 우선업무", "우선업무를 촘촘하게 유지하고, 미완료 이월과 10:00 같은 시간 표기를 자동 반영합니다.", "DB 저장"],
-      ["메인 메뉴", "필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.", ""],
       ["오늘 · 시간별 일정", "30분/1시간 단위와 하루에 보일 시작시간, 종료시간을 설정합니다.", ""],
+      ["메인 메뉴", "필요한 섹션만 메인 메뉴에 보이게 합니다. 오늘과 설정은 항상 표시됩니다.", ""],
       ["주간", "위클리 포커스, 역할별 핵심행동, 日 시작 주간, 이월 항목을 관리합니다.", "日 시작"],
       ["월간 · 연간", "日 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.", "년. 월. 일."],
       ["Money", "오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.", ""],
@@ -4880,7 +4912,21 @@ function applySettingsLanguagePreference(language = getAppLanguage()) {
   setText("[data-settings-view='search']", labels.shortcuts.search);
   setText("[data-settings-tab='user']", labels.tabs.user);
   setText("[data-settings-tab='app']", labels.tabs.app);
-  setText("#settingsAppPanel > h3", labels.appTitle);
+  setText("#settingsAppPanel .settings-panel-head h3", labels.appTitle);
+  setText("#settingsAppPanel .settings-panel-head .eyebrow", labels.appEyebrow);
+  setText("#settingsAppPanel .settings-panel-head > small", labels.appIntro);
+  document.querySelectorAll("#settingsAppPanel .settings-group-card > header").forEach((heading, index) => {
+    const [title, description] = labels.appGroups?.[index] || [];
+    if (title) setNodeText(heading.querySelector("strong"), title);
+    if (description) setNodeText(heading.querySelector("small"), description);
+  });
+  setText(".settings-profile-summary .eyebrow", labels.profileSummary?.eyebrow);
+  setText(".settings-profile-summary h3", labels.profileSummary?.title);
+  document.querySelectorAll(".settings-profile-summary-grid span").forEach((item, index) => {
+    const [title, description] = labels.profileSummary?.items?.[index] || [];
+    if (!title || !description) return;
+    item.innerHTML = `<strong>${escapeHtml(title)}</strong>${escapeHtml(description)}`;
+  });
   document.querySelectorAll("#settingsAppPanel .planner-option-item").forEach((item, index) => {
     const [title, description, pill] = labels.appItems[index] || [];
     if (title) setNodeText(item.querySelector("strong"), title);
@@ -7707,24 +7753,22 @@ function setupPulsePanelSwipe() {
   if (!zone) return;
   let startX = 0;
   let startY = 0;
-  let startNav = "";
+  let startPanel = currentDayPanel;
   zone.addEventListener("pointerdown", (event) => {
     startX = event.clientX;
     startY = event.clientY;
-    startNav = event.target.closest(".daily-pulse-nav-left") ? "week" : event.target.closest(".daily-pulse-nav-right") ? "memo" : "";
+    startPanel = closestDayPanel();
   });
   zone.addEventListener("pointerup", (event) => {
     if (!startX) return;
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
+    const fromPanel = startPanel;
     startX = 0;
     startY = 0;
-    const nav = startNav;
-    startNav = "";
+    startPanel = currentDayPanel;
     if (Math.abs(dx) < 44 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
-    if (nav === "week" && dx < 0) return scrollDayPanel("week");
-    if (nav === "memo" && dx > 0) return scrollDayPanel("memo");
-    scrollDayPanel(dx > 0 ? "week" : "memo");
+    stepDayPanel(dx < 0 ? 1 : -1, fromPanel);
   });
 }
 
