@@ -15638,3 +15638,27 @@ body::before {
     width: 10px;
   }
 }
+
+/* Focus control visibility: show exactly one magnifier per panel state. */
+.mobile-focus-done {
+  display: none !important;
+}
+
+.day-main-panel:not(.is-focus-tasks):not(.is-focus-schedule) .mobile-focus-open {
+  display: inline-grid !important;
+}
+
+.day-main-panel.is-focus-tasks .mobile-focus-open,
+.day-main-panel.is-focus-schedule .mobile-focus-open {
+  display: none !important;
+}
+
+.day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+.day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+  display: inline-grid !important;
+}
+
+.day-main-panel.is-focus-tasks .day-schedule-panel .mobile-focus-done,
+.day-main-panel.is-focus-schedule .day-task-panel .mobile-focus-done {
+  display: none !important;
+}
