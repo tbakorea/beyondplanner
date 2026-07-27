@@ -15662,3 +15662,39 @@ body::before {
 .day-main-panel.is-focus-schedule .day-task-panel .mobile-focus-done {
   display: none !important;
 }
+
+/* Focus control slot: + and - must occupy the same title-row position. */
+.day-task-panel > .panel-title-row,
+.day-schedule-panel > .panel-title-row {
+  display: flex !important;
+  align-items: center !important;
+}
+
+.day-task-panel > .panel-title-row .panel-actions,
+.day-schedule-panel > .panel-title-row .schedule-title-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  flex: 0 0 auto !important;
+  margin-left: auto !important;
+  gap: 6px !important;
+}
+
+.mobile-focus-open,
+.mobile-focus-done,
+.day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+.day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+  position: relative !important;
+  inset: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  transform: none !important;
+  align-self: center !important;
+}
+
+.mobile-focus-open::after,
+.mobile-focus-done::after {
+  transform: rotate(45deg) !important;
+}
