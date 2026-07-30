@@ -8650,7 +8650,7 @@ function renderAppointments(day) {
   node.innerHTML = "";
   let pointerActionHandledAt = 0;
   const runAppointmentAction = (event) => {
-    const actionButton = event.target.closest(".appointment-delete, .appointment-merge-button, .split-appointment, [data-row-merge-range]");
+    const actionButton = event.target.closest(".appointment-delete, .appointment-merge-button, .split-appointment");
     if (!actionButton || !node.contains(actionButton)) return false;
     const row = actionButton.closest(".appointment-row");
     const slot = row?.dataset.appointmentSlot;
@@ -8667,10 +8667,6 @@ function renderAppointments(day) {
     }
     if (actionButton.classList.contains("appointment-merge-button")) {
       mergeAppointmentSlot(day, slot);
-      return true;
-    }
-    if (actionButton.dataset.rowMergeRange) {
-      mergeAppointmentRange(day, actionButton.dataset.rowMergeRange);
       return true;
     }
     return false;
@@ -8710,11 +8706,6 @@ function renderAppointments(day) {
     row.innerHTML = `
       <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentTimeLabel ? `<em class="appointment-current-time-number">${currentTimeLabel}</em>` : ""}<b>${endSlot}</b>` : slot}</span>
       ${fieldMarkup}
-      <span class="appointment-range-options" aria-label="시간대 빠른 병합">
-        <button type="button" data-row-merge-range="all" aria-label="종일 병합"><span>종일</span><b>종</b></button>
-        <button type="button" data-row-merge-range="am" aria-label="오전 병합"><span>오전</span><b>오</b></button>
-        <button type="button" data-row-merge-range="pm" aria-label="오후 병합"><span>오후</span><b>후</b></button>
-      </span>
       ${value ? `<button class="appointment-delete" type="button" title="일정 삭제" aria-label="${escapeAttr(slot)} 일정 삭제">×</button>` : ""}
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
       ${canMerge ? `<button class="appointment-merge-button" type="button" title="아래 시간칸과 합치기">+</button>` : ""}
@@ -8724,7 +8715,6 @@ function renderAppointments(day) {
     let valueBeforeEdit = value;
     input.onfocus = () => {
       markDailyFieldEditing(10 * 60 * 1000);
-      row.classList.add("is-menu-open");
       valueBeforeEdit = day.appointments[slot] || "";
     };
     input.oninput = (event) => {
@@ -8744,7 +8734,6 @@ function renderAppointments(day) {
     };
     input.onblur = () => {
       markDailyFieldEditing(0);
-      window.setTimeout(() => row.classList.remove("is-menu-open"), 160);
       const nextValue = input.value;
       if (!nextValue.trim() && valueBeforeEdit.trim()) {
         if (!confirmDelete(`${slot} 일정 '${valueBeforeEdit}'을 삭제할까요?`)) {
@@ -8779,9 +8768,6 @@ function renderAppointments(day) {
     bindAppointmentAction(row.querySelector(".appointment-delete"), () => deleteAppointmentSlot(day, slot));
     bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(day, slot));
     bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(day, slot));
-    row.querySelectorAll("[data-row-merge-range]").forEach((button) => {
-      bindAppointmentAction(button, () => mergeAppointmentRange(day, button.dataset.rowMergeRange));
-    });
     node.appendChild(row);
   });
 }
@@ -8962,6 +8948,8 @@ function mergeAppointmentRange(day, range) {
     return minutes >= rangeStart && minutes < rangeEnd;
   });
   if (!selected.length) return;
+  const rangeLabel = range === "am" ? "오전" : range === "pm" ? "오후" : "종일";
+  if (!confirmDelete(`${rangeLabel} 시간대를 한 칸으로 병합할까요?`)) return;
   captureUndo("시간별 일정 빠른 병합");
   normalizeAppointmentMerges(day);
   const startIndex = slots.indexOf(selected[0]);
@@ -11403,19 +11391,92 @@ function buildBootValuePhrases(note = {}) {
   ];
 }
 
+const NAVIGATE_60_VERSES = [
+  { ko: "방향 없는 속도보다, 오늘의 한 가지 방향이 더 강합니다.", en: "One clear direction today is stronger than speed without direction." },
+  { ko: "작은 실행 하나가 하루의 중심을 다시 세웁니다.", en: "One small action can restore the center of your day." },
+  { ko: "급한 일보다 중요한 일을 먼저 시간에 앉히세요.", en: "Place what matters into time before urgency takes over." },
+  { ko: "오늘의 질서는 첫 선택에서 시작됩니다.", en: "The order of the day begins with the first choice." },
+  { ko: "생각은 가볍게, 실행은 구체적으로 가져가세요.", en: "Keep thoughts light and actions specific." },
+  { ko: "기록은 과거가 아니라 다음 선택을 위한 지도입니다.", en: "A record is not the past; it is a map for the next choice." },
+  { ko: "한 번에 전부가 아니라, 지금 필요한 한 칸만 채우세요.", en: "Do not fill everything at once; fill the one block that matters now." },
+  { ko: "시간표는 압박이 아니라 자유를 만드는 울타리입니다.", en: "A schedule is not pressure; it is a boundary that creates freedom." },
+  { ko: "오늘의 우선순위는 마음이 아니라 시간표에서 증명됩니다.", en: "Today’s priority is proven in the calendar, not in intention." },
+  { ko: "늦었다고 느낄 때일수록 다음 30분을 분명히 하세요.", en: "When you feel late, make the next 30 minutes clear." },
+  { ko: "중요한 일은 크게 외치지 않습니다. 조용히 시간을 요구합니다.", en: "Important work does not shout. It quietly asks for time." },
+  { ko: "완벽한 계획보다 살아 있는 조정이 더 유익합니다.", en: "A living adjustment is better than a perfect plan." },
+  { ko: "오늘의 한 줄 기록이 내일의 코칭을 더 정확하게 합니다.", en: "One line recorded today makes tomorrow’s coaching sharper." },
+  { ko: "해야 할 일보다 하지 않을 일을 먼저 정하면 길이 열립니다.", en: "Define what not to do, and the path becomes clearer." },
+  { ko: "흩어진 일을 한 시간표에 모으면 에너지가 돌아옵니다.", en: "When scattered work enters one schedule, energy returns." },
+  { ko: "실행은 감정이 준비될 때가 아니라 시간이 배정될 때 시작됩니다.", en: "Action begins not when feelings are ready, but when time is assigned." },
+  { ko: "큰 목표는 오늘의 작은 약속을 통해 현실이 됩니다.", en: "Large goals become real through small promises kept today." },
+  { ko: "오늘 미룬 일은 판단하지 말고 다시 배치하세요.", en: "Do not judge what was postponed; place it again with clarity." },
+  { ko: "좋은 하루는 많은 일을 하는 날이 아니라 중요한 일을 놓치지 않는 날입니다.", en: "A good day is not doing many things; it is not missing what matters." },
+  { ko: "시간을 먼저 지키면 마음이 뒤따라 정리됩니다.", en: "Protect time first, and the mind will follow into order." },
+  { ko: "가장 부담되는 일을 가장 선명한 칸에 올려놓으세요.", en: "Put the heaviest task into the clearest block." },
+  { ko: "결정하지 않은 일은 에너지를 계속 빌려갑니다.", en: "Undecided work keeps borrowing your energy." },
+  { ko: "오늘의 성공은 거창한 결심보다 한 번의 완료에서 시작됩니다.", en: "Success today begins with one completion, not a grand resolution." },
+  { ko: "비어 있는 시간은 낭비가 아니라 선택의 여백입니다.", en: "Open time is not waste; it is room for choice." },
+  { ko: "나의 역할을 기억하면 업무의 순서가 달라집니다.", en: "When you remember your role, the order of work changes." },
+  { ko: "지금 적은 한 문장이 내일의 혼란을 줄입니다.", en: "One sentence written now reduces tomorrow’s confusion." },
+  { ko: "실행 흐름을 만들면 의지는 덜 필요합니다.", en: "Create a workflow, and you need less willpower." },
+  { ko: "가치 있는 일은 바쁜 틈이 아니라 보호된 시간에서 자랍니다.", en: "Valuable work grows in protected time, not in leftover busyness." },
+  { ko: "오늘의 일정은 나를 몰아붙이는 표가 아니라 나를 지키는 약속입니다.", en: "Today’s schedule is not a whip; it is a promise that protects you." },
+  { ko: "먼저 정리하고, 그다음 실행하고, 마지막에 배운 점을 남기세요.", en: "Clarify first, act next, and leave a lesson at the end." },
+  { ko: "할 일을 줄이면 중요한 일의 품질이 올라갑니다.", en: "Reduce the list, and the quality of important work rises." },
+  { ko: "오늘의 기준은 남의 속도가 아니라 나의 방향입니다.", en: "Today’s standard is not another person’s speed; it is your direction." },
+  { ko: "복잡함은 종이에 내려놓을 때 다룰 수 있게 됩니다.", en: "Complexity becomes manageable when it is placed on paper." },
+  { ko: "첫 시간을 지키면 하루 전체가 덜 흔들립니다.", en: "Protect the first block, and the whole day shakes less." },
+  { ko: "일정 사이의 여백도 일정입니다.", en: "The space between appointments is also part of the schedule." },
+  { ko: "오늘 완료할 수 없는 일도 다음 위치를 정하면 가벼워집니다.", en: "Even unfinished work becomes lighter when its next place is chosen." },
+  { ko: "중요한 일은 눈에 보이게 만들어야 지켜집니다.", en: "Important work must be visible to be protected." },
+  { ko: "지금의 작은 정리가 오후의 큰 혼란을 막습니다.", en: "A small clarification now prevents larger confusion later." },
+  { ko: "일을 많이 넣기보다 하루의 리듬을 설계하세요.", en: "Design the rhythm of the day, not just the volume of tasks." },
+  { ko: "내가 선택한 한 가지가 오늘의 얼굴을 만듭니다.", en: "The one thing you choose gives the day its face." },
+  { ko: "미완료는 실패가 아니라 재배치가 필요한 신호입니다.", en: "Incomplete work is not failure; it is a signal to reposition." },
+  { ko: "가장 중요한 일 하나가 시간표에 있으면 하루는 이미 방향을 얻습니다.", en: "When one important task is scheduled, the day already has direction." },
+  { ko: "마음이 복잡하면 업무를 줄이고 시간을 선명하게 하세요.", en: "When the mind is crowded, reduce the tasks and clarify the time." },
+  { ko: "오늘의 기록은 내일의 나를 돕는 조용한 동료입니다.", en: "Today’s record is a quiet colleague for tomorrow’s self." },
+  { ko: "바쁜 하루일수록 시작과 마감을 짧게 확인하세요.", en: "On busy days, check the start and finish briefly." },
+  { ko: "해야 할 이유가 분명하면 순서는 단순해집니다.", en: "When the reason is clear, the order becomes simpler." },
+  { ko: "일정은 통제의 도구가 아니라 회복의 구조입니다.", en: "A schedule is not a tool of control; it is a structure for recovery." },
+  { ko: "오늘 한 칸을 잘 쓰면 내일의 부담이 줄어듭니다.", en: "Use one block well today, and tomorrow’s burden becomes lighter." },
+  { ko: "목표는 멀리 있지만 실행은 항상 지금 한 칸에 있습니다.", en: "Goals may be far away, but action always lives in the next block." },
+  { ko: "완료보다 먼저 필요한 것은 시작할 위치입니다.", en: "Before completion, you need a place to begin." },
+  { ko: "내가 놓친 일을 탓하기보다 다시 보이는 곳에 두세요.", en: "Do not blame what you missed; place it where you can see it again." },
+  { ko: "오늘의 집중은 보호한 시간만큼 깊어집니다.", en: "Today’s focus deepens in proportion to the time you protect." },
+  { ko: "일의 무게는 기록하고 나누면 줄어듭니다.", en: "The weight of work decreases when it is recorded and divided." },
+  { ko: "좋은 계획은 나를 몰아붙이지 않고 다음 행동을 보여줍니다.", en: "A good plan does not push you; it shows the next action." },
+  { ko: "시간을 배정하지 않은 목표는 아직 희망에 머뭅니다.", en: "A goal without assigned time still remains a hope." },
+  { ko: "오늘의 방향을 정하면 작은 방해에도 덜 흔들립니다.", en: "Set today’s direction, and small interruptions move you less." },
+  { ko: "중요한 일 하나를 끝내면 하루 전체가 설득력을 얻습니다.", en: "Complete one important thing, and the whole day gains credibility." },
+  { ko: "나의 하루는 반응이 아니라 선택으로 시작할 수 있습니다.", en: "Your day can begin with choice, not reaction." },
+  { ko: "기록하고, 배치하고, 실행하세요. 복잡함은 그 순서에서 줄어듭니다.", en: "Record, place, and act. Complexity shrinks in that order." },
+  { ko: "오늘의 작은 항로가 내일의 큰 방향을 만듭니다.", en: "A small course today creates a larger direction tomorrow." },
+];
+
+function pickNavigateVerse() {
+  return NAVIGATE_60_VERSES[Math.floor(Math.random() * NAVIGATE_60_VERSES.length)] || NAVIGATE_60_VERSES[0];
+}
+
 function renderBootCoaching() {
   const message = el("bootCoachingMessage");
+  const english = el("bootNavigateEnglish");
   const signals = el("bootCoachingSignals");
   const dayline = el("bootDayline");
   const valueStrip = el("bootValueStrip");
   if (!message || !signals) return;
   const note = buildDailyOpeningNote(iso(todayInPlanner()));
+  const navigate = pickNavigateVerse();
   if (dayline) dayline.textContent = note.title;
   if (valueStrip) {
-    valueStrip.innerHTML = buildBootValuePhrases(note).map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
+    valueStrip.innerHTML = ["Navigate 60", ...buildBootValuePhrases(note).slice(0, 2)].map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
   }
-  message.textContent = note.message;
-  signals.innerHTML = note.signals.slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
+  message.textContent = navigate.ko;
+  if (english) english.textContent = navigate.en;
+  signals.innerHTML = [
+    note.signals[0],
+    note.signals.find((signal) => signal.includes("다음 일정")) || note.signals[1],
+  ].filter(Boolean).slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
 }
 

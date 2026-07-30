@@ -15698,3 +15698,75 @@ body::before {
 .mobile-focus-done::after {
   transform: rotate(45deg) !important;
 }
+
+/* Schedule safety: range merge must not appear while typing. Use + / - controls only. */
+.appointment-range-options {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.appointment-row:focus-within input[type="text"],
+.appointment-row:focus-within textarea {
+  padding-right: 54px !important;
+}
+
+/* Navigate 60 boot verse: bilingual but not dense. */
+.boot-navigate-en {
+  margin: -2px 0 0 !important;
+  color: rgba(47, 65, 56, 0.58) !important;
+  font-size: clamp(12px, 3.4vw, 14px) !important;
+  font-weight: 760 !important;
+  line-height: 1.34 !important;
+  letter-spacing: 0 !important;
+  animation: bootEnglishLift 820ms 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.boot-coaching p#bootCoachingMessage {
+  animation: bootVerseReveal 760ms 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes bootVerseReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes bootEnglishLift {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Magnifier parity: collapse icon uses the same outline design as expand. */
+.mobile-focus-open,
+.mobile-focus-done,
+.day-main-panel.is-focus-tasks .day-task-panel .mobile-focus-done,
+.day-main-panel.is-focus-schedule .day-schedule-panel .mobile-focus-done {
+  border: 1px solid rgba(221, 216, 203, 0.86) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 253, 248, 0.82) !important;
+  box-shadow: 0 7px 18px rgba(38, 50, 56, 0.08) !important;
+  color: var(--forest) !important;
+}
+
+.mobile-focus-open::before,
+.mobile-focus-done::before {
+  color: inherit !important;
+  background: rgba(255, 253, 248, 0.92) !important;
+}
+
+.mobile-focus-done::before {
+  content: "-" !important;
+  padding-bottom: 2px !important;
+}
