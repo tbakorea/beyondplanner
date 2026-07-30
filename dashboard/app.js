@@ -113,6 +113,7 @@ const SHEET_MAX_COLUMN_WIDTH = 360;
 const SHEET_DEFAULT_ROW_HEIGHT = 36;
 const SHEET_MIN_ROW_HEIGHT = 28;
 const SHEET_MAX_ROW_HEIGHT = 160;
+const HANDSONTABLE_LICENSE_KEY = window.BEYOND_HANDSONTABLE_LICENSE_KEY || "non-commercial-and-evaluation";
 const defaultRoles = ["Me", "Family", "Work", "Growth", "Service", "Health", "People"];
 const isMacEnvironment = /Mac|iPhone|iPad/.test(navigator.platform || "") || /Macintosh|iPhone|iPad/.test(navigator.userAgent || "");
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
@@ -433,6 +434,12 @@ let accountSaveReady = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
+const BOOT_MIN_READING_MS = 6200;
+const bootStartedAt = Date.now();
+let bootHideTimer = 0;
+const DEFAULT_WEATHER_COORDS = { latitude: 35.5396, longitude: 129.3115, label: "울산" };
+const WEATHER_CACHE_KEY = "beyondWork.weather.v1";
+let weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
 let daySwipeKey = "";
 let dayPanelProgrammaticScrollUntil = 0;
 let plannerMode = localStorage.getItem("beyondWorkMode") || "";
@@ -475,6 +482,9 @@ let sheetDetailOpen = false;
 let sheetSlideOpening = false;
 let sheetSwipeSuppressClick = false;
 let sheetHeaderResizeSuppressClick = false;
+let sheetHot = null;
+let sheetHotId = "";
+let sheetHotRenderLock = false;
 let mobileDayFocusMode = "split";
 let repeatManagerMode = "list";
 let repeatEditingIndex = -1;
@@ -2344,6 +2354,8 @@ function setupSelectors() {
   el("sheetAutoFitButton").onclick = autoFitSelectedSheetCell;
   el("sheetTitleRowButton").onclick = () => toggleSheetTitleAxis("row");
   el("sheetTitleColumnButton").onclick = () => toggleSheetTitleAxis("column");
+  el("sheetToTaskButton").onclick = createTaskFromCurrentSheet;
+  el("sheetSummaryButton").onclick = summarizeCurrentSheet;
   el("sheetNameInput").oninput = (event) => renameCurrentSheet(event.target.value);
   el("sheetCellType").onchange = (event) => updateSelectedSheetCellFormat("type", event.target.value);
   el("sheetCellAlign").onchange = (event) => updateSelectedSheetCellFormat("align", event.target.value);
@@ -2367,6 +2379,14 @@ function setupSelectors() {
     showView("coach");
     renderAll();
   };
+  if (el("weatherChip")) {
+    el("weatherChip").onclick = () => {
+      activeCoachSection = "weather";
+      activeCoachTab = "coach";
+      showView("coach");
+      renderAll();
+    };
+  }
   el("modeToggle").onclick = () => {
     togglePlannerMode();
   };
@@ -6284,6 +6304,16 @@ function buildCoachUsageGuide(section = "main") {
         ],
         tip: "시간표가 비어 있으면 업무는 계획에 머물 가능성이 큽니다. A업무 하나는 반드시 시간칸에 넣으세요.",
       },
+      weather: {
+        title: "날씨 코칭 사용법",
+        summary: "오늘 날씨를 일정·이동·체력 관리 판단에 반영합니다.",
+        steps: [
+          "비, 눈, 강풍이 있으면 외부 일정과 이동 시간을 먼저 조정합니다.",
+          "더위나 추위가 강하면 회복 시간과 수분, 복장, 실내 대안을 챙깁니다.",
+          "날씨 신호는 오늘 우선업무와 시간별 일정 추천에도 함께 반영됩니다.",
+        ],
+        tip: "날씨는 작은 변수처럼 보여도 일정 지연과 피로를 크게 바꿉니다.",
+      },
       week: {
         title: "주간 사용법",
         summary: "이번 주 주요일정과 역할별 핵심행동을 정리합니다.",
@@ -6533,7 +6563,7 @@ function bindProfileMultiFields() {
 
 function buildCoachAnalysis() {
   const context = buildPlannerContext();
-  const { openTasks, doneTasks, carryovers, appointmentEntries, goals, trend, freeSlots, highPriorityOpen, identitySummary, personaLabel, personaGuidance, coachingStyle, currentChallenges, healthSummary, exerciseLimits } = context;
+  const { openTasks, doneTasks, carryovers, appointmentEntries, goals, trend, freeSlots, highPriorityOpen, identitySummary, personaLabel, personaGuidance, coachingStyle, currentChallenges, healthSummary, exerciseLimits, weatherAdvice, weather } = context;
   const intelligence = buildDailyIntelligence(context);
   let severity = "calm";
   let title = "오늘의 선택을 또렷하게 만들 시간입니다.";
@@ -6576,6 +6606,9 @@ function buildCoachAnalysis() {
       ? " 건강 정보가 있으므로 오늘 활동은 무리보다 안전한 지속성을 우선으로 잡겠습니다."
       : " 건강 리듬도 함께 보겠습니다. 짧은 신체 활동을 시간별 일정에 넣으면 집중 회복에 도움이 됩니다.";
   }
+  if (weatherAdvice) {
+    message += ` ${weatherAdvice}`;
+  }
   if (/단호|직설|강하게/.test(coachingStyle)) {
     message += " 결론은 단순합니다. 덜 중요한 일은 과감히 뒤로 보내고, 가장 중요한 한 칸을 반드시 지키세요.";
   } else if (/격려|따뜻|칭찬/.test(coachingStyle)) {
@@ -6588,13 +6621,14 @@ function buildCoachAnalysis() {
     severity,
     title,
     message,
-    detail: `${identitySummary || personaLabel || "사용자 정보"}${healthSummary ? ` · 건강: ${healthSummary}` : ""} · 최근 7일 완료율 ${trend.completionRate}% · 오늘 일정 ${appointmentEntries.length}개 · 이월 ${carryovers.length}개 · ${intelligence.summary}`,
+    detail: `${identitySummary || personaLabel || "사용자 정보"}${healthSummary ? ` · 건강: ${healthSummary}` : ""}${weather?.status === "ready" ? ` · 날씨: ${weather.summary}${Number.isFinite(Number(weather.temp)) ? ` ${Math.round(Number(weather.temp))}도` : ""}` : ""} · 최근 7일 완료율 ${trend.completionRate}% · 오늘 일정 ${appointmentEntries.length}개 · 이월 ${carryovers.length}개 · ${intelligence.summary}`,
     suggestions,
     signals: [
       ["AI 하루 설계", intelligence.blueprint.value, intelligence.blueprint.detail],
       ["시간 부채", intelligence.timeDebt.value, intelligence.timeDebt.detail],
       ["CEO 리스크", intelligence.riskRadar.value, intelligence.riskRadar.detail],
       ["역할 밸런스", intelligence.roleBalance.value, intelligence.roleBalance.detail],
+      ["날씨 변수", weather?.status === "ready" ? `${weather.summary}${Number.isFinite(Number(weather.temp)) ? ` ${Math.round(Number(weather.temp))}도` : ""}` : "확인 중", weatherAdvice || "날씨 정보를 일정 코칭에 반영합니다."],
     ],
   };
 }
@@ -6608,6 +6642,7 @@ function buildSectionCoachAnalysis(section = "day") {
     week: "Week Plan",
     tasks: "Top Tasks",
     schedule: "Schedule",
+    weather: "Weather",
     memo: "메모 페이지",
     projects: "프로젝트 관리",
     finance: "Money",
@@ -6636,6 +6671,7 @@ function getSectionUsageGuide(section = "day") {
     week: "이 섹션은 이번 주 주요일정을 오늘의 우선업무로 연결하는 다리입니다.",
     tasks: "이 섹션은 오늘 반드시 끝낼 일과 연기·위임·취소할 일을 선명하게 가르는 곳입니다.",
     schedule: "이 섹션은 중요한 업무를 실제 시간 블록에 배치해 실행 가능하게 만드는 곳입니다.",
+    weather: "이 섹션은 날씨 변수를 이동, 외부 일정, 회복 시간 판단에 반영하는 곳입니다.",
     memo: "이 섹션은 회의 메모, 결정, 배운 점을 기록해 검색과 회고 자산으로 바꾸는 곳입니다.",
     projects: "이 섹션은 프로젝트 목표, 다음 행동, 자금 시뮬레이션을 연결해 진행을 관리하는 곳입니다.",
     finance: "이 섹션은 월별 수입·지출 이슈를 일정과 우선업무로 연결해 리스크를 줄이는 곳입니다.",
@@ -6650,6 +6686,8 @@ function getSectionCoachData(section, context) {
   const week = ensureWeek();
   const projects = state.projects?.items || [];
   const sheets = state.customSheets?.items || [];
+  const currentSheet = sheets.find((sheet) => sheet.id === selectedSheetId) || sheets.find((sheet) => sheet.id === state.customSheets?.activeId) || sheets[0];
+  const currentSheetStats = currentSheet ? getSheetListStats(currentSheet) : { filled: 0, formulas: 0, preview: "" };
   const financeRows = Object.values(state.finance?.months || {}).flat().filter((item) => item.title || item.amount);
   const activeMonthRows = (state.finance?.months?.[selectedFinanceMonth] || []).filter((item) => item.title || item.amount);
   const memoLength = `${day.memo || ""} ${day.record || ""} ${day.wins || ""} ${day.carry || ""} ${day.lesson || ""}`.trim().length;
@@ -6686,6 +6724,13 @@ function getSectionCoachData(section, context) {
       message: context.appointmentEntries.length ? "일정 블록이 있습니다. A업무와 회복 시간을 과밀하지 않게 배치했는지 확인하세요." : "업무는 있는데 시간별 일정이 비어 있습니다. 중요한 업무 하나를 실제 시간칸에 넣어야 실행이 시작됩니다.",
       detail: `일정 ${context.appointmentEntries.length}개 · 빈 시간 ${context.freeSlots.length}칸`,
     },
+    weather: {
+      severity: context.weather?.status === "ready" && /비|눈|뇌우|안개|강풍|더운|추운/.test(context.weatherAdvice || "") ? "warm" : "calm",
+      message: context.weatherAdvice || "날씨 정보를 불러오는 중입니다. 확인되면 오늘 이동, 외부 일정, 회복 시간 코칭에 반영합니다.",
+      detail: context.weather?.status === "ready"
+        ? `${context.weather.label || "기준 지역"} · ${context.weather.summary || "날씨"} · ${Number.isFinite(context.weather.temp) ? `${Math.round(context.weather.temp)}도` : "기온 확인 중"}`
+        : "날씨 정보 대기 중",
+    },
     memo: {
       severity: memoLength ? "calm" : "warm",
       message: memoLength ? "메모가 실행 기록으로 쌓이고 있습니다. 결정, 후속조치, 배운 점을 분리해서 남기면 검색과 회고 가치가 커집니다." : "메모가 비어 있습니다. 오늘의 결정 1개와 내일 넘길 일 1개만 적어도 회고 품질이 올라갑니다.",
@@ -6702,9 +6747,11 @@ function getSectionCoachData(section, context) {
       detail: `이번 달 ${activeMonthRows.length}건 · 전체 자금 항목 ${financeRows.length}건`,
     },
     sheets: {
-      severity: sheets.length > 1 ? "calm" : "warm",
-      message: "커스텀 시트는 반복 양식과 비교표에 적합합니다. 자주 쓰는 기록은 템플릿화하고, 오늘 업무와 연결되는 체크 항목만 남기세요.",
-      detail: `시트 ${sheets.length}개 · 현재 시트 ${state.customSheets?.items?.find((sheet) => sheet.id === selectedSheetId)?.name || "없음"}`,
+      severity: currentSheetStats.filled ? "calm" : "warm",
+      message: currentSheetStats.filled
+        ? `현재 시트는 ${currentSheetStats.filled}칸이 입력되어 있습니다. 반복적으로 확인해야 할 행은 '오늘 업무'로 내려 실행 흐름에 연결하세요.`
+        : "커스텀 시트는 반복 양식과 비교표에 적합합니다. 먼저 템플릿을 고르고, 실제로 오늘 판단에 쓰는 열만 남기는 것이 좋습니다.",
+      detail: `시트 ${sheets.length}개 · 현재 시트 ${currentSheet?.name || "없음"} · 입력 ${currentSheetStats.filled}칸 · 수식 ${currentSheetStats.formulas}개${currentSheetStats.preview ? ` · ${currentSheetStats.preview.slice(0, 70)}` : ""}`,
     },
   };
   return sectionData[section] || {
@@ -6731,6 +6778,7 @@ function generateSectionSuggestions(section, context, data) {
     week: ["미완료 주요일정 1개를 오늘 A업무로 전환하기", "역할별 핵심행동을 2개 이하로 줄이기"],
     tasks: [firstOpen ? `${firstOpen.slice(0, 24)}을 시간별 일정에 고정하기` : "오늘 A업무 1개 추가하기", "취소·연기·위임할 업무를 먼저 정리하기"],
     schedule: [firstFree ? `${firstFree}에 A업무 실행 블록 만들기` : "일정 사이 완충시간 10분 확보하기", "오후 전에 가장 어려운 업무 1개 배치하기"],
+    weather: [context.weatherAdvice || "외부 일정과 이동 시간을 날씨 기준으로 다시 확인하기", "날씨가 좋지 않으면 실내 대안과 완충 시간을 먼저 확보하기"],
     memo: ["오늘의 결정 1개를 메모에 남기기", "내일 첫 행동 1개를 일일 기록에 적기"],
     projects: ["진행 중 프로젝트마다 다음 행동 1개 지정하기", "자금 영향이 큰 프로젝트를 우선 검토하기"],
     finance: ["이번 달 미확인 지출을 확인 상태로 정리하기", "자금 이슈 1개를 오늘 우선업무에 연결하기"],
@@ -6791,6 +6839,8 @@ function buildPlannerContext(key = iso(selectedDate)) {
     activityLevel: state.profile?.activityLevel || "",
     exerciseGoal: state.profile?.exerciseGoal || "",
     recoveryPattern: state.profile?.recoveryPattern || "",
+    weather: weatherState,
+    weatherAdvice: getWeatherCoachingLine(weatherState),
     highPriorityOpen: openTasks.some((task) => task.priority === "A"),
   };
 }
@@ -6835,6 +6885,143 @@ function getPersonaGuidance(type = "") {
     other: "직접 정의한 역할에 맞춰 목표와 오늘 행동이 연결되는지 확인하는 것이 중요합니다.",
   };
   return guides[type] || "";
+}
+
+function hydrateWeatherFromCache() {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return false;
+    const cached = JSON.parse(raw);
+    const isFresh = cached?.createdAt && Date.now() - cached.createdAt < 2 * 60 * 60 * 1000;
+    if (!isFresh || !cached.data) return false;
+    weatherState = { ...weatherState, ...cached.data, status: "ready" };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function storeWeatherCache() {
+  try {
+    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify({ createdAt: Date.now(), data: weatherState }));
+  } catch {
+    // Weather is an enhancement; storage failure should not affect planning data.
+  }
+}
+
+async function setupWeather() {
+  const hasCache = hydrateWeatherFromCache();
+  if (hasCache) renderWeatherChip();
+  weatherState = { ...weatherState, status: hasCache ? "refreshing" : "loading" };
+  renderWeatherChip();
+  try {
+    const data = await fetchOpenMeteoWeather(getWeatherCoordinates());
+    weatherState = { ...data, status: "ready" };
+    storeWeatherCache();
+  } catch {
+    weatherState = hasCache
+      ? { ...weatherState, status: "ready" }
+      : {
+          status: "error",
+          icon: "◇",
+          temp: null,
+          code: null,
+          label: DEFAULT_WEATHER_COORDS.label,
+          summary: "날씨 확인 대기",
+          advice: "날씨 정보를 가져오지 못했습니다. 외부 일정은 이동 시간을 여유 있게 잡으세요.",
+        };
+  }
+  renderWeatherChip();
+  updateCoachBubble();
+  if (activeCoachSection === "weather" || activeCoachSection === "") renderCoach();
+}
+
+function getWeatherCoordinates() {
+  return DEFAULT_WEATHER_COORDS;
+}
+
+async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 5000);
+  const params = new URLSearchParams({
+    latitude: String(coords.latitude),
+    longitude: String(coords.longitude),
+    current: "temperature_2m,weather_code,precipitation,wind_speed_10m",
+    timezone: "auto",
+  });
+  let response;
+  try {
+    response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`, { signal: controller.signal });
+  } finally {
+    window.clearTimeout(timeout);
+  }
+  if (!response.ok) throw new Error("weather request failed");
+  const payload = await response.json();
+  const current = payload.current || {};
+  const code = Number(current.weather_code);
+  const temp = Number(current.temperature_2m);
+  const wind = Number(current.wind_speed_10m);
+  const precipitation = Number(current.precipitation || 0);
+  const info = getWeatherCodeInfo(code);
+  const state = {
+    icon: info.icon,
+    temp: Number.isFinite(temp) ? temp : null,
+    code,
+    wind: Number.isFinite(wind) ? wind : null,
+    precipitation: Number.isFinite(precipitation) ? precipitation : 0,
+    label: coords.label || DEFAULT_WEATHER_COORDS.label,
+    summary: info.summary,
+  };
+  return { ...state, advice: buildWeatherAdvice(state) };
+}
+
+function getWeatherCodeInfo(code) {
+  if ([0].includes(code)) return { icon: "☀", summary: "맑음" };
+  if ([1, 2].includes(code)) return { icon: "◐", summary: "구름 조금" };
+  if ([3].includes(code)) return { icon: "☁", summary: "흐림" };
+  if ([45, 48].includes(code)) return { icon: "≋", summary: "안개" };
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { icon: "☂", summary: "비" };
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return { icon: "❄", summary: "눈" };
+  if ([95, 96, 99].includes(code)) return { icon: "⚡", summary: "뇌우" };
+  return { icon: "◇", summary: "날씨" };
+}
+
+function buildWeatherAdvice(weather = weatherState) {
+  const temp = Number(weather.temp);
+  const wind = Number(weather.wind);
+  const summary = weather.summary || "날씨";
+  if (/비|뇌우/.test(summary) || Number(weather.precipitation) > 0) return "비 가능성이 있습니다. 외부 일정은 이동 시간을 10-15분 더 확보하고, 중요한 방문 업무는 준비물을 먼저 확인하세요.";
+  if (/눈/.test(summary)) return "눈 또는 결빙 가능성이 있습니다. 이동 일정은 무리하게 붙이지 말고, 외부 업무는 안전과 지연 가능성을 먼저 반영하세요.";
+  if (/안개/.test(summary)) return "시야가 좋지 않을 수 있습니다. 오전 이동과 현장 방문은 여유 시간을 두고 잡는 것이 좋습니다.";
+  if (Number.isFinite(wind) && wind >= 9) return "바람이 강합니다. 외부 일정과 현장 업무는 안전 확인과 이동 완충 시간을 먼저 잡으세요.";
+  if (Number.isFinite(temp) && temp >= 30) return "더운 날입니다. 오후에는 체력 소모가 커질 수 있으니 집중 업무는 이른 시간에 배치하고 수분 보충 시간을 남기세요.";
+  if (Number.isFinite(temp) && temp <= 0) return "추운 날입니다. 외부 이동 전 준비 시간을 확보하고, 실내 집중 업무를 먼저 배치하는 편이 안정적입니다.";
+  return `${summary} 기준으로 큰 날씨 리스크는 낮습니다. 오늘은 중요한 업무를 시간별 일정에 먼저 고정하세요.`;
+}
+
+function getWeatherCoachingLine(weather = weatherState) {
+  if (!weather || weather.status === "idle" || weather.status === "loading") return "";
+  if (weather.status === "error") return weather.advice || "";
+  const tempText = Number.isFinite(Number(weather.temp)) ? `${Math.round(Number(weather.temp))}도` : "";
+  return `${weather.label || "기준 지역"} ${weather.summary || "날씨"}${tempText ? ` ${tempText}` : ""}. ${weather.advice || ""}`.trim();
+}
+
+function renderWeatherChip() {
+  const node = el("weatherChip");
+  if (!node) return;
+  if (weatherState.status === "idle") {
+    node.hidden = true;
+    return;
+  }
+  const loading = weatherState.status === "loading" || weatherState.status === "refreshing";
+  const icon = loading ? "…" : weatherState.icon || "◇";
+  const temp = Number.isFinite(Number(weatherState.temp)) ? `${Math.round(Number(weatherState.temp))}°` : "";
+  node.hidden = false;
+  node.classList.toggle("is-loading", loading);
+  node.innerHTML = `<span class="weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>${temp ? `<span class="weather-temp">${escapeHtml(temp)}</span>` : ""}`;
+  const title = getWeatherCoachingLine(weatherState) || "오늘 날씨를 확인하고 코칭에 반영합니다.";
+  node.title = title;
+  node.setAttribute("aria-label", title);
 }
 
 function getPersonaSuggestions(type = "") {
@@ -6996,7 +7183,7 @@ function renderScheduleSuggestionPopover() {
 }
 
 function generateScheduleSuggestions(context = buildPlannerContext()) {
-  const { openTasks, freeSlots, appointmentEntries, carryovers, energyWindow, exerciseGoal, exerciseLimits, recoveryPattern, personaType, secondaryPersonaTypes } = context;
+  const { openTasks, freeSlots, appointmentEntries, carryovers, energyWindow, exerciseGoal, exerciseLimits, recoveryPattern, personaType, secondaryPersonaTypes, weatherAdvice } = context;
   const intelligence = buildDailyIntelligence(context);
   const firstA = openTasks.find((task) => task.priority === "A") || openTasks[0];
   const preferredStart = /오후/.test(energyWindow) ? "13:00" : /저녁/.test(energyWindow) ? "16:00" : "09:00";
@@ -7024,6 +7211,9 @@ function generateScheduleSuggestions(context = buildPlannerContext()) {
     suggestions.push({ slot: "오전 15분", text: "일정 사이 완충시간과 준비물 확인" });
   } else {
     suggestions.push({ slot: "오전", text: "A업무 60분, B업무 30분, 기록 10분 순서로 배치" });
+  }
+  if (weatherAdvice) {
+    suggestions.push({ slot: "날씨", text: weatherAdvice });
   }
   [personaType, ...(secondaryPersonaTypes || []).slice(0, 1)]
     .map((type) => getPersonaScheduleSuggestion(type))
@@ -9203,6 +9393,52 @@ function deleteCurrentSheet() {
   showUndoNotice("시트를 삭제했습니다.");
 }
 
+function getSheetRowValues(sheet, row) {
+  return Array.from({ length: sheet.columns }, (_, column) => {
+    const reference = `${sheetColumnLabel(column)}${row + 1}`;
+    return String(sheet.cells?.[reference] ?? "").trim();
+  });
+}
+
+function buildSheetTaskCandidate(sheet) {
+  const selected = parseSheetCellReference(selectedSheetCell);
+  const orderedRows = [
+    ...(selected ? [selected.row] : []),
+    ...Array.from({ length: sheet.rows }, (_, row) => row),
+  ].filter((row, index, rows) => row >= 0 && row < sheet.rows && rows.indexOf(row) === index);
+  for (const row of orderedRows) {
+    const values = getSheetRowValues(sheet, row).filter((value) => value && !/^(TRUE|FALSE)$/i.test(value));
+    if (!values.length) continue;
+    const text = values.slice(0, 4).join(" · ").slice(0, 80);
+    if (text) return text;
+  }
+  return "";
+}
+
+function createTaskFromCurrentSheet() {
+  const sheet = getCurrentSheet();
+  if (sheetHot?.getData) syncSheetFromHotData(sheet, sheetHot.getData());
+  const text = buildSheetTaskCandidate(sheet);
+  if (!text) {
+    showUndoNotice("오늘 업무로 만들 시트 내용이 없습니다.");
+    return;
+  }
+  addSuggestedTask(`시트: ${text}`);
+  showUndoNotice("시트 내용을 오늘 우선업무로 보냈습니다.");
+}
+
+function summarizeCurrentSheet() {
+  const sheet = getCurrentSheet();
+  if (sheetHot?.getData) syncSheetFromHotData(sheet, sheetHot.getData());
+  const entries = Object.entries(sheet.cells || {}).filter(([, value]) => String(value || "").trim());
+  const formulas = entries.filter(([, value]) => String(value).trim().startsWith("=")).length;
+  const firstRows = Array.from({ length: Math.min(sheet.rows, 4) }, (_, row) => getSheetRowValues(sheet, row).filter(Boolean).join(" / ")).filter(Boolean);
+  const summary = entries.length
+    ? `${sheet.name}: 입력 ${entries.length}칸, 수식 ${formulas}개. ${firstRows.slice(0, 2).join(" · ").slice(0, 90)}`
+    : `${sheet.name}: 아직 입력된 셀이 없습니다.`;
+  showUndoNotice(summary);
+}
+
 function resizeCurrentSheet(axis, delta) {
   const sheet = getCurrentSheet();
   if (delta < 0) {
@@ -9231,8 +9467,240 @@ function pruneSheetOutsideBounds(sheet) {
   });
 }
 
+function canUseHandsontableSheet() {
+  return Boolean(window.Handsontable && el("handsontableSheetGrid"));
+}
+
+function sheetToHotData(sheet) {
+  return Array.from({ length: sheet.rows }, (_, row) =>
+    Array.from({ length: sheet.columns }, (_, column) => {
+      const reference = `${sheetColumnLabel(column)}${row + 1}`;
+      return String(sheet.cells?.[reference] ?? "");
+    }),
+  );
+}
+
+function syncHotChangeToSheet(sheet, changes) {
+  if (!Array.isArray(changes)) return;
+  changes.forEach(([row, column, oldValue, newValue]) => {
+    if (!Number.isInteger(row) || !Number.isInteger(column) || row < 0 || column < 0) return;
+    if (String(oldValue ?? "") === String(newValue ?? "")) return;
+    const reference = `${sheetColumnLabel(column)}${row + 1}`;
+    const value = String(newValue ?? "");
+    if (value.trim()) sheet.cells[reference] = value;
+    else delete sheet.cells[reference];
+  });
+}
+
+function syncSheetFromHotData(sheet, data) {
+  const nextCells = {};
+  (data || []).forEach((rowValues, row) => {
+    (rowValues || []).forEach((value, column) => {
+      const text = String(value ?? "");
+      if (text.trim()) nextCells[`${sheetColumnLabel(column)}${row + 1}`] = text;
+    });
+  });
+  sheet.cells = nextCells;
+  pruneSheetOutsideBounds(sheet);
+}
+
+function getHotCellMeta(sheet, row, column) {
+  const reference = `${sheetColumnLabel(column)}${row + 1}`;
+  const format = getSheetCellFormat(sheet, reference);
+  const classNames = [
+    "sheet-hot-cell",
+    row < (sheet.titleRows || 0) ? "is-title-row" : "",
+    column < (sheet.titleColumns || 0) ? "is-title-column" : "",
+    `fill-${format.fill}`,
+    `align-${format.align}`,
+    format.bold ? "is-bold" : "",
+  ].filter(Boolean);
+  const meta = { className: classNames.join(" ") };
+  if (format.type === "checkbox") {
+    meta.type = "checkbox";
+    meta.checkedTemplate = "TRUE";
+    meta.uncheckedTemplate = "";
+  }
+  if (format.align) meta.className += ` ht${format.align[0].toUpperCase()}${format.align.slice(1)}`;
+  return meta;
+}
+
+function renderHandsontableSheetGrid(sheet) {
+  if (!canUseHandsontableSheet()) return false;
+  const hotContainer = el("handsontableSheetGrid");
+  const fallbackTable = el("customSheetGrid");
+  hotContainer.hidden = false;
+  if (fallbackTable) fallbackTable.hidden = true;
+  const data = sheetToHotData(sheet);
+  const settings = {
+    data,
+    rowHeaders: true,
+    colHeaders: Array.from({ length: sheet.columns }, (_, column) => sheetColumnLabel(column)),
+    width: "100%",
+    height: "100%",
+    stretchH: "none",
+    manualColumnResize: sheet.columnWidths,
+    manualRowResize: sheet.rowHeights,
+    colWidths: sheet.columnWidths,
+    rowHeights: sheet.rowHeights,
+    fixedRowsTop: sheet.titleRows || 0,
+    fixedColumnsStart: sheet.titleColumns || 0,
+    selectionMode: "multiple",
+    copyPaste: true,
+    fillHandle: true,
+    autoWrapRow: true,
+    autoWrapCol: true,
+    contextMenu: ["row_above", "row_below", "col_left", "col_right", "remove_row", "remove_col", "undo", "redo"],
+    licenseKey: HANDSONTABLE_LICENSE_KEY,
+    cells(row, column) {
+      return getHotCellMeta(sheet, row, column);
+    },
+    afterChange(changes, source) {
+      if (sheetHotRenderLock || source === "loadData") return;
+      syncHotChangeToSheet(sheet, changes);
+      saveState({ fastSave: true });
+      renderSheetList(sheet);
+      renderSelectedSheetCellControls(sheet);
+    },
+    afterSelection(row, column) {
+      if (!Number.isInteger(row) || !Number.isInteger(column) || row < 0 || column < 0) return;
+      selectedSheetHeader = null;
+      selectedSheetCell = `${sheetColumnLabel(column)}${row + 1}`;
+      renderSelectedSheetCellControls(sheet);
+    },
+    beforeCreateRow(index, amount) {
+      if (sheet.rows + Number(amount || 0) > SHEET_MAX_ROWS) {
+        showUndoNotice(`시트는 최대 ${SHEET_MAX_ROWS}행까지 사용할 수 있습니다.`);
+        return false;
+      }
+      return true;
+    },
+    beforeCreateCol(index, amount) {
+      if (sheet.columns + Number(amount || 0) > SHEET_MAX_COLUMNS) {
+        showUndoNotice(`시트는 최대 ${SHEET_MAX_COLUMNS}열까지 사용할 수 있습니다.`);
+        return false;
+      }
+      return true;
+    },
+    afterColumnResize(newSize, column, isDoubleClick) {
+      if (!Number.isInteger(column)) return;
+      setSheetColumnWidth(sheet, column, newSize);
+      saveState({ fastSave: true });
+      if (isDoubleClick) renderSheetList(sheet);
+    },
+    afterRowResize(newSize, row, isDoubleClick) {
+      if (!Number.isInteger(row)) return;
+      setSheetRowHeight(sheet, row, newSize);
+      saveState({ fastSave: true });
+      if (isDoubleClick) renderSheetList(sheet);
+    },
+    afterCreateRow(index, amount) {
+      sheet.rows = Math.min(SHEET_MAX_ROWS, sheetHot?.countRows?.() || sheet.rows + Number(amount || 0));
+      sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
+      syncSheetFromHotData(sheet, sheetHot?.getData?.() || []);
+      saveState({ fastSave: true });
+      renderSheets();
+    },
+    afterCreateCol(index, amount) {
+      sheet.columns = Math.min(SHEET_MAX_COLUMNS, sheetHot?.countCols?.() || sheet.columns + Number(amount || 0));
+      sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
+      syncSheetFromHotData(sheet, sheetHot?.getData?.() || []);
+      saveState({ fastSave: true });
+      renderSheets();
+    },
+    beforeRemoveRow(index, amount) {
+      return confirmDelete(`${amount || 1}개 행을 삭제할까요? 해당 행의 셀 내용도 사라집니다.`);
+    },
+    beforeRemoveCol(index, amount) {
+      return confirmDelete(`${amount || 1}개 열을 삭제할까요? 해당 열의 셀 내용도 사라집니다.`);
+    },
+    afterRemoveRow(index, amount) {
+      sheet.rows = Math.max(SHEET_MIN_ROWS, sheetHot?.countRows?.() || sheet.rows - Number(amount || 1));
+      sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights, sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
+      syncSheetFromHotData(sheet, sheetHot?.getData?.() || []);
+      saveState({ fastSave: true });
+      renderSheets();
+    },
+    afterRemoveCol(index, amount) {
+      sheet.columns = Math.max(SHEET_MIN_COLUMNS, sheetHot?.countCols?.() || sheet.columns - Number(amount || 1));
+      sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths, sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
+      syncSheetFromHotData(sheet, sheetHot?.getData?.() || []);
+      saveState({ fastSave: true });
+      renderSheets();
+    },
+  };
+  sheetHotRenderLock = true;
+  if (sheetHot && sheetHotId === sheet.id) {
+    sheetHot.updateSettings(settings, false);
+    sheetHot.loadData(data);
+  } else {
+    if (sheetHot) sheetHot.destroy();
+    hotContainer.innerHTML = "";
+    sheetHot = new Handsontable(hotContainer, settings);
+    sheetHotId = sheet.id;
+  }
+  sheetHotRenderLock = false;
+  return true;
+}
+
+function removeSheetRowsFromState(sheet, start, amount = 1) {
+  const end = start + amount;
+  const nextCells = {};
+  const nextFormats = {};
+  Object.entries(sheet.cells || {}).forEach(([reference, value]) => {
+    const pos = parseSheetCellReference(reference);
+    if (!pos) return;
+    if (pos.row >= start && pos.row < end) return;
+    const nextRow = pos.row > start ? pos.row - amount : pos.row;
+    if (nextRow < 0 || nextRow >= sheet.rows) return;
+    nextCells[`${sheetColumnLabel(pos.column)}${nextRow + 1}`] = value;
+  });
+  Object.entries(sheet.formats || {}).forEach(([reference, value]) => {
+    const pos = parseSheetCellReference(reference);
+    if (!pos) return;
+    if (pos.row >= start && pos.row < end) return;
+    const nextRow = pos.row > start ? pos.row - amount : pos.row;
+    if (nextRow < 0 || nextRow >= sheet.rows) return;
+    nextFormats[`${sheetColumnLabel(pos.column)}${nextRow + 1}`] = value;
+  });
+  sheet.rows = Math.max(SHEET_MIN_ROWS, sheet.rows - amount);
+  sheet.cells = nextCells;
+  sheet.formats = nextFormats;
+  sheet.rowHeights = normalizeSheetSizes(sheet.rowHeights.filter((_, index) => index < start || index >= end), sheet.rows, SHEET_DEFAULT_ROW_HEIGHT, SHEET_MIN_ROW_HEIGHT, SHEET_MAX_ROW_HEIGHT);
+}
+
+function removeSheetColumnsFromState(sheet, start, amount = 1) {
+  const end = start + amount;
+  const nextCells = {};
+  const nextFormats = {};
+  Object.entries(sheet.cells || {}).forEach(([reference, value]) => {
+    const pos = parseSheetCellReference(reference);
+    if (!pos) return;
+    if (pos.column >= start && pos.column < end) return;
+    const nextColumn = pos.column > start ? pos.column - amount : pos.column;
+    if (nextColumn < 0 || nextColumn >= sheet.columns) return;
+    nextCells[`${sheetColumnLabel(nextColumn)}${pos.row + 1}`] = value;
+  });
+  Object.entries(sheet.formats || {}).forEach(([reference, value]) => {
+    const pos = parseSheetCellReference(reference);
+    if (!pos) return;
+    if (pos.column >= start && pos.column < end) return;
+    const nextColumn = pos.column > start ? pos.column - amount : pos.column;
+    if (nextColumn < 0 || nextColumn >= sheet.columns) return;
+    nextFormats[`${sheetColumnLabel(nextColumn)}${pos.row + 1}`] = value;
+  });
+  sheet.columns = Math.max(SHEET_MIN_COLUMNS, sheet.columns - amount);
+  sheet.cells = nextCells;
+  sheet.formats = nextFormats;
+  sheet.columnWidths = normalizeSheetSizes(sheet.columnWidths.filter((_, index) => index < start || index >= end), sheet.columns, SHEET_DEFAULT_COLUMN_WIDTH, SHEET_MIN_COLUMN_WIDTH, SHEET_MAX_COLUMN_WIDTH);
+}
+
 function renderSheetGrid(sheet) {
+  if (renderHandsontableSheetGrid(sheet)) return;
   const table = el("customSheetGrid");
+  const hotContainer = el("handsontableSheetGrid");
+  if (hotContainer) hotContainer.hidden = true;
+  if (table) table.hidden = false;
   table.className = [
     "custom-sheet-grid",
     sheet.titleRows ? "has-title-row" : "",
@@ -9537,6 +10005,12 @@ function selectSheetCell(reference, options = {}) {
   const sheet = getCurrentSheet();
   if (!options.keepHeader) selectedSheetHeader = null;
   selectedSheetCell = clampSheetCellReference(reference, sheet);
+  const position = parseSheetCellReference(selectedSheetCell);
+  if (sheetHot && position) {
+    sheetHot.selectCell(position.row, position.column);
+    renderSelectedSheetCellControls(sheet);
+    return;
+  }
   el("customSheetGrid").querySelectorAll("[data-sheet-cell]").forEach((cell) => {
     cell.classList.toggle("is-selected", cell.dataset.sheetCell === selectedSheetCell);
   });
@@ -9579,6 +10053,12 @@ function moveSheetSelection(rowDelta, columnDelta, sheet = getCurrentSheet()) {
   const row = Math.max(0, Math.min(sheet.rows - 1, current.row + rowDelta));
   const column = Math.max(0, Math.min(sheet.columns - 1, current.column + columnDelta));
   selectedSheetCell = `${sheetColumnLabel(column)}${row + 1}`;
+  if (sheetHot) {
+    sheetHot.selectCell(row, column);
+    renderSelectedSheetCellControls(sheet);
+    sheetHot.scrollViewportTo(row, column);
+    return;
+  }
   renderSheetGrid(sheet);
   renderSelectedSheetCellControls(sheet);
   window.requestAnimationFrame(() => el("customSheetGrid").querySelector(`[data-sheet-cell="${selectedSheetCell}"] input`)?.focus());
@@ -9710,8 +10190,13 @@ function autoFitAllSheetCells(sheet) {
 
 function updateSelectedSheetCellValue(value) {
   const sheet = getCurrentSheet();
-  sheet.cells[selectedSheetCell] = value;
+  if (String(value || "").trim()) sheet.cells[selectedSheetCell] = value;
+  else delete sheet.cells[selectedSheetCell];
   saveState();
+  if (sheetHot) {
+    const position = parseSheetCellReference(selectedSheetCell);
+    if (position) sheetHot.setDataAtCell(position.row, position.column, value, "formulaBar");
+  }
   renderSheetGrid(sheet);
   renderSelectedSheetCellControls(sheet);
 }
@@ -11362,6 +11847,7 @@ function renderAll() {
   renderNotes();
   renderSheets();
   renderSearch();
+  renderWeatherChip();
   updateSettingsTabState();
   updateStickyPanelTop();
   checkScheduledBackupEmail();
@@ -11391,71 +11877,129 @@ function buildBootValuePhrases(note = {}) {
   ];
 }
 
+const NAVIGATE_60_CACHE_KEY = "beyondWork.navigate60.web.v1";
+let bootNavigateVerse = null;
+let bootVerseTextCache = {};
+
 const NAVIGATE_60_VERSES = [
-  { ko: "방향 없는 속도보다, 오늘의 한 가지 방향이 더 강합니다.", en: "One clear direction today is stronger than speed without direction." },
-  { ko: "작은 실행 하나가 하루의 중심을 다시 세웁니다.", en: "One small action can restore the center of your day." },
-  { ko: "급한 일보다 중요한 일을 먼저 시간에 앉히세요.", en: "Place what matters into time before urgency takes over." },
-  { ko: "오늘의 질서는 첫 선택에서 시작됩니다.", en: "The order of the day begins with the first choice." },
-  { ko: "생각은 가볍게, 실행은 구체적으로 가져가세요.", en: "Keep thoughts light and actions specific." },
-  { ko: "기록은 과거가 아니라 다음 선택을 위한 지도입니다.", en: "A record is not the past; it is a map for the next choice." },
-  { ko: "한 번에 전부가 아니라, 지금 필요한 한 칸만 채우세요.", en: "Do not fill everything at once; fill the one block that matters now." },
-  { ko: "시간표는 압박이 아니라 자유를 만드는 울타리입니다.", en: "A schedule is not pressure; it is a boundary that creates freedom." },
-  { ko: "오늘의 우선순위는 마음이 아니라 시간표에서 증명됩니다.", en: "Today’s priority is proven in the calendar, not in intention." },
-  { ko: "늦었다고 느낄 때일수록 다음 30분을 분명히 하세요.", en: "When you feel late, make the next 30 minutes clear." },
-  { ko: "중요한 일은 크게 외치지 않습니다. 조용히 시간을 요구합니다.", en: "Important work does not shout. It quietly asks for time." },
-  { ko: "완벽한 계획보다 살아 있는 조정이 더 유익합니다.", en: "A living adjustment is better than a perfect plan." },
-  { ko: "오늘의 한 줄 기록이 내일의 코칭을 더 정확하게 합니다.", en: "One line recorded today makes tomorrow’s coaching sharper." },
-  { ko: "해야 할 일보다 하지 않을 일을 먼저 정하면 길이 열립니다.", en: "Define what not to do, and the path becomes clearer." },
-  { ko: "흩어진 일을 한 시간표에 모으면 에너지가 돌아옵니다.", en: "When scattered work enters one schedule, energy returns." },
-  { ko: "실행은 감정이 준비될 때가 아니라 시간이 배정될 때 시작됩니다.", en: "Action begins not when feelings are ready, but when time is assigned." },
-  { ko: "큰 목표는 오늘의 작은 약속을 통해 현실이 됩니다.", en: "Large goals become real through small promises kept today." },
-  { ko: "오늘 미룬 일은 판단하지 말고 다시 배치하세요.", en: "Do not judge what was postponed; place it again with clarity." },
-  { ko: "좋은 하루는 많은 일을 하는 날이 아니라 중요한 일을 놓치지 않는 날입니다.", en: "A good day is not doing many things; it is not missing what matters." },
-  { ko: "시간을 먼저 지키면 마음이 뒤따라 정리됩니다.", en: "Protect time first, and the mind will follow into order." },
-  { ko: "가장 부담되는 일을 가장 선명한 칸에 올려놓으세요.", en: "Put the heaviest task into the clearest block." },
-  { ko: "결정하지 않은 일은 에너지를 계속 빌려갑니다.", en: "Undecided work keeps borrowing your energy." },
-  { ko: "오늘의 성공은 거창한 결심보다 한 번의 완료에서 시작됩니다.", en: "Success today begins with one completion, not a grand resolution." },
-  { ko: "비어 있는 시간은 낭비가 아니라 선택의 여백입니다.", en: "Open time is not waste; it is room for choice." },
-  { ko: "나의 역할을 기억하면 업무의 순서가 달라집니다.", en: "When you remember your role, the order of work changes." },
-  { ko: "지금 적은 한 문장이 내일의 혼란을 줄입니다.", en: "One sentence written now reduces tomorrow’s confusion." },
-  { ko: "실행 흐름을 만들면 의지는 덜 필요합니다.", en: "Create a workflow, and you need less willpower." },
-  { ko: "가치 있는 일은 바쁜 틈이 아니라 보호된 시간에서 자랍니다.", en: "Valuable work grows in protected time, not in leftover busyness." },
-  { ko: "오늘의 일정은 나를 몰아붙이는 표가 아니라 나를 지키는 약속입니다.", en: "Today’s schedule is not a whip; it is a promise that protects you." },
-  { ko: "먼저 정리하고, 그다음 실행하고, 마지막에 배운 점을 남기세요.", en: "Clarify first, act next, and leave a lesson at the end." },
-  { ko: "할 일을 줄이면 중요한 일의 품질이 올라갑니다.", en: "Reduce the list, and the quality of important work rises." },
-  { ko: "오늘의 기준은 남의 속도가 아니라 나의 방향입니다.", en: "Today’s standard is not another person’s speed; it is your direction." },
-  { ko: "복잡함은 종이에 내려놓을 때 다룰 수 있게 됩니다.", en: "Complexity becomes manageable when it is placed on paper." },
-  { ko: "첫 시간을 지키면 하루 전체가 덜 흔들립니다.", en: "Protect the first block, and the whole day shakes less." },
-  { ko: "일정 사이의 여백도 일정입니다.", en: "The space between appointments is also part of the schedule." },
-  { ko: "오늘 완료할 수 없는 일도 다음 위치를 정하면 가벼워집니다.", en: "Even unfinished work becomes lighter when its next place is chosen." },
-  { ko: "중요한 일은 눈에 보이게 만들어야 지켜집니다.", en: "Important work must be visible to be protected." },
-  { ko: "지금의 작은 정리가 오후의 큰 혼란을 막습니다.", en: "A small clarification now prevents larger confusion later." },
-  { ko: "일을 많이 넣기보다 하루의 리듬을 설계하세요.", en: "Design the rhythm of the day, not just the volume of tasks." },
-  { ko: "내가 선택한 한 가지가 오늘의 얼굴을 만듭니다.", en: "The one thing you choose gives the day its face." },
-  { ko: "미완료는 실패가 아니라 재배치가 필요한 신호입니다.", en: "Incomplete work is not failure; it is a signal to reposition." },
-  { ko: "가장 중요한 일 하나가 시간표에 있으면 하루는 이미 방향을 얻습니다.", en: "When one important task is scheduled, the day already has direction." },
-  { ko: "마음이 복잡하면 업무를 줄이고 시간을 선명하게 하세요.", en: "When the mind is crowded, reduce the tasks and clarify the time." },
-  { ko: "오늘의 기록은 내일의 나를 돕는 조용한 동료입니다.", en: "Today’s record is a quiet colleague for tomorrow’s self." },
-  { ko: "바쁜 하루일수록 시작과 마감을 짧게 확인하세요.", en: "On busy days, check the start and finish briefly." },
-  { ko: "해야 할 이유가 분명하면 순서는 단순해집니다.", en: "When the reason is clear, the order becomes simpler." },
-  { ko: "일정은 통제의 도구가 아니라 회복의 구조입니다.", en: "A schedule is not a tool of control; it is a structure for recovery." },
-  { ko: "오늘 한 칸을 잘 쓰면 내일의 부담이 줄어듭니다.", en: "Use one block well today, and tomorrow’s burden becomes lighter." },
-  { ko: "목표는 멀리 있지만 실행은 항상 지금 한 칸에 있습니다.", en: "Goals may be far away, but action always lives in the next block." },
-  { ko: "완료보다 먼저 필요한 것은 시작할 위치입니다.", en: "Before completion, you need a place to begin." },
-  { ko: "내가 놓친 일을 탓하기보다 다시 보이는 곳에 두세요.", en: "Do not blame what you missed; place it where you can see it again." },
-  { ko: "오늘의 집중은 보호한 시간만큼 깊어집니다.", en: "Today’s focus deepens in proportion to the time you protect." },
-  { ko: "일의 무게는 기록하고 나누면 줄어듭니다.", en: "The weight of work decreases when it is recorded and divided." },
-  { ko: "좋은 계획은 나를 몰아붙이지 않고 다음 행동을 보여줍니다.", en: "A good plan does not push you; it shows the next action." },
-  { ko: "시간을 배정하지 않은 목표는 아직 희망에 머뭅니다.", en: "A goal without assigned time still remains a hope." },
-  { ko: "오늘의 방향을 정하면 작은 방해에도 덜 흔들립니다.", en: "Set today’s direction, and small interruptions move you less." },
-  { ko: "중요한 일 하나를 끝내면 하루 전체가 설득력을 얻습니다.", en: "Complete one important thing, and the whole day gains credibility." },
-  { ko: "나의 하루는 반응이 아니라 선택으로 시작할 수 있습니다.", en: "Your day can begin with choice, not reaction." },
-  { ko: "기록하고, 배치하고, 실행하세요. 복잡함은 그 순서에서 줄어듭니다.", en: "Record, place, and act. Complexity shrinks in that order." },
-  { ko: "오늘의 작은 항로가 내일의 큰 방향을 만듭니다.", en: "A small course today creates a larger direction tomorrow." },
+  { groupKo: "새 출발", group: "New Life", ref: "2 Corinthians 5:17", focus: "새 정체성" },
+  { groupKo: "새 출발", group: "New Life", ref: "Galatians 2:20", focus: "오늘의 중심" },
+  { groupKo: "새 출발", group: "New Life", ref: "Romans 12:1", focus: "몸으로 드리는 선택" },
+  { groupKo: "새 출발", group: "New Life", ref: "John 14:21", focus: "사랑과 순종" },
+  { groupKo: "새 출발", group: "New Life", ref: "2 Timothy 3:16", focus: "말씀의 기준" },
+  { groupKo: "새 출발", group: "New Life", ref: "Joshua 1:8", focus: "묵상과 실행" },
+  { groupKo: "새 출발", group: "New Life", ref: "John 15:7", focus: "머무름과 구함" },
+  { groupKo: "새 출발", group: "New Life", ref: "Philippians 4:6-7", focus: "염려를 맡김" },
+  { groupKo: "새 출발", group: "New Life", ref: "Matthew 18:20", focus: "함께하는 믿음" },
+  { groupKo: "새 출발", group: "New Life", ref: "Hebrews 10:24-25", focus: "격려와 모임" },
+  { groupKo: "새 출발", group: "New Life", ref: "Matthew 4:19", focus: "따름의 방향" },
+  { groupKo: "새 출발", group: "New Life", ref: "Romans 1:16", focus: "복음의 확신" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Romans 3:23", focus: "현실 인식" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Isaiah 53:6", focus: "돌아섬" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Romans 6:23", focus: "은혜의 선물" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Hebrews 9:27", focus: "삶의 책임" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Romans 5:8", focus: "먼저 온 사랑" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "1 Peter 3:18", focus: "화해의 길" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Ephesians 2:8-9", focus: "은혜로 서기" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Titus 3:5", focus: "새롭게 하심" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "John 1:12", focus: "받아들임" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "Revelation 3:20", focus: "문을 여는 응답" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "1 John 5:13", focus: "확신" },
+  { groupKo: "복음의 방향", group: "Gospel Direction", ref: "John 5:24", focus: "생명의 약속" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "1 Corinthians 3:16", focus: "거룩한 자리" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "1 Corinthians 2:12", focus: "분별" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Isaiah 41:10", focus: "두려움보다 신뢰" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Philippians 4:13", focus: "감당할 힘" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Lamentations 3:22-23", focus: "아침의 새 은혜" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Numbers 23:19", focus: "신실함" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Isaiah 26:3", focus: "평안" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "1 Peter 5:7", focus: "염려를 맡김" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Romans 8:32", focus: "넉넉한 은혜" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Philippians 4:19", focus: "필요의 공급" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Hebrews 2:18", focus: "시험 중 도움" },
+  { groupKo: "하나님 신뢰", group: "Trust", ref: "Psalm 119:9-11", focus: "깨끗한 길" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Matthew 6:33", focus: "우선순위" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Luke 9:23", focus: "날마다 따름" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "1 John 2:15-16", focus: "욕망의 정리" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Romans 12:2", focus: "생각의 갱신" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "1 Corinthians 15:58", focus: "흔들리지 않음" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Hebrews 12:3", focus: "낙심을 견딤" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Mark 10:45", focus: "섬김" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "2 Corinthians 4:5", focus: "자기를 낮춤" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Proverbs 3:9-10", focus: "재정의 우선순위" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "2 Corinthians 9:6-7", focus: "기쁨의 나눔" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Acts 1:8", focus: "증인의 삶" },
+  { groupKo: "제자의 선택", group: "Discipleship", ref: "Matthew 28:19-20", focus: "보내심" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "John 13:34-35", focus: "사랑의 표지" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "1 John 3:18", focus: "말보다 행동" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Philippians 2:3-4", focus: "겸손한 관심" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "1 Peter 5:5-6", focus: "낮아짐" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Ephesians 5:3", focus: "삶의 절제" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "1 Peter 2:11", focus: "거룩한 거리두기" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Leviticus 19:11", focus: "정직" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Acts 24:16", focus: "깨끗한 양심" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Hebrews 11:6", focus: "믿음으로 접근" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Romans 4:20-21", focus: "약속을 붙듦" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Galatians 6:9-10", focus: "선을 포기하지 않음" },
+  { groupKo: "닮아가는 삶", group: "Christlike Life", ref: "Matthew 5:16", focus: "빛나는 선행" },
 ];
 
+function loadNavigateVerseCache() {
+  if (Object.keys(bootVerseTextCache).length) return bootVerseTextCache;
+  try {
+    const cached = JSON.parse(localStorage.getItem(NAVIGATE_60_CACHE_KEY) || "{}");
+    bootVerseTextCache = cached && typeof cached === "object" ? cached : {};
+  } catch {
+    bootVerseTextCache = {};
+  }
+  return bootVerseTextCache;
+}
+
+function storeNavigateVerseCache() {
+  try {
+    localStorage.setItem(NAVIGATE_60_CACHE_KEY, JSON.stringify(bootVerseTextCache));
+  } catch {
+    // Boot verse cache is optional; planner data must remain unaffected.
+  }
+}
+
 function pickNavigateVerse() {
-  return NAVIGATE_60_VERSES[Math.floor(Math.random() * NAVIGATE_60_VERSES.length)] || NAVIGATE_60_VERSES[0];
+  if (!bootNavigateVerse) {
+    const todayKey = iso(todayInPlanner()).replace(/-/g, "");
+    const seed = todayKey.split("").reduce((sum, char) => sum + Number(char || 0), 0);
+    const index = seed % NAVIGATE_60_VERSES.length;
+    bootNavigateVerse = NAVIGATE_60_VERSES[index] || NAVIGATE_60_VERSES[0];
+  }
+  return bootNavigateVerse;
+}
+
+function buildNavigateReflection(verse) {
+  const focus = verse?.focus || "오늘의 방향";
+  const group = verse?.groupKo || "오늘의 성구";
+  return `${group} · ${focus}을 오늘의 첫 선택으로 삼으세요.`;
+}
+
+function buildNavigatePrompt(verse) {
+  const focus = verse?.focus || "방향";
+  return `${focus}과 연결되는 우선업무 하나를 시간표에 배치하세요.`;
+}
+
+async function hydrateNavigateVerseText(verse) {
+  if (!verse?.ref || bootVerseTextCache[verse.ref]) return;
+  try {
+    const response = await fetch(`https://bible-api.com/${encodeURIComponent(verse.ref)}?translation=web`, { cache: "force-cache" });
+    if (!response.ok) throw new Error("verse fetch failed");
+    const payload = await response.json();
+    const text = String(payload?.text || "").replace(/\s+/g, " ").trim();
+    if (!text) return;
+    bootVerseTextCache[verse.ref] = text;
+    storeNavigateVerseCache();
+    if (bootNavigateVerse?.ref === verse.ref && el("bootNavigateEnglish")) {
+      el("bootNavigateEnglish").textContent = text;
+    }
+  } catch {
+    // Use the local reflection if the public WEB API is unavailable.
+  }
 }
 
 function renderBootCoaching() {
@@ -11464,29 +12008,37 @@ function renderBootCoaching() {
   const signals = el("bootCoachingSignals");
   const dayline = el("bootDayline");
   const valueStrip = el("bootValueStrip");
+  const source = el("bootVerseSource");
   if (!message || !signals) return;
   const note = buildDailyOpeningNote(iso(todayInPlanner()));
   const navigate = pickNavigateVerse();
+  loadNavigateVerseCache();
   if (dayline) dayline.textContent = note.title;
   if (valueStrip) {
-    valueStrip.innerHTML = ["Navigate 60", ...buildBootValuePhrases(note).slice(0, 2)].map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
+    valueStrip.innerHTML = [navigate.groupKo, navigate.ref, "WEB"].map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
   }
-  message.textContent = navigate.ko;
-  if (english) english.textContent = navigate.en;
+  message.textContent = `${buildNavigateReflection(navigate)} (${navigate.ref})`;
+  if (english) english.textContent = bootVerseTextCache[navigate.ref] || "World English Bible 본문을 불러오는 중입니다.";
+  if (source) source.textContent = "World English Bible Public Domain · 한국어는 앱 자체 묵상 요약입니다.";
   signals.innerHTML = [
-    note.signals[0],
-    note.signals.find((signal) => signal.includes("다음 일정")) || note.signals[1],
+    buildNavigatePrompt(navigate),
+    note.signals.find((signal) => signal.includes("다음 일정")) || note.signals[0],
   ].filter(Boolean).slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
+  hydrateNavigateVerseText(navigate);
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
 }
 
 function hideBootScreen(delay = 120) {
   const boot = el("bootScreen");
   if (!boot || boot.classList.contains("is-hidden")) return;
-  window.setTimeout(() => {
+  const elapsed = Date.now() - bootStartedAt;
+  const readingDelay = Math.max(0, BOOT_MIN_READING_MS - elapsed);
+  const finalDelay = Math.max(delay, readingDelay);
+  window.clearTimeout(bootHideTimer);
+  bootHideTimer = window.setTimeout(() => {
     boot.classList.add("is-hidden");
     window.setTimeout(() => boot.remove(), 360);
-  }, delay);
+  }, finalDelay);
 }
 
 async function setup() {
@@ -11500,6 +12052,7 @@ async function setup() {
   setBootMessage(hasInitialDeviceCache ? "마지막 실행 흐름을 펼치는 중" : "오늘의 첫 장면을 구성하는 중");
   renderAll();
   renderBootCoaching();
+  setupWeather();
   if (hasInitialDeviceCache) hideBootScreen(820);
   await hydrateServerState();
   renderAll();
