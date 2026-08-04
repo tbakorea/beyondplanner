@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260731e" />
+    <link rel="stylesheet" href="./styles.css?v=20260804b" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -59,7 +59,7 @@
           <button type="button" data-top-view="month">Month</button>
           <button type="button" data-top-view="projects">Projects</button>
           <button type="button" data-top-view="notes">Money</button>
-          <button type="button" data-top-view="sheets">Sheets</button>
+          <button type="button" data-top-view="sheets" hidden>Sheets</button>
           <button class="settings-nav-button utility-icon" type="button" data-top-view="foundation" aria-label="설정" title="설정">
             <span aria-hidden="true">⚙</span>
           </button>
@@ -121,7 +121,7 @@
           <button class="tab" data-view="month">Month</button>
           <button class="tab" data-view="projects">Projects</button>
           <button class="tab" data-view="notes">Money</button>
-          <button class="tab" data-view="sheets">Sheets</button>
+          <button class="tab" data-view="sheets" hidden>Sheets</button>
           <button class="tab" data-view="year">Year</button>
           <button class="tab settings-tab-button" data-view="foundation" aria-label="설정" title="설정">⚙</button>
         </nav>
@@ -246,7 +246,7 @@
                         <label><input type="checkbox" data-menu-visibility="month" /> <span>월간</span></label>
                         <label><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
                         <label><input type="checkbox" data-menu-visibility="notes" /> <span>Money</span></label>
-                        <label><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
+                        <label hidden><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
                         <label><input type="checkbox" data-menu-visibility="year" /> <span>연간</span></label>
                       </div>
                     </div>
@@ -282,7 +282,7 @@
                     <span>03</span>
                     <div>
                       <strong>운영과 데이터</strong>
-                      <small>프로젝트, 시트, AI, 사용자 승인, 백업을 한곳에서 관리합니다.</small>
+                      <small>프로젝트, AI, 사용자 승인, 백업을 한곳에서 관리합니다.</small>
                     </div>
                   </header>
                   <div class="settings-group-body">
@@ -292,13 +292,6 @@
                         <small>프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.</small>
                       </span>
                       <span class="setting-status-pill">슬라이드 상세</span>
-                    </div>
-                    <div class="planner-option-item app-setting-section">
-                      <span>
-                        <strong>시트</strong>
-                        <small>Numbers 스타일 커스텀 시트, 제목행/열, 템플릿, 크기 조정, CSV 내보내기를 관리합니다.</small>
-                      </span>
-                      <span class="setting-status-pill">템플릿</span>
                     </div>
                     <div class="planner-option-item app-setting-section">
                       <span>
@@ -978,6 +971,6 @@
 
     <script src="./data.js?v=20260629o"></script>
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <script src="./app.js?v=20260731e"></script>
+    <script src="./app.js?v=20260804b"></script>
   </body>
 </html>
