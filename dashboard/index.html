@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260804b" />
+    <link rel="stylesheet" href="./styles.css?v=20260804d" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -67,10 +67,13 @@
             <span id="topYearProgress">Year 0%</span>
             <span id="topCarryover">이월 0</span>
             <span id="topSearchCount">검색 0</span>
-            <span id="topSaveStatus" class="utility-icon save-status-icon" title="저장 확인 중" aria-label="저장 상태">저장 확인 중</span>
+            <span id="topSaveStatus" class="save-status-pill" title="저장 확인 중" aria-label="저장 상태">확인</span>
             <span id="topAccountStatus">-</span>
             <details class="top-more-menu">
-              <summary class="utility-icon" aria-label="관리 메뉴" title="관리 메뉴"><span aria-hidden="true">☰</span></summary>
+              <summary class="manage-menu-button" aria-label="관리 메뉴" title="관리 메뉴">
+                <span class="manage-menu-label">관리</span>
+                <span class="manage-menu-dots" aria-hidden="true">•••</span>
+              </summary>
               <div class="top-more-panel">
                 <button id="privacyNowButton" type="button">보안모드</button>
                 <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
@@ -344,65 +347,33 @@
             <article class="panel span-12 settings-profile-summary" data-settings-panel="user">
               <div>
                 <p class="eyebrow">Profile Setup</p>
-                <h3>처음에는 짧게, 필요할 때 깊게 입력합니다</h3>
+                <h3>처음에는 5개만 입력합니다</h3>
               </div>
               <div class="settings-profile-summary-grid">
-                <span><strong>필수</strong>현재 역할, 올해 목표, 이번 달 이슈</span>
-                <span><strong>선택</strong>역할별 목표, 건강, 회복 리듬</span>
-                <span><strong>효과</strong>AI가 우선순위와 일정 배치를 더 정확히 제안</span>
+                <span><strong>기본</strong>정체성, 하는 일, 목표, 고민, 코칭 방식</span>
+                <span><strong>선택</strong>사명, 가치, 역할, 건강은 필요할 때만</span>
+                <span><strong>효과</strong>적게 입력해도 오늘의 판단부터 좋아집니다</span>
               </div>
             </article>
-            <article class="panel span-6" id="settingsUserPanel" role="tabpanel" aria-labelledby="settingsUserTab" data-settings-panel="user">
+            <article class="panel span-12" data-settings-panel="user">
               <div class="settings-step-heading">
                 <span>1</span>
                 <div>
-                  <h3>My Why</h3>
-                  <p>Write the simple reason and rule that guide your choices.</p>
+                  <h3>기본 입력</h3>
+                  <p>AI 코칭에 바로 필요한 정보만 먼저 입력합니다.</p>
                 </div>
               </div>
-              <textarea data-store="foundation.mission" rows="6" placeholder="What do I stand for? What rule should guide my choices?"></textarea>
-            </article>
-            <article class="panel span-6" data-settings-panel="user">
-              <div class="settings-step-heading">
-                <span>2</span>
-                <div>
-                  <h3>중요한 것</h3>
-                  <p>내 시간을 먼저 받을 가치가 있는 것을 고릅니다.</p>
-                </div>
-              </div>
-              <div class="value-list" id="valuesList"></div>
-            </article>
-            <article class="panel span-12" data-settings-panel="user">
-              <div class="settings-step-heading">
-                <span>3</span>
-                <div>
-                  <h3>역할과 목표</h3>
-                  <p>내 주요 역할과 각 역할에서 원하는 결과를 정리합니다.</p>
-                </div>
-              </div>
-              <div class="role-goal-table" id="roleGoalTable"></div>
-            </article>
-            <article class="panel span-12" data-settings-panel="user">
-              <div class="settings-step-heading">
-                <span>4</span>
-                <div>
-                  <h3>나의 정보</h3>
-                  <p>내가 누구인지, 어떤 일을 하는지, 어떤 리듬이 맞는지 알려주세요.</p>
-                </div>
-              </div>
-              <p class="profile-benefit-note">AI 코칭에 바로 필요한 기본 정보만 먼저 적습니다. 세부 입력은 필요할 때 조금씩 채우면 일정 제안과 우선순위 판단이 더 정확해집니다.</p>
+              <p class="profile-benefit-note">아래 5개만 있어도 오늘의 우선순위, 일정 배치, 코칭 문장이 사용자 상황에 맞게 조정됩니다.</p>
               <div class="profile-interview-map" aria-label="사용자 인터뷰 단계">
                 <span><strong>1</strong> 기본 입력</span>
-                <span><strong>2</strong> 일의 방향</span>
-                <span><strong>3</strong> 실행 리듬</span>
-                <span><strong>4</strong> 건강·회복</span>
+                <span><strong>2</strong> 선택 입력</span>
               </div>
               <div class="profile-onboarding">
                 <section class="profile-stage is-essential">
                   <div class="profile-stage-title">
                     <span>기본 입력</span>
-                    <strong>AI 코칭의 최소 정보</strong>
-                    <small>이 다섯 가지만 입력해도 오늘의 업무, 일정, 코칭 문장이 사용자 상황에 맞게 조정됩니다.</small>
+                    <strong>오늘부터 바로 쓰는 정보</strong>
+                    <small>길게 쓰지 않아도 됩니다. 한 줄씩만 적어도 충분합니다.</small>
                   </div>
                   <div class="profile-grid compact-profile profile-basic-grid">
                     <label><span class="row-label">가장 가까운 모습</span><select data-profile-field="personaType">
@@ -423,38 +394,29 @@
                     <label><span class="row-label">원하는 코칭 방식</span><input data-profile-field="coachingStyle" type="text" placeholder="예: 짧고 단호하게, 따뜻하게, 숫자로" /></label>
                   </div>
                 </section>
-                <details class="profile-stage">
+                <details class="profile-stage profile-optional-stage">
                   <summary>
-                    <span>세부 입력 1</span>
-                    <strong>일의 방향</strong>
-                    <small>어떤 역할을 맡고 있고, 결정할 때 무엇을 지켜야 하는지 정리합니다.</small>
+                    <span>선택 입력</span>
+                    <strong>더 정확한 코칭을 원할 때만 열기</strong>
+                    <small>사명, 역할, 실행 리듬, 건강 정보는 필요할 때 천천히 채웁니다.</small>
                   </summary>
+                  <section class="profile-optional-block">
+                    <h4>사명과 기준</h4>
+                    <textarea data-store="foundation.mission" rows="3" placeholder="무엇을 위해 일하고, 어떤 기준으로 선택할지 짧게 적습니다."></textarea>
+                    <div class="value-list" id="valuesList"></div>
+                  </section>
+                  <section class="profile-optional-block">
+                    <h4>역할과 목표</h4>
+                    <div class="role-goal-table" id="roleGoalTable"></div>
+                  </section>
                   <div class="profile-grid compact-profile">
                     <label><span class="row-label">연령대</span><input data-profile-field="age" type="text" placeholder="예: 40대, 52세" /></label>
                     <label><span class="row-label">직함/현재 역할</span><input data-profile-field="job" type="text" placeholder="예: 대표, 매니저, 트레이너" /></label>
                     <label><span class="row-label">챙겨야 할 사람/일</span><textarea data-profile-field="roles" rows="2" placeholder="예: 회사 운영, 가족, 투자, 건강, 팀 관리"></textarea></label>
                     <label><span class="row-label">결정할 때 꼭 지킬 것</span><textarea data-profile-field="decisionPrinciples" rows="2" placeholder="예: 무리한 약속 금지, 현금 먼저 확인, 가족시간 지키기"></textarea></label>
-                  </div>
-                </details>
-                <details class="profile-stage">
-                  <summary>
-                    <span>세부 입력 2</span>
-                    <strong>실행 리듬</strong>
-                    <small>언제 집중하고, 어떤 상황에서 미루는지 알면 일정 배치가 현실적이 됩니다.</small>
-                  </summary>
-                  <div class="profile-grid compact-profile">
                     <label><span class="row-label">집중이 잘 되는 시간</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 9-11시, 밤 10시 이후" /></label>
                     <label><span class="row-label">일이 잘 풀리는 방식</span><textarea data-profile-field="strengths" rows="2" placeholder="예: 혼자 정리할 때, 숫자로 볼 때, 사람을 만나면 빨라짐"></textarea></label>
                     <label><span class="row-label">자주 미루는 상황</span><textarea data-profile-field="risks" rows="2" placeholder="예: 일이 너무 크면 미룸, 부탁을 거절 못함, 밤에 몰아서 함"></textarea></label>
-                  </div>
-                </details>
-                <details class="profile-stage is-deep">
-                  <summary>
-                    <span>세부 입력 3</span>
-                    <strong>건강과 회복</strong>
-                    <small>몸 상태와 회복 리듬은 일정 과부하를 막는 선택 정보입니다.</small>
-                  </summary>
-                  <div class="profile-grid compact-profile">
                     <label><span class="row-label">몸 상태</span><textarea data-profile-field="healthStatus" rows="2" placeholder="예: 허리 통증, 혈압 관리, 피로감"></textarea></label>
                     <label><span class="row-label">활동량</span><input data-profile-field="activityLevel" type="text" placeholder="예: 앉아 있는 시간이 많음, 주 2회 걷기" /></label>
                     <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기, 근력 회복" /></label>
@@ -971,6 +933,6 @@
 
     <script src="./data.js?v=20260629o"></script>
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <script src="./app.js?v=20260804b"></script>
+    <script src="./app.js?v=20260804c"></script>
   </body>
 </html>
