@@ -417,6 +417,7 @@ let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
 let activeCoachSection = "";
 let activeCoachTab = "coach";
+let coachActionRegistry = [];
 let saveStatus = { ready: false, environment: "db", message: "저장 확인 중", saving: false };
 let accountSaveReady = false;
 let accountSaveTimer = 0;
@@ -940,6 +941,7 @@ function migrateState(nextState) {
   Object.entries(nextState.weeks || {}).forEach(([key, week]) => {
     week.priorities ||= createWeeklyPriorities(key, nextState);
     while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
+    week.priorities.forEach(normalizeWeeklyPriority);
     week.compass ||= [];
     week.compass = week.compass.filter((item) => item.role !== "일");
     week.compass.forEach((item) => {
@@ -1796,6 +1798,7 @@ function ensureWeek(key = weekKey()) {
   state.weeks[key].priorities ||= createWeeklyPriorities(key, state);
   carryWeeklyPrioritiesIntoWeek(key, state.weeks[key], state);
   while (state.weeks[key].priorities.length < 5) state.weeks[key].priorities.push({ text: "", done: false });
+  state.weeks[key].priorities.forEach(normalizeWeeklyPriority);
   state.weeks[key].compass ||= [];
   carryWeeklyCompassIntoWeek(key, state.weeks[key], state);
   const roles = compassRoleNames();
@@ -2014,8 +2017,11 @@ function convertAppointmentUnit(day, fromUnit, toUnit) {
 function createWeeklyPriorities(key, sourceState = null) {
   const previousKey = previousWeekKey(key);
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
-  const carried = previous.filter((item) => item?.text && !item.done).map((item) => ({ text: item.text, done: false, carryoverFromWeek: previousKey }));
-  while (carried.length < 5) carried.push({ text: "", done: false });
+  const carried = previous
+    .map(normalizeWeeklyPriority)
+    .filter((item) => weeklyPriorityShouldCarry(item))
+    .map((item) => cloneWeeklyPriorityForCarry(item, previousKey));
+  while (carried.length < 5) carried.push({ text: "", done: false, status: "미완료", priorityUnset: true });
   return carried;
 }
 
@@ -2025,7 +2031,8 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
   removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous);
   const carriedTexts = previous
-    .filter((item) => item?.text && !item.done)
+    .map(normalizeWeeklyPriority)
+    .filter((item) => weeklyPriorityShouldCarry(item))
     .map((item) => String(item.text).trim())
     .filter(Boolean);
   if (!carriedTexts.length) return;
@@ -2034,11 +2041,10 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
   const existingTexts = new Set(week.priorities.map((item) => String(item?.text || "").trim()).filter(Boolean));
   carriedTexts.forEach((text) => {
     if (existingTexts.has(text)) return;
+    const source = previous.map(normalizeWeeklyPriority).find((item) => String(item.text || "").trim() === text);
     const empty = week.priorities.find((item) => !String(item?.text || "").trim());
-    const target = empty || { text: "", done: false };
-    target.text = text;
-    target.done = false;
-    target.carryoverFromWeek = previousKey;
+    const target = empty || cloneWeeklyPriorityForCarry(source, previousKey);
+    Object.assign(target, cloneWeeklyPriorityForCarry(source || { text }, previousKey));
     if (!empty) week.priorities.push(target);
     existingTexts.add(text);
   });
@@ -2047,7 +2053,8 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
 function removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous = []) {
   if (!week?.priorities?.length || !previousKey) return false;
   const checkedTexts = new Set(previous
-    .filter((item) => item?.text && item.done)
+    .map(normalizeWeeklyPriority)
+    .filter((item) => item?.text && !weeklyPriorityShouldCarry(item))
     .map((item) => String(item.text).trim())
     .filter(Boolean));
   if (!checkedTexts.size) return false;
@@ -2065,11 +2072,43 @@ function removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous 
   return changed;
 }
 
+function normalizeWeeklyPriority(item = {}) {
+  if (!item || typeof item !== "object") item = { text: String(item || "") };
+  const hadPriority = ["A", "B", "C"].includes(item.priority);
+  item.text ||= "";
+  item.status ||= item.done ? "완료" : "미완료";
+  item.delegate ||= "";
+  item.postponeDate ||= "";
+  item.priority = hadPriority ? item.priority : "A";
+  if (!item.text?.trim() && item.status === "미완료" && item.priorityUnset === undefined) item.priorityUnset = true;
+  if (item.priorityUnset === undefined && !hadPriority) item.priorityUnset = true;
+  return item;
+}
+
+function weeklyPriorityShouldCarry(item = {}) {
+  normalizeWeeklyPriority(item);
+  return Boolean(String(item.text || "").trim() && !shouldStrikeTask(item));
+}
+
+function cloneWeeklyPriorityForCarry(item = {}, sourceWeekKey = "") {
+  normalizeWeeklyPriority(item);
+  return {
+    text: item.text || "",
+    done: false,
+    status: item.status === "진행중" ? "진행중" : "미완료",
+    delegate: "",
+    postponeDate: "",
+    priority: ["A", "B", "C"].includes(item.priority) ? item.priority : "A",
+    priorityUnset: item.priorityUnset !== false,
+    carryoverFromWeek: sourceWeekKey,
+  };
+}
+
 function compactWeeklyPriorities(week) {
   if (!week?.priorities) return;
   const filled = week.priorities.filter((item) => String(item?.text || "").trim() || item?.done);
   week.priorities = filled;
-  while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
+  while (week.priorities.length < 5) week.priorities.push({ text: "", done: false, status: "미완료", priorityUnset: true });
 }
 
 function removeWeeklyPriorityCarryoversAfterWeek(sourceWeekKey, text) {
@@ -4661,6 +4700,12 @@ function renderSidebar() {
     saveStatusNode.title = fullStatusText || "저장 상태";
     saveStatusNode.setAttribute("aria-label", `저장 상태: ${fullStatusText || "확인 중"}`);
     saveStatusNode.classList.toggle("is-warning", saveStatusNode.dataset.saveState === "alert" || saveStatusNode.dataset.saveState === "waiting");
+    const manageSummary = document.querySelector(".top-more-menu summary.manage-menu-button");
+    if (manageSummary) {
+      manageSummary.dataset.saveState = saveState;
+      manageSummary.title = `관리 메뉴 · 저장 상태: ${fullStatusText || "확인 중"}`;
+      manageSummary.setAttribute("aria-label", `관리 메뉴, 저장 상태: ${fullStatusText || "확인 중"}`);
+    }
   }
   const auth = getAuthSession();
   el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : common.loginNeeded;
@@ -6239,7 +6284,11 @@ function renderCoach() {
   const message = el("coachMessage");
   const suggestions = el("coachSuggestions");
   const guide = el("coachGuide");
+  const briefing = el("coachBriefing");
+  const actionBoard = el("coachActionBoard");
+  const reviewBoard = el("coachReviewBoard");
   if (!message || !suggestions || !guide) return;
+  const context = buildPlannerContext();
   const analysis = activeCoachSection ? buildSectionCoachAnalysis(activeCoachSection) : buildCoachAnalysis();
   const usage = buildCoachUsageGuide(activeCoachSection || "main");
   guide.innerHTML = `
@@ -6269,6 +6318,65 @@ function renderCoach() {
   `;
   guide.hidden = activeCoachTab !== "guide";
   message.hidden = activeCoachTab !== "coach";
+  if (briefing) {
+    const dailyBriefing = buildDailyAutoBriefing(context);
+    briefing.hidden = activeCoachTab !== "coach";
+    briefing.innerHTML = `
+      <div class="coach-briefing-head">
+        <span>오늘 자동 정리</span>
+        <strong>${escapeHtml(dailyBriefing.headline)}</strong>
+      </div>
+      <div class="coach-briefing-grid">
+        ${dailyBriefing.items.map((item) => `
+          <span class="coach-briefing-item severity-${item.severity || "calm"}">
+            <small>${escapeHtml(item.label)}</small>
+            <b>${escapeHtml(item.value)}</b>
+            <em>${escapeHtml(item.detail)}</em>
+          </span>
+        `).join("")}
+      </div>
+    `;
+  }
+  if (actionBoard) {
+    const actionItems = buildActionableCoachItems(context).slice(0, 4);
+    coachActionRegistry = actionItems;
+    actionBoard.hidden = activeCoachTab !== "coach";
+    actionBoard.innerHTML = `
+      <div class="coach-board-head">
+        <span>AI 실행 추천</span>
+        <small>선택하면 실제 항목에 반영됩니다.</small>
+      </div>
+      <div class="coach-action-list">
+        ${actionItems.map((item, index) => `
+          <button class="coach-action-card" type="button" data-coach-action="${index}">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.detail)}</span>
+            <em>${escapeHtml(item.cta)}</em>
+          </button>
+        `).join("")}
+      </div>
+    `;
+    actionBoard.querySelectorAll("[data-coach-action]").forEach((button) => {
+      button.onclick = () => applyCoachAction(coachActionRegistry[Number(button.dataset.coachAction)]);
+    });
+  }
+  if (reviewBoard) {
+    const review = buildEveningReviewCoach(context);
+    reviewBoard.hidden = activeCoachTab !== "coach";
+    reviewBoard.innerHTML = `
+      <div class="coach-board-head">
+        <span>하루 마감 회고</span>
+        <small>${escapeHtml(review.timing)}</small>
+      </div>
+      <p>${escapeHtml(review.summary)}</p>
+      <div class="coach-review-actions">
+        <button type="button" data-review-action="draft">회고 초안 넣기</button>
+        <button type="button" data-review-action="tomorrow">내일 첫 행동 만들기</button>
+      </div>
+    `;
+    reviewBoard.querySelector("[data-review-action='draft']").onclick = () => applyEveningReviewDraft(review);
+    reviewBoard.querySelector("[data-review-action='tomorrow']").onclick = () => applyTomorrowFirstAction(review);
+  }
   suggestions.innerHTML = "";
   analysis.suggestions.forEach((text) => {
     const item = document.createElement("button");
@@ -7276,6 +7384,184 @@ function applyScheduleSuggestion(suggestion) {
   renderDay();
 }
 
+function buildDailyAutoBriefing(context = buildPlannerContext()) {
+  const intelligence = buildDailyIntelligence(context);
+  const next = getNextAppointmentSummary(context.day);
+  const openCount = context.openTasks.length;
+  const carryCount = context.carryovers.length;
+  const openA = context.openTasks.filter((task) => task.priority === "A").length;
+  const headline = intelligence.severity === "alert"
+    ? "오늘은 줄이고 고정하는 판단이 먼저입니다."
+    : openCount
+      ? "가장 중요한 한 가지를 시간표에 고정하면 흐름이 안정됩니다."
+      : "오늘은 목표와 기록을 연결하기 좋은 상태입니다.";
+  return {
+    headline,
+    items: [
+      {
+        label: "핵심 업무",
+        value: openA ? `A ${openA}` : `${openCount}건`,
+        detail: context.openTasks.slice(0, 2).map((task) => stripTaskTimeText(task.text).slice(0, 14)).filter(Boolean).join(" · ") || "업무 1개 추가",
+        severity: openA >= 3 ? "warm" : "calm",
+      },
+      {
+        label: "다음 일정",
+        value: next.time || "없음",
+        detail: next.text || "시간표 비어 있음",
+        severity: next.time === "비어 있음" ? "warm" : "calm",
+      },
+      {
+        label: "이월",
+        value: `${carryCount}건`,
+        detail: carryCount ? "완료·연기·위임 판단" : "정리됨",
+        severity: carryCount >= 4 ? "alert" : carryCount ? "warm" : "calm",
+      },
+      {
+        label: "AI 신호",
+        value: intelligence.blueprint.value,
+        detail: intelligence.blueprint.detail,
+        severity: intelligence.severity,
+      },
+    ],
+  };
+}
+
+function buildActionableCoachItems(context = buildPlannerContext()) {
+  const intelligence = buildDailyIntelligence(context);
+  const scheduleSuggestions = generateScheduleSuggestions(context);
+  const taskSuggestions = generateTaskSuggestions(context);
+  const items = [];
+  if (intelligence.blueprint.task) {
+    items.push({
+      kind: "schedule",
+      title: "핵심 업무 시간 고정",
+      detail: `${intelligence.blueprint.slot} · ${stripTaskTimeText(intelligence.blueprint.task.text).slice(0, 26)}`,
+      cta: "시간표 반영",
+      payload: {
+        slot: intelligence.blueprint.slot,
+        text: `${stripTaskTimeText(intelligence.blueprint.task.text).slice(0, 36)} 실행`,
+      },
+    });
+  }
+  const firstTask = taskSuggestions.find((text) => !isSuggestionAlreadyInTasks(context, text));
+  if (firstTask) {
+    items.push({
+      kind: "task",
+      title: "우선업무 제안",
+      detail: firstTask,
+      cta: "오늘 업무 추가",
+      payload: { text: firstTask },
+    });
+  }
+  const firstSchedule = scheduleSuggestions.find((item) => item?.text);
+  if (firstSchedule) {
+    items.push({
+      kind: "schedule",
+      title: "일정 배분 제안",
+      detail: `${firstSchedule.slot} · ${firstSchedule.text}`,
+      cta: "일정에 넣기",
+      payload: firstSchedule,
+    });
+  }
+  if (context.carryovers.length) {
+    items.push({
+      kind: "review",
+      title: "이월 정리",
+      detail: `이월 ${context.carryovers.length}건 중 1건을 완료·연기·위임으로 결정하세요.`,
+      cta: "회고 초안",
+      payload: { mode: "carry" },
+    });
+  }
+  items.push({
+    kind: "review",
+    title: "하루 마감",
+    detail: "완료, 내일 첫 행동, 개선점을 3줄로 남깁니다.",
+    cta: "회고 만들기",
+    payload: { mode: "review" },
+  });
+  return [...new Map(items.map((item) => [`${item.kind}:${item.title}:${item.detail}`, item])).values()];
+}
+
+function isSuggestionAlreadyInTasks(context, text = "") {
+  const needle = normalizeSearchText(stripTaskTimeText(text)).slice(0, 12);
+  if (!needle) return false;
+  return [...context.tasks, ...context.carryovers].some((task) => normalizeSearchText(stripTaskTimeText(task.text)).includes(needle));
+}
+
+function addTaskToDate(dateKey, text, priority = suggestedTaskPriority(text)) {
+  if (!text?.trim()) return null;
+  const day = ensureDay(dateKey);
+  const task = { id: newTaskId(), text: text.trim(), status: "미완료", done: false, priorityUnset: false };
+  normalizeTask(task);
+  assignTaskOrder(day, task);
+  const targetPriority = priorities.some(([value]) => value === priority) ? priority : "B";
+  day.tasks[targetPriority] ||= [];
+  day.tasks[targetPriority].push(task);
+  return task;
+}
+
+function applyCoachAction(action) {
+  if (!action) return;
+  captureUndo("AI 실행 추천");
+  if (action.kind === "task") {
+    addTaskToDate(iso(selectedDate), action.payload?.text || action.detail, suggestedTaskPriority(action.payload?.text || action.detail));
+    saveState();
+    renderAll();
+    showUndoNotice("AI 추천 업무를 추가했습니다.");
+    return;
+  }
+  if (action.kind === "schedule") {
+    applyScheduleSuggestion(action.payload);
+    showUndoNotice("AI 추천 일정을 반영했습니다.");
+    return;
+  }
+  const review = buildEveningReviewCoach(buildPlannerContext());
+  applyEveningReviewDraft(review, { preserveUndo: true });
+}
+
+function buildEveningReviewCoach(context = buildPlannerContext()) {
+  const now = new Date();
+  const hour = now.getHours();
+  const doneTexts = context.doneTasks.map((task) => stripTaskTimeText(task.text)).filter(Boolean);
+  const openTexts = context.openTasks.map((task) => stripTaskTimeText(task.text)).filter(Boolean);
+  const nextAction = openTexts[0] || generateTaskSuggestions(context)[0] || "내일 첫 업무 1개 정하기";
+  const scheduleCount = context.appointmentEntries.length;
+  const doneSummary = doneTexts.length ? doneTexts.slice(0, 3).join(", ") : "오늘 끝낸 작은 성과 1개";
+  return {
+    timing: hour >= 17 ? "지금 회고하면 내일 첫 행동까지 정리하기 좋습니다." : "하루 중간 점검으로도 사용할 수 있습니다.",
+    summary: `${context.doneTasks.length}건 완료, ${context.openTasks.length}건 열림, 일정 ${scheduleCount}건 기준으로 마감 초안을 준비했습니다.`,
+    winsText: `완료/성과: ${doneSummary}`,
+    carryText: `내일로 넘길 일: ${nextAction}`,
+    lessonText: context.trend.completionRate < 50 && context.trend.total >= 4
+      ? "개선할 점: 오늘 업무 수를 줄이고 A업무부터 시간표에 고정하기"
+      : "개선할 점: 중요한 업무를 먼저 시간표에 올려 실행 흐름 유지하기",
+    tomorrowText: nextAction,
+  };
+}
+
+function applyEveningReviewDraft(review, options = {}) {
+  if (!review) return;
+  if (!options.preserveUndo) captureUndo("하루 마감 회고");
+  const day = ensureDay();
+  if (!String(day.wins || "").trim()) day.wins = review.winsText;
+  if (!String(day.carry || "").trim()) day.carry = review.carryText;
+  if (!String(day.lesson || "").trim()) day.lesson = review.lessonText;
+  saveState();
+  renderDay();
+  showUndoNotice("하루 회고 초안을 넣었습니다.");
+}
+
+function applyTomorrowFirstAction(review) {
+  if (!review?.tomorrowText) return;
+  captureUndo("내일 첫 행동");
+  const tomorrow = new Date(selectedDate);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  addTaskToDate(iso(tomorrow), review.tomorrowText, suggestedTaskPriority(review.tomorrowText));
+  saveState();
+  renderAll();
+  showUndoNotice("내일 우선업무에 첫 행동을 추가했습니다.");
+}
+
 function pickScheduleTargetSlot(day, label = "") {
   const slots = getScheduleSlotsForDay(day);
   const preferred = label.includes("오후") || label.includes("마감") ? ["16:00", "15:00", "14:00"] : label.includes("정리") ? ["13:30", "14:00", "15:00"] : ["09:00", "09:30", "10:00", "08:30"];
@@ -7834,25 +8120,62 @@ function renderDayCompass() {
   priorityBlock.className = "weekly-priority-block";
   priorityBlock.innerHTML = `<h4>${isKorean ? "금주의 주요일정" : "Week Focus List"}</h4>`;
   week.priorities.forEach((item, index) => {
-    item ||= { text: "", done: false };
+    item = normalizeWeeklyPriority(item || { text: "", done: false });
     week.priorities[index] = item;
-    const row = document.createElement("label");
-    row.className = `weekly-priority-row ${item.done ? "done" : ""}`;
+    const marker = getTaskMarker(item);
+    const isStruck = shouldStrikeTask(item);
+    const menuValue = getPriorityMenuValue(item, item.priority);
+    const statusControl = getTaskStatusControl(item, menuValue);
+    const row = document.createElement("div");
+    row.className = `weekly-priority-row task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${item.status === "위임" ? "is-delegated" : ""} ${isStruck ? "done" : ""}`;
     row.innerHTML = `
-      <input type="checkbox" ${item.done ? "checked" : ""} />
+      <button class="task-cycle" type="button" aria-label="주요일정 상태 변경">${getTaskMarkerLabel(marker)}</button>
+      <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(item, menuValue))}">${getTaskStatusDisplay(item, menuValue)}${statusControl}</div>
       <input class="weekly-priority-text" type="text" value="${escapeAttr(item.text)}" placeholder="${isKorean ? `주요 일정 ${index + 1}` : `Week item ${index + 1}`}" />
     `;
-    const checkbox = row.querySelector("input[type='checkbox']");
+    const cycle = row.querySelector(".task-cycle");
+    const prioritySelect = row.querySelector(".priority-select");
+    const delegateInput = row.querySelector(".delegate-input");
+    const postponeDateButton = row.querySelector(".postpone-date-button");
     const text = row.querySelector(".weekly-priority-text");
-    checkbox.onchange = () => {
-      item.done = checkbox.checked;
-      if (item.done) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
+    cycle.onclick = () => {
+      const feedback = cycleTaskMarker(item);
+      if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
+      showTaskCycleFeedback(cycle, feedback);
       saveState();
       renderDayCompass();
     };
+    if (prioritySelect) {
+      let handledValue = "";
+      const applyPrioritySelection = () => {
+        if (handledValue === prioritySelect.value) return;
+        handledValue = prioritySelect.value;
+        handleWeeklyPriorityMenuChange(item, prioritySelect.value);
+      };
+      prioritySelect.oninput = applyPrioritySelection;
+      prioritySelect.onchange = applyPrioritySelection;
+    }
+    if (delegateInput) {
+      delegateInput.oninput = () => {
+        item.delegate = delegateInput.value;
+        saveState({ fastSave: true });
+      };
+    }
+    if (postponeDateButton) {
+      postponeDateButton.onclick = () => openPostponeDatePicker(
+        postponeDateButton,
+        item.postponeDate || iso(selectedDate),
+        (dateKey) => {
+          item.postponeDate = dateKey;
+          saveState({ fastSave: true });
+          renderDayCompass();
+        },
+      );
+    }
     text.oninput = () => {
       item.text = text.value;
       delete item.carryoverFromWeek;
+      normalizeWeeklyPriority(item);
       saveState();
     };
     priorityBlock.appendChild(row);
@@ -7860,9 +8183,9 @@ function renderDayCompass() {
   const addPriority = document.createElement("button");
   addPriority.type = "button";
   addPriority.className = "add-row weekly-priority-add";
-  addPriority.textContent = "Add Week Item";
+  addPriority.textContent = isKorean ? "주요일정 추가" : "Add Week Item";
   addPriority.onclick = () => {
-    week.priorities.push({ text: "", done: false });
+    week.priorities.push({ text: "", done: false, status: "미완료", priorityUnset: true });
     saveState({ fastSave: true });
     renderDayCompass();
     window.requestAnimationFrame(() => {
@@ -7901,6 +8224,32 @@ function renderDayCompass() {
     });
     node.appendChild(row);
   });
+}
+
+function handleWeeklyPriorityMenuChange(item, value) {
+  normalizeWeeklyPriority(item);
+  if (value === "취소" || value === "연기") {
+    item.status = value;
+    item.done = false;
+    if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
+    saveState({ fastSave: true });
+    renderDayCompass();
+    return;
+  }
+  if (["A", "B", "C"].includes(value)) {
+    item.priority = value;
+    item.priorityUnset = false;
+    if (item.status === "취소" || item.status === "연기") item.status = "미완료";
+    item.done = item.status === "완료";
+    saveState({ fastSave: true });
+    renderDayCompass();
+    return;
+  }
+  item.priorityUnset = true;
+  if (item.status === "취소" || item.status === "연기") item.status = "미완료";
+  item.done = item.status === "완료";
+  saveState({ fastSave: true });
+  renderDayCompass();
 }
 
 function positionDaySwipe(panel = currentDayPanel || "main", force = false) {
@@ -11900,12 +12249,16 @@ function buildPlannerWorkbookTables() {
   Object.keys(state.weeks || {}).sort().forEach((key) => {
     const week = state.weeks[key];
     (week.priorities || []).forEach((item, index) => {
-      if (item.text || item.done) weekRows.push([key, `Week Focus ${index + 1}`, item.done ? "완료" : "", item.text || ""]);
+      normalizeWeeklyPriority(item);
+      if (item.text || item.done || item.status !== "미완료") {
+        const priority = item.priorityUnset ? "?" : item.priority || "";
+        weekRows.push([key, `Week Focus ${index + 1}`, priority, item.status || "", item.done ? "완료" : "", item.delegate || "", item.postponeDate || "", item.text || ""]);
+      }
     });
     (week.compass || []).forEach((item) => {
-      if (item.goal) weekRows.push([key, item.role, "목표", item.goal]);
+      if (item.goal) weekRows.push([key, item.role, "", "목표", "", "", "", item.goal]);
       (item.actions || []).forEach((action, index) => {
-        if (action) weekRows.push([key, item.role, `Action ${index + 1}`, action]);
+        if (action) weekRows.push([key, item.role, "", `Action ${index + 1}`, "", "", "", action]);
       });
     });
   });
@@ -11922,7 +12275,7 @@ function buildPlannerWorkbookTables() {
     { title: "About Me", headers: ["Field", "Text"], rows: profileRows },
     { title: "Top Tasks", headers: ["Date", "Priority", "Status", "Done", "Task", "Delegate"], rows: taskRows },
     { title: "Schedule", headers: ["Date", "Start", "End", "Text"], rows: appointmentRows },
-    { title: "Weekly Focus", headers: ["Week", "Group", "Item", "Text"], rows: weekRows },
+    { title: "Weekly Focus", headers: ["Week", "Group", "Priority", "Status", "Done", "Delegate", "Postpone", "Text"], rows: weekRows },
     { title: "Money", headers: ["월/반복", "일", "구분", "분류", "상태", "내용", "금액", "메모"], rows: moneyRows },
     { title: "Projects", headers: ["Status", "Project", "Owner", "Start", "End", "Goal", "Next Action", "Budget", "Actual", "Memo"], rows: projectRows },
   ];

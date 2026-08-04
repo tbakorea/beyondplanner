@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260804d" />
+    <link rel="stylesheet" href="./styles.css?v=20260805a" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -61,7 +61,7 @@
           <button type="button" data-top-view="notes">Money</button>
           <button type="button" data-top-view="sheets" hidden>Sheets</button>
           <button class="settings-nav-button utility-icon" type="button" data-top-view="foundation" aria-label="설정" title="설정">
-            <span aria-hidden="true">⚙</span>
+            <span class="simple-gear-icon" aria-hidden="true"></span>
           </button>
           <div class="top-status" aria-label="플래너 상태">
             <span id="topYearProgress">Year 0%</span>
@@ -71,8 +71,8 @@
             <span id="topAccountStatus">-</span>
             <details class="top-more-menu">
               <summary class="manage-menu-button" aria-label="관리 메뉴" title="관리 메뉴">
+                <span class="manage-combo-icon" aria-hidden="true"><span></span><span></span><span></span></span>
                 <span class="manage-menu-label">관리</span>
-                <span class="manage-menu-dots" aria-hidden="true">•••</span>
               </summary>
               <div class="top-more-panel">
                 <button id="privacyNowButton" type="button">보안모드</button>
@@ -126,7 +126,7 @@
           <button class="tab" data-view="notes">Money</button>
           <button class="tab" data-view="sheets" hidden>Sheets</button>
           <button class="tab" data-view="year">Year</button>
-          <button class="tab settings-tab-button" data-view="foundation" aria-label="설정" title="설정">⚙</button>
+          <button class="tab settings-tab-button" data-view="foundation" aria-label="설정" title="설정"><span class="simple-gear-icon" aria-hidden="true"></span></button>
         </nav>
         <section class="mini-panel">
           <span id="selectedDatePanelLabel">선택 날짜</span>
@@ -673,6 +673,9 @@
               </div>
               <div class="coach-guide-card" id="coachGuide"></div>
               <div class="coach-card" id="coachMessage"></div>
+              <div class="coach-briefing" id="coachBriefing" aria-label="오늘 자동 정리 브리핑"></div>
+              <div class="coach-action-board" id="coachActionBoard" aria-label="AI 실행 추천"></div>
+              <div class="coach-review-board" id="coachReviewBoard" aria-label="하루 마감 자동 회고"></div>
               <h3 class="subhead">AI 추천 업무</h3>
               <div class="coach-suggestions" id="coachSuggestions"></div>
             </article>
