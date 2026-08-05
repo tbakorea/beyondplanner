@@ -17527,3 +17527,86 @@ body.ceo-mode .daily-title {
     font-size: var(--daily-score-font, clamp(12px, 5.8vw, 26px)) !important;
   }
 }
+
+/* Today weather belongs in the Today slot only on the actual current day. */
+.day-date-nav.has-today-weather {
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(58px, auto) !important;
+}
+
+.daily-title .today-jump.is-weather-today:not([hidden]) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  width: auto !important;
+  min-width: 58px !important;
+  max-width: 76px !important;
+  padding: 0 6px !important;
+  color: var(--forest) !important;
+  background:
+    radial-gradient(circle at 74% 18%, rgba(255, 255, 255, 0.9) 0 18%, transparent 19%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(232, 239, 234, 0.82)) !important;
+}
+
+.today-weather-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  min-width: 14px !important;
+  font-size: 14px !important;
+  line-height: 1 !important;
+}
+
+.today-weather-range {
+  display: inline-block !important;
+  min-width: 0 !important;
+  font-size: 10px !important;
+  font-weight: 950 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  letter-spacing: 0 !important;
+}
+
+.pulse-ticker-item.pulse-weather {
+  background: rgba(238, 243, 238, 0.72) !important;
+  color: rgba(31, 58, 49, 0.88) !important;
+}
+
+@media (max-width: 640px) {
+  .day-date-nav.has-today-weather {
+    grid-template-columns: 34px minmax(0, 1fr) 34px minmax(56px, auto) !important;
+  }
+
+  .daily-title .today-jump.is-weather-today:not([hidden]) {
+    min-width: 56px !important;
+    max-width: 68px !important;
+    padding: 0 4px !important;
+  }
+
+  .today-weather-icon {
+    min-width: 13px !important;
+    font-size: 13px !important;
+  }
+
+  .today-weather-range {
+    font-size: 9.5px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .day-date-nav.has-today-weather {
+    grid-template-columns: 30px minmax(0, 1fr) 30px minmax(52px, auto) !important;
+  }
+
+  .daily-title .today-jump.is-weather-today:not([hidden]) {
+    min-width: 52px !important;
+    max-width: 62px !important;
+    gap: 2px !important;
+    padding: 0 3px !important;
+  }
+
+  .today-weather-range {
+    font-size: 8.8px !important;
+  }
+}

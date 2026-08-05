@@ -4799,10 +4799,7 @@ function renderSidebar() {
   }
   const auth = getAuthSession();
   el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : common.loginNeeded;
-  const todayButton = el("dailyTodayButton");
-  todayButton.hidden = false;
-  todayButton.classList.toggle("is-current-day", iso(selectedDate) === iso(todayInPlanner()));
-  todayButton.setAttribute("aria-label", iso(selectedDate) === iso(todayInPlanner()) ? "오늘 날짜입니다" : "오늘 날짜로 이동");
+  renderDailyTodayButton();
   updateCoachBubble();
 }
 
@@ -5797,8 +5794,14 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const pattern = buildPatternSignal(selectedDate);
   const alignment = buildGoalProjectAlignmentSignal(tasks);
   const review = buildDailyReviewSignal(day);
+  const selectedWeather = selectedKey !== iso(todayInPlanner()) ? getWeatherRecordForDate(selectedKey) : null;
+  const weatherRange = selectedWeather ? formatWeatherTemperatureRange(selectedWeather) : "";
+  const weatherTicker = selectedWeather ? `
+    <span class="pulse-ticker-item pulse-weather" role="listitem"><b>날씨</b> ${escapeHtml(selectedWeather.icon || "◇")} ${escapeHtml(selectedWeather.summary || "기록")} <small>${escapeHtml(weatherRange || selectedWeather.label || "")}</small></span>
+  ` : "";
   const tickerItems = `
     <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
+    ${weatherTicker}
     <span class="pulse-ticker-item" role="listitem"><b>다음</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextText)}</small></span>
     <span class="pulse-ticker-item pulse-${intelligence.severity}" role="listitem"><b>설계</b> ${escapeHtml(intelligence.blueprint.value)} <small>${escapeHtml(intelligence.blueprint.detail)}</small></span>
     <span class="pulse-ticker-item pulse-${intelligence.timeDebt.severity}" role="listitem"><b>부채</b> ${escapeHtml(intelligence.timeDebt.value)} <small>${escapeHtml(intelligence.timeDebt.detail)}</small></span>
@@ -5820,6 +5823,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   `;
   renderDailyPulseDetails([
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
+    ...(selectedWeather ? [["날씨", `${selectedWeather.icon || "◇"} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
     ["다음 일정", nextAppointment.time, nextText],
     ["AI 하루 설계", intelligence.blueprint.value, intelligence.blueprint.detail],
     ["시간 부채", intelligence.timeDebt.value, intelligence.timeDebt.detail],
@@ -7198,6 +7202,80 @@ function getStoredWeatherForToday() {
   return record;
 }
 
+function getWeatherRecordForDate(key = iso(selectedDate), options = {}) {
+  const normalizedKey = isValidIsoDate(key) ? key : iso(selectedDate);
+  const todayKey = iso(todayInPlanner());
+  if (options.preferLive && normalizedKey === todayKey && weatherState.status && !["idle", "error"].includes(weatherState.status)) {
+    return {
+      date: todayKey,
+      icon: weatherState.icon || "◇",
+      temp: Number.isFinite(Number(weatherState.temp)) ? Number(weatherState.temp) : null,
+      tempMin: Number.isFinite(Number(weatherState.tempMin)) ? Number(weatherState.tempMin) : null,
+      tempMax: Number.isFinite(Number(weatherState.tempMax)) ? Number(weatherState.tempMax) : null,
+      label: weatherState.label || DEFAULT_WEATHER_COORDS.label,
+      summary: weatherState.summary || (weatherState.status === "loading" || weatherState.status === "refreshing" ? "확인 중" : "날씨"),
+      advice: weatherState.advice || "",
+      status: weatherState.status,
+    };
+  }
+  const record = state.days?.[normalizedKey]?.weather;
+  if (!record || record.date !== normalizedKey) return null;
+  return record;
+}
+
+function formatWeatherTemperatureRange(record = {}) {
+  const min = Number(record.tempMin);
+  const max = Number(record.tempMax);
+  if (Number.isFinite(min) && Number.isFinite(max)) return `${Math.round(min)}°/${Math.round(max)}°`;
+  const temp = Number(record.temp);
+  return Number.isFinite(temp) ? `${Math.round(temp)}°` : "";
+}
+
+function getWeatherTitle(record = {}) {
+  const range = formatWeatherTemperatureRange(record);
+  const label = record.label ? `${record.label} ` : "";
+  return `${label}${record.summary || "날씨"}${range ? ` · 최저/최고 ${range}` : ""}${record.advice ? ` · ${record.advice}` : ""}`.trim();
+}
+
+function renderDailyTodayButton() {
+  const button = el("dailyTodayButton");
+  if (!button) return;
+  const nav = el("dailyDateSwipeZone");
+  const selectedKey = iso(selectedDate);
+  const todayKey = iso(todayInPlanner());
+  const isToday = selectedKey === todayKey;
+  button.hidden = false;
+  button.classList.toggle("is-current-day", isToday);
+  button.classList.toggle("is-weather-today", false);
+  nav?.classList.toggle("has-today-weather", false);
+  button.textContent = "오늘";
+  if (!isToday) {
+    button.setAttribute("aria-label", "오늘 날짜로 이동");
+    button.title = "오늘 날짜로 이동";
+    return;
+  }
+  const weather = getWeatherRecordForDate(todayKey, { preferLive: true });
+  const loading = weather?.status === "loading" || weather?.status === "refreshing";
+  const hasWeather = weather && (loading || weather.summary || Number.isFinite(Number(weather.temp)) || Number.isFinite(Number(weather.tempMin)));
+  if (!hasWeather) {
+    button.setAttribute("aria-label", "오늘 날짜입니다");
+    button.title = "오늘 날짜입니다";
+    return;
+  }
+  const icon = loading ? "…" : weather.icon || "◇";
+  const range = formatWeatherTemperatureRange(weather);
+  button.classList.add("is-weather-today");
+  nav?.classList.toggle("has-today-weather", true);
+  button.innerHTML = `
+    <span class="today-weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+    <span class="today-weather-range">${escapeHtml(range || "날씨")}</span>
+  `;
+  const title = loading ? "오늘 날씨를 확인하는 중입니다." : getWeatherTitle(weather);
+  button.title = title;
+  button.setAttribute("aria-label", title);
+  scheduleDailyHeaderFit();
+}
+
 function isWeatherRecordFresh(record, maxAgeMs = 2 * 60 * 60 * 1000) {
   if (!record?.updatedAt) return false;
   const updatedAt = Date.parse(record.updatedAt);
@@ -7210,6 +7288,8 @@ function toWeatherRecord(weather = weatherState) {
     date: key,
     icon: weather.icon || "◇",
     temp: Number.isFinite(Number(weather.temp)) ? Number(weather.temp) : null,
+    tempMin: Number.isFinite(Number(weather.tempMin)) ? Number(weather.tempMin) : null,
+    tempMax: Number.isFinite(Number(weather.tempMax)) ? Number(weather.tempMax) : null,
     code: Number.isFinite(Number(weather.code)) ? Number(weather.code) : null,
     wind: Number.isFinite(Number(weather.wind)) ? Number(weather.wind) : null,
     precipitation: Number.isFinite(Number(weather.precipitation)) ? Number(weather.precipitation) : 0,
@@ -7222,7 +7302,7 @@ function toWeatherRecord(weather = weatherState) {
 }
 
 function sameWeatherRecord(a = {}, b = {}) {
-  return ["date", "icon", "temp", "code", "wind", "precipitation", "label", "summary", "advice", "source"].every((key) => String(a?.[key] ?? "") === String(b?.[key] ?? ""));
+  return ["date", "icon", "temp", "tempMin", "tempMax", "code", "wind", "precipitation", "label", "summary", "advice", "source"].every((key) => String(a?.[key] ?? "") === String(b?.[key] ?? ""));
 }
 
 function storeWeatherForToday(weather = weatherState, options = {}) {
@@ -7242,6 +7322,7 @@ async function setupWeather(options = {}) {
   if (settings.enabled === false) {
     weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
     renderWeatherChip();
+    renderDailyTodayButton();
     renderWeatherSettings("날씨 자동 입력이 꺼져 있습니다.");
     return;
   }
@@ -7250,13 +7331,18 @@ async function setupWeather(options = {}) {
     weatherState = { ...stored, status: "ready" };
     storeWeatherCache();
     renderWeatherChip();
+    renderDailyTodayButton();
     renderWeatherSettings();
     return;
   }
   const hasCache = hydrateWeatherFromCache();
-  if (hasCache) renderWeatherChip();
+  if (hasCache) {
+    renderWeatherChip();
+    renderDailyTodayButton();
+  }
   weatherState = { ...weatherState, status: hasCache ? "refreshing" : "loading" };
   renderWeatherChip();
+  renderDailyTodayButton();
   try {
     const data = await fetchOpenMeteoWeather(await getWeatherCoordinates());
     weatherState = { ...data, status: "ready" };
@@ -7276,6 +7362,7 @@ async function setupWeather(options = {}) {
         };
   }
   renderWeatherChip();
+  renderDailyTodayButton();
   renderWeatherSettings();
   updateCoachBubble();
   if (activeCoachSection === "weather" || activeCoachSection === "") renderCoach();
@@ -7325,6 +7412,8 @@ async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
     latitude: String(coords.latitude),
     longitude: String(coords.longitude),
     current: "temperature_2m,weather_code,precipitation,wind_speed_10m",
+    daily: "temperature_2m_max,temperature_2m_min",
+    forecast_days: "1",
     timezone: "auto",
   });
   let response;
@@ -7336,14 +7425,19 @@ async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
   if (!response.ok) throw new Error("weather request failed");
   const payload = await response.json();
   const current = payload.current || {};
+  const daily = payload.daily || {};
   const code = Number(current.weather_code);
   const temp = Number(current.temperature_2m);
+  const tempMin = Number(Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[0] : daily.temperature_2m_min);
+  const tempMax = Number(Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[0] : daily.temperature_2m_max);
   const wind = Number(current.wind_speed_10m);
   const precipitation = Number(current.precipitation || 0);
   const info = getWeatherCodeInfo(code);
   const state = {
     icon: info.icon,
     temp: Number.isFinite(temp) ? temp : null,
+    tempMin: Number.isFinite(tempMin) ? tempMin : null,
+    tempMax: Number.isFinite(tempMax) ? tempMax : null,
     code,
     wind: Number.isFinite(wind) ? wind : null,
     precipitation: Number.isFinite(precipitation) ? precipitation : 0,
