@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260806a" />
+    <link rel="stylesheet" href="./styles.css?v=20260806b" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -435,29 +435,31 @@
                     <strong>더 정확한 코칭을 원할 때만 열기</strong>
                     <small>사명, 역할, 실행 리듬, 건강 정보는 필요할 때 천천히 채웁니다.</small>
                   </summary>
-                  <section class="profile-optional-block">
-                    <h4>사명과 기준</h4>
+                  <div class="profile-grid compact-profile profile-optional-core">
+                    <label><span class="row-label">결정 기준</span><textarea data-profile-field="decisionPrinciples" rows="2" placeholder="예: 무리한 약속 금지, 현금 먼저 확인"></textarea></label>
+                    <label><span class="row-label">집중 시간</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 9-11시" /></label>
+                    <label><span class="row-label">자주 막히는 상황</span><textarea data-profile-field="risks" rows="2" placeholder="예: 일이 크면 미룸, 거절을 못함"></textarea></label>
+                    <label><span class="row-label">몸 상태</span><textarea data-profile-field="healthStatus" rows="2" placeholder="예: 피로감, 허리 통증, 혈압 관리"></textarea></label>
+                  </div>
+                  <details class="profile-optional-block profile-nested-detail">
+                    <summary>사명, 가치, 역할 목표</summary>
                     <textarea data-store="foundation.mission" rows="3" placeholder="무엇을 위해 일하고, 어떤 기준으로 선택할지 짧게 적습니다."></textarea>
                     <div class="value-list" id="valuesList"></div>
-                  </section>
-                  <section class="profile-optional-block">
-                    <h4>역할과 목표</h4>
                     <div class="role-goal-table" id="roleGoalTable"></div>
-                  </section>
-                  <div class="profile-grid compact-profile">
-                    <label><span class="row-label">연령대</span><input data-profile-field="age" type="text" placeholder="예: 40대, 52세" /></label>
-                    <label><span class="row-label">직함/현재 역할</span><input data-profile-field="job" type="text" placeholder="예: 대표, 매니저, 트레이너" /></label>
-                    <label><span class="row-label">챙겨야 할 사람/일</span><textarea data-profile-field="roles" rows="2" placeholder="예: 회사 운영, 가족, 투자, 건강, 팀 관리"></textarea></label>
-                    <label><span class="row-label">결정할 때 꼭 지킬 것</span><textarea data-profile-field="decisionPrinciples" rows="2" placeholder="예: 무리한 약속 금지, 현금 먼저 확인, 가족시간 지키기"></textarea></label>
-                    <label><span class="row-label">집중이 잘 되는 시간</span><input data-profile-field="energyWindow" type="text" placeholder="예: 오전 9-11시, 밤 10시 이후" /></label>
-                    <label><span class="row-label">일이 잘 풀리는 방식</span><textarea data-profile-field="strengths" rows="2" placeholder="예: 혼자 정리할 때, 숫자로 볼 때, 사람을 만나면 빨라짐"></textarea></label>
-                    <label><span class="row-label">자주 미루는 상황</span><textarea data-profile-field="risks" rows="2" placeholder="예: 일이 너무 크면 미룸, 부탁을 거절 못함, 밤에 몰아서 함"></textarea></label>
-                    <label><span class="row-label">몸 상태</span><textarea data-profile-field="healthStatus" rows="2" placeholder="예: 허리 통증, 혈압 관리, 피로감"></textarea></label>
-                    <label><span class="row-label">활동량</span><input data-profile-field="activityLevel" type="text" placeholder="예: 앉아 있는 시간이 많음, 주 2회 걷기" /></label>
-                    <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기, 근력 회복" /></label>
-                    <label><span class="row-label">수면/회복</span><input data-profile-field="recoveryPattern" type="text" placeholder="예: 6시간 수면, 점심 이후 피곤함" /></label>
-                    <label><span class="row-label">주의할 점</span><textarea data-profile-field="exerciseLimits" rows="2" placeholder="피해야 할 운동, 관리 중인 건강 이슈, 검진/투약 메모"></textarea></label>
-                  </div>
+                  </details>
+                  <details class="profile-optional-block profile-nested-detail">
+                    <summary>상세 정보와 건강 리듬</summary>
+                    <div class="profile-grid compact-profile profile-advanced-grid">
+                      <label><span class="row-label">연령대</span><input data-profile-field="age" type="text" placeholder="예: 40대, 52세" /></label>
+                      <label><span class="row-label">직함/역할</span><input data-profile-field="job" type="text" placeholder="예: 대표, 매니저" /></label>
+                      <label><span class="row-label">챙길 사람/일</span><textarea data-profile-field="roles" rows="2" placeholder="예: 회사 운영, 가족, 투자"></textarea></label>
+                      <label><span class="row-label">잘 풀리는 방식</span><textarea data-profile-field="strengths" rows="2" placeholder="예: 숫자로 볼 때, 사람을 만나면 빨라짐"></textarea></label>
+                      <label><span class="row-label">활동량</span><input data-profile-field="activityLevel" type="text" placeholder="예: 앉아 있는 시간이 많음" /></label>
+                      <label><span class="row-label">운동 목표</span><input data-profile-field="exerciseGoal" type="text" placeholder="예: 매일 20분 걷기" /></label>
+                      <label><span class="row-label">수면/회복</span><input data-profile-field="recoveryPattern" type="text" placeholder="예: 6시간 수면" /></label>
+                      <label><span class="row-label">주의할 점</span><textarea data-profile-field="exerciseLimits" rows="2" placeholder="피해야 할 운동, 검진/투약 메모"></textarea></label>
+                    </div>
+                  </details>
                 </details>
               </div>
             </article>

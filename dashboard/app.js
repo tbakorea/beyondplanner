@@ -5178,7 +5178,7 @@ function applySettingsLanguagePreference(language = getAppLanguage()) {
     const number = item.querySelector("strong")?.textContent || `${index + 1}`;
     item.innerHTML = `<strong>${escapeHtml(number)}</strong> ${escapeHtml(label)}`;
   });
-  document.querySelectorAll(".profile-stage-title, .profile-stage summary").forEach((heading, index) => {
+  document.querySelectorAll(".profile-stage-title, .profile-stage > summary").forEach((heading, index) => {
     const [step, title, description] = labels.profileStages?.[index] || [];
     if (step) setNodeText(heading.querySelector("span"), step);
     if (title) setNodeText(heading.querySelector("strong"), title);
