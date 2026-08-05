@@ -215,7 +215,8 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
 
         if self.command == "GET":
             try:
-                self.write_json(200, {"users": list_access_users(admin), "adminEmail": admin.get("email", "")})
+                users = list_access_users(admin)
+                self.write_json(200, {"users": users, "stats": build_access_stats(users), "adminEmail": admin.get("email", "")})
             except RuntimeError as exc:
                 self.write_json(503, {"error": str(exc)})
             except urllib.error.HTTPError as exc:
@@ -543,7 +544,7 @@ def apply_user_access_policy(action: str, user: dict, payload: dict) -> dict:
             return upsert_user_access(user_id, email, name, tier, "pending")
         access = get_user_access(user_id)
         if not access:
-            access = upsert_user_access(user_id, email, name, tier, "approved")
+            access = upsert_user_access(user_id, email, name, tier, "pending")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace") if exc.fp else ""
         if is_missing_user_access_table(detail):
@@ -620,7 +621,7 @@ def list_access_users(admin: dict) -> list[dict]:
         if not user_id or not email or user_id in by_id:
             continue
         metadata = auth_user.get("user_metadata") or {}
-        status = "approved" if is_access_admin_email(email) else "approved"
+        status = "approved" if is_access_admin_email(email) else "pending"
         by_id[user_id] = upsert_user_access(user_id, email, str(metadata.get("name") or ""), normalize_tier(str(metadata.get("tier") or "staff")), status)
     rows = list(by_id.values())
     status_order = {"pending": 0, "approved": 1, "suspended": 2, "rejected": 3}
@@ -649,6 +650,14 @@ def update_access_user(admin: dict, payload: dict) -> dict:
         headers={"Prefer": "return=representation"},
     )
     return {"ok": True, "user": rows[0] if rows else body}
+
+
+def build_access_stats(users: list[dict]) -> dict:
+    stats = {"total": len(users), "pending": 0, "approved": 0, "suspended": 0, "rejected": 0}
+    for user in users:
+        status = normalize_access_status(user.get("approval_status"))
+        stats[status] = stats.get(status, 0) + 1
+    return stats
 
 
 def supabase_configured() -> bool:

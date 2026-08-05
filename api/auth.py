@@ -213,7 +213,7 @@ def apply_user_access_policy(action, user, payload):
             return upsert_user_access(user_id, email, name, tier, "pending")
         access = get_user_access(user_id)
         if not access:
-            access = upsert_user_access(user_id, email, name, tier, "approved")
+            access = upsert_user_access(user_id, email, name, tier, "pending")
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", "replace") if exc.fp else ""
         if is_missing_user_access_table(detail):

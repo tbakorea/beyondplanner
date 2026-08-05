@@ -496,6 +496,7 @@ let backupEmailCheckTimer = 0;
 let approvalUsersLoaded = false;
 let approvalUsersLoading = false;
 let approvalUsers = [];
+let approvalStats = { total: 0, pending: 0, approved: 0, suspended: 0, rejected: 0 };
 
 function el(id) {
   return document.getElementById(id);
@@ -4963,8 +4964,9 @@ async function loadApprovalUsers(options = {}) {
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || payload.detail || "승인 목록을 불러오지 못했습니다.");
     approvalUsers = Array.isArray(payload.users) ? payload.users : [];
+    approvalStats = normalizeApprovalStats(payload.stats, approvalUsers);
     approvalUsersLoaded = true;
-    renderApprovalAdminSettings(`${approvalUsers.length}명의 사용자를 확인했습니다.`);
+    renderApprovalAdminSettings(`누적 ${approvalStats.total}명 · 대기 ${approvalStats.pending}명 · 승인 ${approvalStats.approved}명`);
   } catch (error) {
     approvalUsersLoaded = false;
     renderApprovalAdminSettings(error.message || "승인 목록을 불러오지 못했습니다.");
@@ -4976,6 +4978,7 @@ async function loadApprovalUsers(options = {}) {
 function renderApprovalUserList() {
   const list = el("approvalUserList");
   if (!list) return;
+  renderApprovalStats();
   if (!approvalUsers.length) {
     list.innerHTML = `<div class="approval-empty">표시할 사용자 목록이 없습니다.</div>`;
     return;
@@ -4987,7 +4990,7 @@ function renderApprovalUserList() {
       <article class="approval-user-card" data-user-id="${escapeAttr(user.user_id || user.userId || "")}">
         <div class="approval-user-main">
           <strong>${escapeHtml(user.email || "-")}</strong>
-          <small>${escapeHtml(user.name || "이름 없음")} · ${escapeHtml(formatApprovalStatus(status))} · ${escapeHtml(formatDateTimeShort(user.created_at || user.createdAt || ""))}</small>
+          <small>${escapeHtml(user.name || "이름 없음")} · ${escapeHtml(formatApprovalStatus(status))} · 가입 ${escapeHtml(formatDateTimeShort(user.created_at || user.createdAt || ""))}${user.approved_at ? ` · 승인 ${escapeHtml(formatDateTimeShort(user.approved_at))}` : ""}</small>
         </div>
         <label>
           <span>등급</span>
@@ -5008,6 +5011,33 @@ function renderApprovalUserList() {
   list.querySelectorAll("[data-approval-save]").forEach((button) => {
     button.onclick = () => saveApprovalUser(button.closest(".approval-user-card"));
   });
+}
+
+function normalizeApprovalStats(stats = {}, users = approvalUsers) {
+  const next = { total: 0, pending: 0, approved: 0, suspended: 0, rejected: 0 };
+  if (stats && typeof stats === "object") {
+    Object.keys(next).forEach((key) => {
+      next[key] = Number.isFinite(Number(stats[key])) ? Number(stats[key]) : 0;
+    });
+  }
+  if (!next.total && Array.isArray(users)) {
+    next.total = users.length;
+    users.forEach((user) => {
+      const status = normalizeApprovalStatus(user.approval_status || user.approvalStatus);
+      next[status] += 1;
+    });
+  }
+  return next;
+}
+
+function renderApprovalStats() {
+  const stats = normalizeApprovalStats(approvalStats, approvalUsers);
+  approvalStats = stats;
+  const blocked = stats.suspended + stats.rejected;
+  if (el("approvalTotalCount")) el("approvalTotalCount").textContent = String(stats.total);
+  if (el("approvalPendingCount")) el("approvalPendingCount").textContent = String(stats.pending);
+  if (el("approvalApprovedCount")) el("approvalApprovedCount").textContent = String(stats.approved);
+  if (el("approvalBlockedCount")) el("approvalBlockedCount").textContent = String(blocked);
 }
 
 async function saveApprovalUser(card) {

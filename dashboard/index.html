@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260806b" />
+    <link rel="stylesheet" href="./styles.css?v=20260806c" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -344,6 +344,17 @@
                         <small>가입한 사용자를 승인, 보류, 정지하고 등급을 조정합니다. 관리자 계정에서만 보입니다.</small>
                       </span>
                       <div class="approval-admin-panel">
+                        <div class="approval-stats-grid" id="approvalStatsGrid" aria-label="가입 승인 현황">
+                          <span><strong id="approvalTotalCount">0</strong><small>누적 가입</small></span>
+                          <span><strong id="approvalPendingCount">0</strong><small>승인 대기</small></span>
+                          <span><strong id="approvalApprovedCount">0</strong><small>사용 승인</small></span>
+                          <span><strong id="approvalBlockedCount">0</strong><small>보류/정지</small></span>
+                        </div>
+                        <ol class="approval-flow-list" aria-label="승인 절차">
+                          <li><strong>가입 접수</strong><span>신규 회원은 자동으로 승인 대기 상태가 됩니다.</span></li>
+                          <li><strong>관리자 검토</strong><span>계정, 이름, 등급을 확인하고 승인 여부를 결정합니다.</span></li>
+                          <li><strong>사용 시작</strong><span>승인된 계정만 Beyond Work 데이터 화면에 접근합니다.</span></li>
+                        </ol>
                         <div class="settings-action-row">
                           <button class="mini-action" id="approvalRefreshUsers" type="button">목록 새로고침</button>
                         </div>
@@ -973,6 +984,6 @@
 
     <script src="./data.js?v=20260629o"></script>
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <script src="./app.js?v=20260804c"></script>
+    <script src="./app.js?v=20260806c"></script>
   </body>
 </html>

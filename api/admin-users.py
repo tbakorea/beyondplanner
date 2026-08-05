@@ -11,7 +11,8 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         try:
             admin = require_access_admin(self.headers)
-            self.write_json(200, {"users": list_access_users(), "adminEmail": admin.get("email", "")})
+            users = list_access_users()
+            self.write_json(200, {"users": users, "stats": build_access_stats(users), "adminEmail": admin.get("email", "")})
         except PermissionError as exc:
             self.write_json(403, {"error": str(exc)})
         except RuntimeError as exc:
@@ -167,7 +168,7 @@ def list_access_users():
             email,
             str(metadata.get("name") or ""),
             normalize_tier(str(metadata.get("tier") or "staff")),
-            "approved",
+            "approved" if is_access_admin_email(email) else "pending",
         )
     status_order = {"pending": 0, "approved": 1, "suspended": 2, "rejected": 3}
     rows = list(by_id.values())
@@ -214,6 +215,14 @@ def update_access_user(admin, payload):
         headers={"Prefer": "return=representation"},
     )
     return {"ok": True, "user": rows[0] if rows else body}
+
+
+def build_access_stats(users):
+    stats = {"total": len(users), "pending": 0, "approved": 0, "suspended": 0, "rejected": 0}
+    for user in users:
+        status = normalize_access_status(user.get("approval_status"))
+        stats[status] = stats.get(status, 0) + 1
+    return stats
 
 
 def normalize_access_status(status):
