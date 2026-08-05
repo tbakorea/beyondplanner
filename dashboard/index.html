@@ -277,6 +277,36 @@
                         <span>보이기</span>
                       </label>
                     </div>
+                    <div class="planner-option-item app-setting-section">
+                      <span>
+                        <strong>날씨</strong>
+                        <small id="weatherSettingStatus">오늘 날씨를 자동으로 기록하고 AI 코칭에 반영합니다.</small>
+                      </span>
+                      <div class="settings-control-stack weather-settings-controls">
+                        <label class="settings-toggle">
+                          <input id="weatherAutoToggle" type="checkbox" checked />
+                          <span>자동 입력</span>
+                        </label>
+                        <span class="weather-settings-row">
+                          <label>위치
+                            <select id="weatherLocationMode">
+                              <option value="default">기본 지역</option>
+                              <option value="device">현재 위치</option>
+                            </select>
+                          </label>
+                          <label>지역
+                            <select id="weatherDefaultRegion">
+                              <option value="ulsan">울산</option>
+                              <option value="seoul">서울</option>
+                              <option value="busan">부산</option>
+                              <option value="daegu">대구</option>
+                              <option value="gwangju">광주</option>
+                              <option value="jeju">제주</option>
+                            </select>
+                          </label>
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </section>
 

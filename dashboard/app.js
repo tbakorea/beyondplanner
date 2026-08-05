@@ -98,6 +98,14 @@ const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
 const moneyCategories = ["", "카드대금", "적금/이자", "할부금", "렌탈", "관리비", "세금", "보험", "인건비", "생활비", "사업비", "기타"];
 const moneyStatuses = ["예정", "확인", "보류", "완료"];
+const weatherRegions = {
+  ulsan: { latitude: 35.5396, longitude: 129.3115, label: "울산" },
+  seoul: { latitude: 37.5665, longitude: 126.978, label: "서울" },
+  busan: { latitude: 35.1796, longitude: 129.0756, label: "부산" },
+  daegu: { latitude: 35.8714, longitude: 128.6014, label: "대구" },
+  gwangju: { latitude: 35.1595, longitude: 126.8526, label: "광주" },
+  jeju: { latitude: 33.4996, longitude: 126.5312, label: "제주" },
+};
 const projectStatuses = ["대기", "진행", "보류", "완료"];
 const projectMoneyTypes = ["수입", "비용"];
 const sheetCellTypes = ["general", "number", "currency", "date", "checkbox"];
@@ -175,6 +183,7 @@ const defaultAppSettings = {
     month: { showCalendarAnnotations: true },
     projects: { slideDetail: true },
     money: { showAmounts: true },
+    weather: { enabled: true, locationMode: "default", region: "ulsan" },
     sheets: { titleHeaders: true },
     backup: {
       format: "json+xls",
@@ -260,6 +269,7 @@ const settingsLanguageLabels = {
       ["Week", "Weekly Focus, role actions, Sunday-start weeks, and carry-forward items.", "Sun start"],
       ["Month · Year", "Sunday-start calendars, Korean holidays, lunar notes, anniversaries, and year navigation.", "YYYY. MM. DD."],
       ["Money", "Show or hide amounts when Money items appear in Today or Week.", ""],
+      ["Weather", "Record today's weather automatically and use it for schedule, travel, and energy coaching.", ""],
       ["Projects", "Project list, slide-in detail page, next action, and project money simulation.", "Slide detail"],
       ["Ask · AI", "Ask questions, get section coaching, and use your profile, goals, tasks, and schedule as context.", "Allowed accounts"],
       ["User Approval", "Approve pending signups, pause accounts, and assign CEO, Director, Manager, or Staff roles.", "Admin only"],
@@ -348,6 +358,7 @@ const settingsLanguageLabels = {
       ["주간", "위클리 포커스, 역할별 핵심행동, 日 시작 주간, 이월 항목을 관리합니다.", "日 시작"],
       ["월간 · 연간", "日 시작 달력, 한국 공휴일, 음력 표시, 기념일, 연도 이동을 관리합니다.", "년. 월. 일."],
       ["Money", "오늘/주간에 Money 항목이 보일 때 금액 표시 여부를 정합니다.", ""],
+      ["날씨", "오늘 날씨를 자동으로 기록하고 이동, 외부 일정, 체력 코칭에 반영합니다.", ""],
       ["프로젝트", "프로젝트 목록, 세부 페이지, 다음 행동, 프로젝트 자금 시뮬레이션을 관리합니다.", "슬라이드 상세"],
       ["검색 · AI", "입력한 목표, 업무, 일정, 사용자 정보를 바탕으로 질문과 섹션별 코칭을 제공합니다.", "허용 계정"],
       ["사용자 승인 관리", "가입한 사용자를 승인, 보류, 정지하고 등급을 조정합니다.", "관리자 전용"],
@@ -426,7 +437,7 @@ let lastServerUpdatedAt = "";
 const BOOT_MIN_READING_MS = 6200;
 const bootStartedAt = Date.now();
 let bootHideTimer = 0;
-const DEFAULT_WEATHER_COORDS = { latitude: 35.5396, longitude: 129.3115, label: "울산" };
+const DEFAULT_WEATHER_COORDS = weatherRegions.ulsan;
 const WEATHER_CACHE_KEY = "beyondWork.weather.v1";
 let weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
 let daySwipeKey = "";
@@ -437,6 +448,7 @@ const installationId = getInstallationId();
 const dayPanelOrder = ["week", "main", "memo"];
 let currentDayPanel = "main";
 let dateSlideTimer = 0;
+let dailyHeaderFitFrame = 0;
 let dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
 let dailyCalendarPickerOpen = false;
@@ -1420,6 +1432,7 @@ function normalizeAppSettings(settings = {}) {
   const startTime = normalizeTimeValue(schedule.startTime, defaultAppSettings.schedule.startTime);
   const endTime = normalizeTimeValue(schedule.endTime, defaultAppSettings.schedule.endTime);
   const backupEmail = settings.sections?.backup?.email || settings.backupEmail || {};
+  const weather = settings.sections?.weather || settings.weather || {};
   return {
     ...defaultAppSettings,
     ...settings,
@@ -1441,6 +1454,13 @@ function normalizeAppSettings(settings = {}) {
         ...defaultAppSettings.sections.money,
         ...(settings.sections?.money || {}),
         showAmounts: settings.sections?.money?.showAmounts ?? settings.finance?.showAmounts ?? true,
+      },
+      weather: {
+        ...defaultAppSettings.sections.weather,
+        ...weather,
+        enabled: weather.enabled !== false,
+        locationMode: weather.locationMode === "device" ? "device" : "default",
+        region: weatherRegions[weather.region] ? weather.region : defaultAppSettings.sections.weather.region,
       },
       backup: {
         ...defaultAppSettings.sections.backup,
@@ -1824,8 +1844,10 @@ function ensureDay(key = iso(selectedDate)) {
     wins: "",
     carry: "",
     lesson: "",
+    weather: null,
   };
   state.days[key].memo ||= "";
+  state.days[key].weather ||= null;
   state.days[key].scheduleUnit = normalizeScheduleUnit(state.days[key].scheduleUnit || scheduleUnit);
   state.days[key].appointmentMerges ||= {};
   state.days[key].autoTaskScheduleLinks ||= {};
@@ -2431,6 +2453,9 @@ function setupSelectors() {
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
   el("scheduleStartTime").onchange = updateScheduleRangeSetting;
   el("scheduleEndTime").onchange = updateScheduleRangeSetting;
+  if (el("weatherAutoToggle")) el("weatherAutoToggle").onchange = updateWeatherSettings;
+  if (el("weatherLocationMode")) el("weatherLocationMode").onchange = updateWeatherSettings;
+  if (el("weatherDefaultRegion")) el("weatherDefaultRegion").onchange = updateWeatherSettings;
   el("backupEmailFrequency").onchange = updateBackupEmailSettings;
   el("backupEmailRecipient").onchange = updateBackupEmailSettings;
   el("sendBackupEmailButton").onclick = () => sendBackupEmailNow();
@@ -2511,6 +2536,7 @@ function setupSelectors() {
     applyMobileDayFocusMode();
     updateStickyPanelTop();
     positionDaySwipe("main", true);
+    scheduleDailyHeaderFit();
   });
   window.addEventListener("focus", queuePassiveServerPull);
   window.addEventListener("online", queuePassiveServerPull);
@@ -2532,8 +2558,10 @@ function setupSelectors() {
     window.setTimeout(() => {
       updateStickyPanelTop();
       positionDaySwipe("main", true);
+      scheduleDailyHeaderFit();
     }, 250);
   });
+  document.fonts?.ready?.then(scheduleDailyHeaderFit).catch(() => {});
 }
 
 function toggleTopSearch() {
@@ -3863,6 +3891,68 @@ function animatePageTurn(delta) {
   window.setTimeout(() => node.classList.remove("is-turning-next", "is-turning-prev"), 320);
 }
 
+function fitTextByCssVariable(node, container, cssVariable, minSize, maxSize, padding = 0) {
+  if (!node || !container) return;
+  const styles = window.getComputedStyle(container);
+  const availableWidth = Math.max(
+    0,
+    container.clientWidth
+      - Number.parseFloat(styles.paddingLeft || "0")
+      - Number.parseFloat(styles.paddingRight || "0")
+      - padding
+  );
+  if (!availableWidth) return;
+
+  node.style.setProperty(cssVariable, `${maxSize}px`);
+  if (node.scrollWidth <= availableWidth) return;
+
+  let low = minSize;
+  let high = maxSize;
+  for (let index = 0; index < 10; index += 1) {
+    const middle = (low + high) / 2;
+    node.style.setProperty(cssVariable, `${middle}px`);
+    if (node.scrollWidth <= availableWidth) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+  node.style.setProperty(cssVariable, `${Math.max(minSize, Math.floor(low * 10) / 10)}px`);
+}
+
+function fitDailyHeaderText() {
+  const title = el("dayTitle");
+  const dateButton = el("dailyCalendarToggle");
+  const score = el("dailyCompletion");
+  const scoreBox = score?.closest(".daily-score");
+  const viewport = window.innerWidth || document.documentElement.clientWidth || 390;
+  const compactPhone = viewport <= 390;
+  const phone = viewport <= 640;
+  const tablet = viewport <= 1180;
+
+  fitTextByCssVariable(
+    title,
+    dateButton,
+    "--daily-date-font",
+    compactPhone ? 13 : phone ? 14 : 18,
+    compactPhone ? 20 : phone ? 23 : tablet ? 30 : 36,
+    2
+  );
+  fitTextByCssVariable(
+    score,
+    scoreBox,
+    "--daily-score-font",
+    compactPhone ? 12 : phone ? 14 : 18,
+    compactPhone ? 26 : phone ? 28 : tablet ? 30 : 34,
+    4
+  );
+}
+
+function scheduleDailyHeaderFit() {
+  window.cancelAnimationFrame(dailyHeaderFitFrame);
+  dailyHeaderFitFrame = window.requestAnimationFrame(fitDailyHeaderText);
+}
+
 function setupQuickStrip() {
   document.querySelectorAll("[data-quick-view]").forEach((button) => {
     button.onclick = () => {
@@ -4792,11 +4882,64 @@ function renderAppSettings() {
   if (rangeLabel) rangeLabel.textContent = `${range.start} ~ ${range.end}`;
   const amountToggle = el("financeAmountVisibilityToggle");
   if (amountToggle) amountToggle.checked = moneyAmountsVisible();
+  renderWeatherSettings();
   renderBackupEmailSettings();
   bindMenuVisibilityControls();
   applyMenuVisibility();
   renderScheduleUnitControls(ensureDay());
   renderApprovalAdminSettings();
+}
+
+function getWeatherSettings() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  return state.appSettings.sections.weather || defaultAppSettings.sections.weather;
+}
+
+function renderWeatherSettings(message = "") {
+  const settings = getWeatherSettings();
+  const enabled = el("weatherAutoToggle");
+  const locationMode = el("weatherLocationMode");
+  const region = el("weatherDefaultRegion");
+  const status = el("weatherSettingStatus");
+  if (enabled) enabled.checked = settings.enabled !== false;
+  if (locationMode) locationMode.value = settings.locationMode || "default";
+  if (region) {
+    region.value = weatherRegions[settings.region] ? settings.region : "ulsan";
+    region.disabled = settings.locationMode === "device";
+  }
+  if (!status) return;
+  if (message) {
+    status.textContent = message;
+    return;
+  }
+  if (settings.enabled === false) {
+    status.textContent = "날씨 자동 입력이 꺼져 있습니다.";
+    return;
+  }
+  const stored = getStoredWeatherForToday();
+  if (stored?.summary) {
+    const temp = Number.isFinite(Number(stored.temp)) ? ` ${Math.round(Number(stored.temp))}도` : "";
+    status.textContent = `${stored.label || "기준 지역"} ${stored.summary}${temp} · 오늘 데이터에 기록됨`;
+    return;
+  }
+  status.textContent = "오늘 날씨를 자동으로 기록하고 AI 코칭에 반영합니다.";
+}
+
+function updateWeatherSettings() {
+  state.appSettings = normalizeAppSettings(state.appSettings);
+  const settings = state.appSettings.sections.weather;
+  settings.enabled = el("weatherAutoToggle")?.checked !== false;
+  settings.locationMode = el("weatherLocationMode")?.value === "device" ? "device" : "default";
+  const region = el("weatherDefaultRegion")?.value || settings.region || "ulsan";
+  settings.region = weatherRegions[region] ? region : "ulsan";
+  try {
+    localStorage.removeItem(WEATHER_CACHE_KEY);
+  } catch {
+    // Weather cache is optional.
+  }
+  saveState({ fastSave: true });
+  renderWeatherSettings(settings.enabled ? "날씨 설정을 저장했습니다. 오늘 날씨를 다시 확인합니다." : "날씨 자동 입력을 껐습니다.");
+  setupWeather({ persist: true, force: true });
 }
 
 function renderApprovalAdminSettings(message = "") {
@@ -5615,6 +5758,7 @@ function renderDay() {
   });
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   if (isPlannerCalendarOpen("daily")) renderPlannerCalendarSheet();
+  scheduleDailyHeaderFit();
   positionDaySwipe();
 }
 
@@ -7047,15 +7191,77 @@ function storeWeatherCache() {
   }
 }
 
-async function setupWeather() {
+function getStoredWeatherForToday() {
+  const key = iso(todayInPlanner());
+  const record = state.days?.[key]?.weather;
+  if (!record || record.date !== key) return null;
+  return record;
+}
+
+function isWeatherRecordFresh(record, maxAgeMs = 2 * 60 * 60 * 1000) {
+  if (!record?.updatedAt) return false;
+  const updatedAt = Date.parse(record.updatedAt);
+  return Number.isFinite(updatedAt) && Date.now() - updatedAt < maxAgeMs;
+}
+
+function toWeatherRecord(weather = weatherState) {
+  const key = iso(todayInPlanner());
+  return {
+    date: key,
+    icon: weather.icon || "◇",
+    temp: Number.isFinite(Number(weather.temp)) ? Number(weather.temp) : null,
+    code: Number.isFinite(Number(weather.code)) ? Number(weather.code) : null,
+    wind: Number.isFinite(Number(weather.wind)) ? Number(weather.wind) : null,
+    precipitation: Number.isFinite(Number(weather.precipitation)) ? Number(weather.precipitation) : 0,
+    label: weather.label || DEFAULT_WEATHER_COORDS.label,
+    summary: weather.summary || "날씨",
+    advice: weather.advice || buildWeatherAdvice(weather),
+    source: weather.source || "open-meteo",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function sameWeatherRecord(a = {}, b = {}) {
+  return ["date", "icon", "temp", "code", "wind", "precipitation", "label", "summary", "advice", "source"].every((key) => String(a?.[key] ?? "") === String(b?.[key] ?? ""));
+}
+
+function storeWeatherForToday(weather = weatherState, options = {}) {
+  if (!weather || weather.status === "error" || weather.status === "idle") return false;
+  const key = iso(todayInPlanner());
+  const day = ensureDay(key);
+  const next = toWeatherRecord(weather);
+  if (sameWeatherRecord(day.weather, next) && !options.force) return false;
+  day.weather = next;
+  if (options.save !== false && accountSaveReady) saveState({ fastSave: true });
+  renderWeatherSettings();
+  return true;
+}
+
+async function setupWeather(options = {}) {
+  const settings = getWeatherSettings();
+  if (settings.enabled === false) {
+    weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
+    renderWeatherChip();
+    renderWeatherSettings("날씨 자동 입력이 꺼져 있습니다.");
+    return;
+  }
+  const stored = getStoredWeatherForToday();
+  if (!options.force && isWeatherRecordFresh(stored)) {
+    weatherState = { ...stored, status: "ready" };
+    storeWeatherCache();
+    renderWeatherChip();
+    renderWeatherSettings();
+    return;
+  }
   const hasCache = hydrateWeatherFromCache();
   if (hasCache) renderWeatherChip();
   weatherState = { ...weatherState, status: hasCache ? "refreshing" : "loading" };
   renderWeatherChip();
   try {
-    const data = await fetchOpenMeteoWeather(getWeatherCoordinates());
+    const data = await fetchOpenMeteoWeather(await getWeatherCoordinates());
     weatherState = { ...data, status: "ready" };
     storeWeatherCache();
+    if (options.persist) storeWeatherForToday(weatherState, { force: options.force });
   } catch {
     weatherState = hasCache
       ? { ...weatherState, status: "ready" }
@@ -7070,12 +7276,46 @@ async function setupWeather() {
         };
   }
   renderWeatherChip();
+  renderWeatherSettings();
   updateCoachBubble();
   if (activeCoachSection === "weather" || activeCoachSection === "") renderCoach();
 }
 
-function getWeatherCoordinates() {
-  return DEFAULT_WEATHER_COORDS;
+async function getWeatherCoordinates() {
+  const settings = getWeatherSettings();
+  const fallback = weatherRegions[settings.region] || DEFAULT_WEATHER_COORDS;
+  if (settings.locationMode !== "device") return fallback;
+  try {
+    const position = await getBrowserWeatherPosition();
+    return {
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      label: "현재 위치",
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function getBrowserWeatherPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("geolocation unavailable"));
+      return;
+    }
+    const timer = window.setTimeout(() => reject(new Error("geolocation timeout")), 4500);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        window.clearTimeout(timer);
+        resolve(position);
+      },
+      (error) => {
+        window.clearTimeout(timer);
+        reject(error);
+      },
+      { enableHighAccuracy: false, timeout: 4200, maximumAge: 30 * 60 * 1000 },
+    );
+  });
 }
 
 async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
@@ -11836,6 +12076,9 @@ function collectSearchResults(query) {
   Object.entries(state.days).forEach(([key, day]) => {
     getDayTasks(key).forEach((task) => push("day", `${key} ${task.priority}`, task.text, key));
     Object.entries(day.appointments).forEach(([slot, text]) => push("day", `${key} ${slot}`, text, key));
+    if (day.weather?.summary) {
+      push("day", `${key} 날씨`, `${day.weather.label || ""} ${day.weather.summary || ""} ${day.weather.temp ?? ""} ${day.weather.advice || ""}`, key);
+    }
     ["memo", "record", "wins", "carry", "lesson"].forEach((field) => push("day", `${key} ${labels.dayFields[field] || field}`, day[field], key));
   });
   Object.entries(state.finance?.months || {}).forEach(([key, rows]) => {
@@ -12238,8 +12481,20 @@ function buildPlannerWorkbookTables() {
     });
   });
   const appointmentRows = [];
+  const weatherRows = [];
   Object.keys(state.days || {}).sort().forEach((key) => {
     const day = state.days[key];
+    if (day.weather?.summary) {
+      weatherRows.push([
+        key,
+        day.weather.label || "",
+        day.weather.summary || "",
+        Number.isFinite(Number(day.weather.temp)) ? Math.round(Number(day.weather.temp)) : "",
+        Number.isFinite(Number(day.weather.precipitation)) ? day.weather.precipitation : "",
+        Number.isFinite(Number(day.weather.wind)) ? day.weather.wind : "",
+        day.weather.advice || "",
+      ]);
+    }
     getScheduleSlotsForDay(day).forEach((slot) => {
       const text = String(day.appointments?.[slot] || "").trim();
       if (text) appointmentRows.push([key, slot, getAppointmentEndLabel(getScheduleSlotsForDay(day).indexOf(slot), getAppointmentSpan(day, slot), getScheduleSlotsForDay(day)), text]);
@@ -12275,6 +12530,7 @@ function buildPlannerWorkbookTables() {
     { title: "About Me", headers: ["Field", "Text"], rows: profileRows },
     { title: "Top Tasks", headers: ["Date", "Priority", "Status", "Done", "Task", "Delegate"], rows: taskRows },
     { title: "Schedule", headers: ["Date", "Start", "End", "Text"], rows: appointmentRows },
+    { title: "Weather", headers: ["Date", "Location", "Weather", "Temp C", "Precipitation", "Wind", "Advice"], rows: weatherRows },
     { title: "Weekly Focus", headers: ["Week", "Group", "Priority", "Status", "Done", "Delegate", "Postpone", "Text"], rows: weekRows },
     { title: "Money", headers: ["월/반복", "일", "구분", "분류", "상태", "내용", "금액", "메모"], rows: moneyRows },
     { title: "Projects", headers: ["Status", "Project", "Owner", "Start", "End", "Goal", "Next Action", "Budget", "Actual", "Memo"], rows: projectRows },
@@ -12566,10 +12822,12 @@ async function setup() {
   setBootMessage(hasInitialDeviceCache ? "마지막 실행 흐름을 펼치는 중" : "오늘의 첫 장면을 구성하는 중");
   renderAll();
   renderBootCoaching();
-  setupWeather();
+  hydrateWeatherFromCache();
+  renderWeatherChip();
   if (hasInitialDeviceCache) hideBootScreen(820);
   await hydrateServerState();
   renderAll();
+  setupWeather({ persist: true });
   renderBootCoaching();
   setBootMessage("오늘의 우선순위를 화면에 앉히는 중");
   hideBootScreen(hasInitialDeviceCache ? 820 : 220);
