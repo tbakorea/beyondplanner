@@ -3980,6 +3980,7 @@ function setupTopViews() {
   document.querySelectorAll("[data-top-view]").forEach((button) => {
     button.onclick = () => {
       showView(button.dataset.topView);
+      button.closest("details")?.removeAttribute("open");
       renderAll();
     };
   });
@@ -5155,6 +5156,7 @@ function normalizePrimaryNavigationLabels(language = getAppLanguage()) {
   });
   const settingsLabel = labels.foundation || (language === "ko" ? "설정" : "Settings");
   document.querySelectorAll("[data-top-view='foundation'], [data-view='foundation']").forEach((item) => {
+    if (item.matches("button[data-top-view='foundation']") && !item.classList.contains("utility-icon")) item.textContent = settingsLabel;
     item.setAttribute("aria-label", settingsLabel);
     item.title = settingsLabel;
   });

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260806c" />
+    <link rel="stylesheet" href="./styles.css?v=20260806e" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -63,11 +63,6 @@
           <button type="button" data-top-view="week">Week</button>
           <button type="button" data-top-view="month">Month</button>
           <button type="button" data-top-view="projects">Projects</button>
-          <button type="button" data-top-view="notes">Money</button>
-          <button type="button" data-top-view="sheets" hidden>Sheets</button>
-          <button class="settings-nav-button utility-icon" type="button" data-top-view="foundation" aria-label="설정" title="설정">
-            <span class="simple-gear-icon" aria-hidden="true"></span>
-          </button>
           <div class="top-status" aria-label="플래너 상태">
             <span id="topYearProgress">Year 0%</span>
             <span id="topCarryover">이월 0</span>
@@ -75,25 +70,32 @@
             <span id="topSaveStatus" class="save-status-pill" title="저장 확인 중" aria-label="저장 상태">확인</span>
             <span id="topAccountStatus">-</span>
             <details class="top-more-menu">
-              <summary class="manage-menu-button" aria-label="관리 메뉴" title="관리 메뉴">
+              <summary class="manage-menu-button" aria-label="전체 메뉴" title="전체 메뉴">
                 <span class="manage-combo-icon" aria-hidden="true"><span></span><span></span><span></span></span>
-                <span class="manage-menu-label">관리</span>
+                <span class="manage-menu-label">메뉴</span>
               </summary>
               <div class="top-more-panel">
-                <button id="privacyNowButton" type="button">보안모드</button>
-                <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
-                  <option value="0">자동꺼짐</option>
-                  <option value="30">30초</option>
-                  <option value="60">1분</option>
-                  <option value="180">3분</option>
-                  <option value="300">5분</option>
-                  <option value="600">10분</option>
-                </select>
-                <button id="saveNowButton" type="button">저장 확인</button>
-                <button id="topPrintButton" type="button">인쇄</button>
-                <button id="topExportButton" type="button">내보내기</button>
-                <button id="topImportButton" type="button">가져오기</button>
-                <button id="lockNowButton" type="button">잠금</button>
+                <div class="top-menu-section top-menu-nav" aria-label="보조 섹션">
+                  <button type="button" data-top-view="notes">Money</button>
+                  <button type="button" data-top-view="sheets" hidden>Sheets</button>
+                  <button class="settings-nav-button" type="button" data-top-view="foundation">설정</button>
+                </div>
+                <div class="top-menu-section top-menu-actions" aria-label="관리 작업">
+                  <button id="privacyNowButton" type="button">보안모드</button>
+                  <select id="privacyTimeoutSelect" aria-label="보안모드 자동 실행 시간">
+                    <option value="0">자동꺼짐</option>
+                    <option value="30">30초</option>
+                    <option value="60">1분</option>
+                    <option value="180">3분</option>
+                    <option value="300">5분</option>
+                    <option value="600">10분</option>
+                  </select>
+                  <button id="saveNowButton" type="button">저장 확인</button>
+                  <button id="topPrintButton" type="button">인쇄</button>
+                  <button id="topExportButton" type="button">내보내기</button>
+                  <button id="topImportButton" type="button">가져오기</button>
+                  <button id="lockNowButton" type="button">잠금</button>
+                </div>
                 <div class="password-change-panel" aria-label="계정 비밀번호 변경">
                   <strong>비밀번호 변경</strong>
                   <input id="accountNewPassword" type="password" autocomplete="new-password" minlength="6" placeholder="새 비밀번호" />
@@ -984,6 +986,6 @@
 
     <script src="./data.js?v=20260629o"></script>
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <script src="./app.js?v=20260806d"></script>
+    <script src="./app.js?v=20260806e"></script>
   </body>
 </html>

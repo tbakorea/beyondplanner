@@ -16543,6 +16543,17 @@ body::before {
   }
 }
 
+/* Daily coaching buttons should appear only inside the focused edit surface. */
+.day-task-panel > .panel-title-row [data-section-ai],
+.day-schedule-panel > .panel-title-row [data-section-ai] {
+  display: none !important;
+}
+
+.day-main-panel.is-focus-tasks .day-task-panel > .panel-title-row [data-section-ai],
+.day-main-panel.is-focus-schedule .day-schedule-panel > .panel-title-row [data-section-ai] {
+  display: inline-flex !important;
+}
+
 /* Weekly Focus uses the same completion/priority grammar as Top Tasks. */
 .weekly-priority-row.task-row {
   grid-template-columns: 24px 30px minmax(0, 1fr);
@@ -18120,5 +18131,118 @@ body.ceo-mode .daily-title {
 
   .profile-stage summary > small {
     grid-column: 1 / -1;
+  }
+}
+
+/* Primary navigation simplification: keep daily workflow visible, move secondary tools into one popover. */
+.top-more-panel {
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+  width: min(342px, calc(100vw - 18px)) !important;
+  padding: 10px !important;
+  border-radius: 24px !important;
+  border-color: rgba(31, 58, 49, 0.12) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(248, 246, 239, 0.96)) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.92) inset,
+    0 24px 54px rgba(31, 58, 49, 0.16) !important;
+  -webkit-backdrop-filter: blur(22px) saturate(1.08);
+  backdrop-filter: blur(22px) saturate(1.08);
+}
+
+.top-menu-section {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+
+.top-menu-nav {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.top-menu-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding-top: 10px;
+  border-top: 1px solid rgba(221, 216, 203, 0.7);
+}
+
+.top-more-panel .top-menu-section button,
+.top-more-panel .top-menu-section select {
+  inline-size: auto !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 42px !important;
+  border: 1px solid rgba(221, 216, 203, 0.78) !important;
+  border-radius: 18px !important;
+  background: rgba(255, 253, 248, 0.78) !important;
+  color: rgba(32, 50, 43, 0.84) !important;
+  padding: 8px 10px !important;
+  font-size: 13px !important;
+  font-weight: 880 !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.78) inset !important;
+}
+
+.top-more-panel .top-menu-section button.is-active {
+  border-color: var(--forest) !important;
+  background: var(--forest) !important;
+  color: #fff !important;
+}
+
+.quick-strip .top-menu-nav button[data-top-view="notes"] {
+  font-size: 13px !important;
+}
+
+.quick-strip .top-menu-nav button[data-top-view="notes"]::before {
+  content: none !important;
+  display: none !important;
+}
+
+.quick-strip .top-menu-nav .settings-nav-button {
+  inline-size: auto !important;
+  min-width: 0 !important;
+}
+
+.password-change-panel {
+  padding-top: 10px !important;
+  border-top-color: rgba(221, 216, 203, 0.72) !important;
+}
+
+.password-change-panel input,
+.password-change-panel button {
+  min-height: 38px !important;
+  border-radius: 16px !important;
+}
+
+@media (max-width: 640px) {
+  .quick-strip {
+    gap: 5px !important;
+    padding: 5px !important;
+  }
+
+  .quick-strip > button[data-top-view="projects"] {
+    padding-inline: 12px !important;
+  }
+
+  .top-more-panel {
+    position: fixed !important;
+    top: calc(max(10px, env(safe-area-inset-top)) + 138px) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    width: auto !important;
+    max-height: min(72vh, 560px);
+    overflow-y: auto;
+  }
+
+  .top-menu-nav {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .top-more-panel .top-menu-section button,
+  .top-more-panel .top-menu-section select {
+    min-height: 44px !important;
+    font-size: 13px !important;
   }
 }
