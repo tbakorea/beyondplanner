@@ -5781,6 +5781,8 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const node = el("dailyPulse");
   if (!node) return;
   const selectedKey = iso(selectedDate);
+  const todayKey = iso(todayInPlanner());
+  const isPastDate = selectedKey < todayKey;
   const activeTasks = tasks.filter((task) => task.text);
   const carryoverOpen = carryovers.filter((task) => !isCarryoverCompletedOn(task, selectedKey));
   const openTasks = activeTasks.filter((task) => !shouldStrikeTask(task)).length + carryoverOpen.length;
@@ -5794,10 +5796,28 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const pattern = buildPatternSignal(selectedDate);
   const alignment = buildGoalProjectAlignmentSignal(tasks);
   const review = buildDailyReviewSignal(day);
-  const selectedWeather = selectedKey !== iso(todayInPlanner()) ? getWeatherRecordForDate(selectedKey) : null;
+  const selectedWeather = selectedKey !== todayKey ? getWeatherRecordForDate(selectedKey) : null;
   const weatherRange = selectedWeather ? formatWeatherTemperatureRange(selectedWeather) : "";
+  if (isPastDate) {
+    const icon = selectedWeather ? getWeatherConditionIcon(selectedWeather) : "◇";
+    const summary = selectedWeather?.summary || "날씨 기록 없음";
+    const range = weatherRange || selectedWeather?.label || "";
+    const label = selectedWeather?.label || "기록";
+    node.innerHTML = `
+      <div class="pulse-weather-static" role="status" aria-label="선택한 날짜의 날씨">
+        <span class="pulse-weather-static-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+        <span class="pulse-weather-static-main">${escapeHtml(summary)}</span>
+        ${range ? `<small>${escapeHtml(range)}</small>` : ""}
+        <em>${escapeHtml(label)}</em>
+      </div>
+    `;
+    renderDailyPulseDetails([
+      ["날씨", `${icon} ${summary}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather?.label || "저장된 날씨 기록이 없습니다."}`],
+    ]);
+    return;
+  }
   const weatherTicker = selectedWeather ? `
-    <span class="pulse-ticker-item pulse-weather" role="listitem"><b>날씨</b> ${escapeHtml(selectedWeather.icon || "◇")} ${escapeHtml(selectedWeather.summary || "기록")} <small>${escapeHtml(weatherRange || selectedWeather.label || "")}</small></span>
+    <span class="pulse-ticker-item pulse-weather" role="listitem"><b>날씨</b> ${escapeHtml(getWeatherConditionIcon(selectedWeather))} ${escapeHtml(selectedWeather.summary || "기록")} <small>${escapeHtml(weatherRange || selectedWeather.label || "")}</small></span>
   ` : "";
   const tickerItems = `
     <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
@@ -5823,7 +5843,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   `;
   renderDailyPulseDetails([
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
-    ...(selectedWeather ? [["날씨", `${selectedWeather.icon || "◇"} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
+    ...(selectedWeather ? [["날씨", `${getWeatherConditionIcon(selectedWeather)} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
     ["다음 일정", nextAppointment.time, nextText],
     ["AI 하루 설계", intelligence.blueprint.value, intelligence.blueprint.detail],
     ["시간 부채", intelligence.timeDebt.value, intelligence.timeDebt.detail],
@@ -7231,6 +7251,20 @@ function formatWeatherTemperatureRange(record = {}) {
   return Number.isFinite(temp) ? `${Math.round(temp)}°` : "";
 }
 
+function getWeatherConditionIcon(record = {}) {
+  const info = getWeatherCodeInfo(Number(record.code));
+  if (Number.isFinite(Number(record.code)) && info?.icon) return info.icon;
+  const summary = record.summary || "";
+  if (/맑/.test(summary)) return "☀️";
+  if (/구름|조금/.test(summary)) return "⛅";
+  if (/흐림|흐린/.test(summary)) return "☁️";
+  if (/안개/.test(summary)) return "🌫️";
+  if (/비|소나기/.test(summary)) return "🌧️";
+  if (/눈/.test(summary)) return "❄️";
+  if (/뇌우|번개/.test(summary)) return "⛈️";
+  return record.icon || "◇";
+}
+
 function getWeatherTitle(record = {}) {
   const range = formatWeatherTemperatureRange(record);
   const label = record.label ? `${record.label} ` : "";
@@ -7262,7 +7296,7 @@ function renderDailyTodayButton() {
     button.title = "오늘 날짜입니다";
     return;
   }
-  const icon = loading ? "…" : weather.icon || "◇";
+  const icon = loading ? "…" : getWeatherConditionIcon(weather);
   const range = formatWeatherTemperatureRange(weather);
   button.classList.add("is-weather-today");
   nav?.classList.toggle("has-today-weather", true);
@@ -7448,13 +7482,13 @@ async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
 }
 
 function getWeatherCodeInfo(code) {
-  if ([0].includes(code)) return { icon: "☀", summary: "맑음" };
-  if ([1, 2].includes(code)) return { icon: "◐", summary: "구름 조금" };
-  if ([3].includes(code)) return { icon: "☁", summary: "흐림" };
-  if ([45, 48].includes(code)) return { icon: "≋", summary: "안개" };
-  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { icon: "☂", summary: "비" };
-  if ([71, 73, 75, 77, 85, 86].includes(code)) return { icon: "❄", summary: "눈" };
-  if ([95, 96, 99].includes(code)) return { icon: "⚡", summary: "뇌우" };
+  if ([0].includes(code)) return { icon: "☀️", summary: "맑음" };
+  if ([1, 2].includes(code)) return { icon: "⛅", summary: "구름 조금" };
+  if ([3].includes(code)) return { icon: "☁️", summary: "흐림" };
+  if ([45, 48].includes(code)) return { icon: "🌫️", summary: "안개" };
+  if ([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return { icon: "🌧️", summary: "비" };
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return { icon: "❄️", summary: "눈" };
+  if ([95, 96, 99].includes(code)) return { icon: "⛈️", summary: "뇌우" };
   return { icon: "◇", summary: "날씨" };
 }
 

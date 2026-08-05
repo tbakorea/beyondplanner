@@ -17573,6 +17573,55 @@ body.ceo-mode .daily-title {
   color: rgba(31, 58, 49, 0.88) !important;
 }
 
+.pulse-weather-static {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  min-height: 34px;
+  overflow: hidden;
+  border: 1px solid rgba(221, 216, 203, 0.72);
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 8% 18%, rgba(255, 255, 255, 0.92) 0 12%, transparent 13%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.92), rgba(238, 243, 238, 0.76));
+  box-shadow: 0 5px 16px rgba(38, 50, 56, 0.045);
+  color: rgba(31, 58, 49, 0.88);
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+
+.pulse-weather-static-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.84);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.pulse-weather-static-main {
+  overflow: hidden;
+  color: var(--forest);
+  font-size: 13px;
+  font-weight: 940;
+  text-overflow: ellipsis;
+}
+
+.pulse-weather-static small,
+.pulse-weather-static em {
+  flex: 0 0 auto;
+  color: rgba(47, 65, 56, 0.62);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 820;
+}
+
 @media (max-width: 640px) {
   .day-date-nav.has-today-weather {
     grid-template-columns: 34px minmax(0, 1fr) 34px minmax(56px, auto) !important;
@@ -17591,6 +17640,27 @@ body.ceo-mode .daily-title {
 
   .today-weather-range {
     font-size: 9.5px !important;
+  }
+
+  .pulse-weather-static {
+    gap: 5px;
+    min-height: 34px;
+    padding-inline: 8px;
+  }
+
+  .pulse-weather-static-icon {
+    width: 20px;
+    height: 20px;
+    font-size: 14px;
+  }
+
+  .pulse-weather-static-main {
+    font-size: 12px;
+  }
+
+  .pulse-weather-static small,
+  .pulse-weather-static em {
+    font-size: 10px;
   }
 }
 
