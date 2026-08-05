@@ -6,24 +6,29 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260805a" />
+    <link rel="stylesheet" href="./styles.css?v=20260805b" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
       <div class="boot-card">
-        <span class="boot-mark">BW</span>
-        <strong>Beyond Work</strong>
+        <div class="boot-brand">
+          <span class="boot-mark" aria-hidden="true"><span class="compass-spark-icon"></span></span>
+          <div class="boot-brand-copy">
+            <span>AI 계획 시스템</span>
+            <strong>Beyond Work</strong>
+          </div>
+        </div>
         <span class="boot-dayline" id="bootDayline">오늘의 장면을 준비합니다</span>
         <div class="boot-value-strip" id="bootValueStrip" aria-label="Beyond Work 핵심 가치">
           <span>중요한 일을 시간표에 연결합니다.</span>
           <span>목표, 일정, Money 흐름을 한 화면에서 정리합니다.</span>
           <span>기록이 쌓일수록 코칭은 더 정확해집니다.</span>
         </div>
-        <div class="boot-coaching" aria-label="오늘의 성구와 코칭">
-          <span class="boot-coaching-kicker">오늘의 성구</span>
+        <div class="boot-coaching" aria-label="오늘의 코칭">
+          <span class="boot-coaching-kicker">오늘의 시작</span>
           <p id="bootCoachingMessage">오늘의 첫 선택이 하루의 방향을 만듭니다.</p>
           <p class="boot-navigate-en" id="bootNavigateEnglish">The first choice sets the direction of the day.</p>
-          <small class="boot-verse-source" id="bootVerseSource">World English Bible Public Domain · 한국어는 자체 묵상 요약입니다.</small>
+          <small class="boot-verse-source" id="bootVerseSource">오늘의 흐름을 준비합니다.</small>
           <ul id="bootCoachingSignals">
             <li>중요한 일 하나를 실제 시간에 앉히세요.</li>
           </ul>

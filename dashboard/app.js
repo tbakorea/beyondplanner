@@ -434,7 +434,7 @@ let accountSaveReady = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
-const BOOT_MIN_READING_MS = 6200;
+const BOOT_MIN_READING_MS = 4200;
 const bootStartedAt = Date.now();
 let bootHideTimer = 0;
 const DEFAULT_WEATHER_COORDS = weatherRegions.ulsan;
@@ -12877,16 +12877,17 @@ function renderBootCoaching() {
   const note = buildDailyOpeningNote(iso(todayInPlanner()));
   const navigate = pickNavigateVerse();
   loadNavigateVerseCache();
-  if (dayline) dayline.textContent = note.title;
+  if (dayline) dayline.textContent = `${note.title} · 오늘을 정렬합니다`;
   if (valueStrip) {
-    valueStrip.innerHTML = [navigate.groupKo, navigate.ref, "WEB"].map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
+    valueStrip.innerHTML = buildBootValuePhrases(note).map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
   }
-  message.textContent = `${buildNavigateReflection(navigate)} (${navigate.ref})`;
-  if (english) english.textContent = bootVerseTextCache[navigate.ref] || "World English Bible 본문을 불러오는 중입니다.";
-  if (source) source.textContent = "World English Bible Public Domain · 한국어는 앱 자체 묵상 요약입니다.";
+  message.textContent = note.message;
+  if (english) english.textContent = bootVerseTextCache[navigate.ref] || `${navigate.ref} · ${buildNavigateReflection(navigate)}`;
+  if (source) source.textContent = `Navigate 60 · ${navigate.groupKo} · ${navigate.ref}`;
   signals.innerHTML = [
-    buildNavigatePrompt(navigate),
-    note.signals.find((signal) => signal.includes("다음 일정")) || note.signals[0],
+    note.signals.find((signal) => signal.includes("첫 실행")) || note.signals[0],
+    note.signals.find((signal) => signal.includes("다음 일정")) || buildNavigatePrompt(navigate),
+    note.signals.find((signal) => signal.includes("이월")) || note.signals[1],
   ].filter(Boolean).slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
   hydrateNavigateVerseText(navigate);
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
