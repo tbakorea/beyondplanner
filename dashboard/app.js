@@ -94,7 +94,7 @@ const repeatCarryOptions = [
 const REPEAT_PRIORITY_MIN_ROWS = 0;
 const DAILY_EMPTY_TASK_MIN = 3;
 const DAILY_EMPTY_TASK_MAX = 5;
-const taskPriorityOptions = ["선택", "A", "B", "C", "취소", "연기"];
+const taskPriorityOptions = ["선택", "A", "B", "C", "위임", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
 const moneyCategories = ["", "카드대금", "적금/이자", "할부금", "렌탈", "관리비", "세금", "보험", "인건비", "생활비", "사업비", "기타"];
 const moneyStatuses = ["예정", "확인", "보류", "완료"];
@@ -8626,9 +8626,10 @@ function renderDayCompass() {
 
 function handleWeeklyPriorityMenuChange(item, value) {
   normalizeWeeklyPriority(item);
-  if (value === "취소" || value === "연기") {
+  if (["위임", "취소", "연기"].includes(value)) {
     item.status = value;
     item.done = false;
+    if (value !== "위임") item.delegate = "";
     if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
     saveState({ fastSave: true });
     renderDayCompass();
@@ -8637,14 +8638,20 @@ function handleWeeklyPriorityMenuChange(item, value) {
   if (["A", "B", "C"].includes(value)) {
     item.priority = value;
     item.priorityUnset = false;
-    if (item.status === "취소" || item.status === "연기") item.status = "미완료";
+    if (["위임", "취소", "연기"].includes(item.status)) {
+      item.status = "미완료";
+      item.delegate = "";
+    }
     item.done = item.status === "완료";
     saveState({ fastSave: true });
     renderDayCompass();
     return;
   }
   item.priorityUnset = true;
-  if (item.status === "취소" || item.status === "연기") item.status = "미완료";
+  if (["위임", "취소", "연기"].includes(item.status)) {
+    item.status = "미완료";
+    item.delegate = "";
+  }
   item.done = item.status === "완료";
   saveState({ fastSave: true });
   renderDayCompass();
@@ -9003,15 +9010,11 @@ function cycleTaskMarker(task) {
   }
   if (marker === "dot") {
     task.done = false;
-    task.status = "위임";
-    task.delegate ||= "";
-    return "위임";
-  }
-  if (marker === "delegate") {
-    task.done = false;
-    task.status = "연기";
-    task.postponeMode ||= "";
-    return "연기";
+    task.status = "미완료";
+    task.delegate = "";
+    task.postponeMode = "";
+    task.postponeDate = "";
+    return "해제";
   }
   task.done = false;
   task.status = "미완료";
@@ -9034,7 +9037,7 @@ function showTaskCycleFeedback(anchor, label = "") {
 }
 
 function getPriorityMenuValue(task, priority) {
-  if (task.status === "취소" || task.status === "연기") return task.status;
+  if (["위임", "취소", "연기"].includes(task.status)) return task.status;
   if (task.priorityUnset) return "선택";
   return ["A", "B", "C"].includes(priority) ? priority : "선택";
 }
@@ -9053,14 +9056,16 @@ function isTaskCompleted(task = {}) {
 
 function handlePriorityMenuChange(task, fromPriority, index, value) {
   ensureTaskOrder(ensureDay(), task);
-  if (value === "취소" || value === "연기") {
+  if (["위임", "취소", "연기"].includes(value)) {
     task.status = value;
     task.done = false;
+    if (value !== "위임") task.delegate = "";
     saveState({ fastSave: true });
     renderAll();
     return;
   }
-  task.status = task.status === "취소" || task.status === "연기" ? "미완료" : task.status;
+  if (task.status === "위임") task.delegate = "";
+  task.status = ["위임", "취소", "연기"].includes(task.status) ? "미완료" : task.status;
   task.done = task.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     task.priorityUnset = false;
@@ -9323,14 +9328,16 @@ function updateCarryoverTaskMarker(taskRef, anchor = null) {
 function updateCarryoverTaskPriority(taskRef, value) {
   const source = materializeCarryoverTask(taskRef);
   if (!source) return;
-  if (value === "취소" || value === "연기") {
+  if (["위임", "취소", "연기"].includes(value)) {
     source.task.status = value;
     source.task.done = false;
+    if (value !== "위임") source.task.delegate = "";
     saveState({ fastSave: true });
     renderAll();
     return;
   }
-  source.task.status = source.task.status === "취소" || source.task.status === "연기" ? "미완료" : source.task.status;
+  if (source.task.status === "위임") source.task.delegate = "";
+  source.task.status = ["위임", "취소", "연기"].includes(source.task.status) ? "미완료" : source.task.status;
   source.task.done = source.task.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     source.task.priorityUnset = false;
