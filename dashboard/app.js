@@ -4033,7 +4033,11 @@ function handleOnboardingAction(action) {
   if (action === "self") {
     showView("day");
     renderAll();
-    window.requestAnimationFrame(() => document.querySelector("[data-daily-self-check]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    window.requestAnimationFrame(() => {
+      const card = document.querySelector("[data-daily-self-check]");
+      if (card) card.open = true;
+      card?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
     return;
   }
   if (action === "foundation") {
@@ -6297,32 +6301,34 @@ function renderDailySelfAssessment(day = ensureDay()) {
   const diagnosis = buildDailySelfDiagnosis(day);
   const isKorean = getAppLanguage() === "ko";
   return `
-    <div class="daily-self-check" data-daily-self-check>
-      <div class="daily-self-check-head">
+    <details class="daily-self-check" data-daily-self-check>
+      <summary class="daily-self-check-head">
         <span>${escapeHtml(isKorean ? "오늘 평가" : "Daily Score")}</span>
         <strong>${escapeHtml(diagnosis.scoreText)}</strong>
-      </div>
-      <div class="daily-self-axis-list">
-        ${selfAssessmentAxes.map((axis) => {
-          const value = Number(assessment[axis.key]) || 0;
-          return `
-            <div class="daily-self-axis">
-              <div>
-                <b>${escapeHtml(getSelfAssessmentLabel(axis))}</b>
-                <small>${escapeHtml(getSelfAssessmentHint(axis))}</small>
+      </summary>
+      <div class="daily-self-body">
+        <div class="daily-self-axis-list">
+          ${selfAssessmentAxes.map((axis) => {
+            const value = Number(assessment[axis.key]) || 0;
+            return `
+              <div class="daily-self-axis">
+                <div>
+                  <b>${escapeHtml(getSelfAssessmentLabel(axis))}</b>
+                  <small>${escapeHtml(getSelfAssessmentHint(axis))}</small>
+                </div>
+                <div class="daily-self-score-buttons" role="group" aria-label="${escapeAttr(getSelfAssessmentLabel(axis))}">
+                  ${[1, 2, 3, 4, 5].map((score) => `
+                    <button type="button" class="${score === value ? "is-selected" : ""}" data-self-axis="${escapeAttr(axis.key)}" data-self-score="${score}">${score}</button>
+                  `).join("")}
+                </div>
               </div>
-              <div class="daily-self-score-buttons" role="group" aria-label="${escapeAttr(getSelfAssessmentLabel(axis))}">
-                ${[1, 2, 3, 4, 5].map((score) => `
-                  <button type="button" class="${score === value ? "is-selected" : ""}" data-self-axis="${escapeAttr(axis.key)}" data-self-score="${score}">${score}</button>
-                `).join("")}
-              </div>
-            </div>
-          `;
-        }).join("")}
+            `;
+          }).join("")}
+        </div>
+        <input class="daily-self-note" type="text" value="${escapeAttr(assessment.note)}" placeholder="${escapeAttr(isKorean ? "오늘 나에게 남길 한 줄" : "One note to yourself")}" data-self-note />
+        <p class="daily-self-diagnosis">${escapeHtml(diagnosis.summary)}</p>
       </div>
-      <input class="daily-self-note" type="text" value="${escapeAttr(assessment.note)}" placeholder="${escapeAttr(isKorean ? "오늘 나에게 남길 한 줄" : "One note to yourself")}" data-self-note />
-      <p class="daily-self-diagnosis">${escapeHtml(diagnosis.summary)}</p>
-    </div>
+    </details>
   `;
 }
 
@@ -6335,6 +6341,8 @@ function attachDailySelfAssessmentHandlers(day = ensureDay()) {
       assessment.updatedAt = new Date().toISOString();
       saveState({ fastSave: true });
       renderOnboarding(day);
+      const card = document.querySelector("[data-daily-self-check]");
+      if (card) card.open = true;
     };
   });
   const note = node.querySelector("[data-self-note]");
@@ -6345,6 +6353,8 @@ function attachDailySelfAssessmentHandlers(day = ensureDay()) {
       assessment.updatedAt = new Date().toISOString();
       saveState({ fastSave: true });
       renderOnboarding(day);
+      const card = document.querySelector("[data-daily-self-check]");
+      if (card) card.open = true;
     };
   }
 }

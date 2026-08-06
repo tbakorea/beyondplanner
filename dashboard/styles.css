@@ -18326,14 +18326,36 @@ body.ceo-mode .daily-title {
 
 /* Daily and weekly self-diagnosis: compact enough for mobile, useful enough for review. */
 .daily-self-check {
-  display: grid;
-  gap: 10px;
   margin-top: 12px;
   padding: 12px;
   border: 1px solid rgba(221, 216, 203, 0.78);
   border-radius: 18px;
   background: rgba(255, 253, 248, 0.78);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.daily-self-check summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.daily-self-check summary::-webkit-details-marker {
+  display: none;
+}
+
+.daily-self-check:not([open]) {
+  padding-block: 10px;
+}
+
+.daily-self-check[open] .daily-self-check-head {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(221, 216, 203, 0.62);
+}
+
+.daily-self-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 10px;
 }
 
 .daily-self-check-head,
