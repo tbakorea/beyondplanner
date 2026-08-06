@@ -18288,3 +18288,219 @@ body.ceo-mode .daily-title {
     display: none !important;
   }
 }
+
+/* Mobile Today bottom safety: keep panel bottoms and final rows above browser chrome. */
+@media (max-width: 640px) {
+  .app-shell {
+    padding-bottom: calc(92px + env(safe-area-inset-bottom)) !important;
+  }
+
+  #view-day {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .day-swipe {
+    box-sizing: border-box !important;
+    height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 62px - env(safe-area-inset-bottom)) !important;
+    max-height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 62px - env(safe-area-inset-bottom)) !important;
+    min-height: 420px !important;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .day-swipe > .panel,
+  .day-main-panel > .panel,
+  .day-task-panel,
+  .day-schedule-panel {
+    scroll-padding-bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .task-board,
+  .appointment-list {
+    padding-bottom: calc(86px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .onboarding-panel.is-collapsed .onboarding-restore {
+    bottom: calc(14px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+/* Daily and weekly self-diagnosis: compact enough for mobile, useful enough for review. */
+.daily-self-check {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid rgba(221, 216, 203, 0.78);
+  border-radius: 18px;
+  background: rgba(255, 253, 248, 0.78);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset;
+}
+
+.daily-self-check-head,
+.daily-self-axis {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.daily-self-check-head span,
+.weekly-diagnosis-panel h3 span {
+  color: rgba(32, 50, 43, 0.82);
+  font-weight: 900;
+}
+
+.daily-self-check-head strong,
+.weekly-diagnosis-score {
+  color: var(--forest);
+  font-size: 18px;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.daily-self-axis-list {
+  display: grid;
+  gap: 7px;
+}
+
+.daily-self-axis b,
+.daily-self-axis small {
+  display: block;
+}
+
+.daily-self-axis b {
+  color: rgba(32, 50, 43, 0.9);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.daily-self-axis small {
+  margin-top: 1px;
+  color: rgba(32, 50, 43, 0.52);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.daily-self-score-buttons {
+  display: inline-grid;
+  grid-template-columns: repeat(5, 28px);
+  gap: 4px;
+}
+
+.daily-self-score-buttons button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(221, 216, 203, 0.86);
+  border-radius: 999px;
+  background: rgba(248, 246, 239, 0.82);
+  color: rgba(32, 50, 43, 0.72);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.daily-self-score-buttons button.is-selected {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: #fff;
+}
+
+.daily-self-note {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(221, 216, 203, 0.82);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.92);
+  padding: 8px 10px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.daily-self-diagnosis,
+.weekly-diagnosis-coach {
+  margin: 0;
+  color: rgba(32, 50, 43, 0.72);
+  font-size: 13px;
+  font-weight: 760;
+  line-height: 1.45;
+}
+
+.weekly-diagnosis-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.weekly-diagnosis-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weekly-diagnosis-grid > div {
+  min-width: 0;
+  border: 1px solid rgba(221, 216, 203, 0.78);
+  border-radius: 16px;
+  background: rgba(255, 253, 248, 0.76);
+  padding: 10px;
+}
+
+.weekly-diagnosis-grid small,
+.weekly-diagnosis-grid b {
+  display: block;
+}
+
+.weekly-diagnosis-grid small {
+  color: rgba(32, 50, 43, 0.52);
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.weekly-diagnosis-grid b {
+  margin-top: 4px;
+  color: var(--ink);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.weekly-diagnosis-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.weekly-diagnosis-signals span {
+  border: 1px solid rgba(221, 216, 203, 0.74);
+  border-radius: 999px;
+  background: rgba(248, 246, 239, 0.78);
+  padding: 6px 10px;
+  color: rgba(32, 50, 43, 0.68);
+  font-size: 12px;
+  font-weight: 820;
+}
+
+@media (max-width: 640px) {
+  .daily-self-check {
+    padding: 10px;
+    border-radius: 16px;
+  }
+
+  .daily-self-axis {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .daily-self-score-buttons {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .daily-self-score-buttons button {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .weekly-diagnosis-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

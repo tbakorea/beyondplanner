@@ -71,6 +71,13 @@ const priorities = [
   ["B", "중요하지만 유연한 일"],
   ["C", "가능하면 처리할 일"],
 ];
+const selfAssessmentAxes = [
+  { key: "execution", ko: "실행력", en: "Execution", hintKo: "완료와 마감", hintEn: "Completion" },
+  { key: "time", ko: "시간관리", en: "Time", hintKo: "시간표 반영", hintEn: "Schedule fit" },
+  { key: "priority", ko: "우선순위", en: "Priority", hintKo: "중요 업무 보호", hintEn: "Priority focus" },
+  { key: "energy", ko: "건강리듬", en: "Energy", hintKo: "몸 상태와 회복", hintEn: "Energy rhythm" },
+  { key: "relationship", ko: "관계·위임", en: "People", hintKo: "소통과 위임", hintEn: "People work" },
+];
 const repeatFrequencies = [
   ["daily", "매일"],
   ["weekly", "매주"],
@@ -963,6 +970,7 @@ function migrateState(nextState) {
   });
   Object.values(nextState.days || {}).forEach((day) => {
     day.memo ||= "";
+    normalizeSelfAssessment(day);
     day.appointmentMerges ||= {};
     day.autoTaskScheduleLinks ||= {};
     day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
@@ -1845,10 +1853,12 @@ function ensureDay(key = iso(selectedDate)) {
     wins: "",
     carry: "",
     lesson: "",
+    selfAssessment: {},
     weather: null,
   };
   state.days[key].memo ||= "";
   state.days[key].weather ||= null;
+  normalizeSelfAssessment(state.days[key]);
   state.days[key].scheduleUnit = normalizeScheduleUnit(state.days[key].scheduleUnit || scheduleUnit);
   state.days[key].appointmentMerges ||= {};
   state.days[key].autoTaskScheduleLinks ||= {};
@@ -4020,6 +4030,12 @@ function handleOnboardingAction(action) {
     window.requestAnimationFrame(() => document.querySelector("[data-day-field='wins']")?.focus());
     return;
   }
+  if (action === "self") {
+    showView("day");
+    renderAll();
+    window.requestAnimationFrame(() => document.querySelector("[data-daily-self-check]")?.scrollIntoView({ behavior: "smooth", block: "center" }));
+    return;
+  }
   if (action === "foundation") {
     showView("foundation");
     renderAll();
@@ -5754,6 +5770,7 @@ function renderWeek() {
   }
   if (!el("weekCalendarPopover").hidden) renderWeekCalendar();
   if (isPlannerCalendarOpen("week")) renderPlannerCalendarSheet();
+  renderWeeklyDiagnosis();
 }
 
 function renderDay() {
@@ -6220,6 +6237,189 @@ function slotToMinutes(slot) {
   return hours * 60 + minutes;
 }
 
+function normalizeSelfAssessment(day = {}) {
+  day.selfAssessment ||= {};
+  selfAssessmentAxes.forEach((axis) => {
+    const score = Number(day.selfAssessment[axis.key]);
+    day.selfAssessment[axis.key] = Number.isFinite(score) && score >= 1 && score <= 5 ? score : 0;
+  });
+  day.selfAssessment.note = String(day.selfAssessment.note || "");
+  day.selfAssessment.updatedAt = String(day.selfAssessment.updatedAt || "");
+  return day.selfAssessment;
+}
+
+function getSelfAssessmentAverage(assessment = {}) {
+  const scores = selfAssessmentAxes
+    .map((axis) => Number(assessment[axis.key]) || 0)
+    .filter((score) => score > 0);
+  if (!scores.length) return 0;
+  return Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10;
+}
+
+function getSelfAssessmentLabel(axis) {
+  return getAppLanguage() === "ko" ? axis.ko : axis.en;
+}
+
+function getSelfAssessmentHint(axis) {
+  return getAppLanguage() === "ko" ? axis.hintKo : axis.hintEn;
+}
+
+function buildDailySelfDiagnosis(day = ensureDay()) {
+  const assessment = normalizeSelfAssessment(day);
+  const average = getSelfAssessmentAverage(assessment);
+  const key = iso(selectedDate);
+  const tasks = getDayTasks(key).filter((task) => task.text?.trim());
+  const done = tasks.filter((task) => isTaskCompleted(task)).length;
+  const scheduleCount = Object.values(day.appointments || {}).filter((value) => String(value || "").trim()).length;
+  const scoredAxes = selfAssessmentAxes
+    .map((axis) => ({ ...axis, score: Number(assessment[axis.key]) || 0 }))
+    .filter((axis) => axis.score > 0);
+  const low = [...scoredAxes].sort((a, b) => a.score - b.score)[0];
+  const high = [...scoredAxes].sort((a, b) => b.score - a.score)[0];
+  const isKorean = getAppLanguage() === "ko";
+  if (!scoredAxes.length) {
+    return {
+      scoreText: isKorean ? "미평가" : "Open",
+      summary: isKorean
+        ? "오늘을 마칠 때 5개 항목만 빠르게 점검하면 내일의 코칭 정확도가 올라갑니다."
+        : "Score five quick signals at the end of the day to improve tomorrow's coaching.",
+    };
+  }
+  const scoreText = `${average}/5`;
+  const summary = isKorean
+    ? `${high ? getSelfAssessmentLabel(high) : "실행"}이 가장 안정적입니다. ${low && low.score <= 3 ? `${getSelfAssessmentLabel(low)}은 내일 한 단계만 좁혀서 개선하세요.` : "내일은 같은 리듬을 유지하세요."} 완료 ${done}/${tasks.length || 0}, 일정 ${scheduleCount}건입니다.`
+    : `${high ? getSelfAssessmentLabel(high) : "Execution"} is strongest. ${low && low.score <= 3 ? `Tighten ${getSelfAssessmentLabel(low)} by one step tomorrow.` : "Keep the rhythm tomorrow."} Completed ${done}/${tasks.length || 0}, ${scheduleCount} scheduled items.`;
+  return { scoreText, summary };
+}
+
+function renderDailySelfAssessment(day = ensureDay()) {
+  const assessment = normalizeSelfAssessment(day);
+  const diagnosis = buildDailySelfDiagnosis(day);
+  const isKorean = getAppLanguage() === "ko";
+  return `
+    <div class="daily-self-check" data-daily-self-check>
+      <div class="daily-self-check-head">
+        <span>${escapeHtml(isKorean ? "오늘 평가" : "Daily Score")}</span>
+        <strong>${escapeHtml(diagnosis.scoreText)}</strong>
+      </div>
+      <div class="daily-self-axis-list">
+        ${selfAssessmentAxes.map((axis) => {
+          const value = Number(assessment[axis.key]) || 0;
+          return `
+            <div class="daily-self-axis">
+              <div>
+                <b>${escapeHtml(getSelfAssessmentLabel(axis))}</b>
+                <small>${escapeHtml(getSelfAssessmentHint(axis))}</small>
+              </div>
+              <div class="daily-self-score-buttons" role="group" aria-label="${escapeAttr(getSelfAssessmentLabel(axis))}">
+                ${[1, 2, 3, 4, 5].map((score) => `
+                  <button type="button" class="${score === value ? "is-selected" : ""}" data-self-axis="${escapeAttr(axis.key)}" data-self-score="${score}">${score}</button>
+                `).join("")}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      <input class="daily-self-note" type="text" value="${escapeAttr(assessment.note)}" placeholder="${escapeAttr(isKorean ? "오늘 나에게 남길 한 줄" : "One note to yourself")}" data-self-note />
+      <p class="daily-self-diagnosis">${escapeHtml(diagnosis.summary)}</p>
+    </div>
+  `;
+}
+
+function attachDailySelfAssessmentHandlers(day = ensureDay()) {
+  const node = el("onboardingPanel");
+  node.querySelectorAll("[data-self-axis]").forEach((button) => {
+    button.onclick = () => {
+      const assessment = normalizeSelfAssessment(day);
+      assessment[button.dataset.selfAxis] = Number(button.dataset.selfScore) || 0;
+      assessment.updatedAt = new Date().toISOString();
+      saveState({ fastSave: true });
+      renderOnboarding(day);
+    };
+  });
+  const note = node.querySelector("[data-self-note]");
+  if (note) {
+    note.onchange = () => {
+      const assessment = normalizeSelfAssessment(day);
+      assessment.note = note.value;
+      assessment.updatedAt = new Date().toISOString();
+      saveState({ fastSave: true });
+      renderOnboarding(day);
+    };
+  }
+}
+
+function buildWeeklyDiagnosis(weekStart = startOfWeek(selectedDate)) {
+  const rows = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    const key = iso(date);
+    const day = ensureDay(key);
+    const tasks = getDayTasks(key).filter((task) => task.text?.trim());
+    const completed = tasks.filter((task) => isTaskCompleted(task)).length;
+    const important = tasks.filter((task) => task.priority === "A");
+    const appointments = Object.values(day.appointments || {}).filter((value) => String(value || "").trim()).length;
+    const assessment = normalizeSelfAssessment(day);
+    return {
+      key,
+      date,
+      tasks: tasks.length,
+      completed,
+      important: important.length,
+      openImportant: important.filter((task) => !isTaskCompleted(task)).length,
+      appointments,
+      selfAverage: getSelfAssessmentAverage(assessment),
+    };
+  });
+  const totals = rows.reduce((acc, row) => {
+    acc.tasks += row.tasks;
+    acc.completed += row.completed;
+    acc.important += row.important;
+    acc.openImportant += row.openImportant;
+    acc.appointments += row.appointments;
+    if (row.selfAverage) {
+      acc.selfSum += row.selfAverage;
+      acc.selfCount += 1;
+    }
+    return acc;
+  }, { tasks: 0, completed: 0, important: 0, openImportant: 0, appointments: 0, selfSum: 0, selfCount: 0 });
+  const completionRate = totals.tasks ? Math.round((totals.completed / totals.tasks) * 100) : 0;
+  const selfScore = totals.selfCount ? Math.round((totals.selfSum / totals.selfCount) * 10) / 10 : 0;
+  const busiest = [...rows].sort((a, b) => b.appointments - a.appointments)[0];
+  const weakest = rows.filter((row) => row.tasks).sort((a, b) => (a.completed / a.tasks) - (b.completed / b.tasks))[0];
+  const isKorean = getAppLanguage() === "ko";
+  const coach = isKorean
+    ? `${completionRate < 60 ? "완료율보다 중요한 것은 A업무를 시간표에 먼저 고정하는 것입니다." : "이번 주 실행 흐름은 유지할 만합니다."} ${totals.openImportant ? `미완료 A업무 ${totals.openImportant}건을 다음 주 첫 시간대에 배치하세요.` : "중요 업무의 잔여 부담은 낮습니다."}`
+    : `${completionRate < 60 ? "Protect A tasks by placing them on the schedule first." : "The week's execution rhythm is usable."} ${totals.openImportant ? `Place ${totals.openImportant} open A tasks into early time blocks next week.` : "Important-task drag is low."}`;
+  return { rows, totals, completionRate, selfScore, busiest, weakest, coach };
+}
+
+function renderWeeklyDiagnosis() {
+  const node = el("weeklyDiagnosisPanel");
+  if (!node) return;
+  const diagnosis = buildWeeklyDiagnosis(startOfWeek(selectedDate));
+  const isKorean = getAppLanguage() === "ko";
+  const busiestLabel = diagnosis.busiest ? `${formatShortDate(diagnosis.busiest.date)} · ${diagnosis.busiest.appointments}건` : "-";
+  const weakestLabel = diagnosis.weakest ? `${formatShortDate(diagnosis.weakest.date)} · ${diagnosis.weakest.completed}/${diagnosis.weakest.tasks}` : "-";
+  node.innerHTML = `
+    <h3 class="panel-title-row">
+      <span>${escapeHtml(isKorean ? "주간 진단" : "Weekly Diagnosis")}</span>
+      <strong class="weekly-diagnosis-score">${diagnosis.completionRate}%</strong>
+    </h3>
+    <div class="weekly-diagnosis-grid">
+      <div><small>${escapeHtml(isKorean ? "완료" : "Done")}</small><b>${diagnosis.totals.completed}/${diagnosis.totals.tasks}</b></div>
+      <div><small>${escapeHtml(isKorean ? "A 잔여" : "Open A")}</small><b>${diagnosis.totals.openImportant}</b></div>
+      <div><small>${escapeHtml(isKorean ? "시간표" : "Schedule")}</small><b>${diagnosis.totals.appointments}</b></div>
+      <div><small>${escapeHtml(isKorean ? "자가평가" : "Self")}</small><b>${diagnosis.selfScore ? `${diagnosis.selfScore}/5` : "-"}</b></div>
+    </div>
+    <div class="weekly-diagnosis-signals">
+      <span>${escapeHtml(isKorean ? "가장 바쁜 날" : "Busiest")}: <b>${escapeHtml(busiestLabel)}</b></span>
+      <span>${escapeHtml(isKorean ? "조정이 필요한 날" : "Needs adjustment")}: <b>${escapeHtml(weakestLabel)}</b></span>
+    </div>
+    <p class="weekly-diagnosis-coach">${escapeHtml(diagnosis.coach)}</p>
+  `;
+}
+
 function renderOnboarding(day) {
   const node = el("onboardingPanel");
   if (!node) return;
@@ -6253,6 +6453,7 @@ function renderOnboarding(day) {
           </button>
         `).join("")}
       </div>
+      ${renderDailySelfAssessment(day)}
     </div>
     <div class="onboarding-actions">
       <button type="button" data-onboarding-action="${escapeAttr(steps.find((step) => !step.done)?.action || "task")}">다음 단계</button>
@@ -6262,6 +6463,7 @@ function renderOnboarding(day) {
   node.querySelectorAll("[data-onboarding-action]").forEach((button) => {
     button.onclick = () => handleOnboardingAction(button.dataset.onboardingAction);
   });
+  attachDailySelfAssessmentHandlers(day);
   node.querySelector("[data-onboarding-toggle]")?.addEventListener("click", toggleOnboardingPanel);
 }
 
@@ -6279,12 +6481,14 @@ function getOnboardingSteps(day = ensureDay()) {
   const hasTasks = getDayTasks(iso(selectedDate)).some((task) => task.text?.trim());
   const hasSchedule = Object.values(day.appointments || {}).some((value) => String(value || "").trim());
   const hasReview = ["wins", "carry", "lesson"].some((field) => String(day[field] || "").trim());
+  const hasSelfAssessment = getSelfAssessmentAverage(normalizeSelfAssessment(day)) > 0;
   return isKorean
     ? [
         { action: "foundation", done: hasIdentity, title: "나의 정보", caption: "AI 코칭의 기준" },
         { action: "week", done: hasWeek, title: "주간 초점", caption: "이번 주 핵심" },
         { action: "task", done: hasTasks, title: "우선업무", caption: "오늘 끝낼 일" },
         { action: "schedule", done: hasSchedule, title: "시간별 일정", caption: "언제 할지 배치" },
+        { action: "self", done: hasSelfAssessment, title: "오늘 평가", caption: "5가지 30초 점검" },
         { action: "review", done: hasReview, title: "하루 회고", caption: "배운 점 축적" },
       ]
     : [
@@ -6292,6 +6496,7 @@ function getOnboardingSteps(day = ensureDay()) {
         { action: "week", done: hasWeek, title: "Week Focus", caption: "This week's key items" },
         { action: "task", done: hasTasks, title: "Top Tasks", caption: "What to finish today" },
         { action: "schedule", done: hasSchedule, title: "Schedule", caption: "When to do it" },
+        { action: "self", done: hasSelfAssessment, title: "Daily Score", caption: "Five quick checks" },
         { action: "review", done: hasReview, title: "Daily Review", caption: "Lessons retained" },
       ];
 }
