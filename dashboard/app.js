@@ -4327,6 +4327,7 @@ function setupDaySwipePager() {
 }
 
 function isPagedDaySwipe() {
+  if (document.body.classList.contains("classic-mode") && window.matchMedia("(min-width: 1025px)").matches) return false;
   return document.body.classList.contains("ceo-mode") || window.matchMedia("(max-width: 1320px)").matches;
 }
 
@@ -9668,19 +9669,16 @@ function renderAppointments(day) {
     const row = document.createElement("div");
     const value = day.appointments[slot] || "";
     const isCurrent = isCurrentAppointmentSlot(slotIndex, span, slots);
-    const currentTimeLabel = isCurrent ? getCurrentAppointmentTimeLabel(slotIndex, span, slots) : "";
-    const currentProgress = span > 1 && isCurrent ? getCurrentAppointmentProgress(slotIndex, span, slots) : 0;
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
     row.dataset.appointmentSlot = slot;
     row.style.setProperty("--slot-span", span);
-    if (currentTimeLabel && span > 1) row.style.setProperty("--current-segment-top", `${currentProgress}%`);
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
     const fieldMarkup = span > 1
       ? `<textarea rows="${Math.max(2, span)}" placeholder="일정">${escapeHtml(value)}</textarea>`
       : `<input type="text" value="${escapeAttr(value)}" placeholder="일정" />`;
     row.innerHTML = `
-      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b>${currentTimeLabel ? `<em class="appointment-current-time-number">${currentTimeLabel}</em>` : ""}<b>${endSlot}</b>` : slot}</span>
+      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}</span>
       ${fieldMarkup}
       ${value ? `<button class="appointment-delete" type="button" title="일정 삭제" aria-label="${escapeAttr(slot)} 일정 삭제">×</button>` : ""}
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
@@ -9778,25 +9776,6 @@ function isCurrentAppointmentSlot(slotIndex, span, slots = timeSlots) {
   const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
   const end = start + span * getScheduleSlotIntervalMinutes(slots);
   return currentMinutes >= start && currentMinutes < end;
-}
-
-function getCurrentAppointmentTimeLabel(slotIndex, span, slots = timeSlots) {
-  if (iso(selectedDate) !== iso(todayInPlanner())) return "";
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
-  const end = start + span * getScheduleSlotIntervalMinutes(slots);
-  if (currentMinutes < start || currentMinutes >= end) return "";
-  return minutesToTimeLabel(Math.max(start, Math.floor(currentMinutes / 30) * 30));
-}
-
-function getCurrentAppointmentProgress(slotIndex, span, slots = timeSlots) {
-  const now = new Date();
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const start = slotToMinutes(slots[slotIndex] || slots[0] || "00:00");
-  const duration = span * getScheduleSlotIntervalMinutes(slots);
-  if (!duration) return 0;
-  return Math.max(16, Math.min(84, ((currentMinutes - start) / duration) * 100));
 }
 
 function minutesToTimeLabel(minutes) {

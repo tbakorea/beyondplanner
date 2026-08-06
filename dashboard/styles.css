@@ -4848,22 +4848,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
 }
 
 .appointment-time.range .appointment-current-time-number {
-  position: absolute;
-  top: var(--current-segment-top, 50%);
-  left: 0;
-  z-index: 2;
-  transform: translateY(-50%);
-  margin: 0;
-  padding: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: clip;
-  color: #d7372f;
-  font-size: inherit;
-  font-style: normal;
-  font-weight: 950;
-  letter-spacing: 0;
-  white-space: nowrap;
+  display: none !important;
 }
 
 .appointment-row input[type="text"],
@@ -10683,7 +10668,7 @@ body.ceo-mode .sheet-grid-wrap {
 }
 
 .appointment-row.is-merged .appointment-current-time-number {
-  top: var(--current-segment-top, 50%);
+  display: none !important;
 }
 
 @media (max-width: 640px) {
@@ -10704,7 +10689,7 @@ body.ceo-mode .sheet-grid-wrap {
   }
 
   .appointment-time.range .appointment-current-time-number {
-    font-size: inherit;
+    display: none !important;
   }
 }
 
@@ -10719,13 +10704,12 @@ body.ceo-mode .sheet-grid-wrap {
 }
 
 .appointment-row.is-merged.is-current-time .appointment-time {
-  color: var(--muted);
-  font-weight: 780;
+  color: #c9332d;
+  font-weight: 950;
 }
 
 .appointment-row.is-merged .appointment-current-time-number {
-  color: #d7372f;
-  font-weight: 950;
+  display: none !important;
 }
 
 /* Daily title page chips: adjacent CEO pages live inside the date card. */
@@ -18244,5 +18228,63 @@ body.ceo-mode .daily-title {
   .top-more-panel .top-menu-section select {
     min-height: 44px !important;
     font-size: 13px !important;
+  }
+}
+
+/* Desktop classic daily canvas: show Weekly, Tasks, Schedule, and Memo together. */
+@media (min-width: 1025px) {
+  body.classic-mode .day-swipe {
+    display: grid !important;
+    grid-template-columns:
+      minmax(180px, 0.74fr)
+      minmax(260px, 1.08fr)
+      minmax(220px, 0.9fr)
+      minmax(320px, 1.38fr) !important;
+    gap: 10px !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    overscroll-behavior-x: auto !important;
+    scroll-snap-type: none !important;
+    scroll-padding-inline: 0 !important;
+    touch-action: pan-y !important;
+    height: calc(100vh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 96px) !important;
+    height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 96px) !important;
+    min-height: 620px !important;
+  }
+
+  body.classic-mode .day-swipe > .swipe-panel,
+  body.classic-mode .day-swipe > .panel {
+    flex: initial !important;
+    min-width: 0 !important;
+    width: auto !important;
+    scroll-snap-align: none !important;
+  }
+
+  body.classic-mode .day-main-panel {
+    display: contents !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+
+  body.classic-mode .day-main-panel > .panel,
+  body.classic-mode .day-swipe > .panel {
+    width: auto !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: auto !important;
+  }
+
+  body.classic-mode .day-compass-panel,
+  body.classic-mode .day-task-panel,
+  body.classic-mode .day-schedule-panel,
+  body.classic-mode .day-memo-panel {
+    border-radius: 8px !important;
+  }
+
+  body.classic-mode .day-panel-return {
+    display: none !important;
   }
 }
