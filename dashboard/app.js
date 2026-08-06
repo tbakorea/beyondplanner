@@ -162,6 +162,7 @@ const defaultProfileFields = {
   risks: "",
   energyWindow: "",
   coachingStyle: "",
+  openingDirection: "",
   healthStatus: "",
   medications: "",
   exerciseLimits: "",
@@ -305,6 +306,7 @@ const settingsLanguageLabels = {
       risks: "When I Delay",
       energyWindow: "Best Energy",
       coachingStyle: "Preferred Coaching Style",
+      openingDirection: "Opening Message Direction",
       healthStatus: "Body Status",
       medications: "Care / Medication",
       exerciseLimits: "Exercise Limits",
@@ -326,6 +328,7 @@ const settingsLanguageLabels = {
       risks: "e.g. delay big tasks, cannot refuse requests, work late at night",
       energyWindow: "e.g. 9-11 AM, after 10 PM",
       coachingStyle: "e.g. short and direct, warm, numbers first",
+      openingDirection: "e.g. help me start with courage, planning, diligence, and clear priorities",
       healthStatus: "e.g. back pain, blood pressure, fatigue",
       medications: "Medicine, checkups, care routines",
       exerciseLimits: "Health cautions, movements to avoid, medication/checkup notes",
@@ -394,6 +397,7 @@ const settingsLanguageLabels = {
       risks: "자주 미루는 상황",
       energyWindow: "집중이 잘 되는 시간",
       coachingStyle: "원하는 코칭 방식",
+      openingDirection: "오프닝 방향",
       healthStatus: "몸 상태",
       medications: "관리/투약",
       exerciseLimits: "주의할 점",
@@ -415,6 +419,7 @@ const settingsLanguageLabels = {
       risks: "예: 일이 너무 크면 미룸, 부탁을 거절 못함, 밤에 몰아서 함",
       energyWindow: "예: 오전 9-11시, 밤 10시 이후",
       coachingStyle: "예: 짧고 단호하게, 따뜻하게, 숫자로",
+      openingDirection: "예: 담대하게 결정하도록, 계획을 먼저 세우도록, 성실하게 한 칸씩 채우도록",
       healthStatus: "예: 허리 통증, 혈압 관리, 피로감",
       medications: "복용약, 검진, 관리 루틴",
       exerciseLimits: "피해야 할 운동, 관리 중인 건강 이슈, 검진/투약 메모",
@@ -6564,9 +6569,18 @@ function buildDailyOpeningNote(key = iso(todayInPlanner())) {
     state.profile?.currentChallenges,
     state.profile?.energyWindow,
     state.profile?.healthStatus,
+    state.profile?.openingDirection,
   ].filter(Boolean).join("|");
   const hash = hashString(`${key}:${weekday}:${tasks.length}:${carryovers.length}:${appointments.length}:${goals.slice(0, 80)}:${profileSeed}:${topTask?.text || ""}`);
-  const praise = buildDailyOpeningPraise({ hash, personaLabel, carryovers, appointments, openTasks, goals });
+  const praise = buildDailyOpeningPraise({
+    hash,
+    personaLabel,
+    carryovers,
+    appointments,
+    openTasks,
+    goals,
+    openingDirection: state.profile?.openingDirection,
+  });
   const challenge = dailyChallengeText(openTasks, carryovers, appointments, goals, hash, { topTask, appointmentSummary, personaLabel });
   const firstMove = buildDailyFirstMove({ topTask, appointmentSummary, carryovers, openTasks, goals, hash });
   return {
@@ -6590,16 +6604,34 @@ function formatCompactOpeningDate(date) {
   return `${pad(date.getMonth() + 1)}/${pad(date.getDate())}(${getWeekdayLabel(date.getDay())})`;
 }
 
-function buildDailyOpeningPraise({ hash, personaLabel, carryovers, appointments, openTasks, goals }) {
+function buildDailyOpeningPraise({ hash, personaLabel, carryovers, appointments, openTasks, goals, openingDirection }) {
+  const direction = String(openingDirection || "").trim();
+  const firstTaskText = openTasks[0]?.text ? stripTaskTimeText(openTasks[0].text).slice(0, 24) : "";
+  const workCue = firstTaskText
+    ? `'${firstTaskText}'부터 실제 행동으로 옮기세요.`
+    : appointments.length
+      ? "가장 가까운 일정을 기준으로 오늘의 흐름을 먼저 잡으세요."
+      : "중요한 일 하나를 시간표에 먼저 고정하세요.";
+  if (direction) {
+    return pickByHash(
+      [
+        `오늘의 오프닝 방향은 '${direction.slice(0, 36)}'입니다. ${workCue}`,
+        `${direction.slice(0, 36)} 이 기준으로 오늘의 선택을 좁히세요. ${workCue}`,
+        `사용자가 정한 방향을 먼저 적용합니다. ${direction.slice(0, 36)} ${workCue}`,
+      ],
+      hash,
+    );
+  }
   if (carryovers.length >= 5) return "많이 밀린 날일수록 대표님의 판단력은 더 선명해야 합니다.";
   if (appointments.length >= 4) return "일정이 많은 날에도 하루의 주도권은 첫 선택에서 시작됩니다.";
   if (openTasks.length && goals) return `${personaLabel ? `${personaLabel}로서 ` : ""}목표와 오늘의 실행을 연결하려는 태도는 이미 좋은 출발입니다.`;
   return pickByHash(
     [
-      "오늘을 기록으로 시작한 것만으로도 이미 방향을 붙든 것입니다.",
-      "어제의 무게가 남아 있어도 오늘의 첫 선택은 새로울 수 있습니다.",
-      "일을 적는 손은 작아 보여도 방향을 정하는 힘은 큽니다.",
-      "바쁜 형편 속에서도 계획을 여는 태도는 충분히 칭찬받을 일입니다.",
+      `꿈은 막연한 생각이 아니라 오늘의 한 칸에서 검증됩니다. ${workCue}`,
+      `계획은 불안을 줄이는 기술입니다. ${workCue}`,
+      `근면은 큰 결심보다 반복되는 작은 실행에서 증명됩니다. ${workCue}`,
+      `성실은 보이지 않는 시간을 지키는 힘입니다. ${workCue}`,
+      `오늘을 기록으로 시작한 것만으로도 이미 방향을 붙든 것입니다. ${workCue}`,
     ],
     hash,
   );
