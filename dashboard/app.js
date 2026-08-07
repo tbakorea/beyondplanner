@@ -12455,6 +12455,8 @@ function escapeHtml(value = "") {
 function showView(name) {
   if (name === "sheets") name = "day";
   const previousView = document.querySelector(".view.active")?.id?.replace("view-", "") || "";
+  document.body.dataset.activeView = name;
+  document.body.classList.toggle("day-view-active", name === "day");
   if (name === "projects" && previousView !== "projects") projectDetailOpen = false;
   if (name === "sheets" && previousView !== "sheets") sheetDetailOpen = false;
   if (name !== "day") closeDailyCalendar();
