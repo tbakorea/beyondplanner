@@ -18141,6 +18141,17 @@ body.ceo-mode .daily-title {
   min-width: 0;
 }
 
+/* Menu reliability: the actual button text is the source of truth. */
+.quick-strip button[data-top-view="notes"] {
+  font-size: 13px !important;
+  letter-spacing: 0 !important;
+}
+
+.quick-strip button[data-top-view="notes"]::before {
+  content: none !important;
+  display: none !important;
+}
+
 .top-menu-nav {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
