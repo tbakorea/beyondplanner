@@ -9310,6 +9310,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     task.status = value;
     task.done = false;
     if (value !== "위임") task.delegate = "";
+    clearTaskScheduleLinkForInactive(task, ensureDay());
     saveState({ fastSave: true });
     renderAll();
     return;
@@ -9347,6 +9348,7 @@ function deleteTask(priority, index) {
   if (!task) return;
   if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
   captureUndo("우선업무 삭제");
+  clearTaskScheduleLinkForInactive(task, day);
   if (task.repeatId) {
     day.deletedRepeatIds ||= [];
     if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
@@ -9359,6 +9361,7 @@ function deleteTask(priority, index) {
 
 function schedulePostponedTask(task, priority, targetDate) {
   if (!targetDate || Number.isNaN(parseDate(targetDate).getTime())) return;
+  clearTaskScheduleLinkForInactive(task, ensureDay());
   task.postponeDate = targetDate;
   task.postponeId ||= `postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   task.carryoverDeletedFrom = targetDate;
@@ -9553,6 +9556,9 @@ function deleteCarryoverTask(taskRef) {
   if (!source) return;
   if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘 이후 이월에서 제외됩니다.")) return;
   captureUndo("이월 우선업무 삭제");
+  const selectedDay = ensureDay();
+  clearTaskTextTimeHintFromSchedule(taskRef.text, selectedDay, { linkId: getCarryoverScheduleLinkId(taskRef) });
+  if (taskRef.date === iso(selectedDate)) clearTaskScheduleLinkForInactive(source.task, selectedDay);
   if (source.task.repeatId) {
     const selectedKey = iso(selectedDate);
     const day = ensureDay(selectedKey);
@@ -9576,12 +9582,18 @@ function updateCarryoverTaskMarker(taskRef, anchor = null) {
 }
 
 function updateCarryoverTaskPriority(taskRef, value) {
+  const selectedDay = ensureDay();
+  const isInactiveValue = ["위임", "취소", "연기"].includes(value);
+  if (isInactiveValue) {
+    clearTaskTextTimeHintFromSchedule(taskRef.text, selectedDay, { linkId: getCarryoverScheduleLinkId(taskRef) });
+  }
   const source = materializeCarryoverTask(taskRef);
   if (!source) return;
-  if (["위임", "취소", "연기"].includes(value)) {
+  if (isInactiveValue) {
     source.task.status = value;
     source.task.done = false;
     if (value !== "위임") source.task.delegate = "";
+    clearTaskScheduleLinkForInactive(source.task, source.day || selectedDay);
     saveState({ fastSave: true });
     renderAll();
     return;
@@ -9621,6 +9633,7 @@ function updateCarryoverTaskText(taskRef, value) {
   const sourceRef = materializeCarryoverTask(taskRef);
   const source = sourceRef?.task;
   if (!source) return;
+  clearTaskTextTimeHintFromSchedule(source.text, sourceRef.day || ensureDay(), { linkId: getCarryoverScheduleLinkId(taskRef) });
   source.text = value;
   if (!isFutureCarryoverTask(source) && syncTaskTimeHintToSchedule(source, sourceRef.day || ensureDay())) renderAppointments(ensureDay());
   saveState({ fastSave: true });
@@ -9660,10 +9673,7 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
   const existingLink = day.autoTaskScheduleLinks[linkId] || (task.scheduledSlot && task.scheduledText ? { type: "task", slot: task.scheduledSlot, text: task.scheduledText } : null);
   let changed = false;
   if (shouldRemoveTaskScheduleLink(task)) {
-    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
-    delete task.scheduledSlot;
-    delete task.scheduledText;
-    return changed;
+    return clearTaskScheduleLinkForInactive(task, day, linkId, existingLink);
   }
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
   if (!hint || !targetSlot || !hint.text) {
@@ -9702,6 +9712,19 @@ function getTaskScheduleLinkId(task = {}) {
   return `task:${task.id || task.financeItemId || task.projectTaskId || task.repeatId || task.text || "unknown"}`;
 }
 
+function clearTaskScheduleLinkForInactive(task = {}, day = ensureDay(), linkId = getTaskScheduleLinkId(task), fallbackLink = null) {
+  if (!task || !day) return false;
+  day.appointments ||= {};
+  day.autoTaskScheduleLinks ||= {};
+  let changed = false;
+  const existingLink = fallbackLink || day.autoTaskScheduleLinks[linkId] || (task.scheduledSlot && task.scheduledText ? { type: "task", slot: task.scheduledSlot, text: task.scheduledText } : null);
+  if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
+  changed = clearTaskTextTimeHintFromSchedule(task.text, day) || changed;
+  delete task.scheduledSlot;
+  delete task.scheduledText;
+  return changed;
+}
+
 function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
   let changed = false;
   const directTaskSlots = new Set();
@@ -9734,8 +9757,7 @@ function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = 
   let changed = false;
   const existingLink = linkId ? day.autoTaskScheduleLinks[linkId] : null;
   if (options.inactive) {
-    if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId) || changed;
-    return changed;
+    return clearTaskTextTimeHintFromSchedule(text, day, { linkId, fallbackLink: existingLink });
   }
   if (!hint || !targetSlot || !hint.text) {
     if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId) || changed;
@@ -9794,14 +9816,32 @@ function clearAutoTaskScheduleLink(day = ensureDay(), linkId = "", fallbackLink 
   if (!link) return false;
   let changed = false;
   if (link.slot && link.text && day.appointments?.[link.slot]) {
-    const cleaned = removeSchedulePart(day.appointments[link.slot], link.text);
-    if (cleaned !== day.appointments[link.slot]) {
-      day.appointments[link.slot] = cleaned;
-      changed = true;
-    }
+    changed = clearSchedulePartAtSlot(day, link.slot, link.text) || changed;
   }
   if (linkId) delete day.autoTaskScheduleLinks[linkId];
   return changed || true;
+}
+
+function clearTaskTextTimeHintFromSchedule(text = "", day = ensureDay(), options = {}) {
+  if (!day) return false;
+  day.appointments ||= {};
+  day.autoTaskScheduleLinks ||= {};
+  let changed = false;
+  const linkId = options.linkId || "";
+  const existingLink = options.fallbackLink || (linkId ? day.autoTaskScheduleLinks[linkId] : null);
+  if (existingLink) changed = clearAutoTaskScheduleLink(day, linkId, existingLink) || changed;
+  const hint = extractTaskTimeHint(text);
+  const targetSlot = hint ? resolveTaskTimeHintSlot(hint, getScheduleSlotsForDay(day)) : "";
+  if (targetSlot && hint?.text) changed = clearSchedulePartAtSlot(day, targetSlot, hint.text) || changed;
+  return changed;
+}
+
+function clearSchedulePartAtSlot(day = ensureDay(), slot = "", part = "") {
+  if (!day?.appointments || !slot || !part || !day.appointments[slot]) return false;
+  const cleaned = removeSchedulePart(day.appointments[slot], part);
+  if (cleaned === day.appointments[slot]) return false;
+  day.appointments[slot] = cleaned;
+  return true;
 }
 
 function clearFutureCarryoverTimeHints(day = ensureDay(), carryovers = [], blockedSlots = new Set()) {
