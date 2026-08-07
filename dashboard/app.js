@@ -9788,11 +9788,11 @@ function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = 
 }
 
 function shouldSyncCarryoverTimeHints(key = iso(selectedDate)) {
-  return key <= iso(todayInPlanner());
+  return shouldShowCarryoversForDate(key);
 }
 
 function isFutureCarryoverTask(task = {}, key = iso(selectedDate)) {
-  return Boolean((task.carryoverForkFrom || task.carryoverSourceDate) && key > iso(todayInPlanner()));
+  return Boolean((task.carryoverForkFrom || task.carryoverSourceDate) && !shouldShowCarryoversForDate(key));
 }
 
 function getCarryoverScheduleLinkId(task = {}) {
@@ -12414,6 +12414,7 @@ function getDayTasks(key) {
 
 function getCarryoverTasks(date) {
   const currentKey = iso(date);
+  if (!shouldShowCarryoversForDate(currentKey)) return [];
   return Object.keys(state.days)
     .filter((key) => key < currentKey)
     .sort()
@@ -12427,6 +12428,11 @@ function getCarryoverTasks(date) {
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });
+}
+
+function shouldShowCarryoversForDate(key = iso(selectedDate)) {
+  if (!isValidIsoDate(key)) return false;
+  return key <= iso(todayInPlanner());
 }
 
 function isCarryoverCompletedOn(task, key = iso(selectedDate)) {
