@@ -18300,6 +18300,218 @@ body.ceo-mode .daily-title {
   }
 }
 
+/* Desktop classic fit: keep the full four-column planner inside the current browser window. */
+@media (min-width: 1025px) {
+  body.classic-mode {
+    overflow-x: hidden !important;
+  }
+
+  body.classic-mode .app-header {
+    grid-template-columns: minmax(220px, 0.66fr) minmax(520px, 1.34fr) !important;
+    align-items: center !important;
+    gap: 10px !important;
+    min-height: 0 !important;
+    max-height: 92px !important;
+    padding: max(5px, env(safe-area-inset-top)) clamp(12px, 1.8vw, 26px) 5px clamp(12px, 1.8vw, 26px) !important;
+    overflow: visible !important;
+  }
+
+  body.classic-mode .brand-block {
+    display: flex !important;
+    align-items: center !important;
+    gap: 9px !important;
+    min-width: 0 !important;
+  }
+
+  body.classic-mode .brand-row {
+    min-height: 34px !important;
+    gap: 7px !important;
+  }
+
+  body.classic-mode .brand-row h1 {
+    max-width: min(31vw, 340px) !important;
+    font-size: clamp(26px, 2.6vw, 40px) !important;
+    line-height: 0.96 !important;
+  }
+
+  body.classic-mode .coach-bubble {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  body.classic-mode #modeToggle {
+    min-width: 98px !important;
+    min-height: 28px !important;
+    padding: 3px 10px !important;
+    font-size: 11px !important;
+  }
+
+  body.classic-mode .header-tools {
+    gap: 4px !important;
+    justify-items: end !important;
+  }
+
+  body.classic-mode .quick-strip {
+    width: min(100%, 780px) !important;
+    min-height: 36px !important;
+    max-height: 42px !important;
+    gap: 4px !important;
+    padding: 4px !important;
+    overflow-x: auto !important;
+  }
+
+  body.classic-mode .quick-strip button,
+  body.classic-mode .top-search-toggle,
+  body.classic-mode .quick-strip .ghost-button,
+  body.classic-mode .quick-strip .pill {
+    min-height: 30px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+  }
+
+  body.classic-mode .quick-strip .settings-nav-button.utility-icon,
+  body.classic-mode .quick-strip > .top-status .top-more-menu summary.manage-menu-button {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+  }
+
+  body.classic-mode .app-shell {
+    width: 100% !important;
+    max-width: none !important;
+    padding: 7px clamp(10px, 1.6vw, 24px) 8px !important;
+    overflow: visible !important;
+  }
+
+  body.classic-mode #view-day {
+    overflow: hidden !important;
+  }
+
+  body.classic-mode .daily-title {
+    height: clamp(46px, 6vh, 58px) !important;
+    min-height: clamp(46px, 6vh, 58px) !important;
+    max-height: clamp(46px, 6vh, 58px) !important;
+    margin: 0 0 4px !important;
+    padding: 4px 10px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(76px, 96px) !important;
+    gap: 8px !important;
+  }
+
+  body.classic-mode .daily-title .eyebrow {
+    display: none !important;
+  }
+
+  body.classic-mode #dayTitle {
+    font-size: clamp(23px, 2.35vw, 34px) !important;
+  }
+
+  body.classic-mode .daily-title .icon-button.compact,
+  body.classic-mode .daily-title .today-jump {
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    font-size: 25px !important;
+  }
+
+  body.classic-mode .daily-score {
+    width: 88px !important;
+    min-width: 88px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 3px 8px !important;
+  }
+
+  body.classic-mode .daily-score strong {
+    font-size: clamp(22px, 2.1vw, 28px) !important;
+    line-height: 1 !important;
+  }
+
+  body.classic-mode .daily-pulse-row {
+    height: clamp(32px, 4.2vh, 38px) !important;
+    min-height: clamp(32px, 4.2vh, 38px) !important;
+    max-height: clamp(32px, 4.2vh, 38px) !important;
+    margin: 0 0 5px !important;
+    padding: 1px 0 !important;
+    grid-template-columns: 104px minmax(0, 1fr) 88px !important;
+    gap: 5px !important;
+  }
+
+  body.classic-mode .daily-pulse-nav,
+  body.classic-mode .daily-pulse-center,
+  body.classic-mode .pulse-ticker {
+    height: 30px !important;
+    min-height: 30px !important;
+  }
+
+  body.classic-mode .daily-pulse-nav-label,
+  body.classic-mode .pulse-ticker-item {
+    font-size: 11px !important;
+  }
+
+  body.classic-mode #onboardingPanel,
+  body.classic-mode .onboarding-panel {
+    margin: 0 0 5px !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body.classic-mode .onboarding-panel > div:first-child,
+  body.classic-mode .onboarding-panel .eyebrow,
+  body.classic-mode .onboarding-panel h3,
+  body.classic-mode .onboarding-panel p,
+  body.classic-mode .onboarding-actions button:not([data-onboarding-toggle]) {
+    display: none !important;
+  }
+
+  body.classic-mode .onboarding-actions {
+    justify-content: flex-start !important;
+  }
+
+  body.classic-mode .onboarding-actions button[data-onboarding-toggle] {
+    min-height: 26px !important;
+    padding: 0 12px !important;
+    font-size: 11px !important;
+  }
+
+  body.classic-mode .day-swipe {
+    grid-template-columns:
+      minmax(150px, 0.72fr)
+      minmax(220px, 1.08fr)
+      minmax(190px, 0.9fr)
+      minmax(280px, 1.34fr) !important;
+    gap: 8px !important;
+    height: calc(100vh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
+    height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
+    min-height: 0 !important;
+    max-height: calc(100vh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
+    max-height: calc(100dvh - var(--app-header-height) - var(--daily-title-height) - var(--daily-pulse-height) - 18px) !important;
+    overflow: hidden !important;
+  }
+
+  body.classic-mode .day-main-panel,
+  body.classic-mode .day-swipe > .swipe-panel,
+  body.classic-mode .day-swipe > .panel {
+    min-height: 0 !important;
+    height: 100% !important;
+  }
+
+  body.classic-mode .day-main-panel > .panel,
+  body.classic-mode .day-swipe > .panel {
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+}
+
 /* Mobile Today bottom safety: keep panel bottoms and final rows above browser chrome. */
 @media (max-width: 640px) {
   .app-shell {
