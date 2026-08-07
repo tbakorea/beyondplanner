@@ -12478,7 +12478,7 @@ function showView(name) {
 function keepActiveTopViewVisible(name) {
   const strip = document.querySelector(".quick-strip");
   const button = document.querySelector(`[data-top-view="${name}"]`);
-  if (!strip || !button || window.innerWidth > 1024) return;
+  if (!strip || !button || window.innerWidth > 1366) return;
   window.requestAnimationFrame(() => {
     button.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
   });
