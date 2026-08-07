@@ -19249,3 +19249,43 @@ body.ceo-mode .daily-title {
     min-height: 38px !important;
   }
 }
+
+/* Fast boot pass: keep launch polished without delaying app entry. */
+.boot-screen {
+  transition: opacity 180ms ease, visibility 180ms ease !important;
+}
+
+.boot-card {
+  gap: 9px !important;
+  animation-duration: 220ms !important;
+}
+
+.boot-mark {
+  animation-duration: 900ms !important;
+}
+
+.boot-dayline,
+.boot-verse-source,
+.boot-value-strip,
+.boot-navigate-en {
+  display: none !important;
+}
+
+.boot-coaching {
+  width: min(340px, 92vw) !important;
+  min-height: 0 !important;
+  padding: 14px 16px !important;
+  border-radius: 20px !important;
+  animation-duration: 220ms !important;
+}
+
+.boot-coaching p#bootCoachingMessage {
+  -webkit-line-clamp: 2 !important;
+  font-size: clamp(15px, 4vw, 18px) !important;
+  line-height: 1.28 !important;
+}
+
+.boot-stage {
+  width: min(220px, 62vw) !important;
+  margin-top: 0 !important;
+}

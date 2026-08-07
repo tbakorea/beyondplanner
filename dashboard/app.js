@@ -446,7 +446,7 @@ let accountSaveReady = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
-const BOOT_MIN_READING_MS = 4200;
+const BOOT_MIN_READING_MS = 360;
 const bootStartedAt = Date.now();
 let bootHideTimer = 0;
 const DEFAULT_WEATHER_COORDS = weatherRegions.ulsan;
@@ -13213,7 +13213,7 @@ async function hydrateNavigateVerseText(verse) {
   }
 }
 
-function renderBootCoaching() {
+function renderBootCoaching({ hydrateVerse = false } = {}) {
   const message = el("bootCoachingMessage");
   const english = el("bootNavigateEnglish");
   const signals = el("bootCoachingSignals");
@@ -13236,7 +13236,9 @@ function renderBootCoaching() {
     note.signals.find((signal) => signal.includes("다음 일정")) || buildNavigatePrompt(navigate),
     note.signals.find((signal) => signal.includes("이월")) || note.signals[1],
   ].filter(Boolean).slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
-  hydrateNavigateVerseText(navigate);
+  if (hydrateVerse) {
+    window.setTimeout(() => hydrateNavigateVerseText(navigate), 0);
+  }
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
 }
 
@@ -13261,19 +13263,19 @@ async function setup() {
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
-  setBootMessage(hasInitialDeviceCache ? "마지막 실행 흐름을 펼치는 중" : "오늘의 첫 장면을 구성하는 중");
+  setBootMessage(hasInitialDeviceCache ? "마지막 화면을 복원하는 중" : "앱을 여는 중");
   renderAll();
   renderBootCoaching();
   hydrateWeatherFromCache();
   renderWeatherChip();
-  if (hasInitialDeviceCache) hideBootScreen(820);
+  if (hasInitialDeviceCache) hideBootScreen(80);
   await hydrateServerState();
   renderAll();
   setupWeather({ persist: true });
-  renderBootCoaching();
-  setBootMessage("오늘의 우선순위를 화면에 앉히는 중");
-  hideBootScreen(hasInitialDeviceCache ? 820 : 220);
-  window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
+  renderBootCoaching({ hydrateVerse: true });
+  setBootMessage("최신 내용을 반영하는 중");
+  hideBootScreen(hasInitialDeviceCache ? 80 : 120);
+  window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 240 : 360);
   stabilizeDaySwipePosition("main");
   window.setInterval(pullServerStateIfNewer, 15000);
   window.addEventListener("focus", pullServerStateIfNewer);
