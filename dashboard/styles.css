@@ -19547,3 +19547,206 @@ body.ceo-mode .daily-title {
       minmax(310px, 1.28fr) !important;
   }
 }
+
+/* Franklin classic visual pass: paper order, line-based writing, restrained premium contrast. */
+body {
+  background:
+    linear-gradient(180deg, rgba(251, 249, 243, 0.98), rgba(246, 244, 237, 0.96) 42%, rgba(241, 239, 232, 0.98)),
+    var(--paper) !important;
+}
+
+body::before {
+  background-image:
+    linear-gradient(rgba(221, 216, 203, 0.18) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(221, 216, 203, 0.1) 1px, transparent 1px) !important;
+  background-size: 38px 38px !important;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.22), transparent 52%) !important;
+}
+
+.panel,
+.daily-title,
+.daily-pulse-nav,
+.daily-pulse-center,
+.day-panel-return {
+  border-color: rgba(205, 199, 185, 0.78) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 254, 250, 0.96), rgba(252, 250, 244, 0.9)),
+    var(--sheet) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.82) inset,
+    0 10px 26px rgba(40, 48, 44, 0.055) !important;
+}
+
+.panel {
+  border-radius: 9px !important;
+}
+
+.panel:hover {
+  border-color: rgba(165, 158, 141, 0.88) !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.86) inset,
+    0 12px 30px rgba(40, 48, 44, 0.07) !important;
+}
+
+.panel-title-row,
+.day-swipe .panel > h3,
+.project-page-sticky {
+  border-bottom-color: rgba(205, 199, 185, 0.7) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 254, 250, 0.98), rgba(249, 247, 240, 0.96)) !important;
+  color: var(--forest) !important;
+}
+
+.panel-title-row > span:first-child,
+.day-swipe .panel > h3 {
+  letter-spacing: -0.01em !important;
+}
+
+.daily-title {
+  border-radius: 9px !important;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.84) inset,
+    0 9px 20px rgba(40, 48, 44, 0.055) !important;
+}
+
+.daily-pulse-row {
+  gap: 7px !important;
+}
+
+.daily-pulse-center,
+.pulse-ticker,
+.pulse-ticker-item {
+  background: rgba(255, 254, 250, 0.8) !important;
+}
+
+.pulse-ticker-item {
+  color: rgba(38, 50, 56, 0.76) !important;
+  font-weight: 850 !important;
+}
+
+.task-row,
+.appointment-row,
+.weekly-priority-row,
+.compass-row {
+  border-color: rgba(205, 199, 185, 0.7) !important;
+}
+
+.task-row,
+.appointment-row {
+  background:
+    linear-gradient(to bottom, transparent calc(100% - 1px), rgba(205, 199, 185, 0.7) calc(100% - 1px)) !important;
+}
+
+.task-text-input,
+.task-row input[type="text"],
+.appointment-row input[type="text"],
+.appointment-row textarea,
+.weekly-priority-text,
+.compass-row input {
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.task-text-input:focus,
+.task-row input[type="text"]:focus,
+.appointment-row input[type="text"]:focus,
+.appointment-row textarea:focus,
+.weekly-priority-text:focus,
+.compass-row input:focus {
+  background: rgba(255, 253, 248, 0.72) !important;
+  box-shadow: inset 0 -2px 0 rgba(182, 155, 99, 0.45) !important;
+}
+
+.task-cycle,
+.priority-select,
+.postpone-select,
+.task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button {
+  border-color: rgba(177, 169, 151, 0.86) !important;
+  background: rgba(246, 243, 235, 0.82) !important;
+}
+
+.task-delete,
+.appointment-delete,
+.repeat-delete {
+  border-color: rgba(205, 199, 185, 0.66) !important;
+  background: rgba(255, 253, 248, 0.62) !important;
+}
+
+.task-row.is-repeat-task .task-text-input {
+  border-color: rgba(182, 155, 99, 0.5) !important;
+  background: rgba(255, 252, 236, 0.38) !important;
+  box-shadow: inset 2px 0 0 rgba(182, 155, 99, 0.58) !important;
+}
+
+.appointment-row.is-filled,
+.appointment-row.is-merged {
+  background: rgba(229, 235, 229, 0.34) !important;
+}
+
+.appointment-row.is-merged input[type="text"],
+.appointment-row.is-merged textarea {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.weekly-priority-block,
+.compass-row {
+  border-color: rgba(205, 199, 185, 0.78) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 254, 250, 0.92), rgba(252, 250, 244, 0.82)) !important;
+}
+
+body.classic-mode.day-view-active .day-swipe {
+  grid-template-columns:
+    minmax(230px, 1.02fr)
+    minmax(270px, 1.14fr)
+    minmax(230px, 1fr)
+    minmax(320px, 1.28fr) !important;
+  gap: clamp(8px, 0.82vw, 14px) !important;
+}
+
+@media (min-width: 1025px) and (max-height: 760px) {
+  body.classic-mode.day-view-active .day-swipe {
+    grid-template-columns:
+      minmax(218px, 1fr)
+      minmax(258px, 1.12fr)
+      minmax(218px, 0.98fr)
+      minmax(292px, 1.2fr) !important;
+  }
+}
+
+body.classic-mode.day-view-active .day-compass-panel,
+body.classic-mode.day-view-active .day-task-panel,
+body.classic-mode.day-view-active .day-schedule-panel,
+body.classic-mode.day-view-active .day-memo-panel {
+  position: relative;
+}
+
+body.classic-mode.day-view-active .day-task-panel::before,
+body.classic-mode.day-view-active .day-schedule-panel::before,
+body.classic-mode.day-view-active .day-memo-panel::before {
+  content: "";
+  position: absolute;
+  top: 46px;
+  bottom: 10px;
+  left: -7px;
+  width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(160, 152, 134, 0.46) 12%, rgba(160, 152, 134, 0.28) 88%, transparent);
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .panel {
+    border-radius: 12px !important;
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.82) inset,
+      0 8px 18px rgba(40, 48, 44, 0.045) !important;
+  }
+
+  .task-row,
+  .appointment-row {
+    background:
+      linear-gradient(to bottom, transparent calc(100% - 1px), rgba(205, 199, 185, 0.62) calc(100% - 1px)) !important;
+  }
+}
