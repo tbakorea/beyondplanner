@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260809b" />
+    <link rel="stylesheet" href="./styles.css?v=20260810a" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -66,6 +66,7 @@
           <button type="button" data-top-view="week">Week</button>
           <button type="button" data-top-view="month">Month</button>
           <button type="button" data-top-view="projects">Projects</button>
+          <button type="button" data-top-view="memos">Memo</button>
           <div class="top-status" aria-label="플래너 상태">
             <span id="topYearProgress">Year 0%</span>
             <span id="topCarryover">이월 0</span>
@@ -80,6 +81,7 @@
               <div class="top-more-panel">
                 <div class="top-menu-section top-menu-nav" aria-label="보조 섹션">
                   <button type="button" data-top-view="notes">Money</button>
+                  <button type="button" data-top-view="memos">Memo</button>
                   <button type="button" data-top-view="sheets" hidden>Sheets</button>
                   <button class="settings-nav-button" type="button" data-top-view="foundation">설정</button>
                 </div>
@@ -134,6 +136,7 @@
           <button class="tab" data-view="month">Month</button>
           <button class="tab" data-view="projects">Projects</button>
           <button class="tab" data-view="notes">Money</button>
+          <button class="tab" data-view="memos">Memo</button>
           <button class="tab" data-view="sheets" hidden>Sheets</button>
           <button class="tab" data-view="year">Year</button>
           <button class="tab settings-tab-button" data-view="foundation" aria-label="설정" title="설정"><span class="simple-gear-icon" aria-hidden="true"></span></button>
@@ -259,6 +262,7 @@
                         <label><input type="checkbox" data-menu-visibility="month" /> <span>월간</span></label>
                         <label><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
                         <label><input type="checkbox" data-menu-visibility="notes" /> <span>Money</span></label>
+                        <label><input type="checkbox" data-menu-visibility="memos" /> <span>메모</span></label>
                         <label hidden><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
                         <label><input type="checkbox" data-menu-visibility="year" /> <span>연간</span></label>
                       </div>
@@ -694,6 +698,7 @@
                   <button class="mini-action" id="aiMemoSuggest" type="button" data-section-ai="memo">AI</button>
                 </span>
               </h3>
+              <input class="day-memo-title-input" data-day-field="memoTitle" type="text" placeholder="제목 또는 첫 줄 자동 제목" />
               <textarea data-day-field="memo" rows="18" placeholder="떠오른 생각, 회의 메모, 후속 조치를 자유롭게 적습니다."></textarea>
               <h3 class="subhead">Daily Note</h3>
               <textarea data-day-field="record" rows="10" placeholder="Progress, decisions, and lessons from today."></textarea>
@@ -702,6 +707,40 @@
                 <label><span>내일로 넘길 일</span><textarea data-day-field="carry" rows="4" placeholder="내일 첫 행동으로 넘길 일"></textarea></label>
                 <label><span>개선할 점</span><textarea data-day-field="lesson" rows="4" placeholder="반복하지 않을 실수, 조정할 방식"></textarea></label>
               </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-memos">
+          <div class="page-title memo-page-title">
+            <div class="page-title-copy">
+              <p class="eyebrow">Daily Archive</p>
+              <h2>Memo</h2>
+            </div>
+            <div class="page-title-actions">
+              <button class="mini-action section-ai-button" type="button" data-section-ai="memo">AI</button>
+            </div>
+          </div>
+          <div class="memo-app-shell">
+            <article class="panel memo-list-panel">
+              <div class="memo-list-sticky">
+                <label class="memo-search-box">
+                  <span>검색</span>
+                  <input id="memoSearchInput" type="search" placeholder="제목, 메모, 회고 검색" />
+                </label>
+                <div class="memo-list-meta">
+                  <strong id="memoListCount">0</strong>
+                  <span>날짜별 메모</span>
+                </div>
+              </div>
+              <div class="memo-list" id="memoList"></div>
+            </article>
+            <article class="panel memo-detail-panel">
+              <div class="memo-detail-sticky">
+                <button class="memo-back-button" id="memoBackButton" type="button">‹ 목록</button>
+                <button class="memo-open-day-button" id="memoOpenDayButton" type="button">오늘 섹션에서 열기</button>
+              </div>
+              <div class="memo-detail" id="memoDetail"></div>
             </article>
           </div>
         </section>
@@ -991,6 +1030,6 @@
 
     <script src="./data.js?v=20260629o"></script>
     <script src="https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js"></script>
-    <script src="./app.js?v=20260808b"></script>
+    <script src="./app.js?v=20260810a"></script>
   </body>
 </html>

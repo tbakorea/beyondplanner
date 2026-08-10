@@ -183,6 +183,7 @@ const defaultAppSettings = {
       month: true,
       projects: true,
       notes: true,
+      memos: true,
       sheets: false,
       year: true,
     },
@@ -207,6 +208,7 @@ const languageLabels = {
     month: "Month",
     projects: "Projects",
     notes: "Money",
+    memos: "Memo",
     sheets: "Sheets",
     year: "Year",
     foundation: "Settings",
@@ -217,6 +219,7 @@ const languageLabels = {
     month: "월간",
     projects: "프로젝트",
     notes: "Money",
+    memos: "메모",
     sheets: "시트",
     year: "연간",
     foundation: "설정",
@@ -433,6 +436,8 @@ const settingsLanguageLabels = {
 
 let selectedDate = todayInPlanner();
 let selectedFinanceMonth = monthKey(selectedDate);
+let selectedMemoKey = iso(selectedDate);
+let memoSearchQuery = "";
 let activeMoneyDraftId = "";
 let hasInitialDeviceCache = hasCachedPlannerState();
 let state = loadState();
@@ -975,6 +980,7 @@ function migrateState(nextState) {
   });
   Object.values(nextState.days || {}).forEach((day) => {
     day.memo ||= "";
+    day.memoTitle ||= "";
     normalizeSelfAssessment(day);
     day.appointmentMerges ||= {};
     day.autoTaskScheduleLinks ||= {};
@@ -1854,6 +1860,7 @@ function ensureDay(key = iso(selectedDate)) {
     scheduleUnit,
     deletedRepeatIds: [],
     memo: "",
+    memoTitle: "",
     record: "",
     wins: "",
     carry: "",
@@ -1862,6 +1869,7 @@ function ensureDay(key = iso(selectedDate)) {
     weather: null,
   };
   state.days[key].memo ||= "";
+  state.days[key].memoTitle ||= "";
   state.days[key].weather ||= null;
   normalizeSelfAssessment(state.days[key]);
   state.days[key].scheduleUnit = normalizeScheduleUnit(state.days[key].scheduleUnit || scheduleUnit);
@@ -5169,6 +5177,7 @@ function normalizePrimaryNavigationLabels(language = getAppLanguage()) {
     month: labels.month,
     projects: labels.projects,
     notes: labels.notes,
+    memos: labels.memos,
     sheets: labels.sheets,
     year: labels.year,
   };
@@ -10241,6 +10250,174 @@ function renderNotes() {
   renderFinanceSummary();
 }
 
+function getMemoEntries() {
+  return Object.entries(state.days || {})
+    .filter(([, day]) => dayMemoHasContent(day))
+    .map(([key, day]) => {
+      const title = getMemoTitle(day, key);
+      const body = [day.memo, day.record, day.wins, day.carry, day.lesson].filter(Boolean).join("\n");
+      return {
+        key,
+        day,
+        title,
+        body,
+        preview: getMemoPreview(day),
+      };
+    })
+    .sort((a, b) => b.key.localeCompare(a.key));
+}
+
+function dayMemoHasContent(day = {}) {
+  return ["memoTitle", "memo", "record", "wins", "carry", "lesson"].some((field) => String(day[field] || "").trim());
+}
+
+function getMemoTitle(day = {}, key = "") {
+  const manual = String(day.memoTitle || "").trim();
+  if (manual) return manual;
+  const firstLine = String(day.memo || day.record || day.wins || day.carry || day.lesson || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (firstLine) return firstLine.slice(0, 42);
+  return `${formatDate(parseDateKey(key))} 메모`;
+}
+
+function getMemoPreview(day = {}) {
+  const text = [day.memo, day.record, day.wins, day.carry, day.lesson]
+    .filter(Boolean)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text || "아직 본문이 없습니다.";
+}
+
+function parseDateKey(key = iso(selectedDate)) {
+  const [year, month, day] = String(key || "").split("-").map(Number);
+  if (!year || !month || !day) return new Date(selectedDate);
+  return new Date(year, month - 1, day);
+}
+
+function renderMemos() {
+  const list = el("memoList");
+  const detail = el("memoDetail");
+  if (!list || !detail) return;
+  const searchInput = el("memoSearchInput");
+  if (searchInput && searchInput.value !== memoSearchQuery) searchInput.value = memoSearchQuery;
+  if (searchInput) {
+    searchInput.oninput = () => {
+      memoSearchQuery = searchInput.value;
+      renderMemos();
+    };
+  }
+  let entries = getMemoEntries();
+  const terms = getSearchTerms(memoSearchQuery);
+  if (terms.length) {
+    entries = entries.filter((entry) => matchesSearchText(`${entry.key} ${entry.title} ${entry.body}`, terms));
+  }
+  if (el("memoListCount")) el("memoListCount").textContent = String(entries.length);
+  if (!entries.length) {
+    list.innerHTML = `
+      <div class="memo-empty">
+        <strong>메모가 없습니다.</strong>
+        <span>오늘 섹션의 메모 페이지에 기록하면 날짜별로 자동 정리됩니다.</span>
+      </div>
+    `;
+  } else {
+    if (!selectedMemoKey || !entries.some((entry) => entry.key === selectedMemoKey)) selectedMemoKey = entries[0].key;
+    list.innerHTML = entries.map((entry) => `
+      <button class="memo-list-item ${entry.key === selectedMemoKey ? "is-active" : ""}" type="button" data-memo-key="${escapeAttr(entry.key)}">
+        <span>${escapeHtml(formatDate(parseDateKey(entry.key)))}</span>
+        <strong>${escapeHtml(entry.title)}</strong>
+        <small>${escapeHtml(entry.preview)}</small>
+      </button>
+    `).join("");
+    list.querySelectorAll("[data-memo-key]").forEach((button) => {
+      button.onclick = () => {
+        selectedMemoKey = button.dataset.memoKey;
+        renderMemos();
+      };
+    });
+  }
+  const selected = (entries.find((entry) => entry.key === selectedMemoKey) || getMemoEntries().find((entry) => entry.key === selectedMemoKey) || entries[0]);
+  renderMemoDetail(selected);
+}
+
+function renderMemoDetail(entry) {
+  const detail = el("memoDetail");
+  if (!detail) return;
+  if (!entry) {
+    detail.innerHTML = `
+      <div class="memo-detail-empty">
+        <strong>선택된 메모가 없습니다.</strong>
+        <button class="mini-action" type="button" data-open-today-memo>오늘 메모 작성</button>
+      </div>
+    `;
+    detail.querySelector("[data-open-today-memo]")?.addEventListener("click", () => openMemoDay(iso(selectedDate)));
+    bindMemoDetailActions("");
+    return;
+  }
+  const day = ensureDay(entry.key);
+  detail.innerHTML = `
+    <div class="memo-detail-date">${escapeHtml(formatDate(parseDateKey(entry.key)))}</div>
+    <input class="memo-detail-title" data-memo-detail-field="memoTitle" type="text" value="${escapeAttr(day.memoTitle || "")}" placeholder="${escapeAttr(getMemoTitle(day, entry.key))}" />
+    <label class="memo-detail-field">
+      <span>메모</span>
+      <textarea data-memo-detail-field="memo" rows="10" placeholder="생각, 회의 메모, 후속 조치">${escapeHtml(day.memo || "")}</textarea>
+    </label>
+    <label class="memo-detail-field">
+      <span>Daily Note</span>
+      <textarea data-memo-detail-field="record" rows="6" placeholder="오늘의 진행, 결정, 배운 점">${escapeHtml(day.record || "")}</textarea>
+    </label>
+    <div class="memo-detail-grid">
+      <label class="memo-detail-field"><span>완료/성과</span><textarea data-memo-detail-field="wins" rows="4">${escapeHtml(day.wins || "")}</textarea></label>
+      <label class="memo-detail-field"><span>내일로 넘길 일</span><textarea data-memo-detail-field="carry" rows="4">${escapeHtml(day.carry || "")}</textarea></label>
+      <label class="memo-detail-field"><span>개선할 점</span><textarea data-memo-detail-field="lesson" rows="4">${escapeHtml(day.lesson || "")}</textarea></label>
+    </div>
+  `;
+  detail.querySelectorAll("[data-memo-detail-field]").forEach((field) => {
+    field.oninput = () => {
+      const target = ensureDay(entry.key);
+      target[field.dataset.memoDetailField] = field.value;
+      saveState();
+      refreshMemoListItem(entry.key);
+    };
+  });
+  bindMemoDetailActions(entry.key);
+}
+
+function refreshMemoListItem(key) {
+  const button = [...document.querySelectorAll("[data-memo-key]")].find((item) => item.dataset.memoKey === key);
+  if (!button) return;
+  const day = ensureDay(key);
+  const title = button.querySelector("strong");
+  const preview = button.querySelector("small");
+  if (title) title.textContent = getMemoTitle(day, key);
+  if (preview) preview.textContent = getMemoPreview(day);
+}
+
+function bindMemoDetailActions(key = selectedMemoKey) {
+  const back = el("memoBackButton");
+  if (back) {
+    back.onclick = () => {
+      document.querySelector(".memo-app-shell")?.classList.remove("is-detail-open");
+    };
+  }
+  const open = el("memoOpenDayButton");
+  if (open) {
+    open.disabled = !key;
+    open.onclick = () => openMemoDay(key);
+  }
+  document.querySelector(".memo-app-shell")?.classList.toggle("is-detail-open", Boolean(key));
+}
+
+function openMemoDay(key = iso(selectedDate)) {
+  selectedDate = parseDateKey(key);
+  selectedMemoKey = key;
+  showView("day");
+  renderAll();
+  scrollDayPanel("memo");
+}
+
 function getCurrentSheet() {
   state.customSheets ||= createCustomSheetsState();
   normalizeCustomSheetsState(state.customSheets);
@@ -12520,7 +12697,7 @@ function collectSearchResults(query) {
     if (day.weather?.summary) {
       push("day", `${key} 날씨`, `${day.weather.label || ""} ${day.weather.summary || ""} ${day.weather.temp ?? ""} ${day.weather.advice || ""}`, key);
     }
-    ["memo", "record", "wins", "carry", "lesson"].forEach((field) => push("day", `${key} ${labels.dayFields[field] || field}`, day[field], key));
+    ["memoTitle", "memo", "record", "wins", "carry", "lesson"].forEach((field) => push("memos", `${key} ${labels.dayFields[field] || field}`, day[field], key));
   });
   Object.entries(state.finance?.months || {}).forEach(([key, rows]) => {
     rows.forEach((item, index) => push("notes", `${key} 자금 ${index + 1} ${item.type} ${item.category || ""} ${item.status}`, `${item.title} ${item.amount} ${item.dueDay} ${item.category || ""} ${item.memo}`, `${key}-01`));
@@ -12645,6 +12822,7 @@ function getSearchResultLabels() {
       action: "핵심행동",
       repeatingTask: "반복 우선업무",
       dayFields: {
+        memoTitle: "메모 제목",
         memo: "메모",
         record: "일일 기록",
         wins: "완료/성과",
@@ -12666,6 +12844,7 @@ function getSearchResultLabels() {
     action: "Action",
     repeatingTask: "Repeating Task",
     dayFields: {
+      memoTitle: "Memo Title",
       memo: "Memo",
       record: "Daily Record",
       wins: "Wins",
@@ -12830,6 +13009,7 @@ function renderSearch() {
     item.innerHTML = `<strong>${result.label}</strong><small>${escapeAttr(result.text).slice(0, 160)}</small><button type="button">열기</button>`;
     item.querySelector("button").onclick = () => {
       if (result.date) selectedDate = parseDate(result.date);
+      if (result.type === "memos" && result.date) selectedMemoKey = iso(parseDate(result.date));
       showView(result.type);
       renderAll();
     };
@@ -13055,6 +13235,7 @@ function renderAll() {
   renderDay();
   renderProjects();
   renderNotes();
+  renderMemos();
   renderSheets();
   renderSearch();
   renderWeatherChip();
