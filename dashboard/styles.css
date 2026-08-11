@@ -16779,7 +16779,7 @@ body::before {
 
 /* Weekly Focus uses the same completion/priority grammar as Top Tasks. */
 .weekly-priority-row.task-row {
-  grid-template-columns: 24px 30px minmax(0, 1fr);
+  grid-template-columns: 24px 30px minmax(0, 1fr) 26px;
   gap: 7px;
   min-height: 34px;
   padding: 2px 0;
@@ -16807,9 +16807,34 @@ body::before {
   justify-self: center;
 }
 
+.weekly-priority-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  border: 1px solid rgba(180, 64, 57, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.78);
+  color: rgba(180, 64, 57, 0.52);
+  padding: 0;
+  font-size: 16px;
+  font-weight: 780;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.weekly-priority-delete:hover,
+.weekly-priority-delete:focus-visible {
+  border-color: rgba(180, 64, 57, 0.34);
+  background: rgba(180, 64, 57, 0.08);
+  color: #b44039;
+}
+
 @media (max-width: 640px) {
   .weekly-priority-row.task-row {
-    grid-template-columns: 24px 28px minmax(0, 1fr);
+    grid-template-columns: 24px 28px minmax(0, 1fr) 26px;
     min-height: 38px;
   }
 }

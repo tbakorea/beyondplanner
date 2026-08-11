@@ -8789,12 +8789,14 @@ function renderDayCompass() {
       <button class="task-cycle" type="button" aria-label="주요일정 상태 변경">${getTaskMarkerLabel(marker)}</button>
       <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(item, menuValue))}">${getTaskStatusDisplay(item, menuValue)}${statusControl}</div>
       <input class="weekly-priority-text" type="text" value="${escapeAttr(item.text)}" placeholder="${isKorean ? `주요 일정 ${index + 1}` : `Week item ${index + 1}`}" />
+      <button class="weekly-priority-delete" type="button" aria-label="${isKorean ? "주요일정 삭제" : "Delete week item"}" title="${isKorean ? "삭제" : "Delete"}">×</button>
     `;
     const cycle = row.querySelector(".task-cycle");
     const prioritySelect = row.querySelector(".priority-select");
     const delegateInput = row.querySelector(".delegate-input");
     const postponeDateButton = row.querySelector(".postpone-date-button");
     const text = row.querySelector(".weekly-priority-text");
+    const deleteButton = row.querySelector(".weekly-priority-delete");
     cycle.onclick = () => {
       const feedback = cycleTaskMarker(item);
       if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
@@ -8835,6 +8837,7 @@ function renderDayCompass() {
       normalizeWeeklyPriority(item);
       saveState();
     };
+    deleteButton.onclick = () => deleteWeeklyPriorityItem(week, index);
     priorityBlock.appendChild(row);
   });
   const addPriority = document.createElement("button");
@@ -8881,6 +8884,18 @@ function renderDayCompass() {
     });
     node.appendChild(row);
   });
+}
+
+function deleteWeeklyPriorityItem(week, index) {
+  if (!week?.priorities?.[index]) return;
+  const item = normalizeWeeklyPriority(week.priorities[index]);
+  const text = String(item.text || "").trim();
+  if (text && !confirmDelete(`금주의 주요일정 '${text}'을 삭제할까요?`)) return;
+  if (text) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), text);
+  week.priorities.splice(index, 1);
+  compactWeeklyPriorities(week);
+  saveState();
+  renderDayCompass();
 }
 
 function handleWeeklyPriorityMenuChange(item, value) {
