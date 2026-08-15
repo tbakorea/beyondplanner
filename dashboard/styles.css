@@ -20839,3 +20839,172 @@ body.classic-mode.day-view-active .day-memo-panel::before {
     font-size: 14px;
   }
 }
+
+/* Compact classic workspace: keep Weekly, Tasks, Schedule, and Memo visible
+   when the desktop browser is parked on one side of a monitor. */
+@media (min-width: 761px) {
+  body.classic-mode.day-view-active {
+    --classic-panel-gap: clamp(4px, 0.62vw, 9px);
+    --classic-row-height: clamp(24px, 3.65vh, 34px);
+    --classic-title-height: clamp(36px, 5.1vh, 48px);
+    --classic-pulse-height: clamp(28px, 3.8vh, 34px);
+    overflow: hidden !important;
+  }
+
+  body.classic-mode.day-view-active .app-shell {
+    height: calc(100dvh - var(--app-header-height)) !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    padding: clamp(4px, 0.6vh, 7px) clamp(6px, 0.9vw, 14px) clamp(5px, 0.7vh, 9px) !important;
+    overflow: hidden !important;
+  }
+
+  body.classic-mode.day-view-active #view-day.active {
+    display: grid !important;
+    grid-template-rows: var(--classic-title-height) var(--classic-pulse-height) minmax(0, 1fr) !important;
+    gap: clamp(3px, 0.45vh, 6px) !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  body.classic-mode.day-view-active .daily-title {
+    grid-row: 1 !important;
+    height: var(--classic-title-height) !important;
+    min-height: var(--classic-title-height) !important;
+    max-height: var(--classic-title-height) !important;
+    margin: 0 !important;
+    padding: 3px clamp(6px, 0.8vw, 10px) !important;
+  }
+
+  body.classic-mode.day-view-active .daily-pulse-row {
+    grid-row: 2 !important;
+    height: var(--classic-pulse-height) !important;
+    min-height: var(--classic-pulse-height) !important;
+    max-height: var(--classic-pulse-height) !important;
+    margin: 0 !important;
+  }
+
+  body.classic-mode.day-view-active .day-swipe {
+    grid-row: 3 !important;
+    display: grid !important;
+    grid-template-columns:
+      minmax(132px, 0.82fr)
+      minmax(176px, 1.06fr)
+      minmax(154px, 0.94fr)
+      minmax(188px, 1.18fr) !important;
+    gap: var(--classic-panel-gap) !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    touch-action: pan-y !important;
+  }
+
+  body.classic-mode.day-view-active .day-main-panel {
+    display: contents !important;
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  body.classic-mode.day-view-active .day-swipe > .swipe-panel,
+  body.classic-mode.day-view-active .day-swipe > .panel,
+  body.classic-mode.day-view-active .day-main-panel > .panel {
+    width: auto !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scroll-snap-align: none !important;
+    scrollbar-gutter: auto !important;
+  }
+
+  body.classic-mode.day-view-active .panel-title-row,
+  body.classic-mode.day-view-active .day-swipe .panel > h3 {
+    min-height: clamp(31px, 4.5vh, 40px) !important;
+    padding: clamp(5px, 0.7vh, 8px) clamp(6px, 0.8vw, 10px) !important;
+  }
+
+  body.classic-mode.day-view-active .panel-title-row > span:first-child,
+  body.classic-mode.day-view-active .day-swipe .panel > h3 {
+    font-size: clamp(13px, 1.26vw, 17px) !important;
+    line-height: 1.05 !important;
+  }
+
+  body.classic-mode.day-view-active .task-row,
+  body.classic-mode.day-view-active .appointment-row,
+  body.classic-mode.day-view-active .weekly-priority-row,
+  body.classic-mode.day-view-active .compass-row {
+    min-height: var(--classic-row-height) !important;
+  }
+
+  body.classic-mode.day-view-active .task-text-input,
+  body.classic-mode.day-view-active .task-row input[type="text"],
+  body.classic-mode.day-view-active .weekly-priority-text,
+  body.classic-mode.day-view-active .compass-row input,
+  body.classic-mode.day-view-active .appointment-row input[type="text"],
+  body.classic-mode.day-view-active .appointment-row textarea,
+  body.classic-mode.day-view-active .day-memo-panel textarea,
+  body.classic-mode.day-view-active .day-memo-title-input {
+    font-size: clamp(10.5px, 1.02vw, 13px) !important;
+    line-height: 1.16 !important;
+  }
+
+  body.classic-mode.day-view-active .task-cycle,
+  body.classic-mode.day-view-active .task-status-cell,
+  body.classic-mode.day-view-active .appointment-time,
+  body.classic-mode.day-view-active .appointment-row span {
+    font-size: clamp(9.5px, 0.95vw, 12px) !important;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1024px) {
+  body.classic-mode.day-view-active .app-header {
+    min-height: 58px !important;
+    height: 58px !important;
+    max-height: 58px !important;
+  }
+
+  body.classic-mode.day-view-active {
+    --app-header-height: 58px !important;
+    --classic-row-height: clamp(22px, 3.35vh, 29px);
+    --classic-title-height: clamp(34px, 4.7vh, 42px);
+    --classic-pulse-height: clamp(25px, 3.3vh, 30px);
+  }
+
+  body.classic-mode.day-view-active .day-swipe {
+    grid-template-columns:
+      minmax(118px, 0.82fr)
+      minmax(158px, 1.08fr)
+      minmax(138px, 0.94fr)
+      minmax(164px, 1.16fr) !important;
+  }
+
+  body.classic-mode.day-view-active .brand-row h1 {
+    max-width: 180px !important;
+    font-size: clamp(22px, 3vw, 30px) !important;
+  }
+
+  body.classic-mode.day-view-active #dayTitle {
+    font-size: clamp(20px, 2.8vw, 26px) !important;
+  }
+
+  body.classic-mode.day-view-active .quick-strip button,
+  body.classic-mode.day-view-active .top-search-toggle,
+  body.classic-mode.day-view-active .quick-strip .ghost-button,
+  body.classic-mode.day-view-active .quick-strip .pill {
+    height: 28px !important;
+    min-height: 28px !important;
+    padding-inline: 8px !important;
+    font-size: 10.5px !important;
+  }
+
+  body.classic-mode.day-view-active .day-memo-panel textarea {
+    min-height: 128px !important;
+  }
+}
