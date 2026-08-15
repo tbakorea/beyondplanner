@@ -20860,32 +20860,51 @@ body.classic-mode.day-view-active .day-memo-panel::before {
   }
 
   body.classic-mode.day-view-active #view-day.active {
+    position: relative !important;
     display: grid !important;
     grid-template-rows: var(--classic-title-height) var(--classic-pulse-height) minmax(0, 1fr) !important;
     gap: clamp(3px, 0.45vh, 6px) !important;
     height: 100% !important;
     min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     overflow: hidden !important;
   }
 
   body.classic-mode.day-view-active .daily-title {
+    position: static !important;
+    inset: auto !important;
+    top: auto !important;
+    z-index: 1 !important;
     grid-row: 1 !important;
+    align-self: stretch !important;
     height: var(--classic-title-height) !important;
     min-height: var(--classic-title-height) !important;
     max-height: var(--classic-title-height) !important;
     margin: 0 !important;
     padding: 3px clamp(6px, 0.8vw, 10px) !important;
+    transform: none !important;
+    overflow: hidden !important;
   }
 
   body.classic-mode.day-view-active .daily-pulse-row {
+    position: static !important;
+    inset: auto !important;
+    top: auto !important;
+    z-index: 1 !important;
     grid-row: 2 !important;
+    align-self: stretch !important;
     height: var(--classic-pulse-height) !important;
     min-height: var(--classic-pulse-height) !important;
     max-height: var(--classic-pulse-height) !important;
     margin: 0 !important;
+    transform: none !important;
+    overflow: hidden !important;
   }
 
   body.classic-mode.day-view-active .day-swipe {
+    position: relative !important;
+    z-index: 0 !important;
     grid-row: 3 !important;
     display: grid !important;
     grid-template-columns:
@@ -20898,8 +20917,11 @@ body.classic-mode.day-view-active .day-memo-panel::before {
     height: 100% !important;
     max-height: 100% !important;
     min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
     overflow: hidden !important;
     touch-action: pan-y !important;
+    transform: none !important;
   }
 
   body.classic-mode.day-view-active .day-main-panel {
