@@ -970,6 +970,7 @@ function migrateState(nextState) {
   nextState.repeats.priorityTasks.forEach(normalizeRepeatRule);
   Object.entries(nextState.weeks || {}).forEach(([key, week]) => {
     week.priorities ||= createWeeklyPriorities(key, nextState);
+    normalizeDeletedWeeklyPriorityCarryovers(week);
     while (week.priorities.length < 5) week.priorities.push({ text: "", done: false });
     week.priorities.forEach(normalizeWeeklyPriority);
     week.compass ||= [];
@@ -1836,6 +1837,7 @@ function ensureWeek(key = weekKey()) {
     compass: createWeeklyCompass(key, state),
   };
   state.weeks[key].priorities ||= createWeeklyPriorities(key, state);
+  normalizeDeletedWeeklyPriorityCarryovers(state.weeks[key]);
   carryWeeklyPrioritiesIntoWeek(key, state.weeks[key], state);
   while (state.weeks[key].priorities.length < 5) state.weeks[key].priorities.push({ text: "", done: false });
   state.weeks[key].priorities.forEach(normalizeWeeklyPriority);
@@ -2075,11 +2077,13 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
   if (!week || !key) return;
   const previousKey = previousWeekKey(key);
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
+  const deletedCarryoverTexts = new Set(normalizeDeletedWeeklyPriorityCarryovers(week));
   removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous);
   const carriedTexts = previous
     .map(normalizeWeeklyPriority)
     .filter((item) => weeklyPriorityShouldCarry(item))
     .map((item) => String(item.text).trim())
+    .filter((text) => !deletedCarryoverTexts.has(text))
     .filter(Boolean);
   if (!carriedTexts.length) return;
   week.priorities ||= [];
@@ -2116,6 +2120,16 @@ function removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous 
   });
   if (changed) compactWeeklyPriorities(week);
   return changed;
+}
+
+function normalizeDeletedWeeklyPriorityCarryovers(week) {
+  if (!week || typeof week !== "object") return [];
+  week.deletedPriorityCarryovers = Array.from(new Set(
+    (Array.isArray(week.deletedPriorityCarryovers) ? week.deletedPriorityCarryovers : [])
+      .map((text) => String(text || "").trim())
+      .filter(Boolean),
+  ));
+  return week.deletedPriorityCarryovers;
 }
 
 function normalizeWeeklyPriority(item = {}) {
@@ -8837,7 +8851,14 @@ function renderDayCompass() {
       normalizeWeeklyPriority(item);
       saveState();
     };
-    deleteButton.onclick = () => deleteWeeklyPriorityItem(week, index);
+    deleteButton.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
+    deleteButton.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      deleteWeeklyPriorityItem(week, index);
+    };
     priorityBlock.appendChild(row);
   });
   const addPriority = document.createElement("button");
@@ -8891,7 +8912,11 @@ function deleteWeeklyPriorityItem(week, index) {
   const item = normalizeWeeklyPriority(week.priorities[index]);
   const text = String(item.text || "").trim();
   if (text && !confirmDelete(`금주의 주요일정 '${text}'을 삭제할까요?`)) return;
-  if (text) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), text);
+  if (text) {
+    const deletedTexts = normalizeDeletedWeeklyPriorityCarryovers(week);
+    if (!deletedTexts.includes(text)) deletedTexts.push(text);
+    removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), text);
+  }
   week.priorities.splice(index, 1);
   compactWeeklyPriorities(week);
   saveState();
