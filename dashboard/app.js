@@ -2675,7 +2675,28 @@ function closeCoach() {
   closeToDailyPage();
 }
 
+function isPastSelectedDate() {
+  return iso(selectedDate) < iso(todayInPlanner());
+}
+
+function isPastOnlyDailyAiSection(section) {
+  return isPastSelectedDate() && (section === "tasks" || section === "schedule");
+}
+
+function updateDailyActionAiAvailability() {
+  const isPast = isPastSelectedDate();
+  ["aiTaskSuggest", "aiScheduleSuggest"].forEach((id) => {
+    const button = el(id);
+    if (!button) return;
+    button.hidden = isPast;
+    button.disabled = isPast;
+    button.classList.toggle("is-past-date-hidden", isPast);
+    button.setAttribute("aria-hidden", isPast ? "true" : "false");
+  });
+}
+
 function openSectionCoach(section = "day") {
+  if (isPastOnlyDailyAiSection(section)) return;
   activeCoachSection = section;
   activeCoachTab = "coach";
   showView("coach");
@@ -5811,6 +5832,7 @@ function renderDay() {
   const formattedDate = formatDate(selectedDate);
   el("dayTitle").textContent = formattedDate;
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
+  updateDailyActionAiAvailability();
   const key = iso(selectedDate);
   const allTasks = getDayTasks(key);
   const carryovers = getCarryoverTasks(selectedDate);

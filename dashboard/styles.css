@@ -3077,6 +3077,13 @@ body.is-privacy-blind .app-shell {
   overflow: hidden;
 }
 
+.section-ai-button[hidden],
+[data-section-ai][hidden],
+.section-ai-button.is-past-date-hidden,
+[data-section-ai].is-past-date-hidden {
+  display: none !important;
+}
+
 .section-ai-button::before,
 [data-section-ai]::before {
   content: "";
