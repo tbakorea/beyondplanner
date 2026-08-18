@@ -885,7 +885,7 @@ function normalizeDayTasks(day) {
     day.tasks[priority] ||= [];
     day.tasks[priority].forEach((task) => {
       normalizeTask(task);
-      if (isActiveTaskSlot(task) && !hasTaskOrder(task)) assignTaskOrder(day, task);
+      if (!hasTaskOrder(task)) assignTaskOrder(day, task);
     });
   });
   compactEmptyDailyTaskSlots(day);
@@ -908,7 +908,9 @@ function compactEmptyDailyTaskSlots(day) {
   }
   let emptyCount = priorities.reduce((sum, [priority]) => sum + (day.tasks[priority] || []).filter((task) => !isActiveTaskSlot(task)).length, 0);
   while (emptyCount < DAILY_EMPTY_TASK_MIN) {
-    day.tasks.A.push({ id: newTaskId(), text: "", status: "미완료", done: false, delegate: "", priorityUnset: true });
+    const task = { id: newTaskId(), text: "", status: "미완료", done: false, delegate: "", priorityUnset: true };
+    assignTaskOrder(day, task);
+    day.tasks.A.push(task);
     emptyCount += 1;
   }
 }
@@ -2685,7 +2687,7 @@ function isPastOnlyDailyAiSection(section) {
 
 function updateDailyActionAiAvailability() {
   const isPast = isPastSelectedDate();
-  ["aiTaskSuggest", "aiScheduleSuggest"].forEach((id) => {
+  ["aiCompassSuggest", "aiTaskSuggest", "aiScheduleSuggest", "aiMemoSuggest"].forEach((id) => {
     const button = el(id);
     if (!button) return;
     button.hidden = isPast;
@@ -9073,10 +9075,13 @@ function renderTaskBoard(day) {
   const list = document.createElement("section");
   list.className = "task-list";
   const carryovers = getCarryoverTasks(selectedDate);
-  if (carryovers.length) {
-    carryovers.forEach((task) => list.appendChild(renderCarryoverTask(task)));
-  }
-  getTaskRefs(day).forEach(({ task, priority, index }) => list.appendChild(renderTaskRow(task, priority, index)));
+  getTaskDisplayItems(day, carryovers).forEach((item) => {
+    if (item.type === "carryover") {
+      list.appendChild(renderCarryoverTask(item.task));
+    } else {
+      list.appendChild(renderTaskRow(item.task, item.priority, item.index));
+    }
+  });
   const addGroup = document.createElement("div");
   addGroup.className = "task-add-options";
   const add = document.createElement("button");
@@ -9107,6 +9112,38 @@ function getTaskRefs(day) {
       if (activeDelta) return activeDelta;
       return getTaskOrder(a.task) - getTaskOrder(b.task) || a.index - b.index;
     });
+}
+
+function getTaskDisplayItems(day, carryovers = []) {
+  const carryoverItems = carryovers.map((task, index) => ({ type: "carryover", task, index }));
+  const dayItems = getTaskRefs(day).map((ref) => ({ type: "day", ...ref }));
+  return [...carryoverItems, ...dayItems].sort(compareTaskDisplayItems);
+}
+
+function compareTaskDisplayItems(a, b) {
+  const activeDelta = Number(isActiveTaskSlot(b.task)) - Number(isActiveTaskSlot(a.task));
+  if (activeDelta) return activeDelta;
+  const groupDelta = getTaskDisplayGroup(a) - getTaskDisplayGroup(b);
+  if (groupDelta) return groupDelta;
+  const sourceDelta = getTaskDisplaySourceDate(a).localeCompare(getTaskDisplaySourceDate(b));
+  if (sourceDelta) return sourceDelta;
+  return getTaskDisplayOrder(a) - getTaskDisplayOrder(b) || (a.index || 0) - (b.index || 0);
+}
+
+function getTaskDisplayGroup(item = {}) {
+  const task = item.task || {};
+  return item.type === "carryover" || task.carryoverSourceDate || task.carryoverForkFrom ? 0 : 1;
+}
+
+function getTaskDisplaySourceDate(item = {}) {
+  const task = item.task || {};
+  return task.carryoverSourceDate || task.date || "";
+}
+
+function getTaskDisplayOrder(item = {}) {
+  const task = item.task || {};
+  const order = getTaskOrder(task);
+  return order === Number.MAX_SAFE_INTEGER ? Number(item.index || task.index || 0) : order;
 }
 
 function isActiveTaskSlot(task = {}) {
@@ -9548,7 +9585,7 @@ function materializeCarryoverTask(taskRef) {
       carryoverSourceDate: taskRef.date,
       repeatSourceDate: source.task.repeatSourceDate || taskRef.date,
     };
-    assignTaskOrder(day, targetTask);
+    inheritCarryoverTaskOrder(day, targetTask, taskRef, source.task);
     day.tasks[targetPriority].push(targetTask);
     targetPriority = source.priority;
   }
@@ -9559,6 +9596,18 @@ function materializeCarryoverTask(taskRef) {
     priority: targetPriority,
     index: day.tasks[targetPriority].indexOf(targetTask),
   };
+}
+
+function inheritCarryoverTaskOrder(day, targetTask, taskRef = {}, sourceTask = {}) {
+  const sourceOrder = getTaskOrder(taskRef) !== Number.MAX_SAFE_INTEGER
+    ? getTaskOrder(taskRef)
+    : getTaskOrder(sourceTask);
+  if (sourceOrder !== Number.MAX_SAFE_INTEGER) {
+    targetTask.order = sourceOrder;
+    day.taskOrderCounter = Math.max(Number(day.taskOrderCounter || 1), Math.floor(sourceOrder) + 1);
+    return;
+  }
+  assignTaskOrder(day, targetTask);
 }
 
 function renderCarryoverTask(task) {
