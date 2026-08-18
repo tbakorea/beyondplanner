@@ -21037,3 +21037,22 @@ body.classic-mode.day-view-active .day-memo-panel::before {
     min-height: 128px !important;
   }
 }
+
+/* Final Today action rule: classic mode has no mobile focus surface, so the
+   title-row action slot becomes section AI coaching instead of zoom. */
+body.classic-mode .day-task-panel > .panel-title-row .mobile-focus-open,
+body.classic-mode .day-task-panel > .panel-title-row .mobile-focus-done,
+body.classic-mode .day-schedule-panel > .panel-title-row .mobile-focus-open,
+body.classic-mode .day-schedule-panel > .panel-title-row .mobile-focus-done {
+  display: none !important;
+}
+
+body.classic-mode .day-task-panel > .panel-title-row [data-section-ai]:not([hidden]),
+body.classic-mode .day-schedule-panel > .panel-title-row [data-section-ai]:not([hidden]) {
+  display: inline-grid !important;
+}
+
+body.classic-mode .day-task-panel > .panel-title-row [data-section-ai][hidden],
+body.classic-mode .day-schedule-panel > .panel-title-row [data-section-ai][hidden] {
+  display: none !important;
+}
