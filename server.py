@@ -834,10 +834,14 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
     user_id = user.get("id")
     if not user_id:
         raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
-    updated_at = payload.get("updatedAt") or utc_now()
+    updated_at = str(payload.get("updatedAt") or utc_now()).strip()
+    base_updated_at = str(payload.get("baseUpdatedAt") or "").strip()
     existing = get_supabase_planner_state(token)
+    existing_updated_at = existing.get("updatedAt") or ""
+    if existing.get("exists") and base_updated_at and existing_updated_at and not is_same_timestamp(existing_updated_at, base_updated_at):
+        return {"ok": True, "stale": True, "conflict": True, "updatedAt": existing_updated_at, "storage": "supabase-db"}
     if existing.get("exists") and is_newer_timestamp(existing.get("updatedAt"), updated_at):
-        return {"ok": True, "stale": True, "updatedAt": existing.get("updatedAt") or "", "storage": "supabase-db"}
+        return {"ok": True, "stale": True, "updatedAt": existing_updated_at, "storage": "supabase-db"}
     if existing.get("exists") and is_destructive_overwrite(existing.get("state"), state):
         raise DestructiveOverwriteError("기존 플래너 데이터가 크게 줄어든 저장 요청이라 DB 보호를 위해 차단했습니다.")
     body = [
@@ -1007,6 +1011,14 @@ def normalize_supabase_error_payload(detail: str, fallback: str) -> dict:
 
 def is_newer_timestamp(left: str, right: str) -> bool:
     return timestamp_ms(left) > timestamp_ms(right)
+
+
+def is_same_timestamp(left: str, right: str) -> bool:
+    left_ms = timestamp_ms(left)
+    right_ms = timestamp_ms(right)
+    if left_ms and right_ms:
+        return abs(left_ms - right_ms) < 1
+    return str(left or "").strip() == str(right or "").strip()
 
 
 def timestamp_ms(value: str) -> float:

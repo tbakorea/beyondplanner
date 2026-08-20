@@ -129,6 +129,8 @@ const SHEET_DEFAULT_ROW_HEIGHT = 36;
 const SHEET_MIN_ROW_HEIGHT = 28;
 const SHEET_MAX_ROW_HEIGHT = 160;
 const HANDSONTABLE_LICENSE_KEY = window.BEYOND_HANDSONTABLE_LICENSE_KEY || "non-commercial-and-evaluation";
+const HANDSONTABLE_CSS_URL = "https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.css";
+const HANDSONTABLE_JS_URL = "https://cdn.jsdelivr.net/npm/handsontable/dist/handsontable.full.min.js";
 const defaultRoles = ["Me", "Family", "Work", "Growth", "Service", "Health", "People"];
 const isMacEnvironment = /Mac|iPhone|iPad/.test(navigator.platform || "") || /Macintosh|iPhone|iPad/.test(navigator.userAgent || "");
 const timeSlots = Array.from({ length: 23 }, (_, i) => {
@@ -451,7 +453,7 @@ let accountSaveReady = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
-const BOOT_MIN_READING_MS = 360;
+const BOOT_MIN_READING_MS = 0;
 const bootStartedAt = Date.now();
 let bootHideTimer = 0;
 const DEFAULT_WEATHER_COORDS = weatherRegions.ulsan;
@@ -503,6 +505,7 @@ let sheetHeaderResizeSuppressClick = false;
 let sheetHot = null;
 let sheetHotId = "";
 let sheetHotRenderLock = false;
+let handsontableLoadPromise = null;
 let mobileDayFocusMode = "split";
 let repeatManagerMode = "list";
 let repeatEditingIndex = -1;
@@ -1380,32 +1383,36 @@ async function hydrateServerState() {
     accountSaveReady = true;
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
-      // Supabase DB is the source of truth. Browser storage is only a temporary display cache,
-      // but a dirty/newer browser state must first be pushed to DB instead of being overwritten.
+      // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
+      // A device may upload local edits only when those edits are based on the current DB version.
       const localMeta = getStateMeta();
       const localUpdatedAt = localMeta.updatedAt || "";
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
-      const localDirtyIsFresh = Boolean(localMeta.dirty && localUpdatedAt && Date.now() - timestampMs(localUpdatedAt) < 10 * 60 * 1000);
+      const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent);
       lastServerUpdatedAt = payload.updatedAt || "";
-      const serverIsNewer = !localUpdatedAt || !localDirtyIsFresh || isTimestampNewer(payload.updatedAt, localUpdatedAt) || (serverHasContent && !localHasContent);
-      const localIsNewer = localDirtyIsFresh && localHasContent && isTimestampNewer(localUpdatedAt, payload.updatedAt);
-      if (serverIsNewer) {
-        setBootMessage("오늘의 화면을 최신 기준으로 맞추는 중");
-        storeStateFromServer(payload, "저장됨");
-      } else if (localMeta.dirty || localIsNewer) {
+      if (canUploadLocal && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
         saveStatus.message = "최신 변경 저장 중";
         scheduleAccountSave(120);
       } else {
+        setBootMessage("오늘의 화면을 최신 기준으로 맞추는 중");
         storeStateFromServer(payload, "저장됨");
       }
     } else {
+      const localMeta = getStateMeta();
+      const localHasContent = hasPlannerContent(state);
+      if (canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, false)) {
+        lastServerUpdatedAt = "";
+        saveStatus.message = "새 변경 저장 중";
+        scheduleAccountSave(120);
+        return;
+      }
       // A missing DB row means a new account state. Never auto-upload leftover device/browser cache.
       state = loadEmptyState();
       selectedSheetId = state.customSheets.activeId;
       localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
       persistDisplayCache();
-      saveStateMeta({ updatedAt: "", lastSavedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
+      saveStateMeta({ updatedAt: "", lastSavedAt: "", baseUpdatedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
       saveStatus.message = "새 플래너 준비됨";
     }
   } catch (error) {
@@ -1580,12 +1587,15 @@ async function persistStateToServer(options = {}) {
     renderSidebarAfterDailyInput();
     return;
   }
-  const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : getStateMeta().updatedAt || markLocalStateUpdated();
+  let meta = getStateMeta();
+  const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : meta.updatedAt || markLocalStateUpdated();
+  meta = getStateMeta();
+  const baseUpdatedAt = getServerBaseUpdatedAt(meta);
   try {
     const response = await fetch("/api/state", {
       method: "POST",
       headers: authStateHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ state, updatedAt }),
+      body: JSON.stringify({ state, updatedAt, baseUpdatedAt }),
     });
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
@@ -1593,12 +1603,12 @@ async function persistStateToServer(options = {}) {
       lastServerUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
       saveStatus.ready = true;
       saveStatus.saving = false;
-      saveStatus.message = "최신 데이터 불러오는 중";
+      saveStatus.message = payload.conflict ? "다른 기기 최신 데이터 불러오는 중" : "최신 데이터 불러오는 중";
       await pullServerStateIfNewer({ force: true });
       return;
     }
     lastServerUpdatedAt = payload.updatedAt || updatedAt;
-    saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
+    saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
     saveStatus.ready = true;
     saveStatus.saving = false;
     saveStatus.message = "저장됨";
@@ -1683,7 +1693,7 @@ function storeStateFromServer(payload, message) {
   lastServerUpdatedAt = payload.updatedAt || "";
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   persistDisplayCache();
-  saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
+  saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
   saveStatus.message = message;
 }
 
@@ -1691,9 +1701,32 @@ function isTimestampNewer(left, right) {
   return timestampMs(left) > timestampMs(right);
 }
 
+function isSameTimestamp(left, right) {
+  const leftMs = timestampMs(left);
+  const rightMs = timestampMs(right);
+  if (!leftMs || !rightMs) return false;
+  return Math.abs(leftMs - rightMs) < 1;
+}
+
 function timestampMs(value) {
   const ms = Date.parse(value || "");
   return Number.isFinite(ms) ? ms : 0;
+}
+
+function getServerBaseUpdatedAt(meta = getStateMeta(), includeRuntime = true) {
+  return meta.baseUpdatedAt || meta.lastSavedAt || (includeRuntime ? lastServerUpdatedAt || "" : "");
+}
+
+function isFreshDirtyStateMeta(meta, windowMs = 10 * 60 * 1000) {
+  if (!meta?.dirty || !meta.updatedAt) return false;
+  return Date.now() - timestampMs(meta.updatedAt) < windowMs;
+}
+
+function canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent) {
+  if (!isFreshDirtyStateMeta(localMeta) || !localHasContent) return false;
+  if (!payload?.exists || !serverHasContent) return true;
+  const baseUpdatedAt = getServerBaseUpdatedAt(localMeta, false);
+  return Boolean(baseUpdatedAt && payload.updatedAt && isSameTimestamp(baseUpdatedAt, payload.updatedAt));
 }
 
 async function extractSaveError(response) {
@@ -10807,6 +10840,49 @@ function pruneSheetOutsideBounds(sheet) {
   });
 }
 
+function isSheetsViewActive() {
+  return document.querySelector(".view.active")?.id === "view-sheets";
+}
+
+function loadHandsontableSheetEngine() {
+  if (window.Handsontable) return Promise.resolve(window.Handsontable);
+  if (handsontableLoadPromise) return handsontableLoadPromise;
+  handsontableLoadPromise = new Promise((resolve, reject) => {
+    if (!document.querySelector('link[data-lazy-handsontable="true"]')) {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = HANDSONTABLE_CSS_URL;
+      link.dataset.lazyHandsontable = "true";
+      document.head.appendChild(link);
+    }
+    const script = document.createElement("script");
+    script.src = HANDSONTABLE_JS_URL;
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      if (window.Handsontable) resolve(window.Handsontable);
+      else reject(new Error("Handsontable unavailable"));
+    };
+    script.onerror = () => reject(new Error("Handsontable load failed"));
+    document.head.appendChild(script);
+  }).catch((error) => {
+    handsontableLoadPromise = null;
+    console.warn("Sheet engine lazy load skipped:", error?.message || error);
+    throw error;
+  });
+  return handsontableLoadPromise;
+}
+
+function requestHandsontableSheetEngine(sheetId = "") {
+  if (!isSheetsViewActive() || window.Handsontable || handsontableLoadPromise) return;
+  loadHandsontableSheetEngine()
+    .then(() => {
+      if (sheetId && selectedSheetId !== sheetId) return;
+      if (isSheetsViewActive()) renderSheets();
+    })
+    .catch(() => {});
+}
+
 function canUseHandsontableSheet() {
   return Boolean(window.Handsontable && el("handsontableSheetGrid"));
 }
@@ -11037,6 +11113,7 @@ function removeSheetColumnsFromState(sheet, start, amount = 1) {
 
 function renderSheetGrid(sheet) {
   if (renderHandsontableSheetGrid(sheet)) return;
+  requestHandsontableSheetEngine(sheet?.id || "");
   const table = el("customSheetGrid");
   const hotContainer = el("handsontableSheetGrid");
   if (hotContainer) hotContainer.hidden = true;
@@ -13356,6 +13433,33 @@ function renderAll() {
   checkScheduledBackupEmail();
 }
 
+function renderStartupFrame(options = {}) {
+  ensureMonth();
+  ensureWeek();
+  ensureDay();
+  if (options.syncMoney && syncMoneyTaskLinks()) saveState({ fastSave: true });
+  renderSidebar();
+  renderDay();
+  renderWeatherChip();
+  normalizePrimaryNavigationLabels();
+  updateSettingsTabState();
+  updateStickyPanelTop();
+}
+
+function scheduleIdleTask(callback, timeout = 1200) {
+  if (typeof window.requestIdleCallback === "function") {
+    window.requestIdleCallback(callback, { timeout });
+    return;
+  }
+  window.setTimeout(callback, 0);
+}
+
+function schedulePostBootRender() {
+  scheduleIdleTask(() => {
+    renderAll();
+  }, 900);
+}
+
 function setBootMessage(message) {
   const node = el("bootMessage");
   if (node) node.textContent = message;
@@ -13555,19 +13659,19 @@ async function setup() {
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
-  setBootMessage(hasInitialDeviceCache ? "마지막 화면을 복원하는 중" : "앱을 여는 중");
-  renderAll();
+  setBootMessage(hasInitialDeviceCache ? "마지막 화면을 여는 중" : "앱을 여는 중");
+  renderStartupFrame();
   renderBootCoaching();
   hydrateWeatherFromCache();
   renderWeatherChip();
-  if (hasInitialDeviceCache) hideBootScreen(80);
+  hideBootScreen(hasInitialDeviceCache ? 40 : 80);
   await hydrateServerState();
-  renderAll();
-  setupWeather({ persist: true });
-  renderBootCoaching({ hydrateVerse: true });
+  renderStartupFrame({ syncMoney: true });
+  schedulePostBootRender();
+  scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
   setBootMessage("최신 내용을 반영하는 중");
-  hideBootScreen(hasInitialDeviceCache ? 80 : 120);
-  window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 240 : 360);
+  hideBootScreen(40);
+  window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   stabilizeDaySwipePosition("main");
   window.setInterval(pullServerStateIfNewer, 15000);
   window.addEventListener("focus", pullServerStateIfNewer);
