@@ -10,7 +10,10 @@ const AUTH_SESSION_KEY = "beyondWorkAuthSession.v1";
 const ONBOARDING_COLLAPSED_KEY = "beyondWorkOnboardingCollapsed.v1";
 const DAILY_OPENING_SEEN_KEY = "beyondWorkDailyOpeningSeen.v1";
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
-const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 180;
+const DEFAULT_PRIVACY_TIMEOUT_SECONDS = 0;
+const CLASSIC_FIT_MIN_SCALE = 0.58;
+const CLASSIC_FIT_IDEAL_WIDTH = 1180;
+const CLASSIC_FIT_IDEAL_HEIGHT = 760;
 requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(plannerStorageKey());
@@ -468,6 +471,7 @@ const dayPanelOrder = ["week", "main", "memo"];
 let currentDayPanel = "main";
 let dateSlideTimer = 0;
 let dailyHeaderFitFrame = 0;
+let classicViewportFitFrame = 0;
 let dailyCalendarMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
 let dailyCalendarSwipeSuppressClick = false;
 let dailyCalendarPickerOpen = false;
@@ -2610,6 +2614,7 @@ function setupSelectors() {
     updateStickyPanelTop();
     positionDaySwipe("main", true);
     scheduleDailyHeaderFit();
+    scheduleClassicViewportFit();
   });
   window.addEventListener("focus", queuePassiveServerPull);
   window.addEventListener("online", queuePassiveServerPull);
@@ -2632,9 +2637,13 @@ function setupSelectors() {
       updateStickyPanelTop();
       positionDaySwipe("main", true);
       scheduleDailyHeaderFit();
+      scheduleClassicViewportFit();
     }, 250);
   });
-  document.fonts?.ready?.then(scheduleDailyHeaderFit).catch(() => {});
+  document.fonts?.ready?.then(() => {
+    scheduleDailyHeaderFit();
+    scheduleClassicViewportFit();
+  }).catch(() => {});
 }
 
 function toggleTopSearch() {
@@ -2745,10 +2754,6 @@ function closeToDailyPage() {
 }
 
 function setupAutoLock() {
-  ["pointerdown", "keydown", "touchstart", "scroll"].forEach((eventName) => {
-    window.addEventListener(eventName, resetLockTimer, { passive: true });
-  });
-  resetLockTimer();
   updateLockUi();
   updatePrivacyUi();
 }
@@ -2761,15 +2766,8 @@ function resetLockTimer() {
   if (isLocked || isPrivacyBlind) return;
   window.clearTimeout(lockTimer);
   window.clearTimeout(privacyTimer);
-  const privacySeconds = getPrivacyConfig().timeoutSeconds;
-  if (!isSmartphoneDevice() && privacySeconds > 0) {
-    privacyTimer = window.setTimeout(
-      () => activatePrivacyBlind(`${formatPrivacyTimeout(privacySeconds)} 동안 사용이 없어 내용이 블라인드 처리되었습니다.`),
-      privacySeconds * 1000,
-    );
-  }
-  if (!hasSecuritySettings()) return;
-  lockTimer = window.setTimeout(() => lockPlanner("일정 시간 사용이 없어 잠금 처리되었습니다."), LOCK_TIMEOUT_MS);
+  // 자동 보안 블라인드/자동 잠금은 장시간 모니터링 업무 흐름을 끊기 때문에 사용하지 않는다.
+  // 수동 보안모드와 수동 잠금 버튼은 그대로 유지한다.
 }
 
 function lockPlanner(message = "플래너가 잠겼습니다.") {
@@ -2826,17 +2824,11 @@ function updateLockUi() {
 }
 
 function getPrivacyConfig() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(PRIVACY_CONFIG_KEY) || "null");
-    const timeoutSeconds = Number(saved?.timeoutSeconds ?? DEFAULT_PRIVACY_TIMEOUT_SECONDS);
-    return { timeoutSeconds: Number.isFinite(timeoutSeconds) ? timeoutSeconds : DEFAULT_PRIVACY_TIMEOUT_SECONDS };
-  } catch {
-    return { timeoutSeconds: DEFAULT_PRIVACY_TIMEOUT_SECONDS };
-  }
+  return { timeoutSeconds: DEFAULT_PRIVACY_TIMEOUT_SECONDS };
 }
 
 function savePrivacyTimeout(timeoutSeconds) {
-  const normalized = Number.isFinite(timeoutSeconds) ? Math.max(0, timeoutSeconds) : DEFAULT_PRIVACY_TIMEOUT_SECONDS;
+  const normalized = 0;
   localStorage.setItem(PRIVACY_CONFIG_KEY, JSON.stringify({ timeoutSeconds: normalized, updatedAt: new Date().toISOString() }));
   updatePrivacyUi();
   resetLockTimer();
@@ -2846,6 +2838,10 @@ function updatePrivacyUi() {
   const config = getPrivacyConfig();
   const select = el("privacyTimeoutSelect");
   if (select && select.value !== String(config.timeoutSeconds)) select.value = String(config.timeoutSeconds);
+  if (select) {
+    select.disabled = true;
+    select.title = "자동 보안모드는 사용하지 않습니다. 필요할 때 수동 보안모드 또는 잠금을 사용하세요.";
+  }
   const button = el("privacyNowButton");
   if (button) button.textContent = isPrivacyBlind ? "보안중" : "보안모드";
 }
@@ -2881,7 +2877,7 @@ async function saveLockPasscode() {
   const passcodeHash = await digestPasscode(passcode, salt);
   localStorage.setItem(LOCK_CONFIG_KEY, JSON.stringify({ salt, passcodeHash, updatedAt: new Date().toISOString() }));
   el("newPasscode").value = "";
-  el("lockMessage").textContent = "비밀번호가 저장되었습니다. 잠금 버튼으로 완전 잠금을 사용할 수 있고, 보안모드는 설정한 시간 뒤 내용을 블라인드 처리합니다.";
+  el("lockMessage").textContent = "비밀번호가 저장되었습니다. 필요할 때 잠금 버튼으로 완전 잠금을 사용할 수 있습니다.";
   updateLockUi();
   resetLockTimer();
 }
@@ -4047,6 +4043,54 @@ function scheduleDailyHeaderFit() {
   dailyHeaderFitFrame = window.requestAnimationFrame(fitDailyHeaderText);
 }
 
+function shouldFitDesktopClassicWorkspace() {
+  return document.body.classList.contains("classic-mode")
+    && document.body.classList.contains("day-view-active")
+    && !document.body.classList.contains("is-locked")
+    && window.matchMedia?.("(hover: hover) and (pointer: fine) and (min-width: 761px)")?.matches;
+}
+
+function updateClassicViewportFit() {
+  const root = document.documentElement;
+  if (!shouldFitDesktopClassicWorkspace()) {
+    document.body.classList.remove("desktop-classic-fit");
+    root.style.removeProperty("--classic-fit-scale");
+    root.style.removeProperty("--classic-fit-inverse");
+    root.style.removeProperty("--classic-fit-header-height");
+    root.style.removeProperty("--classic-fit-width");
+    root.style.removeProperty("--classic-fit-shell-height");
+    return;
+  }
+
+  const viewportWidth = Math.max(1, window.innerWidth || root.clientWidth || CLASSIC_FIT_IDEAL_WIDTH);
+  const viewportHeight = Math.max(1, window.innerHeight || root.clientHeight || CLASSIC_FIT_IDEAL_HEIGHT);
+  const widthScale = viewportWidth / CLASSIC_FIT_IDEAL_WIDTH;
+  const heightScale = viewportHeight / CLASSIC_FIT_IDEAL_HEIGHT;
+  const scale = Math.max(CLASSIC_FIT_MIN_SCALE, Math.min(1, widthScale, heightScale));
+  const rounded = Math.round(scale * 1000) / 1000;
+  const header = document.querySelector(".app-header");
+  const headerHeight = Math.max(
+    58,
+    Math.ceil(header?.scrollHeight || parseFloat(getComputedStyle(root).getPropertyValue("--app-header-height")) || 78)
+  );
+
+  document.body.classList.toggle("desktop-classic-fit", rounded < 0.995);
+  const inverse = Math.round((1 / rounded) * 1000) / 1000;
+  const scaledHeaderHeight = Math.ceil(headerHeight * rounded);
+  const shellHeight = Math.max(1, Math.floor((viewportHeight - scaledHeaderHeight) * inverse));
+
+  root.style.setProperty("--classic-fit-scale", String(rounded));
+  root.style.setProperty("--classic-fit-inverse", String(inverse));
+  root.style.setProperty("--classic-fit-header-height", `${scaledHeaderHeight}px`);
+  root.style.setProperty("--classic-fit-width", `${Math.ceil(viewportWidth * inverse)}px`);
+  root.style.setProperty("--classic-fit-shell-height", `${shellHeight}px`);
+}
+
+function scheduleClassicViewportFit() {
+  window.cancelAnimationFrame(classicViewportFitFrame);
+  classicViewportFitFrame = window.requestAnimationFrame(updateClassicViewportFit);
+}
+
 function setupQuickStrip() {
   document.querySelectorAll("[data-quick-view]").forEach((button) => {
     button.onclick = () => {
@@ -4818,6 +4862,7 @@ function applyPlannerMode() {
   }
   applyMobileDayFocusMode();
   updateStickyPanelTop();
+  scheduleClassicViewportFit();
 }
 
 function togglePlannerMode() {
@@ -12838,6 +12883,7 @@ function showView(name) {
   document.querySelectorAll(".view").forEach((item) => item.classList.toggle("active", item.id === `view-${name}`));
   if (name === "day") positionDaySwipe(previousView === "day" ? currentDayPanel : "main", previousView !== "day");
   keepActiveTopViewVisible(name);
+  scheduleClassicViewportFit();
 }
 
 function keepActiveTopViewVisible(name) {

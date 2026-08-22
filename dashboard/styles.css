@@ -20849,6 +20849,31 @@ body.classic-mode.day-view-active .day-memo-panel::before {
 
 /* Compact classic workspace: keep Weekly, Tasks, Schedule, and Memo visible
    when the desktop browser is parked on one side of a monitor. */
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  body.classic-mode.day-view-active.desktop-classic-fit {
+    padding-top: var(--classic-fit-header-height, var(--app-header-height)) !important;
+  }
+
+  body.classic-mode.day-view-active.desktop-classic-fit .app-header,
+  body.classic-mode.day-view-active.desktop-classic-fit .app-shell {
+    width: var(--classic-fit-width, 100vw) !important;
+    max-width: none !important;
+    transform: scale(var(--classic-fit-scale, 1));
+    transform-origin: top left;
+    will-change: transform;
+  }
+
+  body.classic-mode.day-view-active.desktop-classic-fit .app-header {
+    right: auto !important;
+  }
+
+  body.classic-mode.day-view-active.desktop-classic-fit .app-shell {
+    height: var(--classic-fit-shell-height, calc(100dvh - var(--app-header-height))) !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+}
+
 @media (min-width: 761px) {
   body.classic-mode.day-view-active {
     --classic-panel-gap: clamp(4px, 0.62vw, 9px);
