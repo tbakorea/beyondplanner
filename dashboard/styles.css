@@ -21081,3 +21081,213 @@ body.classic-mode .day-task-panel > .panel-title-row [data-section-ai][hidden],
 body.classic-mode .day-schedule-panel > .panel-title-row [data-section-ai][hidden] {
   display: none !important;
 }
+
+/* Navigation clarity pass: Settings must look like Settings, and header controls
+   must stay readable on iPad, CEO mode, and compact desktop windows. */
+.quick-strip .settings-nav-button.utility-icon {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 70px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+  color: var(--forest) !important;
+  border-color: rgba(31, 58, 49, 0.2) !important;
+  background: rgba(255, 253, 248, 0.94) !important;
+}
+
+.quick-strip .settings-nav-button.utility-icon .settings-label {
+  display: inline-block !important;
+  font-size: 12px !important;
+  font-weight: 920 !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+.simple-gear-icon {
+  position: relative !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  flex: 0 0 17px !important;
+  width: 17px !important;
+  height: 17px !important;
+  border: 0 !important;
+  border-radius: 999px !important;
+  background: none !important;
+  color: currentColor !important;
+  transform: none !important;
+}
+
+.simple-gear-icon::before {
+  content: "⚙" !important;
+  position: static !important;
+  display: block !important;
+  width: auto !important;
+  height: auto !important;
+  border-radius: 0 !important;
+  background: none !important;
+  color: currentColor !important;
+  font-size: 17px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  transform: none !important;
+}
+
+.simple-gear-icon::after {
+  content: none !important;
+}
+
+.quick-strip > .top-status .top-more-menu summary.manage-menu-button {
+  min-width: 42px !important;
+  width: 42px !important;
+  padding: 0 !important;
+}
+
+.quick-strip > .top-status .top-more-menu summary.manage-menu-button .manage-combo-icon {
+  display: grid !important;
+  gap: 3px !important;
+  width: 16px !important;
+}
+
+.quick-strip > .top-status .top-more-menu summary.manage-menu-button .manage-combo-icon span {
+  width: 16px !important;
+  height: 2px !important;
+  border-radius: 999px !important;
+}
+
+.quick-strip > .top-status .top-more-menu summary.manage-menu-button .manage-menu-label {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  clip-path: inset(50%) !important;
+  white-space: nowrap !important;
+}
+
+.quick-strip > .top-status #topYearProgress,
+.quick-strip > .top-status #topCarryover,
+.quick-strip > .top-status #topSearchCount,
+.quick-strip > .top-status #topAccountStatus {
+  display: none !important;
+}
+
+.quick-strip button[data-top-view="notes"] {
+  font-size: 13px !important;
+  letter-spacing: 0 !important;
+}
+
+.quick-strip button[data-top-view="notes"]::before {
+  content: none !important;
+  display: none !important;
+}
+
+@media (pointer: coarse) and (min-width: 641px) and (max-width: 1366px) {
+  body.ceo-mode .app-header,
+  body.ceo-mode .app-shell {
+    left: 0 !important;
+    right: 0 !important;
+    width: min(760px, 100vw) !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  body.ceo-mode .app-shell {
+    padding-left: clamp(12px, 2.2vw, 24px) !important;
+    padding-right: clamp(12px, 2.2vw, 24px) !important;
+  }
+
+  .brand-row h1,
+  body.ceo-mode .brand-row h1,
+  body.classic-mode .brand-row h1 {
+    max-width: clamp(184px, 24vw, 320px) !important;
+    font-size: clamp(25px, 2.55vw, 35px) !important;
+  }
+
+  .quick-strip,
+  body.ceo-mode .quick-strip,
+  body.classic-mode .quick-strip {
+    width: min(100%, 760px) !important;
+    justify-content: flex-start !important;
+  }
+
+  .quick-strip .settings-nav-button.utility-icon,
+  body.ceo-mode .quick-strip .settings-nav-button.utility-icon,
+  body.classic-mode .quick-strip .settings-nav-button.utility-icon {
+    flex-basis: auto !important;
+    min-width: 68px !important;
+    width: auto !important;
+    padding-inline: 10px !important;
+  }
+
+  .day-date-nav,
+  .day-date-nav.has-today-weather,
+  body.ceo-mode .day-date-nav,
+  body.classic-mode .day-date-nav {
+    grid-template-columns: 38px minmax(0, 420px) 38px minmax(78px, max-content) !important;
+    justify-content: center !important;
+    gap: 6px !important;
+  }
+
+  .daily-date-button,
+  body.ceo-mode .daily-date-button,
+  body.classic-mode .daily-date-button {
+    width: 100% !important;
+    max-width: min(42vw, 420px) !important;
+    overflow: hidden !important;
+  }
+
+  #dayTitle,
+  body.ceo-mode #dayTitle,
+  body.classic-mode #dayTitle {
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: clip !important;
+  }
+
+  .daily-score,
+  body.ceo-mode .daily-score,
+  body.classic-mode .daily-score {
+    width: clamp(76px, 7vw, 98px) !important;
+    min-width: clamp(76px, 7vw, 98px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .quick-strip .settings-nav-button.utility-icon {
+    min-width: 58px !important;
+    width: auto !important;
+    flex-basis: auto !important;
+    padding-inline: 9px !important;
+    gap: 4px !important;
+  }
+
+  .quick-strip .settings-nav-button.utility-icon .settings-label {
+    font-size: 11px !important;
+  }
+
+  .simple-gear-icon,
+  .simple-gear-icon::before {
+    font-size: 15px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .quick-strip .settings-nav-button.utility-icon {
+    min-width: 38px !important;
+    width: 38px !important;
+    padding: 0 !important;
+  }
+
+  .quick-strip .settings-nav-button.utility-icon .settings-label {
+    display: none !important;
+  }
+}
