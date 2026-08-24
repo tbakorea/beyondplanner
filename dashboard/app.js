@@ -1606,6 +1606,23 @@ async function persistStateToServer(options = {}) {
     if (payload.stale) {
       lastServerUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
       saveStatus.ready = true;
+      const retryCount = Number(options.staleRetry || 0);
+      const localMeta = getStateMeta();
+      const retryUpdatedAt = isTimestampNewer(localMeta.updatedAt, updatedAt) ? localMeta.updatedAt : updatedAt;
+      const hasUnflushedLocalEdit = Boolean(localMeta.dirty && timestampMs(retryUpdatedAt));
+      if (lastServerUpdatedAt && hasUnflushedLocalEdit && retryCount < 2) {
+        saveStateMeta({
+          updatedAt: retryUpdatedAt,
+          baseUpdatedAt: lastServerUpdatedAt,
+          dirty: true,
+          accountEmail: getAuthSession()?.email || "",
+        });
+        saveStatus.saving = true;
+        saveStatus.message = "최신 기준으로 다시 저장 중";
+        renderSidebarAfterDailyInput();
+        await persistStateToServer({ ...options, staleRetry: retryCount + 1 });
+        return;
+      }
       saveStatus.saving = false;
       saveStatus.message = payload.conflict ? "다른 기기 최신 데이터 불러오는 중" : "최신 데이터 불러오는 중";
       await pullServerStateIfNewer({ force: true });
@@ -8913,13 +8930,13 @@ function renderDayCompass() {
     const postponeDateButton = row.querySelector(".postpone-date-button");
     const text = row.querySelector(".weekly-priority-text");
     const deleteButton = row.querySelector(".weekly-priority-delete");
-    cycle.onclick = () => {
+    cycle.onclick = () => runTaskCycleOnce(cycle, () => {
       const feedback = cycleTaskMarker(item);
       if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
       showTaskCycleFeedback(cycle, feedback);
       saveState();
       renderDayCompass();
-    };
+    });
     if (prioritySelect) {
       let handledValue = "";
       const applyPrioritySelection = () => {
@@ -9263,12 +9280,12 @@ function renderTaskRow(task, priority, index) {
   const text = row.querySelector(".task-text-input");
   const moneyLink = row.querySelector(".task-money-link");
   const deleteButton = row.querySelector(".task-delete");
-  cycle.onclick = () => {
+  cycle.onclick = () => runTaskCycleOnce(cycle, () => {
     const feedback = cycleTaskMarker(task);
     showTaskCycleFeedback(cycle, feedback);
     saveState({ fastSave: true });
     renderAll();
-  };
+  });
   if (prioritySelect) {
     let handledValue = "";
     const applyPrioritySelection = () => {
@@ -9427,6 +9444,24 @@ function getTaskMarkerLabel(marker) {
   if (marker === "delegate") return "↗";
   if (marker === "postpone") return "→";
   return "";
+}
+
+function runTaskCycleOnce(anchor, handler) {
+  if (!anchor) {
+    handler();
+    return;
+  }
+  if (anchor.dataset.cycleLock === "1") return;
+  anchor.dataset.cycleLock = "1";
+  anchor.setAttribute("aria-busy", "true");
+  try {
+    handler();
+  } finally {
+    window.setTimeout(() => {
+      delete anchor.dataset.cycleLock;
+      anchor.removeAttribute("aria-busy");
+    }, 520);
+  }
 }
 
 function cycleTaskMarker(task) {
@@ -9714,9 +9749,9 @@ function renderCarryoverTask(task) {
   const postponeDateButton = row.querySelector(".postpone-date-button");
   const moneyLink = row.querySelector(".task-money-link");
   const cycle = row.querySelector(".task-cycle");
-  cycle.onclick = () => {
+  cycle.onclick = () => runTaskCycleOnce(cycle, () => {
     updateCarryoverTaskMarker(task, cycle);
-  };
+  });
   if (prioritySelect) {
     let handledValue = "";
     const applyPrioritySelection = () => {
