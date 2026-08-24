@@ -444,8 +444,9 @@ let selectedFinanceMonth = monthKey(selectedDate);
 let selectedMemoKey = iso(selectedDate);
 let memoSearchQuery = "";
 let activeMoneyDraftId = "";
-let hasInitialDeviceCache = hasCachedPlannerState();
-let state = loadState();
+const initialCachedPlannerState = loadCachedPlannerState();
+let hasInitialDeviceCache = Boolean(initialCachedPlannerState);
+let state = initialCachedPlannerState || loadEmptyState();
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
 let activeCoachSection = "";
@@ -1372,7 +1373,7 @@ function renderSidebarAfterDailyInput() {
 
 async function hydrateServerState() {
   try {
-    await hydrateServerConfig();
+    hydrateServerConfig();
     const session = await ensureFreshAuthSession();
     if (!session?.accessToken) {
       accountSaveReady = false;
