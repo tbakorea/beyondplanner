@@ -21291,3 +21291,518 @@ body.classic-mode .day-schedule-panel > .panel-title-row [data-section-ai][hidde
     display: none !important;
   }
 }
+
+/* 2026-08-25 product polish layer.
+   Goal: make the classic day view read as one complete planner spread across
+   desktop, iPad, and side-window layouts without hiding the core columns. */
+.quick-strip button[data-top-view="notes"],
+.tabs button[data-view="notes"] {
+  font-size: 0 !important;
+}
+
+.quick-strip button[data-top-view="notes"]::after,
+.tabs button[data-view="notes"]::after {
+  content: "Money" !important;
+  display: inline-block !important;
+  font-size: clamp(12px, 1.05vw, 14px) !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
+
+body.classic-mode.day-view-active {
+  --classic-panel-gap: clamp(5px, 0.62vw, 10px) !important;
+  --classic-row-height: clamp(26px, 3.55vh, 34px) !important;
+  --classic-title-height: clamp(38px, 5.1vh, 50px) !important;
+  --classic-pulse-height: clamp(30px, 3.8vh, 36px) !important;
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, 0.96), rgba(247, 245, 239, 0.98)),
+    #f7f5ef !important;
+}
+
+body.classic-mode.day-view-active .app-header {
+  grid-template-columns: minmax(190px, 0.48fr) minmax(520px, 1.52fr) !important;
+  align-items: center !important;
+  gap: clamp(6px, 0.75vw, 12px) !important;
+  min-height: 0 !important;
+  height: clamp(58px, 8.2vh, 76px) !important;
+  max-height: clamp(58px, 8.2vh, 76px) !important;
+  padding: max(4px, env(safe-area-inset-top)) clamp(9px, 1.15vw, 18px) 4px !important;
+  border-bottom: 1px solid rgba(43, 60, 52, 0.08) !important;
+  box-shadow: 0 12px 34px rgba(38, 47, 41, 0.055) !important;
+}
+
+body.classic-mode.day-view-active .brand-block,
+body.classic-mode.day-view-active .brand-row {
+  min-width: 0 !important;
+}
+
+body.classic-mode.day-view-active .brand-row {
+  gap: clamp(5px, 0.65vw, 8px) !important;
+}
+
+body.classic-mode.day-view-active .brand-row h1 {
+  max-width: clamp(136px, 20vw, 292px) !important;
+  font-size: clamp(22px, 2.25vw, 34px) !important;
+  line-height: 0.96 !important;
+  letter-spacing: 0 !important;
+}
+
+body.classic-mode.day-view-active .coach-bubble {
+  width: clamp(31px, 3vw, 38px) !important;
+  min-width: clamp(31px, 3vw, 38px) !important;
+  height: clamp(30px, 3vw, 36px) !important;
+  min-height: clamp(30px, 3vw, 36px) !important;
+}
+
+body.classic-mode.day-view-active #modeToggle {
+  width: auto !important;
+  min-width: clamp(78px, 8.5vw, 104px) !important;
+  min-height: 28px !important;
+  padding-inline: clamp(8px, 0.9vw, 12px) !important;
+  font-size: clamp(10px, 0.9vw, 12px) !important;
+  white-space: nowrap !important;
+}
+
+body.classic-mode.day-view-active .header-tools {
+  justify-items: end !important;
+  min-width: 0 !important;
+}
+
+body.classic-mode.day-view-active .quick-strip {
+  width: min(100%, 760px) !important;
+  min-height: 34px !important;
+  max-height: 38px !important;
+  padding: 4px !important;
+  gap: clamp(3px, 0.42vw, 6px) !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  overflow: hidden !important;
+  border-radius: 999px !important;
+  background: rgba(255, 253, 248, 0.78) !important;
+  backdrop-filter: blur(18px) saturate(1.1) !important;
+}
+
+body.classic-mode.day-view-active .quick-strip button,
+body.classic-mode.day-view-active .top-search-toggle,
+body.classic-mode.day-view-active .quick-strip .ghost-button,
+body.classic-mode.day-view-active .quick-strip .pill,
+body.classic-mode.day-view-active .quick-strip .settings-nav-button.utility-icon {
+  flex: 0 0 auto !important;
+  min-height: 28px !important;
+  height: 28px !important;
+  padding-inline: clamp(8px, 0.82vw, 12px) !important;
+  font-size: clamp(10.5px, 0.92vw, 12.5px) !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+body.classic-mode.day-view-active .quick-strip .settings-nav-button.utility-icon {
+  min-width: 34px !important;
+  width: 34px !important;
+  padding: 0 !important;
+}
+
+body.classic-mode.day-view-active .quick-strip .settings-nav-button.utility-icon .settings-label {
+  display: none !important;
+}
+
+body.classic-mode.day-view-active .app-shell {
+  height: calc(100dvh - var(--app-header-height)) !important;
+  min-height: 0 !important;
+  padding: clamp(4px, 0.55vh, 7px) clamp(7px, 0.9vw, 14px) clamp(7px, 0.9vh, 12px) !important;
+  overflow: hidden !important;
+}
+
+body.classic-mode.day-view-active #view-day.active {
+  display: grid !important;
+  grid-template-rows: var(--classic-title-height) var(--classic-pulse-height) minmax(0, 1fr) !important;
+  gap: clamp(3px, 0.45vh, 6px) !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+body.classic-mode.day-view-active .daily-title,
+body.classic-mode.day-view-active .daily-pulse-row {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  margin: 0 !important;
+  z-index: 3 !important;
+}
+
+body.classic-mode.day-view-active .daily-title {
+  height: var(--classic-title-height) !important;
+  min-height: var(--classic-title-height) !important;
+  max-height: var(--classic-title-height) !important;
+  padding: 3px clamp(6px, 0.75vw, 10px) !important;
+  grid-template-columns: minmax(0, 1fr) clamp(68px, 7vw, 88px) !important;
+  gap: clamp(5px, 0.7vw, 9px) !important;
+  border-radius: 10px !important;
+}
+
+body.classic-mode.day-view-active .day-date-nav,
+body.classic-mode.day-view-active .day-date-nav.has-today-weather {
+  display: grid !important;
+  grid-template-columns: clamp(32px, 3.2vw, 40px) minmax(220px, min(50vw, 520px)) clamp(32px, 3.2vw, 40px) minmax(62px, max-content) !important;
+  justify-content: center !important;
+  align-items: center !important;
+  gap: clamp(4px, 0.55vw, 8px) !important;
+  min-width: 0 !important;
+}
+
+body.classic-mode.day-view-active .daily-date-button {
+  width: 100% !important;
+  max-width: min(52vw, 520px) !important;
+  min-width: 0 !important;
+  padding-inline: clamp(8px, 1vw, 14px) !important;
+  overflow: hidden !important;
+}
+
+body.classic-mode.day-view-active #dayTitle {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+  white-space: nowrap !important;
+  font-size: clamp(21px, 2.45vw, 32px) !important;
+  line-height: 1 !important;
+}
+
+body.classic-mode.day-view-active .daily-title .icon-button.compact,
+body.classic-mode.day-view-active .daily-title .today-jump,
+body.classic-mode.day-view-active .weather-day-chip {
+  width: clamp(32px, 3.4vw, 40px) !important;
+  min-width: clamp(32px, 3.4vw, 40px) !important;
+  height: clamp(30px, 4vh, 36px) !important;
+  min-height: clamp(30px, 4vh, 36px) !important;
+  padding: 0 !important;
+  font-size: clamp(16px, 1.6vw, 22px) !important;
+}
+
+body.classic-mode.day-view-active .weather-day-chip {
+  width: auto !important;
+  min-width: clamp(62px, 7vw, 92px) !important;
+  padding-inline: clamp(6px, 0.75vw, 10px) !important;
+  font-size: clamp(10px, 0.9vw, 12px) !important;
+}
+
+body.classic-mode.day-view-active .daily-score {
+  width: clamp(66px, 6.8vw, 84px) !important;
+  min-width: clamp(66px, 6.8vw, 84px) !important;
+  height: clamp(34px, 4.6vh, 42px) !important;
+  min-height: clamp(34px, 4.6vh, 42px) !important;
+  padding: 2px 6px !important;
+}
+
+body.classic-mode.day-view-active .daily-score span {
+  font-size: clamp(8.5px, 0.74vw, 10px) !important;
+  line-height: 1 !important;
+}
+
+body.classic-mode.day-view-active .daily-score strong {
+  font-size: clamp(19px, 1.9vw, 27px) !important;
+  line-height: 0.98 !important;
+}
+
+body.classic-mode.day-view-active .daily-pulse-row {
+  height: var(--classic-pulse-height) !important;
+  min-height: var(--classic-pulse-height) !important;
+  max-height: var(--classic-pulse-height) !important;
+  padding: 1px 0 !important;
+  grid-template-columns: clamp(88px, 8.5vw, 112px) minmax(0, 1fr) clamp(78px, 7.5vw, 96px) !important;
+  gap: clamp(4px, 0.55vw, 7px) !important;
+  overflow: hidden !important;
+}
+
+body.classic-mode.day-view-active .daily-pulse-nav,
+body.classic-mode.day-view-active .daily-pulse-center,
+body.classic-mode.day-view-active .pulse-ticker {
+  height: calc(var(--classic-pulse-height) - 4px) !important;
+  min-height: calc(var(--classic-pulse-height) - 4px) !important;
+  overflow: hidden !important;
+}
+
+body.classic-mode.day-view-active .daily-pulse-nav-label,
+body.classic-mode.day-view-active .pulse-ticker-item {
+  font-size: clamp(10px, 0.92vw, 12px) !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+body.classic-mode.day-view-active .day-swipe {
+  display: grid !important;
+  grid-template-columns:
+    minmax(165px, 0.98fr)
+    minmax(220px, 1.14fr)
+    minmax(205px, 1.02fr)
+    minmax(300px, 1.46fr) !important;
+  gap: var(--classic-panel-gap) !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  touch-action: pan-y !important;
+}
+
+body.classic-mode.day-view-active .day-main-panel {
+  display: contents !important;
+}
+
+body.classic-mode.day-view-active .day-swipe > .panel,
+body.classic-mode.day-view-active .day-swipe > .swipe-panel,
+body.classic-mode.day-view-active .day-main-panel > .panel {
+  height: 100% !important;
+  min-height: 0 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  border-radius: 10px !important;
+  background: rgba(255, 253, 248, 0.86) !important;
+  box-shadow: 0 12px 32px rgba(37, 45, 40, 0.05) !important;
+  scrollbar-gutter: stable !important;
+}
+
+body.classic-mode.day-view-active .panel-title-row,
+body.classic-mode.day-view-active .day-swipe .panel > h3 {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 5 !important;
+  min-height: clamp(34px, 4.8vh, 44px) !important;
+  padding: clamp(6px, 0.7vh, 9px) clamp(8px, 0.88vw, 12px) !important;
+  background: rgba(255, 253, 248, 0.94) !important;
+  backdrop-filter: blur(14px) saturate(1.05) !important;
+  border-bottom: 1px solid rgba(43, 60, 52, 0.09) !important;
+}
+
+body.classic-mode.day-view-active .panel-title-row > span:first-child,
+body.classic-mode.day-view-active .day-swipe .panel > h3 {
+  font-size: clamp(14px, 1.22vw, 18px) !important;
+  font-weight: 920 !important;
+  line-height: 1.05 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+body.classic-mode.day-view-active .section-coach-button,
+body.classic-mode.day-view-active [data-section-ai],
+body.classic-mode.day-view-active .mobile-focus-open,
+body.classic-mode.day-view-active .mobile-focus-done {
+  width: clamp(30px, 3vw, 38px) !important;
+  min-width: clamp(30px, 3vw, 38px) !important;
+  height: clamp(30px, 3vw, 38px) !important;
+  min-height: clamp(30px, 3vw, 38px) !important;
+}
+
+body.classic-mode.day-view-active .task-row,
+body.classic-mode.day-view-active .weekly-priority-row,
+body.classic-mode.day-view-active .compass-row {
+  min-height: var(--classic-row-height) !important;
+}
+
+body.classic-mode.day-view-active .task-row {
+  column-gap: clamp(4px, 0.52vw, 7px) !important;
+}
+
+body.classic-mode.day-view-active .task-cycle,
+body.classic-mode.day-view-active .task-priority-select,
+body.classic-mode.day-view-active .task-status-cell,
+body.classic-mode.day-view-active .task-money-link {
+  flex-shrink: 0 !important;
+}
+
+body.classic-mode.day-view-active .task-text-input,
+body.classic-mode.day-view-active .task-row input[type="text"],
+body.classic-mode.day-view-active .weekly-priority-text,
+body.classic-mode.day-view-active .compass-row input,
+body.classic-mode.day-view-active .appointment-row input[type="text"],
+body.classic-mode.day-view-active .appointment-row textarea,
+body.classic-mode.day-view-active .day-memo-panel textarea,
+body.classic-mode.day-view-active .day-memo-title-input {
+  min-width: 0 !important;
+  font-size: clamp(11px, 0.98vw, 13.5px) !important;
+  line-height: 1.15 !important;
+}
+
+body.classic-mode.day-view-active .appointment-row {
+  min-height: var(--classic-row-height) !important;
+  overflow: visible !important;
+}
+
+body.classic-mode.day-view-active .appointment-time,
+body.classic-mode.day-view-active .appointment-row span {
+  font-size: clamp(10px, 0.95vw, 12px) !important;
+  white-space: nowrap !important;
+}
+
+body.classic-mode.day-view-active .appointment-row input[type="text"],
+body.classic-mode.day-view-active .appointment-row textarea,
+body.classic-mode.day-view-active .schedule-text,
+body.classic-mode.day-view-active .schedule-entry-text {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  writing-mode: horizontal-tb !important;
+  word-break: keep-all !important;
+  overflow-wrap: normal !important;
+}
+
+body.classic-mode.day-view-active .appointment-row.is-merged,
+body.classic-mode.day-view-active .appointment-row.merged,
+body.classic-mode.day-view-active .schedule-row.is-merged,
+body.classic-mode.day-view-active .schedule-row.merged {
+  align-items: center !important;
+}
+
+body.classic-mode.day-view-active .appointment-row.is-merged input[type="text"],
+body.classic-mode.day-view-active .appointment-row.is-merged textarea,
+body.classic-mode.day-view-active .appointment-row.merged input[type="text"],
+body.classic-mode.day-view-active .appointment-row.merged textarea {
+  text-align: center !important;
+  align-self: center !important;
+  padding-right: clamp(34px, 3.4vw, 44px) !important;
+}
+
+body.classic-mode.day-view-active .day-memo-panel {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+body.classic-mode.day-view-active .day-memo-panel textarea {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+body.classic-mode.day-view-active .onboarding-panel,
+body.classic-mode.day-view-active #onboardingPanel {
+  margin: 0 !important;
+}
+
+@media (min-width: 761px) and (max-width: 1180px) {
+  body.classic-mode.day-view-active {
+    --classic-panel-gap: clamp(4px, 0.5vw, 8px) !important;
+    --classic-row-height: clamp(24px, 3.35vh, 31px) !important;
+    --classic-title-height: clamp(36px, 4.8vh, 44px) !important;
+    --classic-pulse-height: clamp(28px, 3.5vh, 32px) !important;
+  }
+
+  body.classic-mode.day-view-active .app-header {
+    grid-template-columns: minmax(160px, 0.46fr) minmax(430px, 1.54fr) !important;
+    height: clamp(54px, 7.5vh, 64px) !important;
+    max-height: clamp(54px, 7.5vh, 64px) !important;
+  }
+
+  body.classic-mode.day-view-active .brand-row h1 {
+    max-width: clamp(116px, 18vw, 220px) !important;
+    font-size: clamp(20px, 2.4vw, 30px) !important;
+  }
+
+  body.classic-mode.day-view-active .quick-strip {
+    width: min(100%, 620px) !important;
+  }
+
+  body.classic-mode.day-view-active .day-swipe {
+    grid-template-columns:
+      minmax(132px, 0.9fr)
+      minmax(178px, 1.08fr)
+      minmax(166px, 0.98fr)
+      minmax(210px, 1.18fr) !important;
+  }
+
+  body.classic-mode.day-view-active .day-date-nav,
+  body.classic-mode.day-view-active .day-date-nav.has-today-weather {
+    grid-template-columns: 34px minmax(200px, min(45vw, 400px)) 34px minmax(60px, max-content) !important;
+  }
+
+  body.classic-mode.day-view-active #dayTitle {
+    font-size: clamp(19px, 2.55vw, 26px) !important;
+  }
+}
+
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  body.classic-mode.day-view-active.desktop-classic-fit .app-header,
+  body.classic-mode.day-view-active.desktop-classic-fit .app-shell {
+    transform-origin: top left !important;
+    backface-visibility: hidden !important;
+  }
+
+  body.classic-mode.day-view-active.desktop-classic-fit .day-swipe {
+    grid-template-columns:
+      minmax(175px, 0.96fr)
+      minmax(238px, 1.16fr)
+      minmax(220px, 1.03fr)
+      minmax(318px, 1.48fr) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  body.day-view-active .daily-title {
+    grid-template-columns: minmax(0, 1fr) clamp(60px, 17vw, 74px) !important;
+    gap: 5px !important;
+    padding-inline: 7px !important;
+  }
+
+  body.day-view-active .day-date-nav,
+  body.day-view-active .day-date-nav.has-today-weather {
+    grid-template-columns: 34px minmax(0, 1fr) 34px minmax(56px, max-content) !important;
+    gap: 4px !important;
+  }
+
+  body.day-view-active .daily-date-button {
+    min-width: 0 !important;
+    padding-inline: 6px !important;
+  }
+
+  body.day-view-active #dayTitle {
+    font-size: var(--daily-title-font, clamp(21px, 6vw, 28px)) !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  body.day-view-active .daily-score {
+    width: clamp(58px, 15vw, 70px) !important;
+    min-width: clamp(58px, 15vw, 70px) !important;
+    padding-inline: 4px !important;
+  }
+
+  body.day-view-active .daily-score strong {
+    font-size: var(--daily-score-font, clamp(22px, 7vw, 30px)) !important;
+    line-height: 0.96 !important;
+  }
+
+  body.day-view-active .daily-pulse-row {
+    margin-top: 2px !important;
+    margin-bottom: 8px !important;
+  }
+
+  body.day-view-active .day-task-panel,
+  body.day-view-active .day-schedule-panel {
+    padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+.quick-strip button[data-top-view="notes"],
+.tabs button[data-view="notes"],
+body.classic-mode.day-view-active .quick-strip button[data-top-view="notes"],
+body.ceo-mode .quick-strip button[data-top-view="notes"] {
+  font-size: 0 !important;
+}
+
+.quick-strip button[data-top-view="notes"]::after,
+.tabs button[data-view="notes"]::after,
+body.classic-mode.day-view-active .quick-strip button[data-top-view="notes"]::after,
+body.ceo-mode .quick-strip button[data-top-view="notes"]::after {
+  content: "Money" !important;
+  display: inline-block !important;
+  font-size: clamp(12px, 1.05vw, 14px) !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+}
