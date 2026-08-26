@@ -21806,3 +21806,35 @@ body.ceo-mode .quick-strip button[data-top-view="notes"]::after {
   font-weight: 900 !important;
   line-height: 1 !important;
 }
+
+/* 2026-08-26 navigation visibility fix.
+   App Settings toggles must map to a visible main-menu button, while compact
+   layouts should scroll the menu instead of clipping enabled sections. */
+.quick-strip,
+body.ceo-mode .quick-strip,
+body.classic-mode .quick-strip,
+body.classic-mode.day-view-active .quick-strip {
+  justify-content: flex-start !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  overscroll-behavior-x: contain !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: none !important;
+}
+
+.quick-strip::-webkit-scrollbar,
+body.ceo-mode .quick-strip::-webkit-scrollbar,
+body.classic-mode .quick-strip::-webkit-scrollbar {
+  display: none !important;
+}
+
+.quick-strip > button,
+.quick-strip > .top-search-wrap,
+.quick-strip > .top-status {
+  flex: 0 0 auto !important;
+}
+
+.quick-strip [hidden],
+.top-more-panel [hidden] {
+  display: none !important;
+}
