@@ -522,6 +522,8 @@ let approvalUsersLoaded = false;
 let approvalUsersLoading = false;
 let approvalUsers = [];
 let approvalStats = { total: 0, pending: 0, approved: 0, suspended: 0, rejected: 0 };
+const TASK_CYCLE_LOCK_MS = 900;
+const taskCycleLocks = new Map();
 
 function el(id) {
   return document.getElementById(id);
@@ -1605,23 +1607,29 @@ async function persistStateToServer(options = {}) {
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
     if (payload.stale) {
-      lastServerUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
+      const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
+      lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
       saveStatus.ready = true;
       const retryCount = Number(options.staleRetry || 0);
       const localMeta = getStateMeta();
       const retryUpdatedAt = isTimestampNewer(localMeta.updatedAt, updatedAt) ? localMeta.updatedAt : updatedAt;
       const hasUnflushedLocalEdit = Boolean(localMeta.dirty && timestampMs(retryUpdatedAt));
-      if (lastServerUpdatedAt && hasUnflushedLocalEdit && retryCount < 2) {
+      const localEditIsCurrent = hasUnflushedLocalEdit && (!serverUpdatedAt || !isTimestampNewer(serverUpdatedAt, retryUpdatedAt));
+      if (serverUpdatedAt && localEditIsCurrent) {
         saveStateMeta({
           updatedAt: retryUpdatedAt,
-          baseUpdatedAt: lastServerUpdatedAt,
+          baseUpdatedAt: serverUpdatedAt,
           dirty: true,
           accountEmail: getAuthSession()?.email || "",
         });
         saveStatus.saving = true;
         saveStatus.message = "최신 기준으로 다시 저장 중";
         renderSidebarAfterDailyInput();
-        await persistStateToServer({ ...options, staleRetry: retryCount + 1 });
+        if (retryCount < 4) {
+          await persistStateToServer({ ...options, staleRetry: retryCount + 1 });
+        } else {
+          scheduleAccountSave(900);
+        }
         return;
       }
       saveStatus.saving = false;
@@ -1653,7 +1661,12 @@ async function pullServerStateIfNewer(options = {}) {
     return;
   }
   const localMeta = getStateMeta();
-  if (!options.force && localMeta.dirty && Date.now() - timestampMs(localMeta.updatedAt) < 3000) return;
+  if (!options.force && localMeta.dirty) {
+    saveStatus.message = "저장 중";
+    renderSidebarAfterDailyInput();
+    scheduleAccountSave(250);
+    return;
+  }
   if (isAnyPlannerInputEditing()) {
     saveStatus.message = "입력 완료 후 최신 확인";
     renderSidebarAfterDailyInput();
@@ -8931,13 +8944,17 @@ function renderDayCompass() {
     const postponeDateButton = row.querySelector(".postpone-date-button");
     const text = row.querySelector(".weekly-priority-text");
     const deleteButton = row.querySelector(".weekly-priority-delete");
-    cycle.onclick = () => runTaskCycleOnce(cycle, () => {
-      const feedback = cycleTaskMarker(item);
-      if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
-      showTaskCycleFeedback(cycle, feedback);
-      saveState();
-      renderDayCompass();
-    });
+    cycle.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      runTaskCycleActionOnce(item, `weekly:${weekKey(selectedDate)}:${index}:${item.text || ""}`, cycle, () => {
+        const feedback = cycleTaskMarker(item);
+        if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
+        showTaskCycleFeedback(cycle, feedback);
+        saveState();
+        renderDayCompass();
+      });
+    };
     if (prioritySelect) {
       let handledValue = "";
       const applyPrioritySelection = () => {
@@ -9281,12 +9298,16 @@ function renderTaskRow(task, priority, index) {
   const text = row.querySelector(".task-text-input");
   const moneyLink = row.querySelector(".task-money-link");
   const deleteButton = row.querySelector(".task-delete");
-  cycle.onclick = () => runTaskCycleOnce(cycle, () => {
-    const feedback = cycleTaskMarker(task);
-    showTaskCycleFeedback(cycle, feedback);
-    saveState({ fastSave: true });
-    renderAll();
-  });
+  cycle.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
+      const feedback = cycleTaskMarker(task);
+      showTaskCycleFeedback(cycle, feedback);
+      saveState({ fastSave: true });
+      renderAll();
+    });
+  };
   if (prioritySelect) {
     let handledValue = "";
     const applyPrioritySelection = () => {
@@ -9445,6 +9466,33 @@ function getTaskMarkerLabel(marker) {
   if (marker === "delegate") return "↗";
   if (marker === "postpone") return "→";
   return "";
+}
+
+function getTaskCycleLockKey(task = {}, fallback = "") {
+  const parts = [
+    task.id ? `id:${task.id}` : "",
+    task.carryoverForkFrom ? `fork:${task.carryoverForkFrom}` : "",
+    task.carryoverSourceDate ? `source:${task.carryoverSourceDate}` : "",
+    task.repeatId ? `repeat:${task.repeatId}` : "",
+    task.financeItemId ? `money:${task.financeItemId}` : "",
+    task.projectTaskId ? `project:${task.projectTaskId}` : "",
+    fallback ? `view:${fallback}` : "",
+  ].filter(Boolean);
+  return parts.join("|") || `task:${fallback || "unknown"}`;
+}
+
+function runTaskCycleActionOnce(task, fallback, anchor, handler) {
+  const lockKey = getTaskCycleLockKey(task, fallback);
+  const now = Date.now();
+  const lockedUntil = taskCycleLocks.get(lockKey) || 0;
+  if (lockedUntil > now) return;
+  taskCycleLocks.set(lockKey, now + TASK_CYCLE_LOCK_MS);
+  runTaskCycleOnce(anchor, handler);
+  window.setTimeout(() => {
+    if ((taskCycleLocks.get(lockKey) || 0) <= Date.now()) {
+      taskCycleLocks.delete(lockKey);
+    }
+  }, TASK_CYCLE_LOCK_MS + 80);
 }
 
 function runTaskCycleOnce(anchor, handler) {
@@ -9750,9 +9798,13 @@ function renderCarryoverTask(task) {
   const postponeDateButton = row.querySelector(".postpone-date-button");
   const moneyLink = row.querySelector(".task-money-link");
   const cycle = row.querySelector(".task-cycle");
-  cycle.onclick = () => runTaskCycleOnce(cycle, () => {
-    updateCarryoverTaskMarker(task, cycle);
-  });
+  cycle.onclick = (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    runTaskCycleActionOnce(task, `carryover:${iso(selectedDate)}:${task.date || ""}:${task.id || ""}`, cycle, () => {
+      updateCarryoverTaskMarker(task, cycle);
+    });
+  };
   if (prioritySelect) {
     let handledValue = "";
     const applyPrioritySelection = () => {
