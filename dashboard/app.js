@@ -18,6 +18,7 @@ requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(plannerStorageKey());
   localStorage.removeItem(plannerStateMetaKey());
+  localStorage.removeItem(plannerDisplayCacheKey());
   localStorage.removeItem(LAST_DISPLAY_CACHE_KEY);
   history.replaceState(null, "", window.location.pathname);
 }
@@ -844,6 +845,11 @@ function plannerStateMetaKey() {
   return `${STATE_META_KEY}.${account}`;
 }
 
+function plannerDisplayCacheKey(email = getAuthSession()?.email || "") {
+  const account = email ? encodeURIComponent(email) : "anonymous";
+  return `${LAST_DISPLAY_CACHE_KEY}.${account}`;
+}
+
 function hasCachedPlannerState() {
   return Boolean(loadCachedPlannerState());
 }
@@ -931,32 +937,55 @@ function loadState() {
   return loadEmptyState();
 }
 
+function readStoredPlannerState(key) {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(key) || "null");
+    if (!parsed || typeof parsed !== "object") return null;
+    const cachedState = migrateState(parsed);
+    return hasPlannerContent(cachedState) ? cachedState : null;
+  } catch {
+    return null;
+  }
+}
+
+function readDisplayCachedPlannerState(key, sessionEmail = getAuthSession()?.email || "") {
+  try {
+    const cached = JSON.parse(localStorage.getItem(key) || "null");
+    if (!cached?.state || (cached.accountEmail && cached.accountEmail !== sessionEmail)) return null;
+    const cachedState = migrateState(cached.state);
+    return hasPlannerContent(cachedState) ? cachedState : null;
+  } catch {
+    return null;
+  }
+}
+
 function loadCachedPlannerState() {
-  try {
-    const accountCache = JSON.parse(localStorage.getItem(plannerStorageKey()) || "null");
-    if (accountCache && typeof accountCache === "object") return migrateState(accountCache);
-  } catch {
-    // Fall through to the display cache.
-  }
-  try {
-    const cached = JSON.parse(localStorage.getItem(LAST_DISPLAY_CACHE_KEY) || "null");
-    const sessionEmail = getAuthSession()?.email || "";
-    if (cached?.state && (!cached.accountEmail || cached.accountEmail === sessionEmail)) {
-      return migrateState(cached.state);
-    }
-  } catch {
-    // Fall back to a blank planner if the temporary display cache is unreadable.
-  }
+  const sessionEmail = getAuthSession()?.email || "";
+  const accountCache = readStoredPlannerState(plannerStorageKey());
+  if (accountCache) return accountCache;
+  const accountDisplayCache = readDisplayCachedPlannerState(plannerDisplayCacheKey(sessionEmail), sessionEmail);
+  if (accountDisplayCache) return accountDisplayCache;
+  const legacyDisplayCache = readDisplayCachedPlannerState(LAST_DISPLAY_CACHE_KEY, sessionEmail);
+  if (legacyDisplayCache) return legacyDisplayCache;
   return null;
 }
 
 function persistDisplayCache() {
   try {
-    localStorage.setItem(LAST_DISPLAY_CACHE_KEY, JSON.stringify({
+    const sessionEmail = getAuthSession()?.email || "";
+    const hasContent = hasPlannerContent(state);
+    if (!hasContent) {
+      const existingCache = readDisplayCachedPlannerState(plannerDisplayCacheKey(sessionEmail), sessionEmail)
+        || readDisplayCachedPlannerState(LAST_DISPLAY_CACHE_KEY, sessionEmail);
+      if (existingCache) return;
+    }
+    const payload = {
       accountEmail: getAuthSession()?.email || "",
       updatedAt: new Date().toISOString(),
       state,
-    }));
+    };
+    localStorage.setItem(plannerDisplayCacheKey(sessionEmail), JSON.stringify(payload));
+    if (hasContent) localStorage.setItem(LAST_DISPLAY_CACHE_KEY, JSON.stringify(payload));
   } catch {
     // Display cache is only a startup preview; DB saving remains authoritative.
   }
@@ -1401,6 +1430,16 @@ async function hydrateServerState() {
       if (canUploadLocal && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
         saveStatus.message = "최신 변경 저장 중";
         scheduleAccountSave(120);
+      } else if (!serverHasContent && localHasContent) {
+        // Keep the last visible planner as a boot preview instead of replacing the screen with blanks.
+        // The database remains authoritative; the next confirmed server state will still replace this preview.
+        saveStateMeta({
+          baseUpdatedAt: lastServerUpdatedAt,
+          lastSavedAt: lastServerUpdatedAt,
+          dirty: false,
+          accountEmail: getAuthSession()?.email || "",
+        });
+        saveStatus.message = "마지막 화면 표시 중";
       } else {
         setBootMessage("오늘의 화면을 최신 기준으로 맞추는 중");
         storeStateFromServer(payload, "저장됨");
@@ -1412,6 +1451,11 @@ async function hydrateServerState() {
         lastServerUpdatedAt = "";
         saveStatus.message = "새 변경 저장 중";
         scheduleAccountSave(120);
+        return;
+      }
+      if (localHasContent) {
+        // Do not wipe an existing boot preview when the server row is temporarily unavailable or empty.
+        saveStatus.message = "마지막 화면 표시 중";
         return;
       }
       // A missing DB row means a new account state. Never auto-upload leftover device/browser cache.
@@ -13809,7 +13853,12 @@ async function setup() {
   stabilizeDaySwipePosition("main");
   window.setInterval(pullServerStateIfNewer, 15000);
   window.addEventListener("focus", pullServerStateIfNewer);
+  window.addEventListener("pagehide", persistDisplayCache);
   document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      persistDisplayCache();
+      return;
+    }
     if (!document.hidden) pullServerStateIfNewer();
   });
 }
