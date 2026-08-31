@@ -134,9 +134,22 @@ def save_planner_state(token, state, payload):
     existing = get_planner_state(token)
     existing_updated_at = existing.get("updatedAt") or ""
     if existing.get("exists") and base_updated_at and existing_updated_at and not is_same_timestamp(existing_updated_at, base_updated_at):
-        return {"ok": True, "stale": True, "conflict": True, "updatedAt": existing_updated_at, "storage": "supabase-db"}
+        return {
+            "ok": True,
+            "stale": True,
+            "conflict": True,
+            "state": existing.get("state"),
+            "updatedAt": existing_updated_at,
+            "storage": "supabase-db",
+        }
     if existing.get("exists") and is_newer(existing.get("updatedAt"), updated_at):
-        return {"ok": True, "stale": True, "updatedAt": existing_updated_at, "storage": "supabase-db"}
+        return {
+            "ok": True,
+            "stale": True,
+            "state": existing.get("state"),
+            "updatedAt": existing_updated_at,
+            "storage": "supabase-db",
+        }
     if existing.get("exists") and is_destructive_overwrite(existing.get("state"), state):
         raise DestructiveOverwriteError("기존 플래너 데이터가 크게 줄어든 저장 요청이라 DB 보호를 위해 차단했습니다.")
     body = [

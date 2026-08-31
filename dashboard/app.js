@@ -1,6 +1,7 @@
 const STORAGE_KEY = "franklinClassicPlanner2026.v1";
 const LAST_DISPLAY_CACHE_KEY = "beyondWorkLastDisplayState.v1";
 const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
+const STATE_BASE_KEY = "beyondWorkPlannerStateBase.v1";
 const INSTALLATION_KEY = "beyondWorkInstallationId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
 const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
@@ -18,6 +19,7 @@ requirePlannerAuth();
 if (new URLSearchParams(window.location.search).get("reset") === "1") {
   localStorage.removeItem(plannerStorageKey());
   localStorage.removeItem(plannerStateMetaKey());
+  localStorage.removeItem(plannerStateBaseKey());
   localStorage.removeItem(plannerDisplayCacheKey());
   localStorage.removeItem(LAST_DISPLAY_CACHE_KEY);
   history.replaceState(null, "", window.location.pathname);
@@ -845,6 +847,11 @@ function plannerStateMetaKey() {
   return `${STATE_META_KEY}.${account}`;
 }
 
+function plannerStateBaseKey(email = getAuthSession()?.email || "") {
+  const account = email ? encodeURIComponent(email) : "anonymous";
+  return `${STATE_BASE_KEY}.${account}`;
+}
+
 function plannerDisplayCacheKey(email = getAuthSession()?.email || "") {
   const account = email ? encodeURIComponent(email) : "anonymous";
   return `${LAST_DISPLAY_CACHE_KEY}.${account}`;
@@ -988,6 +995,26 @@ function persistDisplayCache() {
     if (hasContent) localStorage.setItem(LAST_DISPLAY_CACHE_KEY, JSON.stringify(payload));
   } catch {
     // Display cache is only a startup preview; DB saving remains authoritative.
+  }
+}
+
+function readPlannerBaseState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(plannerStateBaseKey()) || "null");
+    if (!parsed || typeof parsed !== "object") return null;
+    const baseState = migrateState(parsed);
+    return hasPlannerContent(baseState) ? baseState : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePlannerBaseState(nextState = state) {
+  try {
+    if (!hasPlannerContent(nextState)) return;
+    localStorage.setItem(plannerStateBaseKey(), JSON.stringify(nextState));
+  } catch {
+    // Base snapshots are only used to merge concurrent edits safely.
   }
 }
 
@@ -1642,11 +1669,12 @@ async function persistStateToServer(options = {}) {
   const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : meta.updatedAt || markLocalStateUpdated();
   meta = getStateMeta();
   const baseUpdatedAt = getServerBaseUpdatedAt(meta);
+  const stateSnapshot = clonePlannerValue(state);
   try {
     const response = await fetch("/api/state", {
       method: "POST",
       headers: authStateHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ state, updatedAt, baseUpdatedAt }),
+      body: JSON.stringify({ state: stateSnapshot, updatedAt, baseUpdatedAt }),
     });
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
@@ -1658,30 +1686,57 @@ async function persistStateToServer(options = {}) {
       const localMeta = getStateMeta();
       const retryUpdatedAt = isTimestampNewer(localMeta.updatedAt, updatedAt) ? localMeta.updatedAt : updatedAt;
       const hasUnflushedLocalEdit = Boolean(localMeta.dirty && timestampMs(retryUpdatedAt));
-      const localEditIsCurrent = hasUnflushedLocalEdit && (!serverUpdatedAt || !isTimestampNewer(serverUpdatedAt, retryUpdatedAt));
-      if (serverUpdatedAt && localEditIsCurrent) {
+      const remoteState = getPayloadPlannerState(payload);
+      if (remoteState && hasUnflushedLocalEdit && retryCount < 4) {
+        const baseState = readPlannerBaseState() || remoteState;
+        const localState = isTimestampNewer(localMeta.updatedAt, updatedAt) ? clonePlannerValue(state) : stateSnapshot;
+        const mergedState = mergePlannerStates(baseState, localState, remoteState);
+        const mergedUpdatedAt = new Date().toISOString();
+        state = mergedState;
+        selectedSheetId = state.customSheets.activeId;
+        localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+        persistDisplayCache();
         saveStateMeta({
-          updatedAt: retryUpdatedAt,
+          updatedAt: mergedUpdatedAt,
           baseUpdatedAt: serverUpdatedAt,
+          lastSavedAt: serverUpdatedAt,
           dirty: true,
           accountEmail: getAuthSession()?.email || "",
         });
         saveStatus.saving = true;
-        saveStatus.message = "최신 기준으로 다시 저장 중";
+        saveStatus.message = "최신 데이터와 병합 저장 중";
         renderSidebarAfterDailyInput();
-        if (retryCount < 4) {
-          await persistStateToServer({ ...options, staleRetry: retryCount + 1 });
-        } else {
-          scheduleAccountSave(900);
-        }
+        await persistStateToServer({ ...options, staleRetry: retryCount + 1, bumpUpdatedAt: false });
         return;
       }
       saveStatus.saving = false;
       saveStatus.message = payload.conflict ? "다른 기기 최신 데이터 불러오는 중" : "최신 데이터 불러오는 중";
-      await pullServerStateIfNewer({ force: true });
+      if (remoteState) {
+        storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
+        renderAll();
+      } else {
+        await pullServerStateIfNewer({ force: true });
+      }
       return;
     }
     lastServerUpdatedAt = payload.updatedAt || updatedAt;
+    writePlannerBaseState(stateSnapshot);
+    const latestMeta = getStateMeta();
+    const hasNewerLocalEdit = Boolean(latestMeta.dirty && isTimestampNewer(latestMeta.updatedAt, updatedAt));
+    if (hasNewerLocalEdit) {
+      saveStateMeta({
+        baseUpdatedAt: lastServerUpdatedAt,
+        lastSavedAt: lastServerUpdatedAt,
+        dirty: true,
+        accountEmail: getAuthSession()?.email || "",
+      });
+      saveStatus.ready = true;
+      saveStatus.saving = true;
+      saveStatus.message = "추가 변경 저장 중";
+      renderSidebarAfterDailyInput();
+      scheduleAccountSave(250);
+      return;
+    }
     saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
     saveStatus.ready = true;
     saveStatus.saving = false;
@@ -1767,11 +1822,12 @@ function markLocalStateUpdated() {
 }
 
 function storeStateFromServer(payload, message) {
-  state = migrateState(payload.state);
+  state = getPayloadPlannerState(payload) || migrateState(payload.state);
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   persistDisplayCache();
+  writePlannerBaseState(state);
   saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
   saveStatus.message = message;
 }
@@ -1794,6 +1850,162 @@ function timestampMs(value) {
 
 function getServerBaseUpdatedAt(meta = getStateMeta(), includeRuntime = true) {
   return meta.baseUpdatedAt || meta.lastSavedAt || (includeRuntime ? lastServerUpdatedAt || "" : "");
+}
+
+function clonePlannerValue(value) {
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+}
+
+function plannerValuesEqual(left, right) {
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return left === right;
+  }
+}
+
+function isPlainPlannerObject(value) {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function getPlannerArrayItemKey(item, index) {
+  if (!isPlainPlannerObject(item)) return "";
+  const identityFields = [
+    "id",
+    "taskId",
+    "appointmentId",
+    "repeatId",
+    "financeItemId",
+    "projectTaskId",
+    "projectQuickTaskId",
+    "sheetId",
+    "memoId",
+    "eventId",
+    "postponedFrom",
+    "sourceId",
+  ];
+  for (const field of identityFields) {
+    const value = item[field];
+    if (value !== undefined && value !== null && String(value).trim()) return `${field}:${String(value)}`;
+  }
+  if (item.role) return `role:${String(item.role)}`;
+  if (item.date && (item.title || item.text || item.name)) {
+    return `date:${item.date}:${item.title || item.text || item.name}`;
+  }
+  if (item.month && item.day && (item.title || item.text || item.name)) {
+    return `annual:${item.month}:${item.day}:${item.title || item.text || item.name}`;
+  }
+  return `index:${index}`;
+}
+
+function canMergePlannerArrayByKey(...arrays) {
+  const items = arrays.flat().filter((item) => item !== undefined && item !== null);
+  return Boolean(items.length && items.every((item) => isPlainPlannerObject(item)));
+}
+
+function mapPlannerArrayByKey(array = []) {
+  const map = new Map();
+  array.forEach((item, index) => {
+    const key = getPlannerArrayItemKey(item, index);
+    if (!key) return;
+    if (!map.has(key)) map.set(key, { item, index });
+  });
+  return map;
+}
+
+function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = []) {
+  if (!canMergePlannerArrayByKey(baseArray, localArray, remoteArray)) {
+    if (plannerValuesEqual(localArray, baseArray)) return clonePlannerValue(remoteArray);
+    if (plannerValuesEqual(remoteArray, baseArray)) return clonePlannerValue(localArray);
+    return clonePlannerValue(localArray);
+  }
+
+  const baseMap = mapPlannerArrayByKey(baseArray);
+  const localMap = mapPlannerArrayByKey(localArray);
+  const remoteMap = mapPlannerArrayByKey(remoteArray);
+  const order = [];
+  const seen = new Set();
+  [...remoteMap.keys(), ...localMap.keys(), ...baseMap.keys()].forEach((key) => {
+    if (!seen.has(key)) {
+      seen.add(key);
+      order.push(key);
+    }
+  });
+
+  return order.reduce((items, key) => {
+    const baseHit = baseMap.get(key);
+    const localHit = localMap.get(key);
+    const remoteHit = remoteMap.get(key);
+    const baseItem = baseHit?.item;
+    const localItem = localHit?.item;
+    const remoteItem = remoteHit?.item;
+    const hasBase = Boolean(baseHit);
+    const hasLocal = Boolean(localHit);
+    const hasRemote = Boolean(remoteHit);
+
+    if (!hasLocal && !hasRemote) return items;
+    if (!hasBase) {
+      items.push(clonePlannerValue(hasLocal ? localItem : remoteItem));
+      return items;
+    }
+    if (!hasLocal) {
+      if (plannerValuesEqual(remoteItem, baseItem)) return items;
+      items.push(clonePlannerValue(remoteItem));
+      return items;
+    }
+    if (!hasRemote) {
+      if (plannerValuesEqual(localItem, baseItem)) return items;
+      items.push(clonePlannerValue(localItem));
+      return items;
+    }
+    items.push(mergePlannerValue(baseItem, localItem, remoteItem));
+    return items;
+  }, []);
+}
+
+function mergePlannerValue(baseValue, localValue, remoteValue) {
+  if (plannerValuesEqual(localValue, baseValue)) return clonePlannerValue(remoteValue);
+  if (plannerValuesEqual(remoteValue, baseValue)) return clonePlannerValue(localValue);
+  if (Array.isArray(localValue) || Array.isArray(remoteValue) || Array.isArray(baseValue)) {
+    return mergePlannerArrays(
+      Array.isArray(baseValue) ? baseValue : [],
+      Array.isArray(localValue) ? localValue : [],
+      Array.isArray(remoteValue) ? remoteValue : [],
+    );
+  }
+  if (isPlainPlannerObject(localValue) && isPlainPlannerObject(remoteValue)) {
+    const keys = new Set([
+      ...Object.keys(baseValue || {}),
+      ...Object.keys(localValue || {}),
+      ...Object.keys(remoteValue || {}),
+    ]);
+    const merged = {};
+    keys.forEach((key) => {
+      const value = mergePlannerValue(baseValue?.[key], localValue?.[key], remoteValue?.[key]);
+      if (value !== undefined) merged[key] = value;
+    });
+    return merged;
+  }
+  return clonePlannerValue(localValue);
+}
+
+function getPayloadPlannerState(payload) {
+  if (!payload?.state || typeof payload.state !== "object") return null;
+  try {
+    return migrateState(clonePlannerValue(payload.state));
+  } catch {
+    return null;
+  }
+}
+
+function mergePlannerStates(baseState, localState, remoteState) {
+  const merged = mergePlannerValue(baseState || {}, localState || {}, remoteState || {});
+  return migrateState(merged || {});
 }
 
 function isFreshDirtyStateMeta(meta, windowMs = 10 * 60 * 1000) {
