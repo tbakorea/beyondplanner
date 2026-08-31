@@ -2753,6 +2753,40 @@ function bindStoredTextareas() {
   });
 }
 
+function shouldPreserveFocusedTextField(field) {
+  return Boolean(field && document.activeElement === field && isTextEntryPlannerTarget(field));
+}
+
+function hydrateFieldValueUnlessEditing(field, value = "") {
+  if (!field || shouldPreserveFocusedTextField(field)) return;
+  if (field.value !== value) field.value = value;
+}
+
+function bindDayTextFields(day = ensureDay()) {
+  document.querySelectorAll("[data-day-field]").forEach((field) => {
+    const fieldName = field.dataset.dayField;
+    if (!fieldName) return;
+    hydrateFieldValueUnlessEditing(field, day[fieldName] || "");
+    const persistField = (duration = 2500) => {
+      markPlannerTextEditing(duration);
+      markDailyFieldEditing(duration);
+      day[fieldName] = field.value;
+      saveState({ fastSave: true });
+    };
+    field.onfocus = () => {
+      markPlannerTextEditing(10 * 60 * 1000);
+      markDailyFieldEditing(10 * 60 * 1000);
+    };
+    field.oncompositionstart = () => {
+      markPlannerTextEditing(10 * 60 * 1000);
+      markDailyFieldEditing(10 * 60 * 1000);
+    };
+    field.oncompositionend = () => persistField();
+    field.oninput = () => persistField();
+    field.onblur = () => persistField(500);
+  });
+}
+
 function setupSelectors() {
   el("dailyPrevDay").onclick = () => shiftDay(-1);
   el("dailyNextDay").onclick = () => shiftDay(1);
@@ -6309,13 +6343,7 @@ function renderDay() {
   renderScheduleUnitControls(day);
   if (!editing) renderAppointments(day);
   renderCoach();
-  document.querySelectorAll("[data-day-field]").forEach((field) => {
-    field.value = day[field.dataset.dayField] || "";
-    field.oninput = () => {
-      day[field.dataset.dayField] = field.value;
-      saveState();
-    };
-  });
+  bindDayTextFields(day);
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   if (isPlannerCalendarOpen("daily")) renderPlannerCalendarSheet();
   scheduleDailyHeaderFit();
@@ -10922,6 +10950,38 @@ function parseDateKey(key = iso(selectedDate)) {
   return new Date(year, month - 1, day);
 }
 
+function isMemoDetailEditingForKey(key) {
+  const active = document.activeElement;
+  return Boolean(
+    key &&
+      selectedMemoKey === key &&
+      active?.matches?.("[data-memo-detail-field]") &&
+      active.closest("#memoDetail")
+  );
+}
+
+function bindMemoDetailFields(entryKey) {
+  if (!entryKey) return;
+  const detail = el("memoDetail");
+  const target = ensureDay(entryKey);
+  detail?.querySelectorAll("[data-memo-detail-field]").forEach((field) => {
+    const fieldName = field.dataset.memoDetailField;
+    if (!fieldName) return;
+    hydrateFieldValueUnlessEditing(field, target[fieldName] || "");
+    const persistField = (duration = 2500) => {
+      markPlannerTextEditing(duration);
+      target[fieldName] = field.value;
+      saveState({ fastSave: true });
+      refreshMemoListItem(entryKey);
+    };
+    field.onfocus = () => markPlannerTextEditing(10 * 60 * 1000);
+    field.oncompositionstart = () => markPlannerTextEditing(10 * 60 * 1000);
+    field.oncompositionend = () => persistField();
+    field.oninput = () => persistField();
+    field.onblur = () => persistField(500);
+  });
+}
+
 function renderMemos() {
   const list = el("memoList");
   const detail = el("memoDetail");
@@ -10964,6 +11024,11 @@ function renderMemos() {
     });
   }
   const selected = (entries.find((entry) => entry.key === selectedMemoKey) || getMemoEntries().find((entry) => entry.key === selectedMemoKey) || entries[0]);
+  if (isMemoDetailEditingForKey(selected?.key)) {
+    refreshMemoListItem(selected.key);
+    bindMemoDetailActions(selected.key);
+    return;
+  }
   renderMemoDetail(selected);
 }
 
@@ -10999,14 +11064,7 @@ function renderMemoDetail(entry) {
       <label class="memo-detail-field"><span>개선할 점</span><textarea data-memo-detail-field="lesson" rows="4">${escapeHtml(day.lesson || "")}</textarea></label>
     </div>
   `;
-  detail.querySelectorAll("[data-memo-detail-field]").forEach((field) => {
-    field.oninput = () => {
-      const target = ensureDay(entry.key);
-      target[field.dataset.memoDetailField] = field.value;
-      saveState();
-      refreshMemoListItem(entry.key);
-    };
-  });
+  bindMemoDetailFields(entry.key);
   bindMemoDetailActions(entry.key);
 }
 
