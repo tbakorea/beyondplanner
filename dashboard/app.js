@@ -450,6 +450,9 @@ let activeMoneyDraftId = "";
 const initialCachedPlannerState = loadCachedPlannerState();
 let hasInitialDeviceCache = Boolean(initialCachedPlannerState);
 let state = initialCachedPlannerState || loadEmptyState();
+let plannerMutationSeq = 0;
+let pendingServerStateMerge = null;
+let pendingServerStateMergeTimer = 0;
 let searchQuery = "";
 let aiSearch = { query: "", answer: "", loading: false, error: "" };
 let activeCoachSection = "";
@@ -1430,6 +1433,8 @@ function renderSidebarAfterDailyInput() {
 }
 
 async function hydrateServerState() {
+  const hydrationStartedSeq = plannerMutationSeq;
+  const hydrationBaseState = clonePlannerValue(state);
   try {
     hydrateServerConfig();
     const session = await ensureFreshAuthSession();
@@ -1453,6 +1458,9 @@ async function hydrateServerState() {
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
       const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent);
+      if (hasRuntimeLocalEditSince(hydrationStartedSeq) && queueIncomingServerStateMerge(payload, hydrationBaseState, "입력 완료 후 최신 데이터 병합")) {
+        return;
+      }
       lastServerUpdatedAt = payload.updatedAt || "";
       if (canUploadLocal && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
         saveStatus.message = "최신 변경 저장 중";
@@ -1670,6 +1678,7 @@ async function persistStateToServer(options = {}) {
   meta = getStateMeta();
   const baseUpdatedAt = getServerBaseUpdatedAt(meta);
   const stateSnapshot = clonePlannerValue(state);
+  const saveStartedMutationSeq = plannerMutationSeq;
   try {
     const response = await fetch("/api/state", {
       method: "POST",
@@ -1689,19 +1698,29 @@ async function persistStateToServer(options = {}) {
       const remoteState = getPayloadPlannerState(payload);
       if (remoteState && hasUnflushedLocalEdit && retryCount < 4) {
         const baseState = readPlannerBaseState() || remoteState;
-        const localState = isTimestampNewer(localMeta.updatedAt, updatedAt) ? clonePlannerValue(state) : stateSnapshot;
+        if (isAnyPlannerInputEditing()) {
+          pendingServerStateMerge = {
+            payload: { state: remoteState, updatedAt: serverUpdatedAt },
+            baseState,
+            message: "입력 완료 후 최신 데이터 병합",
+          };
+          saveStatus.saving = true;
+          saveStatus.message = "입력 완료 후 최신 데이터 병합";
+          renderSidebarAfterDailyInput();
+          schedulePendingServerStateMerge();
+          return;
+        }
+        const localState = plannerMutationSeq > saveStartedMutationSeq || isTimestampNewer(localMeta.updatedAt, updatedAt)
+          ? clonePlannerValue(state)
+          : stateSnapshot;
         const mergedState = mergePlannerStates(baseState, localState, remoteState);
-        const mergedUpdatedAt = new Date().toISOString();
         state = mergedState;
         selectedSheetId = state.customSheets.activeId;
         localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
         persistDisplayCache();
-        saveStateMeta({
-          updatedAt: mergedUpdatedAt,
+        markLocalStateUpdated({
           baseUpdatedAt: serverUpdatedAt,
           lastSavedAt: serverUpdatedAt,
-          dirty: true,
-          accountEmail: getAuthSession()?.email || "",
         });
         saveStatus.saving = true;
         saveStatus.message = "최신 데이터와 병합 저장 중";
@@ -1722,7 +1741,10 @@ async function persistStateToServer(options = {}) {
     lastServerUpdatedAt = payload.updatedAt || updatedAt;
     writePlannerBaseState(stateSnapshot);
     const latestMeta = getStateMeta();
-    const hasNewerLocalEdit = Boolean(latestMeta.dirty && isTimestampNewer(latestMeta.updatedAt, updatedAt));
+    const hasNewerLocalEdit = Boolean(
+      latestMeta.dirty &&
+        (plannerMutationSeq > saveStartedMutationSeq || isTimestampNewer(latestMeta.updatedAt, updatedAt))
+    );
     if (hasNewerLocalEdit) {
       saveStateMeta({
         baseUpdatedAt: lastServerUpdatedAt,
@@ -1815,9 +1837,10 @@ function saveStateMeta(meta) {
   localStorage.removeItem(STATE_META_KEY);
 }
 
-function markLocalStateUpdated() {
+function markLocalStateUpdated(extra = {}) {
+  plannerMutationSeq += 1;
   const updatedAt = new Date().toISOString();
-  saveStateMeta({ updatedAt, dirty: true, accountEmail: getAuthSession()?.email || "" });
+  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, accountEmail: getAuthSession()?.email || "", ...extra });
   return updatedAt;
 }
 
@@ -1830,6 +1853,72 @@ function storeStateFromServer(payload, message) {
   writePlannerBaseState(state);
   saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
   saveStatus.message = message;
+}
+
+function hasRuntimeLocalEditSince(sequence = plannerMutationSeq) {
+  return plannerMutationSeq > sequence && Boolean(getStateMeta().dirty);
+}
+
+function queueIncomingServerStateMerge(payload, baseState, message = "입력 완료 후 최신 데이터 병합") {
+  const remoteState = getPayloadPlannerState(payload);
+  if (!remoteState) return false;
+  if (!isAnyPlannerInputEditing()) {
+    return mergeIncomingServerStateNow({ state: remoteState, updatedAt: payload.updatedAt || "" }, baseState, message);
+  }
+  pendingServerStateMerge = {
+    payload: { state: remoteState, updatedAt: payload.updatedAt || "" },
+    baseState,
+    message,
+  };
+  saveStatus.saving = true;
+  saveStatus.message = message;
+  renderSidebarAfterDailyInput();
+  schedulePendingServerStateMerge();
+  return true;
+}
+
+function schedulePendingServerStateMerge(delay = 700) {
+  window.clearTimeout(pendingServerStateMergeTimer);
+  pendingServerStateMergeTimer = window.setTimeout(applyPendingServerStateMerge, delay);
+}
+
+function applyPendingServerStateMerge() {
+  if (!pendingServerStateMerge) return;
+  if (isAnyPlannerInputEditing()) {
+    schedulePendingServerStateMerge(700);
+    return;
+  }
+  const pending = pendingServerStateMerge;
+  pendingServerStateMerge = null;
+  mergeIncomingServerStateNow(pending.payload, pending.baseState, pending.message);
+}
+
+function mergeIncomingServerStateNow(payload, baseState, message = "최신 데이터 병합 저장 중") {
+  const remoteState = getPayloadPlannerState(payload);
+  if (!remoteState) return false;
+  const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt || "";
+  const localMeta = getStateMeta();
+  if (!localMeta.dirty) {
+    storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
+    renderAll();
+    return true;
+  }
+  const mergedState = mergePlannerStates(baseState || readPlannerBaseState() || remoteState, state, remoteState);
+  state = mergedState;
+  selectedSheetId = state.customSheets.activeId;
+  localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+  persistDisplayCache();
+  lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
+  markLocalStateUpdated({
+    baseUpdatedAt: lastServerUpdatedAt,
+    lastSavedAt: lastServerUpdatedAt,
+  });
+  saveStatus.ready = true;
+  saveStatus.saving = true;
+  saveStatus.message = message;
+  renderAll();
+  scheduleAccountSave(120);
+  return true;
 }
 
 function isTimestampNewer(left, right) {
@@ -1849,7 +1938,10 @@ function timestampMs(value) {
 }
 
 function getServerBaseUpdatedAt(meta = getStateMeta(), includeRuntime = true) {
-  return meta.baseUpdatedAt || meta.lastSavedAt || (includeRuntime ? lastServerUpdatedAt || "" : "");
+  const explicitBase = meta.baseUpdatedAt || meta.lastSavedAt || "";
+  if (explicitBase) return explicitBase;
+  if (meta.dirty) return "";
+  return includeRuntime ? lastServerUpdatedAt || "" : "";
 }
 
 function clonePlannerValue(value) {

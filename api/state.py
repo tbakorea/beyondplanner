@@ -133,6 +133,15 @@ def save_planner_state(token, state, payload):
     base_updated_at = str(payload.get("baseUpdatedAt") or "").strip()
     existing = get_planner_state(token)
     existing_updated_at = existing.get("updatedAt") or ""
+    if existing.get("exists") and existing_updated_at and not base_updated_at:
+        return {
+            "ok": True,
+            "stale": True,
+            "conflict": True,
+            "state": existing.get("state"),
+            "updatedAt": existing_updated_at,
+            "storage": "supabase-db",
+        }
     if existing.get("exists") and base_updated_at and existing_updated_at and not is_same_timestamp(existing_updated_at, base_updated_at):
         return {
             "ok": True,
