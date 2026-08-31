@@ -903,6 +903,38 @@ function ensureTaskOrder(day, task) {
   assignTaskOrder(day, task);
 }
 
+function assignTaskOrderAfterActive(day, task) {
+  if (!day || !task) return;
+  day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
+  const maxActiveOrder = priorities
+    .flatMap(([priority]) => day.tasks?.[priority] || [])
+    .filter((item) => item !== task && isActiveTaskSlot(item))
+    .reduce((max, item) => Math.max(max, Number(item?.order) || 0), 0);
+  const nextOrder = Math.max(maxActiveOrder + 1, day.taskOrderCounter);
+  task.order = nextOrder;
+  day.taskOrderCounter = nextOrder + 1;
+}
+
+function findCurrentTaskLocation(day, taskRef, fallbackPriority = "", fallbackIndex = -1) {
+  if (!day || !taskRef) return null;
+  normalizeDayTasks(day);
+  if (taskRef.id) {
+    for (const [priority] of priorities) {
+      const list = day.tasks?.[priority] || [];
+      const index = list.findIndex((task) => task.id === taskRef.id);
+      if (index >= 0) return { task: list[index], priority, index };
+    }
+  }
+  for (const [priority] of priorities) {
+    const list = day.tasks?.[priority] || [];
+    const index = list.indexOf(taskRef);
+    if (index >= 0) return { task: list[index], priority, index };
+  }
+  const fallbackList = day.tasks?.[fallbackPriority] || [];
+  const fallback = fallbackList[fallbackIndex];
+  return fallback ? { task: fallback, priority: fallbackPriority, index: fallbackIndex } : null;
+}
+
 function normalizeDayTasks(day) {
   if (!day) return;
   day.tasks ||= { A: emptyTasks(DAILY_EMPTY_TASK_MIN), B: [], C: [] };
@@ -9593,6 +9625,15 @@ function renderTaskBoard(day) {
   board.appendChild(list);
 }
 
+function renderDayAfterTaskMutation() {
+  const panel = currentDayPanel || "main";
+  renderDay();
+  if (isPagedDaySwipe()) positionDaySwipe(panel, true);
+  markPlannerInputEditing(900);
+  markDailyFieldEditing(900);
+  scheduleDailyTaskRelatedRefresh(220);
+}
+
 function getTaskRefs(day) {
   return priorities
     .flatMap(([priority]) => day.tasks[priority].map((task, index) => ({ task, priority, index })))
@@ -9601,6 +9642,13 @@ function getTaskRefs(day) {
       if (activeDelta) return activeDelta;
       return getTaskOrder(a.task) - getTaskOrder(b.task) || a.index - b.index;
     });
+}
+
+function updateTaskRowPriorityVisual(row, value) {
+  if (!row) return;
+  const isPriorityA = value === "A";
+  row.classList.toggle("priority-a", isPriorityA);
+  row.classList.toggle("priority-none", !isPriorityA);
 }
 
 function getTaskDisplayItems(day, carryovers = []) {
@@ -9681,7 +9729,7 @@ function renderTaskRow(task, priority, index) {
       const feedback = cycleTaskMarker(task);
       showTaskCycleFeedback(cycle, feedback);
       saveState({ fastSave: true });
-      renderAll();
+      renderDayAfterTaskMutation();
     });
   };
   if (prioritySelect) {
@@ -9689,6 +9737,7 @@ function renderTaskRow(task, priority, index) {
     const applyPrioritySelection = () => {
       if (handledValue === prioritySelect.value) return;
       handledValue = prioritySelect.value;
+      updateTaskRowPriorityVisual(row, prioritySelect.value);
       handlePriorityMenuChange(task, priority, index, prioritySelect.value);
     };
     prioritySelect.oninput = applyPrioritySelection;
@@ -9711,12 +9760,17 @@ function renderTaskRow(task, priority, index) {
   text.oninput = () => {
     dailyTextEditingActive = true;
     markDailyFieldEditing(10 * 60 * 1000);
+    const dayState = ensureDay();
+    const wasActive = isActiveTaskSlot(task);
     task.text = text.value;
-    if (task.text.trim()) ensureTaskOrder(ensureDay(), task);
-    if (syncTaskTimeHintToSchedule(task, ensureDay())) renderAppointments(ensureDay());
+    if (task.text.trim()) {
+      if (wasActive) ensureTaskOrder(dayState, task);
+      else assignTaskOrderAfterActive(dayState, task);
+    }
+    if (syncTaskTimeHintToSchedule(task, dayState)) renderAppointments(dayState);
     saveState({ fastSave: true });
   };
-  deleteButton.onclick = () => deleteTask(priority, index);
+  deleteButton.onclick = () => deleteTask(priority, index, task);
   if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
   return row;
 }
@@ -9958,7 +10012,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     if (value !== "위임") task.delegate = "";
     clearTaskScheduleLinkForInactive(task, ensureDay());
     saveState({ fastSave: true });
-    renderAll();
+    renderDayAfterTaskMutation();
     return;
   }
   if (task.status === "위임") task.delegate = "";
@@ -9966,31 +10020,35 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   task.done = task.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     task.priorityUnset = false;
-    moveTaskPriority(fromPriority, index, value);
+    moveTaskPriority(fromPriority, index, value, task);
     return;
   }
   task.priorityUnset = true;
   saveState({ fastSave: true });
-  renderAll();
+  renderDayAfterTaskMutation();
 }
 
-function moveTaskPriority(fromPriority, index, toPriority) {
+function moveTaskPriority(fromPriority, index, toPriority, taskRef = null) {
   if (fromPriority === toPriority) {
     saveState({ fastSave: true });
-    renderAll();
+    markPlannerInputEditing(900);
+    scheduleDailyTaskRelatedRefresh(220);
     return;
   }
   const day = ensureDay();
-  const [task] = day.tasks[fromPriority].splice(index, 1);
-  if (!task) return;
+  const location = findCurrentTaskLocation(day, taskRef, fromPriority, index);
+  if (!location?.task) return;
+  const [task] = day.tasks[location.priority].splice(location.index, 1);
   day.tasks[toPriority].push(task);
   saveState({ fastSave: true });
-  renderAll();
+  markPlannerInputEditing(900);
+  scheduleDailyTaskRelatedRefresh(220);
 }
 
-function deleteTask(priority, index) {
+function deleteTask(priority, index, taskRef = null) {
   const day = ensureDay();
-  const task = day.tasks?.[priority]?.[index];
+  const location = findCurrentTaskLocation(day, taskRef, priority, index);
+  const task = location?.task;
   if (!task) return;
   if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
   captureUndo("우선업무 삭제");
@@ -9999,9 +10057,9 @@ function deleteTask(priority, index) {
     day.deletedRepeatIds ||= [];
     if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
   }
-  day.tasks[priority].splice(index, 1);
+  day.tasks[location.priority].splice(location.index, 1);
   saveState({ fastSave: true });
-  renderAll();
+  renderDayAfterTaskMutation();
   showUndoNotice("우선업무를 삭제했습니다.");
 }
 
@@ -10240,7 +10298,7 @@ function updateCarryoverTaskMarker(taskRef, anchor = null) {
   const feedback = cycleTaskMarker(source);
   showTaskCycleFeedback(anchor, feedback);
   saveState({ fastSave: true });
-  renderAll();
+  renderDayAfterTaskMutation();
 }
 
 function updateCarryoverTaskPriority(taskRef, value) {
@@ -10257,7 +10315,7 @@ function updateCarryoverTaskPriority(taskRef, value) {
     if (value !== "위임") source.task.delegate = "";
     clearTaskScheduleLinkForInactive(source.task, source.day || selectedDay);
     saveState({ fastSave: true });
-    renderAll();
+    renderDayAfterTaskMutation();
     return;
   }
   if (source.task.status === "위임") source.task.delegate = "";
@@ -10270,12 +10328,12 @@ function updateCarryoverTaskPriority(taskRef, value) {
       source.day.tasks[value].push(source.task);
     }
     saveState({ fastSave: true });
-    renderAll();
+    renderDayAfterTaskMutation();
     return;
   }
   source.task.priorityUnset = true;
   saveState({ fastSave: true });
-  renderAll();
+  renderDayAfterTaskMutation();
 }
 
 function updateCarryoverDelegate(taskRef, value) {
