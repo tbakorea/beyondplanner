@@ -496,6 +496,7 @@ let dailyFieldEditingUntil = 0;
 let dailyTextEditingActive = false;
 let activeInputEditingUntil = 0;
 let activeTextEditingUntil = 0;
+let recentDailyTaskMutationUntil = 0;
 let dailyTaskRefreshTimer = 0;
 let lockTimer = 0;
 let privacyTimer = 0;
@@ -915,9 +916,9 @@ function assignTaskOrderAfterActive(day, task) {
   day.taskOrderCounter = nextOrder + 1;
 }
 
-function findCurrentTaskLocation(day, taskRef, fallbackPriority = "", fallbackIndex = -1) {
+function findCurrentTaskLocation(day, taskRef, fallbackPriority = "", fallbackIndex = -1, options = {}) {
   if (!day || !taskRef) return null;
-  normalizeDayTasks(day);
+  if (options.normalize !== false) normalizeDayTasks(day);
   if (taskRef.id) {
     for (const [priority] of priorities) {
       const list = day.tasks?.[priority] || [];
@@ -933,6 +934,18 @@ function findCurrentTaskLocation(day, taskRef, fallbackPriority = "", fallbackIn
   const fallbackList = day.tasks?.[fallbackPriority] || [];
   const fallback = fallbackList[fallbackIndex];
   return fallback ? { task: fallback, priority: fallbackPriority, index: fallbackIndex } : null;
+}
+
+function resolveDailyTaskEditLocation(day, taskRef, fallbackPriority = "A", fallbackIndex = -1) {
+  if (!day || !taskRef) return null;
+  const existing = findCurrentTaskLocation(day, taskRef, fallbackPriority, fallbackIndex, { normalize: false });
+  if (existing?.task) return existing;
+  const targetPriority = ["A", "B", "C"].includes(fallbackPriority) ? fallbackPriority : "A";
+  normalizeTask(taskRef);
+  day.tasks ||= { A: [], B: [], C: [] };
+  day.tasks[targetPriority] ||= [];
+  day.tasks[targetPriority].push(taskRef);
+  return { task: taskRef, priority: targetPriority, index: day.tasks[targetPriority].length - 1 };
 }
 
 function normalizeDayTasks(day) {
@@ -4218,6 +4231,48 @@ function openPostponeDatePicker(anchor, initialValue, onSelect) {
   openSundayDatePicker(anchor, initialValue, onSelect, { label: "연기 날짜 선택" });
 }
 
+function positionSundayDatePicker(popover, anchor) {
+  if (!popover || !anchor) return;
+  const viewport = window.visualViewport;
+  const viewportWidth = viewport?.width || document.documentElement.clientWidth || window.innerWidth;
+  const viewportHeight = viewport?.height || document.documentElement.clientHeight || window.innerHeight;
+  const viewportLeft = viewport?.offsetLeft || 0;
+  const viewportTop = viewport?.offsetTop || 0;
+  const margin = viewportWidth <= 640 ? 8 : 12;
+  const gap = viewportWidth <= 640 ? 6 : 8;
+  const maxWidth = Math.max(220, viewportWidth - margin * 2);
+  const desiredWidth = Math.min(viewportWidth <= 640 ? 340 : 360, maxWidth);
+  const anchorRect = anchor.getBoundingClientRect();
+
+  popover.style.setProperty("position", "fixed", "important");
+  popover.style.setProperty("width", `${desiredWidth}px`, "important");
+  popover.style.setProperty("max-width", `${maxWidth}px`, "important");
+  popover.style.setProperty("max-height", `${Math.max(260, viewportHeight - margin * 2)}px`, "important");
+  popover.style.setProperty("right", "auto", "important");
+  popover.style.setProperty("bottom", "auto", "important");
+  popover.style.setProperty("overflow-y", "auto", "important");
+
+  const measuredHeight = Math.min(popover.getBoundingClientRect().height || 360, viewportHeight - margin * 2);
+  const minLeft = viewportLeft + margin;
+  const maxLeft = viewportLeft + viewportWidth - desiredWidth - margin;
+  const left = clampNumber(anchorRect.left + anchorRect.width / 2 - desiredWidth / 2, minLeft, maxLeft, minLeft);
+  const belowTop = anchorRect.bottom + gap;
+  const aboveTop = anchorRect.top - measuredHeight - gap;
+  const canOpenBelow = belowTop + measuredHeight <= viewportTop + viewportHeight - margin;
+  let top = canOpenBelow ? belowTop : aboveTop;
+
+  top = clampNumber(
+    top,
+    viewportTop + margin,
+    Math.max(viewportTop + margin, viewportTop + viewportHeight - measuredHeight - margin),
+    viewportTop + margin
+  );
+
+  popover.classList.toggle("is-above-anchor", !canOpenBelow);
+  popover.style.setProperty("left", `${left}px`, "important");
+  popover.style.setProperty("top", `${top}px`, "important");
+}
+
 function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
   if (!anchor) return;
   closePostponeDatePicker();
@@ -4302,14 +4357,11 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
 	      render();
 	    };
     popover.querySelector("[data-postpone-close]").onclick = closePostponeDatePicker;
+    requestAnimationFrame(() => position());
   };
 
   const position = () => {
-    const rect = anchor.getBoundingClientRect();
-    const width = Math.min(300, window.innerWidth - 16);
-    const left = Math.max(8, Math.min(window.scrollX + rect.left, window.scrollX + window.innerWidth - width - 8));
-    popover.style.left = `${left}px`;
-    popover.style.top = `${window.scrollY + rect.bottom + 8}px`;
+    positionSundayDatePicker(popover, anchor);
   };
   render();
   position();
@@ -4321,15 +4373,22 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
     if (event.key === "Escape") closePostponeDatePicker();
   };
   const handleResize = () => position();
+  const handleScroll = () => position();
   setTimeout(() => document.addEventListener("pointerdown", handleOutside), 0);
   document.addEventListener("keydown", handleKeydown);
   window.addEventListener("resize", handleResize);
+  window.addEventListener("scroll", handleScroll, true);
+  window.visualViewport?.addEventListener("resize", handleResize);
+  window.visualViewport?.addEventListener("scroll", handleScroll);
   activePostponeCalendar = {
     node: popover,
     cleanup: () => {
       document.removeEventListener("pointerdown", handleOutside);
       document.removeEventListener("keydown", handleKeydown);
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("scroll", handleScroll, true);
+      window.visualViewport?.removeEventListener("resize", handleResize);
+      window.visualViewport?.removeEventListener("scroll", handleScroll);
     },
   };
 }
@@ -4955,6 +5014,15 @@ function isDailyFieldEditingRecent() {
   return Date.now() < dailyFieldEditingUntil;
 }
 
+function markDailyTaskMutation(duration = 5000) {
+  recentDailyTaskMutationUntil = Math.max(recentDailyTaskMutationUntil, Date.now() + duration);
+  markPlannerInputEditing(duration);
+}
+
+function hasRecentDailyTaskMutation() {
+  return Date.now() < recentDailyTaskMutationUntil;
+}
+
 function markPlannerInputEditing(duration = 1200) {
   activeInputEditingUntil = Date.now() + duration;
 }
@@ -4973,7 +5041,7 @@ function isTextEntryPlannerTarget(target = document.activeElement) {
 }
 
 function isAnyPlannerInputEditing() {
-  return dailyTextEditingActive || isDailyFieldEditingRecent() || Date.now() < activeInputEditingUntil || isEditablePlannerTarget();
+  return dailyTextEditingActive || isDailyFieldEditingRecent() || hasRecentDailyTaskMutation() || Date.now() < activeInputEditingUntil || isEditablePlannerTarget();
 }
 
 function isAnyPlannerTextEditing() {
@@ -9609,9 +9677,10 @@ function renderTaskBoard(day) {
   add.className = "add-row task-add-primary";
   add.textContent = "일반 업무 추가";
   add.onclick = () => {
-    const task = { text: "", status: "미완료", done: false, delegate: "", priorityUnset: true };
+    const task = { id: newTaskId(), text: "", status: "미완료", done: false, delegate: "", priorityUnset: true };
     assignTaskOrder(day, task);
     day.tasks.A.push(task);
+    markDailyTaskMutation(1800);
     saveState({ fastSave: true });
     renderDay();
   };
@@ -9627,6 +9696,7 @@ function renderTaskBoard(day) {
 
 function renderDayAfterTaskMutation() {
   const panel = currentDayPanel || "main";
+  markDailyTaskMutation(1800);
   renderDay();
   if (isPagedDaySwipe()) positionDaySwipe(panel, true);
   markPlannerInputEditing(900);
@@ -9760,14 +9830,18 @@ function renderTaskRow(task, priority, index) {
   text.oninput = () => {
     dailyTextEditingActive = true;
     markDailyFieldEditing(10 * 60 * 1000);
+    markDailyTaskMutation(6000);
     const dayState = ensureDay();
-    const wasActive = isActiveTaskSlot(task);
-    task.text = text.value;
-    if (task.text.trim()) {
-      if (wasActive) ensureTaskOrder(dayState, task);
-      else assignTaskOrderAfterActive(dayState, task);
+    const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
+    const editableTask = location?.task || task;
+    const wasActive = isActiveTaskSlot(editableTask);
+    editableTask.text = text.value;
+    if (editableTask !== task) task.text = text.value;
+    if (editableTask.text.trim()) {
+      if (wasActive) ensureTaskOrder(dayState, editableTask);
+      else assignTaskOrderAfterActive(dayState, editableTask);
     }
-    if (syncTaskTimeHintToSchedule(task, dayState)) renderAppointments(dayState);
+    if (syncTaskTimeHintToSchedule(editableTask, dayState)) renderAppointments(dayState);
     saveState({ fastSave: true });
   };
   deleteButton.onclick = () => deleteTask(priority, index, task);
@@ -9800,7 +9874,8 @@ function bindDailyTaskTextInput(input) {
   };
   input.onblur = () => {
     dailyTextEditingActive = false;
-    markDailyFieldEditing(0);
+    markDailyFieldEditing(1600);
+    markDailyTaskMutation(2200);
     scheduleDailyTaskRelatedRefresh(60);
   };
 }
@@ -10264,6 +10339,7 @@ function renderCarryoverTask(task) {
   textInput.oninput = (event) => {
     dailyTextEditingActive = true;
     markDailyFieldEditing(10 * 60 * 1000);
+    markDailyTaskMutation(6000);
     updateCarryoverTaskText(task, event.target.value);
   };
   row.querySelector(".task-delete").onclick = () => deleteCarryoverTask(task);
@@ -14271,15 +14347,10 @@ async function setup() {
   hideBootScreen(40);
   window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   stabilizeDaySwipePosition("main");
-  window.setInterval(pullServerStateIfNewer, 15000);
-  window.addEventListener("focus", pullServerStateIfNewer);
+  window.setInterval(queuePassiveServerPull, 15000);
   window.addEventListener("pagehide", persistDisplayCache);
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden) {
-      persistDisplayCache();
-      return;
-    }
-    if (!document.hidden) pullServerStateIfNewer();
+    if (document.hidden) persistDisplayCache();
   });
 }
 

@@ -1720,6 +1720,19 @@ body.is-privacy-blind .app-shell {
   touch-action: pan-y;
 }
 
+.daily-calendar-popover.sunday-date-popover {
+  position: fixed !important;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  transform-origin: top center;
+}
+
+.daily-calendar-popover.sunday-date-popover.is-above-anchor {
+  transform-origin: bottom center;
+}
+
 .daily-calendar-popover[hidden] {
   display: none;
 }
