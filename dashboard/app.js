@@ -9716,9 +9716,18 @@ function getTaskRefs(day) {
 
 function updateTaskRowPriorityVisual(row, value) {
   if (!row) return;
-  const isPriorityA = value === "A";
+  const label = value === "선택" ? "?" : value || "?";
+  const isPriorityA = label === "A";
+  const isPriorityLetter = ["A", "B", "C", "?"].includes(label);
   row.classList.toggle("priority-a", isPriorityA);
   row.classList.toggle("priority-none", !isPriorityA);
+  const statusCell = row.querySelector(".task-status-cell");
+  const statusLabel = row.querySelector(".task-status-label");
+  if (statusCell) statusCell.dataset.status = label;
+  if (statusLabel) {
+    statusLabel.textContent = label;
+    statusLabel.classList.toggle("is-priority-letter", isPriorityLetter);
+  }
 }
 
 function getTaskDisplayItems(day, carryovers = []) {
@@ -10080,25 +10089,31 @@ function isTaskCompleted(task = {}) {
 }
 
 function handlePriorityMenuChange(task, fromPriority, index, value) {
-  ensureTaskOrder(ensureDay(), task);
+  const day = ensureDay();
+  const location = resolveDailyTaskEditLocation(day, task, fromPriority, index);
+  const targetTask = location?.task || task;
+  const currentPriority = location?.priority || fromPriority;
+  const currentIndex = Number.isInteger(location?.index) ? location.index : index;
+  ensureTaskOrder(day, targetTask);
   if (["위임", "취소", "연기"].includes(value)) {
-    task.status = value;
-    task.done = false;
-    if (value !== "위임") task.delegate = "";
-    clearTaskScheduleLinkForInactive(task, ensureDay());
+    targetTask.status = value;
+    targetTask.done = false;
+    if (value !== "위임") targetTask.delegate = "";
+    targetTask.priorityUnset = false;
+    clearTaskScheduleLinkForInactive(targetTask, day);
     saveState({ fastSave: true });
     renderDayAfterTaskMutation();
     return;
   }
-  if (task.status === "위임") task.delegate = "";
-  task.status = ["위임", "취소", "연기"].includes(task.status) ? "미완료" : task.status;
-  task.done = task.status === "완료";
+  if (targetTask.status === "위임") targetTask.delegate = "";
+  targetTask.status = ["위임", "취소", "연기"].includes(targetTask.status) ? "미완료" : targetTask.status;
+  targetTask.done = targetTask.status === "완료";
   if (["A", "B", "C"].includes(value)) {
-    task.priorityUnset = false;
-    moveTaskPriority(fromPriority, index, value, task);
+    targetTask.priorityUnset = false;
+    moveTaskPriority(currentPriority, currentIndex, value, targetTask);
     return;
   }
-  task.priorityUnset = true;
+  targetTask.priorityUnset = true;
   saveState({ fastSave: true });
   renderDayAfterTaskMutation();
 }
@@ -10319,6 +10334,7 @@ function renderCarryoverTask(task) {
     const applyPrioritySelection = () => {
       if (handledValue === prioritySelect.value) return;
       handledValue = prioritySelect.value;
+      updateTaskRowPriorityVisual(row, prioritySelect.value);
       updateCarryoverTaskPriority(task, prioritySelect.value);
     };
     prioritySelect.oninput = applyPrioritySelection;
