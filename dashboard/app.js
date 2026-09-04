@@ -6419,9 +6419,9 @@ function renderWeek() {
   renderWeeklyDiagnosis();
 }
 
-function renderDay() {
+function renderDay(options = {}) {
   const day = ensureDay();
-  const editing = isAnyPlannerTextEditing();
+  const editing = !options.forceLists && isAnyPlannerTextEditing();
   const formattedDate = formatDate(selectedDate);
   el("dayTitle").textContent = formattedDate;
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
@@ -9696,9 +9696,9 @@ function renderTaskBoard(day) {
 
 function renderDayAfterTaskMutation() {
   const panel = currentDayPanel || "main";
-  markDailyTaskMutation(1800);
-  renderDay();
+  renderDay({ forceLists: true });
   if (isPagedDaySwipe()) positionDaySwipe(panel, true);
+  markDailyTaskMutation(1800);
   markPlannerInputEditing(900);
   markDailyFieldEditing(900);
   scheduleDailyTaskRelatedRefresh(220);
@@ -9728,6 +9728,34 @@ function updateTaskRowPriorityVisual(row, value) {
     statusLabel.textContent = label;
     statusLabel.classList.toggle("is-priority-letter", isPriorityLetter);
   }
+}
+
+function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
+  if (!input) return null;
+  const isTyping = options.typing !== false;
+  if (isTyping) {
+    dailyTextEditingActive = true;
+    markDailyFieldEditing(10 * 60 * 1000);
+    markDailyTaskMutation(6000);
+  } else {
+    dailyTextEditingActive = false;
+    markDailyFieldEditing(1600);
+    markDailyTaskMutation(2200);
+  }
+  const dayState = ensureDay();
+  const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
+  const editableTask = location?.task || task;
+  const wasActive = isActiveTaskSlot(editableTask);
+  editableTask.text = input.value;
+  if (editableTask !== task) task.text = input.value;
+  if (editableTask.text.trim()) {
+    if (wasActive) ensureTaskOrder(dayState, editableTask);
+    else assignTaskOrderAfterActive(dayState, editableTask);
+  }
+  const scheduleChanged = syncTaskTimeHintToSchedule(editableTask, dayState);
+  if (scheduleChanged || options.forceScheduleRender) renderAppointments(dayState);
+  saveState({ fastSave: true });
+  return { day: dayState, task: editableTask, scheduleChanged };
 }
 
 function getTaskDisplayItems(day, carryovers = []) {
@@ -9836,23 +9864,15 @@ function renderTaskRow(task, priority, index) {
     );
   }
   bindDailyTaskTextInput(text);
-  text.oninput = () => {
-    dailyTextEditingActive = true;
-    markDailyFieldEditing(10 * 60 * 1000);
-    markDailyTaskMutation(6000);
-    const dayState = ensureDay();
-    const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
-    const editableTask = location?.task || task;
-    const wasActive = isActiveTaskSlot(editableTask);
-    editableTask.text = text.value;
-    if (editableTask !== task) task.text = text.value;
-    if (editableTask.text.trim()) {
-      if (wasActive) ensureTaskOrder(dayState, editableTask);
-      else assignTaskOrderAfterActive(dayState, editableTask);
-    }
-    if (syncTaskTimeHintToSchedule(editableTask, dayState)) renderAppointments(dayState);
-    saveState({ fastSave: true });
+  text.oninput = () => commitDailyTaskTextInput(task, priority, index, text, { typing: true });
+  const commitTextAndSchedule = () => {
+    window.setTimeout(() => {
+      const result = commitDailyTaskTextInput(task, priority, index, text, { typing: false, forceScheduleRender: true });
+      if (result?.day) syncVisibleTaskTimeHints(result.day, getCarryoverTasks(selectedDate));
+    }, 0);
   };
+  text.addEventListener("change", commitTextAndSchedule);
+  text.addEventListener("blur", commitTextAndSchedule);
   deleteButton.onclick = () => deleteTask(priority, index, task);
   if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
   return row;
@@ -10352,12 +10372,25 @@ function renderCarryoverTask(task) {
   }
   const textInput = row.querySelector(".task-text-input");
   bindDailyTaskTextInput(textInput);
-  textInput.oninput = (event) => {
-    dailyTextEditingActive = true;
-    markDailyFieldEditing(10 * 60 * 1000);
-    markDailyTaskMutation(6000);
+  const commitCarryoverText = (event, options = {}) => {
+    const isTyping = options.typing !== false;
+    dailyTextEditingActive = isTyping;
+    markDailyFieldEditing(isTyping ? 10 * 60 * 1000 : 1600);
+    markDailyTaskMutation(isTyping ? 6000 : 2200);
     updateCarryoverTaskText(task, event.target.value);
+    if (options.forceScheduleRender) {
+      const dayState = ensureDay();
+      syncVisibleTaskTimeHints(dayState, getCarryoverTasks(selectedDate));
+      renderAppointments(dayState);
+    }
   };
+  textInput.oninput = (event) => {
+    commitCarryoverText(event, { typing: true });
+  };
+  textInput.addEventListener("change", (event) => commitCarryoverText(event, { typing: false, forceScheduleRender: true }));
+  textInput.addEventListener("blur", (event) => {
+    window.setTimeout(() => commitCarryoverText(event, { typing: false, forceScheduleRender: true }), 0);
+  });
   row.querySelector(".task-delete").onclick = () => deleteCarryoverTask(task);
   if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
   return row;
