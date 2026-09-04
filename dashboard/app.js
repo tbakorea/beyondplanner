@@ -4231,6 +4231,33 @@ function openPostponeDatePicker(anchor, initialValue, onSelect) {
   openSundayDatePicker(anchor, initialValue, onSelect, { label: "연기 날짜 선택" });
 }
 
+function bindPostponeDateControl(button, openPicker) {
+  if (!button || typeof openPicker !== "function") return;
+  const statusCell = button.closest(".task-status-cell");
+  const open = (event) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    markPlannerInputEditing(1600);
+    openPicker();
+  };
+  button.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    markPlannerInputEditing(1600);
+  });
+  button.addEventListener("click", open);
+  if (statusCell) {
+    statusCell.addEventListener("pointerdown", (event) => {
+      if (event.target === button) return;
+      event.stopPropagation();
+      markPlannerInputEditing(1600);
+    });
+    statusCell.addEventListener("click", (event) => {
+      if (event.target === button) return;
+      open(event);
+    });
+  }
+}
+
 function positionSundayDatePicker(popover, anchor) {
   if (!popover || !anchor) return;
   const viewport = window.visualViewport;
@@ -9448,15 +9475,17 @@ function renderDayCompass() {
       };
     }
     if (postponeDateButton) {
-      postponeDateButton.onclick = () => openPostponeDatePicker(
-        postponeDateButton,
-        item.postponeDate || iso(selectedDate),
-        (dateKey) => {
-          item.postponeDate = dateKey;
-          saveState({ fastSave: true });
-          renderDayCompass();
-        },
-      );
+      bindPostponeDateControl(postponeDateButton, () => {
+        openPostponeDatePicker(
+          postponeDateButton,
+          item.postponeDate || iso(selectedDate),
+          (dateKey) => {
+            item.postponeDate = dateKey;
+            saveState({ fastSave: true });
+            renderDayCompass();
+          },
+        );
+      });
     }
     text.oninput = () => {
       item.text = text.value;
@@ -9849,11 +9878,13 @@ function renderTaskRow(task, priority, index) {
     };
   }
   if (postponeDateButton) {
-    postponeDateButton.onclick = () => openPostponeDatePicker(
-      postponeDateButton,
-      task.postponeDate || iso(selectedDate),
-      (dateKey) => schedulePostponedTask(task, priority, dateKey),
-    );
+    bindPostponeDateControl(postponeDateButton, () => {
+      openPostponeDatePicker(
+        postponeDateButton,
+        task.postponeDate || iso(selectedDate),
+        (dateKey) => schedulePostponedTask(task, priority, dateKey),
+      );
+    });
   }
   bindDailyTaskTextInput(text);
   text.oninput = () => commitDailyTaskTextInput(task, priority, index, text, { typing: true });
@@ -10379,11 +10410,13 @@ function renderCarryoverTask(task) {
     delegateInput.oninput = () => updateCarryoverDelegate(task, delegateInput.value);
   }
   if (postponeDateButton) {
-    postponeDateButton.onclick = () => openPostponeDatePicker(
-      postponeDateButton,
-      task.postponeDate || iso(selectedDate),
-      (dateKey) => scheduleCarryoverPostponedTask(task, dateKey),
-    );
+    bindPostponeDateControl(postponeDateButton, () => {
+      openPostponeDatePicker(
+        postponeDateButton,
+        task.postponeDate || iso(selectedDate),
+        (dateKey) => scheduleCarryoverPostponedTask(task, dateKey),
+      );
+    });
   }
   const textInput = row.querySelector(".task-text-input");
   bindDailyTaskTextInput(textInput);
