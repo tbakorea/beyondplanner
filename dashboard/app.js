@@ -9539,9 +9539,7 @@ function deleteWeeklyPriorityItem(week, index) {
 function handleWeeklyPriorityMenuChange(item, value) {
   normalizeWeeklyPriority(item);
   if (["위임", "취소", "연기"].includes(value)) {
-    item.status = value;
-    item.done = false;
-    if (value !== "위임") item.delegate = "";
+    applyInactiveTaskStatus(item, value);
     if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
     saveState({ fastSave: true });
     renderDayCompass();
@@ -9550,20 +9548,14 @@ function handleWeeklyPriorityMenuChange(item, value) {
   if (["A", "B", "C"].includes(value)) {
     item.priority = value;
     item.priorityUnset = false;
-    if (["위임", "취소", "연기"].includes(item.status)) {
-      item.status = "미완료";
-      item.delegate = "";
-    }
+    clearInactiveTaskStatus(item);
     item.done = item.status === "완료";
     saveState({ fastSave: true });
     renderDayCompass();
     return;
   }
   item.priorityUnset = true;
-  if (["위임", "취소", "연기"].includes(item.status)) {
-    item.status = "미완료";
-    item.delegate = "";
-  }
+  clearInactiveTaskStatus(item);
   item.done = item.status === "완료";
   saveState({ fastSave: true });
   renderDayCompass();
@@ -9960,12 +9952,7 @@ function formatCompactMonthDay(value) {
 }
 
 function getTaskStatusDisplay(task, menuValue) {
-  if (task.status === "위임") return "";
-  if (task.status === "연기" && task.postponeDate) {
-    const date = parseDate(task.postponeDate);
-    if (Number.isNaN(date.getTime())) return "";
-    return `<span class="postpone-date-label">${date.getMonth() + 1}/${date.getDate()}</span>`;
-  }
+  if (["위임", "연기"].includes(task.status)) return "";
   const label = getTaskStatusLabel(task, menuValue);
   const isPriorityLetter = ["A", "B", "C", "?"].includes(label);
   return `<span class="task-status-label ${isPriorityLetter ? "is-priority-letter" : ""}">${escapeHtml(label)}</span>`;
@@ -9977,7 +9964,8 @@ function getTaskStatusControl(task, menuValue) {
   }
   if (task.status === "연기") {
     const label = task.postponeDate ? formatCompactMonthDay(task.postponeDate) : "미정";
-    return `<button class="postpone-date-button" type="button" aria-label="연기 날짜 선택">${escapeHtml(label)}</button>`;
+    const ariaLabel = task.postponeDate ? `연기 날짜 ${label}, 다시 선택` : "연기 날짜 미정, 날짜 선택";
+    return `<button class="postpone-date-button ${task.postponeDate ? "is-date-set" : "is-undated"}" type="button" aria-label="${escapeAttr(ariaLabel)}">${escapeHtml(label)}</button>`;
   }
   return `
     <select class="priority-select" aria-label="중요도 선택">
@@ -10108,6 +10096,34 @@ function isTaskCompleted(task = {}) {
   return Boolean(task.done || task.status === "완료");
 }
 
+function applyInactiveTaskStatus(task, status) {
+  if (!task) return;
+  task.status = status;
+  task.done = false;
+  task.priorityUnset = false;
+  if (status === "위임") {
+    task.postponeDate = "";
+    task.postponeMode = "";
+    return;
+  }
+  task.delegate = "";
+  if (status === "연기") {
+    task.postponeDate = "";
+    task.postponeMode = "undated";
+    return;
+  }
+  task.postponeDate = "";
+  task.postponeMode = "";
+}
+
+function clearInactiveTaskStatus(task) {
+  if (!task || !["위임", "취소", "연기"].includes(task.status)) return;
+  task.status = "미완료";
+  task.delegate = "";
+  task.postponeDate = "";
+  task.postponeMode = "";
+}
+
 function handlePriorityMenuChange(task, fromPriority, index, value) {
   const day = ensureDay();
   const location = resolveDailyTaskEditLocation(day, task, fromPriority, index);
@@ -10116,17 +10132,13 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   const currentIndex = Number.isInteger(location?.index) ? location.index : index;
   ensureTaskOrder(day, targetTask);
   if (["위임", "취소", "연기"].includes(value)) {
-    targetTask.status = value;
-    targetTask.done = false;
-    if (value !== "위임") targetTask.delegate = "";
-    targetTask.priorityUnset = false;
+    applyInactiveTaskStatus(targetTask, value);
     clearTaskScheduleLinkForInactive(targetTask, day);
     saveState({ fastSave: true });
     renderDayAfterTaskMutation();
     return;
   }
-  if (targetTask.status === "위임") targetTask.delegate = "";
-  targetTask.status = ["위임", "취소", "연기"].includes(targetTask.status) ? "미완료" : targetTask.status;
+  clearInactiveTaskStatus(targetTask);
   targetTask.done = targetTask.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     targetTask.priorityUnset = false;
@@ -10176,7 +10188,10 @@ function deleteTask(priority, index, taskRef = null) {
 function schedulePostponedTask(task, priority, targetDate) {
   if (!targetDate || Number.isNaN(parseDate(targetDate).getTime())) return;
   clearTaskScheduleLinkForInactive(task, ensureDay());
+  task.status = "연기";
+  task.done = false;
   task.postponeDate = targetDate;
+  task.postponeMode = "";
   task.postponeId ||= `postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   task.carryoverDeletedFrom = targetDate;
   const targetDay = ensureDay(targetDate);
@@ -10435,16 +10450,13 @@ function updateCarryoverTaskPriority(taskRef, value) {
   const source = materializeCarryoverTask(taskRef);
   if (!source) return;
   if (isInactiveValue) {
-    source.task.status = value;
-    source.task.done = false;
-    if (value !== "위임") source.task.delegate = "";
+    applyInactiveTaskStatus(source.task, value);
     clearTaskScheduleLinkForInactive(source.task, source.day || selectedDay);
     saveState({ fastSave: true });
     renderDayAfterTaskMutation();
     return;
   }
-  if (source.task.status === "위임") source.task.delegate = "";
-  source.task.status = ["위임", "취소", "연기"].includes(source.task.status) ? "미완료" : source.task.status;
+  clearInactiveTaskStatus(source.task);
   source.task.done = source.task.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     source.task.priorityUnset = false;

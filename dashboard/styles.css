@@ -21874,3 +21874,32 @@ body.classic-mode .quick-strip::-webkit-scrollbar {
 .top-more-panel [hidden] {
   display: none !important;
 }
+
+/* Postponed priority tasks: one visible control only.
+   The status button itself displays "미정" or the selected date and opens the calendar. */
+.task-status-cell:has(.postpone-date-button) .task-status-label,
+.task-status-cell:has(.postpone-date-button) .postpone-date-label {
+  display: none !important;
+}
+
+.task-status-cell .postpone-date-button,
+.task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button,
+.task-status-cell:has(.postpone-date-label) .postpone-date-button {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--slate) !important;
+  opacity: 1 !important;
+  font-size: 10.5px !important;
+  font-weight: 930 !important;
+  letter-spacing: -0.04em !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.task-status-cell .postpone-date-button.is-undated {
+  letter-spacing: 0 !important;
+}
