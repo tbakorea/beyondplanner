@@ -6498,6 +6498,7 @@ function renderWeek() {
 function renderDay(options = {}) {
   const day = ensureDay();
   const editing = !options.forceLists && isAnyPlannerTextEditing();
+  const key = iso(selectedDate);
   const formattedDate = formatDate(selectedDate);
   const dayTitle = el("dayTitle");
   if (dayTitle) {
@@ -6507,9 +6508,9 @@ function renderDay(options = {}) {
   }
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
   updateDailyActionAiAvailability();
-  const key = iso(selectedDate);
+  if (!editing && purgeMisdatedTaskScheduleArtifacts(day, key)) saveState({ fastSave: true });
   const allTasks = getDayTasks(key);
-  const carryovers = getCarryoverTasks(selectedDate);
+  const carryovers = getCarryoverTasks(parseDate(key));
   const done = allTasks.filter((task) => task.text && task.done).length + carryovers.filter((task) => isCarryoverCompletedOn(task, key)).length;
   const total = allTasks.filter((task) => task.text).length + carryovers.length;
   el("dailyCompletion").textContent = `${done}/${total}`;
@@ -6517,8 +6518,8 @@ function renderDay(options = {}) {
   renderOnboarding(day);
   if (!editing) {
     renderDayCompass();
-    renderTaskBoard(day);
-    syncVisibleTaskTimeHints(day, carryovers);
+    renderTaskBoard(day, key);
+    syncVisibleTaskTimeHints(day, carryovers, { dayKey: key });
     renderRepeatPriorityList();
   }
   renderScheduleUnitControls(day);
@@ -9691,7 +9692,7 @@ function scheduleWeeklyPriorityPostpone(item, targetDate) {
     }
   }
 
-  if (existingTask) syncTaskTimeHintToSchedule(existingTask, targetDay);
+  if (existingTask) syncTaskTimeHintToSchedule(existingTask, targetDay, { dayKey: targetDate });
   saveState({ fastSave: true });
   renderAll();
 }
@@ -9803,17 +9804,17 @@ function setupPulsePanelSwipe() {
   });
 }
 
-function renderTaskBoard(day) {
+function renderTaskBoard(day, dayKey = iso(selectedDate)) {
   const board = el("taskBoard");
   board.innerHTML = "";
   const list = document.createElement("section");
   list.className = "task-list";
-  const carryovers = getCarryoverTasks(selectedDate);
+  const carryovers = getCarryoverTasks(parseDate(dayKey));
   getTaskDisplayItems(day, carryovers).forEach((item) => {
     if (item.type === "carryover") {
-      list.appendChild(renderCarryoverTask(item.task));
+      list.appendChild(renderCarryoverTask(item.task, dayKey));
     } else {
-      list.appendChild(renderTaskRow(item.task, item.priority, item.index));
+      list.appendChild(renderTaskRow(item.task, item.priority, item.index, dayKey));
     }
   });
   const addGroup = document.createElement("div");
@@ -9879,6 +9880,7 @@ function updateTaskRowPriorityVisual(row, value) {
 
 function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
   if (!input) return null;
+  const dayKey = options.dayKey || iso(selectedDate);
   const isTyping = options.typing !== false;
   if (isTyping) {
     dailyTextEditingActive = true;
@@ -9889,7 +9891,7 @@ function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
     markDailyFieldEditing(1600);
     markDailyTaskMutation(2200);
   }
-  const dayState = ensureDay();
+  const dayState = ensureDay(dayKey);
   const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
   const editableTask = location?.task || task;
   const wasActive = isActiveTaskSlot(editableTask);
@@ -9899,10 +9901,10 @@ function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
     if (wasActive) ensureTaskOrder(dayState, editableTask);
     else assignTaskOrderAfterActive(dayState, editableTask);
   }
-  const scheduleChanged = syncTaskTimeHintToSchedule(editableTask, dayState);
-  if (scheduleChanged || options.forceScheduleRender) renderAppointments(dayState);
+  const scheduleChanged = syncTaskTimeHintToSchedule(editableTask, dayState, { dayKey });
+  if ((scheduleChanged || options.forceScheduleRender) && dayKey === iso(selectedDate)) renderAppointments(dayState);
   saveState({ fastSave: true });
-  return { day: dayState, task: editableTask, scheduleChanged };
+  return { day: dayState, task: editableTask, scheduleChanged, dayKey };
 }
 
 function getTaskDisplayItems(day, carryovers = []) {
@@ -9950,7 +9952,7 @@ function isActiveTaskSlot(task = {}) {
   );
 }
 
-function renderTaskRow(task, priority, index) {
+function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   const row = document.createElement("div");
   const marker = getTaskMarker(task);
   const isStruck = shouldStrikeTask(task);
@@ -10014,11 +10016,13 @@ function renderTaskRow(task, priority, index) {
     }, { task });
   }
   bindDailyTaskTextInput(text);
-  text.oninput = () => commitDailyTaskTextInput(task, priority, index, text, { typing: true });
+  text.oninput = () => commitDailyTaskTextInput(task, priority, index, text, { typing: true, dayKey });
   const commitTextAndSchedule = () => {
     window.setTimeout(() => {
-      const result = commitDailyTaskTextInput(task, priority, index, text, { typing: false, forceScheduleRender: true });
-      if (result?.day) syncVisibleTaskTimeHints(result.day, getCarryoverTasks(selectedDate));
+      const result = commitDailyTaskTextInput(task, priority, index, text, { typing: false, forceScheduleRender: true, dayKey });
+      if (result?.day && result.dayKey === iso(selectedDate)) {
+        syncVisibleTaskTimeHints(result.day, getCarryoverTasks(parseDate(dayKey)), { dayKey });
+      }
     }, 0);
   };
   text.addEventListener("change", commitTextAndSchedule);
@@ -10637,8 +10641,8 @@ function deleteMaterializedCarryoverTask(location) {
   return true;
 }
 
-function materializeCarryoverTask(taskRef) {
-  const selectedKey = iso(selectedDate);
+function materializeCarryoverTask(taskRef, targetKey = iso(selectedDate)) {
+  const selectedKey = targetKey || iso(selectedDate);
   const source = findTaskSource(taskRef);
   if (!source) return null;
   if (taskRef.date === selectedKey) return source;
@@ -10687,9 +10691,9 @@ function inheritCarryoverTaskOrder(day, targetTask, taskRef = {}, sourceTask = {
   assignTaskOrder(day, targetTask);
 }
 
-function renderCarryoverTask(task) {
+function renderCarryoverTask(task, dayKey = iso(selectedDate)) {
   const row = document.createElement("div");
-  const selectedKey = iso(selectedDate);
+  const selectedKey = dayKey;
   const completedHere = isCarryoverCompletedOn(task, selectedKey);
   const marker = completedHere ? "check" : getTaskMarker(task);
   const priority = ["A", "B", "C"].includes(task.priority) ? task.priority : "A";
@@ -10717,8 +10721,8 @@ function renderCarryoverTask(task) {
   cycle.onclick = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    runTaskCycleActionOnce(task, `carryover:${iso(selectedDate)}:${task.date || ""}:${task.id || ""}`, cycle, () => {
-      updateCarryoverTaskMarker(task, cycle);
+    runTaskCycleActionOnce(task, `carryover:${dayKey}:${task.date || ""}:${task.id || ""}`, cycle, () => {
+      updateCarryoverTaskMarker(task, cycle, dayKey);
     });
   };
   if (prioritySelect) {
@@ -10727,20 +10731,20 @@ function renderCarryoverTask(task) {
       if (handledValue === prioritySelect.value) return;
       handledValue = prioritySelect.value;
       updateTaskRowPriorityVisual(row, prioritySelect.value);
-      updateCarryoverTaskPriority(task, prioritySelect.value);
+      updateCarryoverTaskPriority(task, prioritySelect.value, dayKey);
     };
     prioritySelect.oninput = applyPrioritySelection;
     prioritySelect.onchange = applyPrioritySelection;
   }
   if (delegateInput) {
-    delegateInput.oninput = () => updateCarryoverDelegate(task, delegateInput.value);
+    delegateInput.oninput = () => updateCarryoverDelegate(task, delegateInput.value, dayKey);
   }
   if (postponeDateButton) {
     bindPostponeDateControl(postponeDateButton, () => {
       openPostponeDatePicker(
         postponeDateButton,
-        task.postponeDate || iso(selectedDate),
-        (dateKey) => scheduleCarryoverPostponedTask(task, dateKey),
+        task.postponeDate || dayKey,
+        (dateKey) => scheduleCarryoverPostponedTask(task, dateKey, dayKey),
       );
     }, { task });
   }
@@ -10751,10 +10755,10 @@ function renderCarryoverTask(task) {
     dailyTextEditingActive = isTyping;
     markDailyFieldEditing(isTyping ? 10 * 60 * 1000 : 1600);
     markDailyTaskMutation(isTyping ? 6000 : 2200);
-    updateCarryoverTaskText(task, event.target.value);
-    if (options.forceScheduleRender) {
-      const dayState = ensureDay();
-      syncVisibleTaskTimeHints(dayState, getCarryoverTasks(selectedDate));
+    updateCarryoverTaskText(task, event.target.value, dayKey);
+    if (options.forceScheduleRender && dayKey === iso(selectedDate)) {
+      const dayState = ensureDay(dayKey);
+      syncVisibleTaskTimeHints(dayState, getCarryoverTasks(parseDate(dayKey)), { dayKey });
       renderAppointments(dayState);
     }
   };
@@ -10790,8 +10794,8 @@ function deleteCarryoverTask(taskRef) {
   showUndoNotice("이월 우선업무를 삭제했습니다.");
 }
 
-function updateCarryoverTaskMarker(taskRef, anchor = null) {
-  const sourceRef = materializeCarryoverTask(taskRef);
+function updateCarryoverTaskMarker(taskRef, anchor = null, targetKey = iso(selectedDate)) {
+  const sourceRef = materializeCarryoverTask(taskRef, targetKey);
   const source = sourceRef?.task;
   if (!source) return;
   const feedback = cycleTaskMarker(source);
@@ -10801,13 +10805,13 @@ function updateCarryoverTaskMarker(taskRef, anchor = null) {
   renderDayAfterTaskMutation();
 }
 
-function updateCarryoverTaskPriority(taskRef, value) {
-  const selectedDay = ensureDay();
+function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDate)) {
+  const selectedDay = ensureDay(targetKey);
   const isInactiveValue = ["위임", "취소", "연기"].includes(value);
   if (isInactiveValue) {
     clearTaskTextTimeHintFromSchedule(taskRef.text, selectedDay, { linkId: getCarryoverScheduleLinkId(taskRef) });
   }
-  const source = materializeCarryoverTask(taskRef);
+  const source = materializeCarryoverTask(taskRef, targetKey);
   if (!source) return;
   if (isInactiveValue) {
     applyInactiveTaskStatus(source.task, value);
@@ -10833,26 +10837,29 @@ function updateCarryoverTaskPriority(taskRef, value) {
   renderDayAfterTaskMutation();
 }
 
-function updateCarryoverDelegate(taskRef, value) {
-  const source = materializeCarryoverTask(taskRef)?.task;
+function updateCarryoverDelegate(taskRef, value, targetKey = iso(selectedDate)) {
+  const source = materializeCarryoverTask(taskRef, targetKey)?.task;
   if (!source) return;
   source.delegate = value;
   saveState({ fastSave: true });
 }
 
-function scheduleCarryoverPostponedTask(taskRef, targetDate) {
-  const source = materializeCarryoverTask(taskRef);
+function scheduleCarryoverPostponedTask(taskRef, targetDate, targetKey = iso(selectedDate)) {
+  const source = materializeCarryoverTask(taskRef, targetKey);
   if (!source) return;
   schedulePostponedTask(source.task, source.priority, targetDate);
 }
 
-function updateCarryoverTaskText(taskRef, value) {
-  const sourceRef = materializeCarryoverTask(taskRef);
+function updateCarryoverTaskText(taskRef, value, targetKey = iso(selectedDate)) {
+  const sourceRef = materializeCarryoverTask(taskRef, targetKey);
   const source = sourceRef?.task;
   if (!source) return;
-  clearTaskTextTimeHintFromSchedule(source.text, sourceRef.day || ensureDay(), { linkId: getCarryoverScheduleLinkId(taskRef) });
+  const dayState = sourceRef.day || ensureDay(targetKey);
+  clearTaskTextTimeHintFromSchedule(source.text, dayState, { linkId: getCarryoverScheduleLinkId(taskRef) });
   source.text = value;
-  if (!isFutureCarryoverTask(source) && syncTaskTimeHintToSchedule(source, sourceRef.day || ensureDay())) renderAppointments(ensureDay());
+  if (!isFutureCarryoverTask(source, targetKey) && syncTaskTimeHintToSchedule(source, dayState, { dayKey: targetKey }) && targetKey === iso(selectedDate)) {
+    renderAppointments(dayState);
+  }
   saveState({ fastSave: true });
 }
 
@@ -10880,7 +10887,7 @@ function extractTaskTimeHint(text = "") {
   };
 }
 
-function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
+function syncTaskTimeHintToSchedule(task, day = ensureDay(), options = {}) {
   if (!task) return false;
   day.appointments ||= {};
   day.autoTaskScheduleLinks ||= {};
@@ -10888,7 +10895,11 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay()) {
   const hint = extractTaskTimeHint(task.text);
   const linkId = getTaskScheduleLinkId(task);
   const existingLink = day.autoTaskScheduleLinks[linkId] || (task.scheduledSlot && task.scheduledText ? { type: "task", slot: task.scheduledSlot, text: task.scheduledText } : null);
+  const dayKey = options.dayKey || iso(selectedDate);
   let changed = false;
+  if (isFutureCarryoverTask(task, dayKey)) {
+    return clearTaskScheduleLinkForInactive(task, day, linkId, existingLink);
+  }
   if (shouldRemoveTaskScheduleLink(task)) {
     return clearTaskScheduleLinkForInactive(task, day, linkId, existingLink);
   }
@@ -10942,13 +10953,14 @@ function clearTaskScheduleLinkForInactive(task = {}, day = ensureDay(), linkId =
   return changed;
 }
 
-function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = []) {
+function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = [], options = {}) {
   let changed = false;
   const directTaskSlots = new Set();
-  const selectedKey = iso(selectedDate);
+  const selectedKey = options.dayKey || iso(selectedDate);
+  if (purgeMisdatedTaskScheduleArtifacts(day, selectedKey)) changed = true;
   getTaskRefs(day).forEach(({ task }) => {
     if (isFutureCarryoverTask(task, selectedKey)) return;
-    if (syncTaskTimeHintToSchedule(task, day)) changed = true;
+    if (syncTaskTimeHintToSchedule(task, day, { dayKey: selectedKey })) changed = true;
     if (shouldRemoveTaskScheduleLink(task)) return;
     const slot = getTaskTimeHintSlot(task.text, day);
     if (slot) directTaskSlots.add(slot);
@@ -11010,6 +11022,76 @@ function shouldSyncCarryoverTimeHints(key = iso(selectedDate)) {
 
 function isFutureCarryoverTask(task = {}, key = iso(selectedDate)) {
   return Boolean((task.carryoverForkFrom || task.carryoverSourceDate) && !shouldShowCarryoversForDate(key));
+}
+
+function purgePrematureCarryoverEntries(day = ensureDay(), key = iso(selectedDate)) {
+  if (!day?.tasks || !isValidIsoDate(key) || shouldShowCarryoversForDate(key)) return false;
+  let changed = false;
+  priorities.forEach(([priority]) => {
+    const list = day.tasks[priority] || [];
+    const next = list.filter((task) => {
+      if (!isMaterializedCarryoverTask(task)) return true;
+      clearTaskScheduleLinkForInactive(task, day);
+      clearTaskTextTimeHintFromSchedule(task.text, day, { linkId: getCarryoverScheduleLinkId(task) });
+      changed = true;
+      return false;
+    });
+    if (next.length !== list.length) day.tasks[priority] = next;
+  });
+  if (clearAutoTaskScheduleLinks(day, (link) => link.type === "carryover")) changed = true;
+  return changed;
+}
+
+function purgeCrossDayTaskClones(day = ensureDay(), key = iso(selectedDate)) {
+  if (!day?.tasks || !isValidIsoDate(key)) return false;
+  let changed = false;
+  priorities.forEach(([priority]) => {
+    const list = day.tasks[priority] || [];
+    const next = list.filter((task) => {
+      if (!isLikelyCrossDayTaskClone(task, key)) return true;
+      clearTaskScheduleLinkForInactive(task, day);
+      changed = true;
+      return false;
+    });
+    if (next.length !== list.length) day.tasks[priority] = next;
+  });
+  return changed;
+}
+
+function isLikelyCrossDayTaskClone(task = {}, key = iso(selectedDate)) {
+  if (
+    !task?.id ||
+    task.repeatId ||
+    task.postponedFrom ||
+    task.weeklyPostponedFrom ||
+    task.financeItemId ||
+    task.projectTaskId ||
+    isMaterializedCarryoverTask(task)
+  ) {
+    return false;
+  }
+  return Object.entries(state.days || {}).some(([dayKey, candidateDay]) => {
+    if (dayKey >= key || !candidateDay?.tasks) return false;
+    return priorities.some(([priority]) => (candidateDay.tasks?.[priority] || []).some((candidate) => candidate?.id === task.id));
+  });
+}
+
+function clearOrphanTaskScheduleLinks(day = ensureDay()) {
+  if (!day) return false;
+  day.autoTaskScheduleLinks ||= {};
+  const validTaskLinkIds = new Set();
+  priorities.forEach(([priority]) => {
+    (day.tasks?.[priority] || []).forEach((task) => validTaskLinkIds.add(getTaskScheduleLinkId(task)));
+  });
+  return clearAutoTaskScheduleLinks(day, (link, linkId) => link?.type === "task" && !validTaskLinkIds.has(linkId));
+}
+
+function purgeMisdatedTaskScheduleArtifacts(day = ensureDay(), key = iso(selectedDate)) {
+  let changed = false;
+  if (purgePrematureCarryoverEntries(day, key)) changed = true;
+  if (purgeCrossDayTaskClones(day, key)) changed = true;
+  if (clearOrphanTaskScheduleLinks(day)) changed = true;
+  return changed;
 }
 
 function getCarryoverScheduleLinkId(task = {}) {
