@@ -464,8 +464,13 @@ let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
 const BOOT_MIN_READING_MS = 0;
+const BOOT_FAILSAFE_MS = 2200;
+const AUTH_REFRESH_TIMEOUT_MS = 8000;
+const STATE_FETCH_TIMEOUT_MS = 10000;
+const STATE_SAVE_TIMEOUT_MS = 15000;
 const bootStartedAt = Date.now();
 let bootHideTimer = 0;
+let bootFailsafeTimer = 0;
 const DEFAULT_WEATHER_COORDS = weatherRegions.ulsan;
 const WEATHER_CACHE_KEY = "beyondWork.weather.v1";
 let weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
@@ -641,6 +646,21 @@ function isAuthSessionExpired(session, leewaySeconds = 60) {
   return Boolean(expiresAt && expiresAt * 1000 <= Date.now() + leewaySeconds * 1000);
 }
 
+async function fetchWithTimeout(resource, options = {}, timeoutMs = STATE_FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(resource, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function networkErrorMessage(error, fallback = "서버 응답 지연") {
+  if (error?.name === "AbortError") return fallback;
+  return error?.message || fallback;
+}
+
 async function ensureFreshAuthSession() {
   const session = getAuthSession();
   if (!session?.accessToken) return null;
@@ -650,11 +670,11 @@ async function ensureFreshAuthSession() {
     return null;
   }
   try {
-    const response = await fetch("/api/auth", {
+    const response = await fetchWithTimeout("/api/auth", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "refresh", refreshToken: session.refreshToken }),
-    });
+    }, AUTH_REFRESH_TIMEOUT_MS);
     let payload = {};
     try {
       payload = await response.json();
@@ -681,7 +701,8 @@ async function ensureFreshAuthSession() {
     localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(nextSession));
     cacheAuthUser(nextSession);
     return getAuthSession();
-  } catch {
+  } catch (error) {
+    if (error?.name === "AbortError") return session;
     localStorage.removeItem(AUTH_SESSION_KEY);
     return null;
   }
@@ -1490,7 +1511,7 @@ async function hydrateServerState() {
       logoutPlanner();
       return;
     }
-    const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
+    const response = await fetchWithTimeout("/api/state", { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     accountSaveReady = true;
@@ -1550,7 +1571,7 @@ async function hydrateServerState() {
     accountSaveReady = false;
     saveStatus.ready = false;
     saveStatus.environment = "db";
-    saveStatus.message = error.message || "저장 연결 실패";
+    saveStatus.message = networkErrorMessage(error, "저장 연결 지연");
   }
 }
 
@@ -1644,7 +1665,7 @@ function normalizeBackupEmailFrequency(value) {
 
 async function hydrateServerConfig() {
   try {
-    const response = await fetch("/api/config", { cache: "no-store" });
+    const response = await fetchWithTimeout("/api/config", { cache: "no-store" }, AUTH_REFRESH_TIMEOUT_MS);
     if (!response.ok) return;
     const payload = await response.json();
     saveStatus.environment = payload.storage === "supabase-db" ? "db" : payload.environment || "server";
@@ -1725,11 +1746,11 @@ async function persistStateToServer(options = {}) {
   const stateSnapshot = clonePlannerValue(state);
   const saveStartedMutationSeq = plannerMutationSeq;
   try {
-    const response = await fetch("/api/state", {
+    const response = await fetchWithTimeout("/api/state", {
       method: "POST",
       headers: authStateHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ state: stateSnapshot, updatedAt, baseUpdatedAt }),
-    });
+    }, STATE_SAVE_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
     if (payload.stale) {
@@ -1844,7 +1865,7 @@ async function pullServerStateIfNewer(options = {}) {
     return;
   }
   try {
-    const response = await fetch("/api/state", { cache: "no-store", headers: authStateHeaders() });
+    const response = await fetchWithTimeout("/api/state", { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     if (!payload.exists || !payload.state || !payload.updatedAt) return;
@@ -14458,9 +14479,34 @@ function hideBootScreen(delay = 120) {
   const finalDelay = Math.max(delay, readingDelay);
   window.clearTimeout(bootHideTimer);
   bootHideTimer = window.setTimeout(() => {
+    window.clearTimeout(bootFailsafeTimer);
     boot.classList.add("is-hidden");
     window.setTimeout(() => boot.remove(), 360);
   }, finalDelay);
+}
+
+function scheduleBootScreenFailsafe(delay = BOOT_FAILSAFE_MS) {
+  window.clearTimeout(bootFailsafeTimer);
+  bootFailsafeTimer = window.setTimeout(() => {
+    saveStatus.message = saveStatus.message || "최신 데이터 확인 중";
+    hideBootScreen(0);
+  }, delay);
+}
+
+async function finishInitialServerHydration() {
+  try {
+    await hydrateServerState();
+    if (getAuthSession()?.accessToken) {
+      renderHydratedTodayFrame();
+      setBootMessage("최신 내용을 반영했습니다");
+    }
+  } catch (error) {
+    saveStatus.message = networkErrorMessage(error, "최신 데이터 확인 지연");
+    renderStartupFrame({ forceLists: true });
+  } finally {
+    hideBootScreen(40);
+    window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
+  }
 }
 
 async function setup() {
@@ -14476,14 +14522,11 @@ async function setup() {
   renderBootCoaching();
   hydrateWeatherFromCache();
   renderWeatherChip();
+  scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
   if (hasInitialDeviceCache) hideBootScreen(40);
-  await hydrateServerState();
-  renderHydratedTodayFrame();
+  finishInitialServerHydration();
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
-  setBootMessage("최신 내용을 반영하는 중");
-  hideBootScreen(40);
-  window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   window.setInterval(queuePassiveServerPull, 15000);
   window.addEventListener("pagehide", persistDisplayCache);
   document.addEventListener("visibilitychange", () => {
@@ -14491,4 +14534,12 @@ async function setup() {
   });
 }
 
-setup();
+setup().catch((error) => {
+  saveStatus.message = networkErrorMessage(error, "앱 시작 확인 지연");
+  try {
+    renderStartupFrame({ forceLists: true });
+  } catch {
+    // Keep the boot recovery path quiet; the page should still become usable.
+  }
+  hideBootScreen(0);
+});
