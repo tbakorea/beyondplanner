@@ -10229,15 +10229,17 @@ function deleteTask(priority, index, taskRef = null) {
   const location = findCurrentTaskLocation(day, taskRef, priority, index);
   const task = location?.task;
   if (!task) return;
-  if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
-  captureUndo("우선업무 삭제");
   if (isMaterializedCarryoverTask(task)) {
+    if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘부터 이월에서 제외됩니다.")) return;
+    captureUndo("이월 우선업무 삭제");
     deleteMaterializedCarryoverTask(location);
     saveState({ fastSave: true });
     renderDayAfterTaskMutation();
     showUndoNotice("이월 우선업무를 삭제했습니다.");
     return;
   }
+  if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
+  captureUndo("우선업무 삭제");
   clearTaskScheduleLinkForInactive(task, day);
   if (task.repeatId) {
     day.deletedRepeatIds ||= [];
@@ -10349,6 +10351,10 @@ function isMaterializedCarryoverTask(task = {}) {
   return Boolean(task?.carryoverForkFrom || task?.carryoverSourceDate);
 }
 
+function getCarryoverDeleteFromKey() {
+  return iso(todayInPlanner());
+}
+
 function findCarryoverOriginalByForkKey(forkKey = "") {
   if (!forkKey) return null;
   const fallback = forkKey.match(/^(\d{4}-\d{2}-\d{2})-(A|B|C)-(\d+)$/);
@@ -10445,15 +10451,17 @@ function markCarryoverDeletedFromDate(taskRef = {}, deleteFromKey = iso(selected
 
 function deleteMaterializedCarryoverTask(location) {
   const selectedKey = iso(selectedDate);
+  const deleteFromKey = getCarryoverDeleteFromKey();
   const task = location?.task;
   if (!task) return false;
   const day = ensureDay(selectedKey);
   clearTaskScheduleLinkForInactive(task, day);
   if (task.repeatId) {
-    day.deletedRepeatIds ||= [];
-    if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
+    const deleteFromDay = ensureDay(deleteFromKey);
+    deleteFromDay.deletedRepeatIds ||= [];
+    if (!deleteFromDay.deletedRepeatIds.includes(task.repeatId)) deleteFromDay.deletedRepeatIds.push(task.repeatId);
   }
-  const sourceMarked = markCarryoverDeletedFromDate(task, selectedKey);
+  const sourceMarked = markCarryoverDeletedFromDate(task, deleteFromKey);
   if (!sourceMarked && location?.priority) {
     day.tasks[location.priority].splice(location.index, 1);
   }
@@ -10595,18 +10603,18 @@ function renderCarryoverTask(task) {
 function deleteCarryoverTask(taskRef) {
   const source = findTaskSource(taskRef);
   if (!source) return;
-  if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘 이후 이월에서 제외됩니다.")) return;
+  if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘부터 이월에서 제외됩니다.")) return;
   captureUndo("이월 우선업무 삭제");
   const selectedDay = ensureDay();
   clearTaskTextTimeHintFromSchedule(taskRef.text, selectedDay, { linkId: getCarryoverScheduleLinkId(taskRef) });
   if (taskRef.date === iso(selectedDate)) clearTaskScheduleLinkForInactive(source.task, selectedDay);
   if (source.task.repeatId) {
-    const selectedKey = iso(selectedDate);
-    const day = ensureDay(selectedKey);
-    day.deletedRepeatIds ||= [];
-    if (!day.deletedRepeatIds.includes(source.task.repeatId)) day.deletedRepeatIds.push(source.task.repeatId);
+    const deleteFromKey = getCarryoverDeleteFromKey();
+    const deleteFromDay = ensureDay(deleteFromKey);
+    deleteFromDay.deletedRepeatIds ||= [];
+    if (!deleteFromDay.deletedRepeatIds.includes(source.task.repeatId)) deleteFromDay.deletedRepeatIds.push(source.task.repeatId);
   }
-  markCarryoverDeletedFromDate(taskRef, iso(selectedDate), source);
+  markCarryoverDeletedFromDate(taskRef, getCarryoverDeleteFromKey(), source);
   saveState({ fastSave: true });
   renderAll();
   showUndoNotice("이월 우선업무를 삭제했습니다.");
