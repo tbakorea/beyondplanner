@@ -4527,6 +4527,7 @@ function animateDateTitle(delta, nextDate) {
     renderAll();
     animatePageTurn(delta);
     const refreshedTitle = el("dayTitle");
+    refreshedTitle?.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev");
     refreshedTitle?.classList.add(delta > 0 ? "slide-in-next" : "slide-in-prev");
     dateSlideTimer = window.setTimeout(() => {
       refreshedTitle?.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev");
@@ -6481,7 +6482,12 @@ function renderDay(options = {}) {
   const day = ensureDay();
   const editing = !options.forceLists && isAnyPlannerTextEditing();
   const formattedDate = formatDate(selectedDate);
-  el("dayTitle").textContent = formattedDate;
+  const dayTitle = el("dayTitle");
+  if (dayTitle) {
+    dayTitle.classList.remove("slide-out-next", "slide-out-prev");
+    dayTitle.textContent = formattedDate;
+    dayTitle.setAttribute("data-full-date", formattedDate);
+  }
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
   updateDailyActionAiAvailability();
   const key = iso(selectedDate);

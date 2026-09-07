@@ -21911,3 +21911,88 @@ body.classic-mode .quick-strip::-webkit-scrollbar {
   cursor: pointer;
   touch-action: manipulation;
 }
+
+/* 2026-09-07 date visibility guard.
+   The daily date must never collapse or stay hidden after a slide animation. */
+#dayTitle {
+  color: var(--ink) !important;
+  font-size: var(--daily-date-font, clamp(20px, 2.4vw, 32px)) !important;
+  opacity: 1;
+}
+
+#dayTitle.slide-out-next,
+#dayTitle.slide-out-prev,
+#dayTitle.slide-in-next,
+#dayTitle.slide-in-prev {
+  opacity: unset;
+}
+
+.day-date-nav,
+.day-date-nav.has-today-weather,
+body.ceo-mode .day-date-nav,
+body.classic-mode .day-date-nav {
+  grid-template-columns: clamp(34px, 3.2vw, 40px) minmax(0, min(56vw, 520px)) clamp(34px, 3.2vw, 40px) minmax(62px, max-content) !important;
+}
+
+.daily-date-button,
+body.ceo-mode .daily-date-button,
+body.classic-mode .daily-date-button,
+body.classic-mode.day-view-active .daily-date-button {
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: hidden !important;
+}
+
+.daily-date-button #dayTitle,
+body.ceo-mode .daily-date-button #dayTitle,
+body.classic-mode .daily-date-button #dayTitle {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: clip !important;
+}
+
+@media (pointer: coarse) and (min-width: 641px) and (max-width: 1366px) {
+  .day-date-nav,
+  .day-date-nav.has-today-weather,
+  body.ceo-mode .day-date-nav,
+  body.classic-mode .day-date-nav {
+    grid-template-columns: 38px minmax(0, min(58vw, 540px)) 38px minmax(76px, max-content) !important;
+  }
+
+  #dayTitle,
+  body.ceo-mode #dayTitle,
+  body.classic-mode #dayTitle {
+    font-size: var(--daily-date-font, clamp(20px, 2.25vw, 30px)) !important;
+  }
+}
+
+@media (pointer: coarse) and (min-width: 641px) and (max-width: 899px) {
+  .day-date-nav,
+  .day-date-nav.has-today-weather,
+  body.ceo-mode .day-date-nav,
+  body.classic-mode .day-date-nav {
+    grid-template-columns: 36px minmax(0, min(52vw, 420px)) 36px minmax(72px, max-content) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  body.day-view-active .day-date-nav,
+  body.day-view-active .day-date-nav.has-today-weather {
+    grid-template-columns: 34px minmax(0, 1fr) 34px minmax(56px, max-content) !important;
+    gap: 4px !important;
+  }
+
+  body.day-view-active .daily-date-button {
+    padding-inline: 6px !important;
+  }
+
+  body.day-view-active #dayTitle {
+    font-size: var(--daily-date-font, clamp(18px, 5.4vw, 25px)) !important;
+  }
+}
