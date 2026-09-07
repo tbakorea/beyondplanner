@@ -460,6 +460,7 @@ let activeCoachTab = "coach";
 let coachActionRegistry = [];
 let saveStatus = { ready: false, environment: "db", message: "저장 확인 중", saving: false };
 let accountSaveReady = false;
+let initialServerHydrationFinished = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
@@ -536,7 +537,7 @@ let approvalUsers = [];
 let approvalStats = { total: 0, pending: 0, approved: 0, suspended: 0, rejected: 0 };
 const TASK_CYCLE_LOCK_MS = 900;
 const taskCycleLocks = new Map();
-const POSTPONE_PICKER_GUARD_MS = 700;
+const POSTPONE_PICKER_GUARD_MS = 180;
 const postponePickerGuards = new WeakMap();
 
 function el(id) {
@@ -1514,6 +1515,11 @@ function renderSidebarAfterDailyInput() {
   renderSidebar();
 }
 
+function canPersistDerivedState() {
+  if (!getAuthSession()?.accessToken) return false;
+  return Boolean(accountSaveReady && initialServerHydrationFinished);
+}
+
 async function hydrateServerState() {
   const hydrationStartedSeq = plannerMutationSeq;
   const hydrationBaseState = clonePlannerValue(state);
@@ -1534,23 +1540,19 @@ async function hydrateServerState() {
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
-      // A device may upload local edits only when those edits are based on the current DB version.
+      // During initial hydration, only edits made in this live page session may be merged upward.
+      // Stale device cache must never overwrite or re-seed the database.
       const localMeta = getStateMeta();
-      const localUpdatedAt = localMeta.updatedAt || "";
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent);
-      if (hasRuntimeLocalEditSince(hydrationStartedSeq) && queueIncomingServerStateMerge(payload, hydrationBaseState, "입력 완료 후 최신 데이터 병합")) {
+      if ((hasRuntimeDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq)) && queueIncomingServerStateMerge(payload, hydrationBaseState, "입력 완료 후 최신 데이터 병합")) {
         return;
       }
       lastServerUpdatedAt = payload.updatedAt || "";
-      if (canUploadLocal && (hasRuntimeDirtyEdit || isTimestampNewer(localUpdatedAt, payload.updatedAt))) {
-        saveStatus.message = "최신 변경 저장 중";
-        scheduleAccountSave(120);
-      } else if (!serverHasContent && localHasContent) {
+      if (!serverHasContent && localHasContent) {
         // Keep the last visible planner as a boot preview instead of replacing the screen with blanks.
-        // The database remains authoritative; the next confirmed server state will still replace this preview.
+        // The database remains authoritative; this preview is not uploaded automatically.
         saveStateMeta({
           baseUpdatedAt: lastServerUpdatedAt,
           lastSavedAt: lastServerUpdatedAt,
@@ -1565,7 +1567,7 @@ async function hydrateServerState() {
     } else {
       const localMeta = getStateMeta();
       const localHasContent = hasPlannerContent(state);
-      if (canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, false)) {
+      if (hasCurrentRuntimeDirtyEdit(localMeta) && localHasContent) {
         lastServerUpdatedAt = "";
         saveStatus.message = "새 변경 저장 중";
         scheduleAccountSave(120);
@@ -1701,7 +1703,7 @@ function scheduleAccountSave(delay = 650) {
       window.clearTimeout(accountSaveTimer);
       accountSaveTimer = window.setTimeout(async () => {
         await hydrateServerState();
-        if (accountSaveReady && getStateMeta().dirty) {
+        if (accountSaveReady && hasCurrentRuntimeDirtyEdit(getStateMeta())) {
           persistStateToServer();
         } else {
           saveStatus.saving = false;
@@ -1726,6 +1728,14 @@ function flushPlannerSave(reason = "즉시 저장") {
   if (!meta.dirty && !saveStatus.saving) {
     saveStatus.message = "저장됨";
     renderSidebarAfterDailyInput();
+    return;
+  }
+  if (meta.dirty && !hasCurrentRuntimeDirtyEdit(meta)) {
+    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+    saveStatus.saving = false;
+    saveStatus.message = "최신 데이터 확인 중";
+    renderSidebarAfterDailyInput();
+    pullServerStateIfNewer({ force: true });
     return;
   }
   saveStatus.saving = true;
@@ -1757,6 +1767,14 @@ async function persistStateToServer(options = {}) {
     return;
   }
   let meta = getStateMeta();
+  if (meta.dirty && !hasCurrentRuntimeDirtyEdit(meta)) {
+    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+    saveStatus.saving = false;
+    saveStatus.message = "최신 데이터 확인 중";
+    renderSidebarAfterDailyInput();
+    await pullServerStateIfNewer({ force: true });
+    return;
+  }
   const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : meta.updatedAt || markLocalStateUpdated();
   meta = getStateMeta();
   const baseUpdatedAt = getServerBaseUpdatedAt(meta);
@@ -2017,13 +2035,6 @@ function isTimestampNewer(left, right) {
   return timestampMs(left) > timestampMs(right);
 }
 
-function isSameTimestamp(left, right) {
-  const leftMs = timestampMs(left);
-  const rightMs = timestampMs(right);
-  if (!leftMs || !rightMs) return false;
-  return Math.abs(leftMs - rightMs) < 1;
-}
-
 function timestampMs(value) {
   const ms = Date.parse(value || "");
   return Number.isFinite(ms) ? ms : 0;
@@ -2190,18 +2201,6 @@ function getPayloadPlannerState(payload) {
 function mergePlannerStates(baseState, localState, remoteState) {
   const merged = mergePlannerValue(baseState || {}, localState || {}, remoteState || {});
   return migrateState(merged || {});
-}
-
-function isFreshDirtyStateMeta(meta, windowMs = 10 * 60 * 1000) {
-  if (!meta?.dirty || !meta.updatedAt) return false;
-  return Date.now() - timestampMs(meta.updatedAt) < windowMs;
-}
-
-function canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent) {
-  if (!isFreshDirtyStateMeta(localMeta) || !localHasContent) return false;
-  if (!payload?.exists || !serverHasContent) return true;
-  const baseUpdatedAt = getServerBaseUpdatedAt(localMeta, false);
-  return Boolean(baseUpdatedAt && payload.updatedAt && isSameTimestamp(baseUpdatedAt, payload.updatedAt));
 }
 
 async function extractSaveError(response) {
@@ -2645,6 +2644,7 @@ function normalizeDeletedWeeklyPriorityCarryovers(week) {
 function normalizeWeeklyPriority(item = {}) {
   if (!item || typeof item !== "object") item = { text: String(item || "") };
   const hadPriority = ["A", "B", "C"].includes(item.priority);
+  item.id ||= newTaskId();
   item.text ||= "";
   item.status ||= item.done ? "완료" : "미완료";
   item.delegate ||= "";
@@ -2663,6 +2663,7 @@ function weeklyPriorityShouldCarry(item = {}) {
 function cloneWeeklyPriorityForCarry(item = {}, sourceWeekKey = "") {
   normalizeWeeklyPriority(item);
   return {
+    id: newTaskId(),
     text: item.text || "",
     done: false,
     status: item.status === "진행중" ? "진행중" : "미완료",
@@ -6508,7 +6509,7 @@ function renderDay(options = {}) {
   }
   el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
   updateDailyActionAiAvailability();
-  if (!editing && purgeMisdatedTaskScheduleArtifacts(day, key)) saveState({ fastSave: true });
+  if (!editing && purgeMisdatedTaskScheduleArtifacts(day, key) && canPersistDerivedState()) saveState({ fastSave: true });
   const allTasks = getDayTasks(key);
   const carryovers = getCarryoverTasks(parseDate(key));
   const done = allTasks.filter((task) => task.text && task.done).length + carryovers.filter((task) => isCarryoverCompletedOn(task, key)).length;
@@ -8340,7 +8341,7 @@ function storeWeatherForToday(weather = weatherState, options = {}) {
   const next = toWeatherRecord(weather);
   if (sameWeatherRecord(day.weather, next) && !options.force) return false;
   day.weather = next;
-  if (options.save !== false && accountSaveReady) saveState({ fastSave: true });
+  if (options.save !== false && canPersistDerivedState()) saveState({ fastSave: true });
   renderWeatherSettings();
   return true;
 }
@@ -9518,6 +9519,7 @@ function renderDayCompass() {
       const applyPrioritySelection = () => {
         if (handledValue === prioritySelect.value) return;
         handledValue = prioritySelect.value;
+        updateTaskRowPriorityVisual(row, prioritySelect.value);
         handleWeeklyPriorityMenuChange(item, prioritySelect.value);
       };
       prioritySelect.oninput = applyPrioritySelection;
@@ -9561,7 +9563,7 @@ function renderDayCompass() {
   addPriority.className = "add-row weekly-priority-add";
   addPriority.textContent = isKorean ? "주요일정 추가" : "Add Week Item";
   addPriority.onclick = () => {
-    week.priorities.push({ text: "", done: false, status: "미완료", priorityUnset: true });
+    week.priorities.push({ id: newTaskId(), text: "", done: false, status: "미완료", priorityUnset: true });
     saveState({ fastSave: true });
     renderDayCompass();
     window.requestAnimationFrame(() => {
@@ -10297,8 +10299,6 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   const day = ensureDay();
   const location = resolveDailyTaskEditLocation(day, task, fromPriority, index);
   const targetTask = location?.task || task;
-  const currentPriority = location?.priority || fromPriority;
-  const currentIndex = Number.isInteger(location?.index) ? location.index : index;
   ensureTaskOrder(day, targetTask);
   if (["위임", "취소", "연기"].includes(value)) {
     applyInactiveTaskStatus(targetTask, value);
@@ -10311,7 +10311,8 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   targetTask.done = targetTask.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     targetTask.priorityUnset = false;
-    moveTaskPriority(currentPriority, currentIndex, value, targetTask);
+    targetTask.priority = value;
+    moveLocatedTaskPriority(day, location, value);
     return;
   }
   targetTask.priorityUnset = true;
@@ -10320,20 +10321,28 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
 }
 
 function moveTaskPriority(fromPriority, index, toPriority, taskRef = null) {
-  if (fromPriority === toPriority) {
-    saveState({ fastSave: true });
-    markPlannerInputEditing(900);
-    scheduleDailyTaskRelatedRefresh(220);
-    return;
-  }
   const day = ensureDay();
-  const location = findCurrentTaskLocation(day, taskRef, fromPriority, index);
-  if (!location?.task) return;
-  const [task] = day.tasks[location.priority].splice(location.index, 1);
-  day.tasks[toPriority].push(task);
+  const location = findCurrentTaskLocation(day, taskRef, fromPriority, index, { normalize: false });
+  moveLocatedTaskPriority(day, location, toPriority);
+}
+
+function moveLocatedTaskPriority(day, location, toPriority) {
+  if (!day || !location?.task || !["A", "B", "C"].includes(toPriority)) return;
+  const task = location.task;
+  normalizeTask(task);
+  ensureTaskOrder(day, task);
+  task.priority = toPriority;
+  task.priorityUnset = false;
+  if (location.priority !== toPriority) {
+    const fromList = day.tasks?.[location.priority] || [];
+    const currentIndex = fromList.indexOf(task);
+    if (currentIndex >= 0) fromList.splice(currentIndex, 1);
+    day.tasks ||= { A: [], B: [], C: [] };
+    day.tasks[toPriority] ||= [];
+    if (!day.tasks[toPriority].includes(task)) day.tasks[toPriority].push(task);
+  }
   saveState({ fastSave: true });
-  markPlannerInputEditing(900);
-  scheduleDailyTaskRelatedRefresh(220);
+  renderDayAfterTaskMutation();
 }
 
 function deleteTask(priority, index, taskRef = null) {
@@ -10384,6 +10393,7 @@ function schedulePostponedTask(task, priority, targetDate) {
   });
   if (!existingTask && task.text?.trim()) {
     existingTask = {
+      id: newTaskId(),
       text: task.text.trim(),
       status: "미완료",
       done: false,
@@ -10505,9 +10515,9 @@ function dedupeMaterializedCarryoverCopies(day) {
     day.tasks[priority] = list.filter((task) => {
       if (!isMaterializedCarryoverTask(task)) return true;
       normalizeTask(task);
-      const identity = getCarryoverTaskIdentity(task);
-      if (!identity || !seen.has(identity)) {
-        if (identity) seen.add(identity);
+      const identities = [getCarryoverTaskIdentity(task), getCarryoverSemanticIdentity(task)].filter(Boolean);
+      if (!identities.length || !identities.some((identity) => seen.has(identity))) {
+        identities.forEach((identity) => seen.add(identity));
         return true;
       }
       changed = true;
@@ -10517,8 +10527,10 @@ function dedupeMaterializedCarryoverCopies(day) {
   return changed;
 }
 
-function getCarryoverDeleteFromKey() {
-  return iso(todayInPlanner());
+function getCarryoverDeleteFromKey(fallbackKey = iso(selectedDate)) {
+  const key = String(fallbackKey || "").trim();
+  if (isValidIsoDate(key)) return key;
+  return iso(selectedDate) || iso(todayInPlanner());
 }
 
 function findCarryoverOriginalByForkKey(forkKey = "") {
@@ -10612,16 +10624,70 @@ function removeCarryoverCopiesFromDate(sourceTask = {}, deleteFromKey = iso(sele
   return changed;
 }
 
+function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(selectedDate)) {
+  if (!deleteFromKey) return false;
+  const taskIdentity = getCarryoverTaskIdentity(taskRef);
+  const semanticIdentity = getCarryoverSemanticIdentity(taskRef);
+  let changed = false;
+  Object.entries(state.days || {}).forEach(([dayKey, day]) => {
+    if (dayKey < deleteFromKey || !day?.tasks) return;
+    priorities.forEach(([priority]) => {
+      const list = day.tasks[priority] || [];
+      const next = list.filter((candidate) => {
+        normalizeTask(candidate);
+        if (!isMaterializedCarryoverTask(candidate)) return true;
+        const candidateIdentity = getCarryoverTaskIdentity(candidate);
+        const candidateSemantic = getCarryoverSemanticIdentity(candidate);
+        const matches = Boolean(
+          (taskIdentity && candidateIdentity === taskIdentity) ||
+          (semanticIdentity && candidateSemantic === semanticIdentity)
+        );
+        if (!matches) return true;
+        clearTaskScheduleLinkForInactive(candidate, day);
+        return false;
+      });
+      if (next.length !== list.length) {
+        day.tasks[priority] = next;
+        changed = true;
+      }
+    });
+  });
+  return changed;
+}
+
+function markSemanticCarryoverDuplicatesDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate)) {
+  const semanticIdentity = getCarryoverSemanticIdentity(taskRef);
+  if (!semanticIdentity || !deleteFromKey) return false;
+  let changed = false;
+  Object.entries(state.days || {}).forEach(([dayKey, day]) => {
+    if (dayKey >= deleteFromKey || !day?.tasks) return;
+    priorities.forEach(([priority]) => {
+      (day.tasks[priority] || []).forEach((candidate) => {
+        normalizeTask(candidate);
+        if (!candidate.text || isTaskCompleted(candidate)) return;
+        const candidateIdentity = getCarryoverSemanticIdentity({ ...candidate, priority, date: dayKey });
+        if (candidateIdentity !== semanticIdentity) return;
+        candidate.carryoverDeletedFrom = deleteFromKey;
+        removeCarryoverCopiesFromDate(candidate, deleteFromKey, dayKey);
+        changed = true;
+      });
+    });
+  });
+  return changed;
+}
+
 function markCarryoverDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate), fallbackSource = null) {
   const source = getCarryoverSourceRecord(taskRef, fallbackSource);
-  if (!source?.task) return false;
+  if (!source?.task) return removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey);
   source.task.carryoverDeletedFrom = deleteFromKey;
+  removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey);
+  markSemanticCarryoverDuplicatesDeletedFromDate(taskRef, deleteFromKey);
   return removeCarryoverCopiesFromDate(source.task, deleteFromKey, source.dayKey) || true;
 }
 
 function deleteMaterializedCarryoverTask(location) {
   const selectedKey = iso(selectedDate);
-  const deleteFromKey = getCarryoverDeleteFromKey();
+  const deleteFromKey = getCarryoverDeleteFromKey(selectedKey);
   const task = location?.task;
   if (!task) return false;
   const day = ensureDay(selectedKey);
@@ -10776,19 +10842,24 @@ function renderCarryoverTask(task, dayKey = iso(selectedDate)) {
 
 function deleteCarryoverTask(taskRef) {
   const source = findTaskSource(taskRef);
-  if (!source) return;
   if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘부터 이월에서 제외됩니다.")) return;
   captureUndo("이월 우선업무 삭제");
+  const selectedKey = iso(selectedDate);
+  const deleteFromKey = getCarryoverDeleteFromKey(selectedKey);
   const selectedDay = ensureDay();
   clearTaskTextTimeHintFromSchedule(taskRef.text, selectedDay, { linkId: getCarryoverScheduleLinkId(taskRef) });
-  if (taskRef.date === iso(selectedDate)) clearTaskScheduleLinkForInactive(source.task, selectedDay);
-  if (source.task.repeatId) {
-    const deleteFromKey = getCarryoverDeleteFromKey();
+  if (source?.task && taskRef.date === selectedKey) clearTaskScheduleLinkForInactive(source.task, selectedDay);
+  if ((source?.task?.repeatId || taskRef.repeatId)) {
     const deleteFromDay = ensureDay(deleteFromKey);
     deleteFromDay.deletedRepeatIds ||= [];
-    if (!deleteFromDay.deletedRepeatIds.includes(source.task.repeatId)) deleteFromDay.deletedRepeatIds.push(source.task.repeatId);
+    const repeatId = source?.task?.repeatId || taskRef.repeatId;
+    if (!deleteFromDay.deletedRepeatIds.includes(repeatId)) deleteFromDay.deletedRepeatIds.push(repeatId);
   }
-  markCarryoverDeletedFromDate(taskRef, getCarryoverDeleteFromKey(), source);
+  markCarryoverDeletedFromDate(taskRef, deleteFromKey, source);
+  removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey);
+  if (!source && isMaterializedCarryoverTask(taskRef)) {
+    Object.values(state.days || {}).forEach((day) => dedupeMaterializedCarryoverCopies(day));
+  }
   saveState({ fastSave: true });
   renderAll();
   showUndoNotice("이월 우선업무를 삭제했습니다.");
@@ -10824,6 +10895,8 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
   source.task.done = source.task.status === "완료";
   if (["A", "B", "C"].includes(value)) {
     source.task.priorityUnset = false;
+    source.task.priority = value;
+    ensureTaskOrder(source.day, source.task);
     if (source.priority !== value) {
       source.day.tasks[source.priority] = source.day.tasks[source.priority].filter((task) => task !== source.task);
       source.day.tasks[value].push(source.task);
@@ -10973,7 +11046,7 @@ function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = [], options = 
     changed = true;
   }
   if (!shouldSyncCarryoverTimeHints(selectedKey) && clearFutureCarryoverTimeHints(day, carryovers, directTaskSlots)) changed = true;
-  if (changed) saveState({ fastSave: true });
+  if (changed && canPersistDerivedState()) saveState({ fastSave: true });
 }
 
 function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = {}) {
@@ -11524,7 +11597,7 @@ function renderNotes() {
   normalizeFinanceState(state.finance);
   const amountToggle = document.getElementById("financeAmountVisibilityToggle");
   if (amountToggle) amountToggle.checked = moneyAmountsVisible();
-  if (syncMoneyTaskLinks()) saveState({ fastSave: true });
+  if (syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
   if (!state.finance.months[selectedFinanceMonth]) selectedFinanceMonth = monthKey(selectedDate);
   sortMoneyRowsByDueDay(state.finance.fixed);
   renderFinanceMonthNav();
@@ -13983,6 +14056,17 @@ function getCarryoverTaskIdentity(task = {}) {
   return `text:${normalizeSearchText(task.text || "")}:${task.priority || ""}`;
 }
 
+function getCarryoverSemanticIdentity(task = {}) {
+  const text = normalizeSearchText(task.text || "");
+  if (!text) return "";
+  if (task.financeItemId) return `money-text:${text}`;
+  if (task.repeatId) return `repeat-text:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}:${text}`;
+  if (task.projectTaskId) return `project-text:${task.projectTaskId}:${text}`;
+  if (task.postponedFrom || task.postponeId) return `postpone-text:${task.postponedFrom || task.postponeId}:${text}`;
+  if (task.carryoverForkFrom || task.carryoverSourceDate || task.date) return `task-text:${text}`;
+  return `task-text:${text}:${task.priority || task.originalPriority || ""}`;
+}
+
 function shouldPreferCarryoverCandidate(next = {}, current = {}) {
   const nextDate = next.date || "";
   const currentDate = current.date || "";
@@ -13992,12 +14076,22 @@ function shouldPreferCarryoverCandidate(next = {}, current = {}) {
 
 function dedupeCarryoverTasks(tasks = []) {
   const byIdentity = new Map();
+  const taskIdentities = new Map();
   tasks.forEach((task) => {
-    const identity = getCarryoverTaskIdentity(task);
-    const existing = byIdentity.get(identity);
-    if (!existing || shouldPreferCarryoverCandidate(task, existing)) byIdentity.set(identity, task);
+    const identities = [getCarryoverTaskIdentity(task), getCarryoverSemanticIdentity(task)].filter(Boolean);
+    const existing = identities.map((identity) => byIdentity.get(identity)).find(Boolean);
+    if (!existing || shouldPreferCarryoverCandidate(task, existing)) {
+      if (existing) {
+        (taskIdentities.get(existing) || []).forEach((identity) => {
+          if (byIdentity.get(identity) === existing) byIdentity.delete(identity);
+        });
+        taskIdentities.delete(existing);
+      }
+      identities.forEach((identity) => byIdentity.set(identity, task));
+      taskIdentities.set(task, identities);
+    }
   });
-  return Array.from(byIdentity.values());
+  return Array.from(new Set(byIdentity.values()));
 }
 
 function shouldShowCarryoversForDate(key = iso(selectedDate)) {
@@ -14620,7 +14714,7 @@ function renderAll() {
   ensureMonth();
   ensureWeek();
   ensureDay();
-  if (syncMoneyTaskLinks()) saveState({ fastSave: true });
+  if (syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
   renderSidebar();
   renderFoundation();
   renderYear();
@@ -14643,7 +14737,7 @@ function renderStartupFrame(options = {}) {
   ensureMonth();
   ensureWeek();
   ensureDay();
-  if (options.syncMoney && syncMoneyTaskLinks()) saveState({ fastSave: true });
+  if (options.syncMoney && syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
   renderSidebar();
   renderDay({ forceLists: Boolean(options.forceLists) });
   renderWeatherChip();
@@ -14672,6 +14766,10 @@ function scheduleIdleTask(callback, timeout = 1200) {
 
 function schedulePostBootRender() {
   scheduleIdleTask(() => {
+    if (getAuthSession()?.accessToken && !initialServerHydrationFinished) {
+      schedulePostBootRender();
+      return;
+    }
     renderAll();
   }, 900);
 }
@@ -14887,6 +14985,7 @@ async function finishInitialServerHydration() {
     saveStatus.message = networkErrorMessage(error, "최신 데이터 확인 지연");
     renderStartupFrame({ forceLists: true });
   } finally {
+    initialServerHydrationFinished = true;
     hideBootScreen(40);
     window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
   }
