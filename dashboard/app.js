@@ -995,6 +995,7 @@ function normalizeDayTasks(day) {
       if (!hasTaskOrder(task)) assignTaskOrder(day, task);
     });
   });
+  dedupeMaterializedCarryoverCopies(day);
   compactEmptyDailyTaskSlots(day);
 }
 
@@ -1539,7 +1540,7 @@ async function hydrateServerState() {
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent) || hasRuntimeDirtyEdit;
+      const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent);
       if (hasRuntimeLocalEditSince(hydrationStartedSeq) && queueIncomingServerStateMerge(payload, hydrationBaseState, "입력 완료 후 최신 데이터 병합")) {
         return;
       }
@@ -10450,12 +10451,66 @@ function moveTaskSourcePriority(taskRef, toPriority) {
   };
 }
 
+function findTaskRecordById(taskId = "") {
+  if (!taskId) return null;
+  for (const [dayKey, day] of Object.entries(state.days || {})) {
+    if (!day?.tasks) continue;
+    for (const [priority] of priorities) {
+      const list = day.tasks[priority] || [];
+      for (let index = 0; index < list.length; index += 1) {
+        const task = list[index];
+        if (task?.id === taskId) return { day, task, priority, index, dayKey };
+      }
+    }
+  }
+  return null;
+}
+
+function resolveCarryoverRootKey(seedKey = "") {
+  let rootKey = String(seedKey || "").trim();
+  const seen = new Set();
+  while (rootKey && !seen.has(rootKey)) {
+    seen.add(rootKey);
+    const record = findTaskRecordById(rootKey);
+    const parentKey = record?.task?.carryoverForkFrom || "";
+    if (!parentKey) return rootKey;
+    rootKey = parentKey;
+  }
+  return rootKey;
+}
+
+function getTaskCarryoverRootKey(task = {}, fallbackKey = "") {
+  const seedKey = task?.carryoverForkFrom || fallbackKey || task?.id || "";
+  return resolveCarryoverRootKey(seedKey);
+}
+
 function carryoverForkKey(taskRef, source) {
-  return source.task.id || `${taskRef.date}-${source.priority}-${source.index}`;
+  return getTaskCarryoverRootKey(taskRef) || getTaskCarryoverRootKey(source?.task) || source?.task?.id || `${taskRef.date}-${source.priority}-${source.index}`;
 }
 
 function isMaterializedCarryoverTask(task = {}) {
   return Boolean(task?.carryoverForkFrom || task?.carryoverSourceDate);
+}
+
+function dedupeMaterializedCarryoverCopies(day) {
+  if (!day?.tasks) return false;
+  const seen = new Set();
+  let changed = false;
+  priorities.forEach(([priority]) => {
+    const list = day.tasks[priority] || [];
+    day.tasks[priority] = list.filter((task) => {
+      if (!isMaterializedCarryoverTask(task)) return true;
+      normalizeTask(task);
+      const identity = getCarryoverTaskIdentity(task);
+      if (!identity || !seen.has(identity)) {
+        if (identity) seen.add(identity);
+        return true;
+      }
+      changed = true;
+      return false;
+    });
+  });
+  return changed;
 }
 
 function getCarryoverDeleteFromKey() {
@@ -10464,6 +10519,7 @@ function getCarryoverDeleteFromKey() {
 
 function findCarryoverOriginalByForkKey(forkKey = "") {
   if (!forkKey) return null;
+  const rootKey = resolveCarryoverRootKey(forkKey);
   const fallback = forkKey.match(/^(\d{4}-\d{2}-\d{2})-(A|B|C)-(\d+)$/);
   for (const [dayKey, day] of Object.entries(state.days || {})) {
     if (!day?.tasks) continue;
@@ -10471,7 +10527,7 @@ function findCarryoverOriginalByForkKey(forkKey = "") {
       const list = day.tasks[priority] || [];
       for (let index = 0; index < list.length; index += 1) {
         const task = normalizeTask(list[index]);
-        if (task.id === forkKey) return { day, task, priority, index, dayKey };
+        if (task.id === rootKey || task.id === forkKey) return { day, task, priority, index, dayKey };
         if (fallback && dayKey === fallback[1] && priority === fallback[2] && index === Number(fallback[3])) {
           return { day, task, priority, index, dayKey };
         }
@@ -10515,6 +10571,9 @@ function getCarryoverSourceRecord(taskRef = {}, fallbackSource = null) {
 
 function isCarryoverCopyOfSource(candidate = {}, sourceTask = {}, sourceDayKey = "") {
   if (!isMaterializedCarryoverTask(candidate)) return false;
+  const sourceRootKey = getTaskCarryoverRootKey(sourceTask);
+  const candidateRootKey = getTaskCarryoverRootKey(candidate);
+  if (sourceRootKey && candidateRootKey && sourceRootKey === candidateRootKey) return true;
   const sourceForkKeys = new Set([sourceTask.id, sourceTask.carryoverForkFrom].filter(Boolean));
   if (candidate.carryoverForkFrom && sourceForkKeys.has(candidate.carryoverForkFrom)) return true;
   if (sourceDayKey && candidate.carryoverSourceDate === sourceDayKey) {
@@ -10569,8 +10628,11 @@ function deleteMaterializedCarryoverTask(location) {
     if (!deleteFromDay.deletedRepeatIds.includes(task.repeatId)) deleteFromDay.deletedRepeatIds.push(task.repeatId);
   }
   const sourceMarked = markCarryoverDeletedFromDate(task, deleteFromKey);
-  if (!sourceMarked && location?.priority) {
-    day.tasks[location.priority].splice(location.index, 1);
+  if (location?.priority) {
+    const list = day.tasks[location.priority] || [];
+    const index = list.indexOf(task);
+    if (index >= 0) list.splice(index, 1);
+    else if (!sourceMarked && location.index >= 0) list.splice(location.index, 1);
   }
   return true;
 }
@@ -10585,7 +10647,7 @@ function materializeCarryoverTask(taskRef) {
   let targetPriority = source.priority;
   let targetTask = null;
   priorities.some(([priority]) => {
-    targetTask = day.tasks[priority].find((task) => task.carryoverForkFrom === forkKey);
+    targetTask = day.tasks[priority].find((task) => getTaskCarryoverRootKey(task) === forkKey);
     targetPriority = targetTask ? priority : targetPriority;
     return Boolean(targetTask);
   });
@@ -10597,8 +10659,8 @@ function materializeCarryoverTask(taskRef) {
       carryoverDoneDate: "",
       carryoverDeletedFrom: "",
       carryoverForkFrom: forkKey,
-      carryoverSourceDate: taskRef.date,
-      repeatSourceDate: source.task.repeatSourceDate || taskRef.date,
+      carryoverSourceDate: taskRef.carryoverSourceDate || source.task.carryoverSourceDate || taskRef.date,
+      repeatSourceDate: source.task.repeatSourceDate || taskRef.repeatSourceDate || taskRef.carryoverSourceDate || taskRef.date,
     };
     inheritCarryoverTaskOrder(day, targetTask, taskRef, source.task);
     day.tasks[targetPriority].push(targetTask);
@@ -13834,7 +13896,7 @@ function getCarryoverTaskIdentity(task = {}) {
   if (task.repeatId) return `repeat:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}`;
   if (task.financeItemId) return `money:${task.financeItemId}`;
   if (task.projectTaskId) return `project:${task.projectTaskId}`;
-  const taskRoot = task.carryoverForkFrom || task.id || "";
+  const taskRoot = getTaskCarryoverRootKey(task);
   if (taskRoot) return `task:${taskRoot}`;
   return `text:${normalizeSearchText(task.text || "")}:${task.priority || ""}`;
 }
