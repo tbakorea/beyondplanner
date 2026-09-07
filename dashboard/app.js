@@ -536,6 +536,8 @@ let approvalUsers = [];
 let approvalStats = { total: 0, pending: 0, approved: 0, suspended: 0, rejected: 0 };
 const TASK_CYCLE_LOCK_MS = 900;
 const taskCycleLocks = new Map();
+const POSTPONE_PICKER_GUARD_MS = 700;
+const postponePickerGuards = new WeakMap();
 
 function el(id) {
   return document.getElementById(id);
@@ -543,6 +545,19 @@ function el(id) {
 
 function confirmDelete(message = "삭제할까요? 이 작업은 되돌리기 어렵습니다.") {
   return window.confirm(message);
+}
+
+function markPostponePickerGuard(task) {
+  if (!task || typeof task !== "object") return;
+  postponePickerGuards.set(task, Date.now() + POSTPONE_PICKER_GUARD_MS);
+}
+
+function isPostponePickerGuarded(task) {
+  if (!task || typeof task !== "object") return false;
+  const guardedUntil = postponePickerGuards.get(task) || 0;
+  if (guardedUntil > Date.now()) return true;
+  if (guardedUntil) postponePickerGuards.delete(task);
+  return false;
 }
 
 function clonePlannerState(source = state) {
@@ -4262,12 +4277,13 @@ function openPostponeDatePicker(anchor, initialValue, onSelect) {
   openSundayDatePicker(anchor, initialValue, onSelect, { label: "연기 날짜 선택" });
 }
 
-function bindPostponeDateControl(button, openPicker) {
+function bindPostponeDateControl(button, openPicker, options = {}) {
   if (!button || typeof openPicker !== "function") return;
   const statusCell = button.closest(".task-status-cell");
   const open = (event) => {
     event?.preventDefault?.();
     event?.stopPropagation?.();
+    if (isPostponePickerGuarded(options.task)) return;
     markPlannerInputEditing(1600);
     openPicker();
   };
@@ -9517,12 +9533,10 @@ function renderDayCompass() {
           postponeDateButton,
           item.postponeDate || iso(selectedDate),
           (dateKey) => {
-            item.postponeDate = dateKey;
-            saveState({ fastSave: true });
-            renderDayCompass();
+            scheduleWeeklyPriorityPostpone(item, dateKey);
           },
         );
-      });
+      }, { task: item });
     }
     text.oninput = () => {
       item.text = text.value;
@@ -9591,6 +9605,7 @@ function deleteWeeklyPriorityItem(week, index) {
   const item = normalizeWeeklyPriority(week.priorities[index]);
   const text = String(item.text || "").trim();
   if (text && !confirmDelete(`금주의 주요일정 '${text}'을 삭제할까요?`)) return;
+  if (item.weeklyPostponeId) removeWeeklyPostponedTaskOccurrence(item.weeklyPostponeId);
   if (text) {
     const deletedTexts = normalizeDeletedWeeklyPriorityCarryovers(week);
     if (!deletedTexts.includes(text)) deletedTexts.push(text);
@@ -9625,6 +9640,77 @@ function handleWeeklyPriorityMenuChange(item, value) {
   item.done = item.status === "완료";
   saveState({ fastSave: true });
   renderDayCompass();
+}
+
+function scheduleWeeklyPriorityPostpone(item, targetDate) {
+  if (!item || !targetDate || Number.isNaN(parseDate(targetDate).getTime())) return;
+  normalizeWeeklyPriority(item);
+  item.status = "연기";
+  item.done = false;
+  item.postponeDate = targetDate;
+  item.postponeMode = "";
+  item.priorityUnset = false;
+  item.weeklyPostponeId ||= `weekly-postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const sourceWeekKey = weekKey(selectedDate);
+  const targetDay = ensureDay(targetDate);
+  const targetPriority = ["A", "B", "C"].includes(item.priority) ? item.priority : "A";
+  const text = String(item.text || "").trim();
+
+  removeWeeklyPostponedTaskOccurrence(item.weeklyPostponeId, targetDate);
+  let existingTask = null;
+  let existingPriority = "";
+  priorities.some(([candidate]) => {
+    existingTask = targetDay.tasks[candidate].find((task) => task.weeklyPostponedFrom === item.weeklyPostponeId);
+    existingPriority = existingTask ? candidate : "";
+    return Boolean(existingTask);
+  });
+
+  if (!existingTask && text) {
+    existingTask = {
+      id: newTaskId(),
+      text,
+      status: "미완료",
+      done: false,
+      priorityUnset: false,
+      weeklyPostponedFrom: item.weeklyPostponeId,
+      weeklyPostponedSourceWeek: sourceWeekKey,
+      originalPriority: targetPriority,
+    };
+    assignTaskOrder(targetDay, existingTask);
+    targetDay.tasks[targetPriority].push(existingTask);
+  } else if (existingTask) {
+    existingTask.text = text;
+    existingTask.status = "미완료";
+    existingTask.done = false;
+    existingTask.priorityUnset = false;
+    existingTask.originalPriority = targetPriority;
+    if (existingPriority && existingPriority !== targetPriority) {
+      targetDay.tasks[existingPriority] = targetDay.tasks[existingPriority].filter((task) => task !== existingTask);
+      targetDay.tasks[targetPriority].push(existingTask);
+    }
+  }
+
+  if (existingTask) syncTaskTimeHintToSchedule(existingTask, targetDay);
+  saveState({ fastSave: true });
+  renderAll();
+}
+
+function removeWeeklyPostponedTaskOccurrence(weeklyPostponeId, keepDate = "") {
+  if (!weeklyPostponeId) return false;
+  let changed = false;
+  Object.entries(state.days || {}).forEach(([key, day]) => {
+    if (key === keepDate || !day?.tasks) return;
+    normalizeDayTasks(day);
+    priorities.forEach(([priority]) => {
+      const list = day.tasks[priority] || [];
+      const next = list.filter((task) => task.weeklyPostponedFrom !== weeklyPostponeId);
+      if (next.length !== list.length) {
+        day.tasks[priority] = next;
+        changed = true;
+      }
+    });
+  });
+  return changed;
 }
 
 function positionDaySwipe(panel = currentDayPanel || "main", force = false) {
@@ -9924,7 +10010,7 @@ function renderTaskRow(task, priority, index) {
         task.postponeDate || iso(selectedDate),
         (dateKey) => schedulePostponedTask(task, priority, dateKey),
       );
-    });
+    }, { task });
   }
   bindDailyTaskTextInput(text);
   text.oninput = () => commitDailyTaskTextInput(task, priority, index, text, { typing: true });
@@ -10187,6 +10273,7 @@ function applyInactiveTaskStatus(task, status) {
   if (status === "연기") {
     task.postponeDate = "";
     task.postponeMode = "undated";
+    markPostponePickerGuard(task);
     return;
   }
   task.postponeDate = "";
@@ -10593,7 +10680,7 @@ function renderCarryoverTask(task) {
         task.postponeDate || iso(selectedDate),
         (dateKey) => scheduleCarryoverPostponedTask(task, dateKey),
       );
-    });
+    }, { task });
   }
   const textInput = row.querySelector(".task-text-input");
   bindDailyTaskTextInput(textInput);
