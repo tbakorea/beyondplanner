@@ -10231,6 +10231,13 @@ function deleteTask(priority, index, taskRef = null) {
   if (!task) return;
   if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
   captureUndo("우선업무 삭제");
+  if (isMaterializedCarryoverTask(task)) {
+    deleteMaterializedCarryoverTask(location);
+    saveState({ fastSave: true });
+    renderDayAfterTaskMutation();
+    showUndoNotice("이월 우선업무를 삭제했습니다.");
+    return;
+  }
   clearTaskScheduleLinkForInactive(task, day);
   if (task.repeatId) {
     day.deletedRepeatIds ||= [];
@@ -10336,6 +10343,121 @@ function moveTaskSourcePriority(taskRef, toPriority) {
 
 function carryoverForkKey(taskRef, source) {
   return source.task.id || `${taskRef.date}-${source.priority}-${source.index}`;
+}
+
+function isMaterializedCarryoverTask(task = {}) {
+  return Boolean(task?.carryoverForkFrom || task?.carryoverSourceDate);
+}
+
+function findCarryoverOriginalByForkKey(forkKey = "") {
+  if (!forkKey) return null;
+  const fallback = forkKey.match(/^(\d{4}-\d{2}-\d{2})-(A|B|C)-(\d+)$/);
+  for (const [dayKey, day] of Object.entries(state.days || {})) {
+    if (!day?.tasks) continue;
+    for (const [priority] of priorities) {
+      const list = day.tasks[priority] || [];
+      for (let index = 0; index < list.length; index += 1) {
+        const task = normalizeTask(list[index]);
+        if (task.id === forkKey) return { day, task, priority, index, dayKey };
+        if (fallback && dayKey === fallback[1] && priority === fallback[2] && index === Number(fallback[3])) {
+          return { day, task, priority, index, dayKey };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+function findCarryoverOriginalBySourceDate(taskRef = {}) {
+  const dayKey = taskRef.carryoverSourceDate || "";
+  const day = state.days?.[dayKey];
+  if (!day?.tasks) return null;
+  const targetText = normalizeSearchText(taskRef.text || "");
+  for (const [priority] of priorities) {
+    const list = day.tasks[priority] || [];
+    for (let index = 0; index < list.length; index += 1) {
+      const task = normalizeTask(list[index]);
+      if (task.id && task.id === taskRef.id) return { day, task, priority, index, dayKey };
+      if (targetText && normalizeSearchText(task.text || "") === targetText) {
+        return { day, task, priority, index, dayKey };
+      }
+    }
+  }
+  return null;
+}
+
+function getCarryoverSourceRecord(taskRef = {}, fallbackSource = null) {
+  if (taskRef.carryoverForkFrom) {
+    const original = findCarryoverOriginalByForkKey(taskRef.carryoverForkFrom);
+    if (original) return original;
+  }
+  if (taskRef.carryoverSourceDate) {
+    const original = findCarryoverOriginalBySourceDate(taskRef);
+    if (original) return original;
+  }
+  const source = fallbackSource || findTaskSource(taskRef);
+  if (!source) return null;
+  return { ...source, dayKey: taskRef.date || source.dayKey || "" };
+}
+
+function isCarryoverCopyOfSource(candidate = {}, sourceTask = {}, sourceDayKey = "") {
+  if (!isMaterializedCarryoverTask(candidate)) return false;
+  const sourceForkKeys = new Set([sourceTask.id, sourceTask.carryoverForkFrom].filter(Boolean));
+  if (candidate.carryoverForkFrom && sourceForkKeys.has(candidate.carryoverForkFrom)) return true;
+  if (sourceDayKey && candidate.carryoverSourceDate === sourceDayKey) {
+    const sourceIdentity = getCarryoverTaskIdentity({ ...sourceTask, date: sourceDayKey });
+    const candidateIdentity = getCarryoverTaskIdentity(candidate);
+    const sourceText = normalizeSearchText(sourceTask.text || "");
+    const candidateText = normalizeSearchText(candidate.text || "");
+    return candidateIdentity === sourceIdentity || (sourceText && sourceText === candidateText);
+  }
+  return false;
+}
+
+function removeCarryoverCopiesFromDate(sourceTask = {}, deleteFromKey = iso(selectedDate), sourceDayKey = "") {
+  if (!sourceTask || !deleteFromKey) return false;
+  let changed = false;
+  Object.entries(state.days || {}).forEach(([dayKey, day]) => {
+    if (dayKey < deleteFromKey || !day?.tasks) return;
+    priorities.forEach(([priority]) => {
+      const list = day.tasks[priority] || [];
+      const next = list.filter((candidate) => {
+        normalizeTask(candidate);
+        if (!isCarryoverCopyOfSource(candidate, sourceTask, sourceDayKey)) return true;
+        clearTaskScheduleLinkForInactive(candidate, day);
+        return false;
+      });
+      if (next.length !== list.length) {
+        day.tasks[priority] = next;
+        changed = true;
+      }
+    });
+  });
+  return changed;
+}
+
+function markCarryoverDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate), fallbackSource = null) {
+  const source = getCarryoverSourceRecord(taskRef, fallbackSource);
+  if (!source?.task) return false;
+  source.task.carryoverDeletedFrom = deleteFromKey;
+  return removeCarryoverCopiesFromDate(source.task, deleteFromKey, source.dayKey) || true;
+}
+
+function deleteMaterializedCarryoverTask(location) {
+  const selectedKey = iso(selectedDate);
+  const task = location?.task;
+  if (!task) return false;
+  const day = ensureDay(selectedKey);
+  clearTaskScheduleLinkForInactive(task, day);
+  if (task.repeatId) {
+    day.deletedRepeatIds ||= [];
+    if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
+  }
+  const sourceMarked = markCarryoverDeletedFromDate(task, selectedKey);
+  if (!sourceMarked && location?.priority) {
+    day.tasks[location.priority].splice(location.index, 1);
+  }
+  return true;
 }
 
 function materializeCarryoverTask(taskRef) {
@@ -10484,7 +10606,7 @@ function deleteCarryoverTask(taskRef) {
     day.deletedRepeatIds ||= [];
     if (!day.deletedRepeatIds.includes(source.task.repeatId)) day.deletedRepeatIds.push(source.task.repeatId);
   }
-  source.task.carryoverDeletedFrom = iso(selectedDate);
+  markCarryoverDeletedFromDate(taskRef, iso(selectedDate), source);
   saveState({ fastSave: true });
   renderAll();
   showUndoNotice("이월 우선업무를 삭제했습니다.");
