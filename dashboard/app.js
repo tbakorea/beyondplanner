@@ -11009,8 +11009,8 @@ function syncTaskTimeHintToSchedule(task, day = ensureDay(), options = {}) {
     day.appointments[targetSlot] = `${current} / ${hint.text}`;
     changed = true;
   }
-  if (!day.autoTaskScheduleLinks[linkId] || day.autoTaskScheduleLinks[linkId].slot !== targetSlot || day.autoTaskScheduleLinks[linkId].text !== hint.text) {
-    day.autoTaskScheduleLinks[linkId] = { type: "task", slot: targetSlot, text: hint.text };
+  if (!day.autoTaskScheduleLinks[linkId] || day.autoTaskScheduleLinks[linkId].slot !== targetSlot || day.autoTaskScheduleLinks[linkId].text !== hint.text || day.autoTaskScheduleLinks[linkId].sourceDate !== dayKey) {
+    day.autoTaskScheduleLinks[linkId] = { type: "task", slot: targetSlot, text: hint.text, sourceDate: dayKey };
     changed = true;
   }
   task.scheduledSlot = targetSlot;
@@ -11040,6 +11040,7 @@ function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = [], options = 
   const directTaskSlots = new Set();
   const selectedKey = options.dayKey || iso(selectedDate);
   if (purgeMisdatedTaskScheduleArtifacts(day, selectedKey)) changed = true;
+  if (clearStaleCarryoverScheduleLinks(day, carryovers, selectedKey)) changed = true;
   getTaskRefs(day).forEach(({ task }) => {
     if (isFutureCarryoverTask(task, selectedKey)) return;
     if (syncTaskTimeHintToSchedule(task, day, { dayKey: selectedKey })) changed = true;
@@ -11049,7 +11050,12 @@ function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = [], options = 
   });
   if (shouldSyncCarryoverTimeHints(selectedKey)) {
     carryovers.forEach((task) => {
-      if (syncTaskTextTimeHintToSchedule(task.text, day, { blockedSlots: directTaskSlots, linkId: getCarryoverScheduleLinkId(task), inactive: shouldRemoveTaskScheduleLink(task) })) changed = true;
+      if (syncTaskTextTimeHintToSchedule(task.text, day, {
+        blockedSlots: directTaskSlots,
+        linkId: getCarryoverScheduleLinkId(task),
+        inactive: shouldRemoveTaskScheduleLink(task),
+        sourceDate: task.date || task.carryoverSourceDate || "",
+      })) changed = true;
     });
   } else if (clearAutoTaskScheduleLinks(day, (link) => link.type === "carryover")) {
     changed = true;
@@ -11065,6 +11071,7 @@ function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = 
   const hint = extractTaskTimeHint(text);
   const targetSlot = hint ? resolveTaskTimeHintSlot(hint, slots) : "";
   const linkId = options.linkId || "";
+  const sourceDate = options.sourceDate || "";
   let changed = false;
   const existingLink = linkId ? day.autoTaskScheduleLinks[linkId] : null;
   if (options.inactive) {
@@ -11091,8 +11098,8 @@ function syncTaskTextTimeHintToSchedule(text = "", day = ensureDay(), options = 
     day.appointments[targetSlot] = `${current} / ${hint.text}`;
     changed = true;
   }
-  if (linkId && (!existingLink || existingLink.slot !== targetSlot || existingLink.text !== hint.text)) {
-    day.autoTaskScheduleLinks[linkId] = { type: "carryover", slot: targetSlot, text: hint.text };
+  if (linkId && (!existingLink || existingLink.slot !== targetSlot || existingLink.text !== hint.text || existingLink.sourceDate !== sourceDate)) {
+    day.autoTaskScheduleLinks[linkId] = { type: "carryover", slot: targetSlot, text: hint.text, sourceDate };
     changed = true;
   }
   return changed;
@@ -11168,11 +11175,33 @@ function clearOrphanTaskScheduleLinks(day = ensureDay()) {
   return clearAutoTaskScheduleLinks(day, (link, linkId) => link?.type === "task" && !validTaskLinkIds.has(linkId));
 }
 
+function clearStaleCarryoverScheduleLinks(day = ensureDay(), carryovers = [], key = iso(selectedDate)) {
+  if (!day) return false;
+  day.autoTaskScheduleLinks ||= {};
+  const validCarryoverLinkIds = new Set(
+    carryovers
+      .filter((task) => !shouldRemoveTaskScheduleLink(task))
+      .map((task) => getCarryoverScheduleLinkId(task)),
+  );
+  return clearAutoTaskScheduleLinks(day, (link, linkId) => {
+    if (link?.type !== "carryover") return false;
+    if (!validCarryoverLinkIds.has(linkId)) return true;
+    return Boolean(link.sourceDate && key && link.sourceDate >= key);
+  });
+}
+
+function clearMisdatedDirectTaskScheduleLinks(day = ensureDay(), key = iso(selectedDate)) {
+  if (!day || !key) return false;
+  day.autoTaskScheduleLinks ||= {};
+  return clearAutoTaskScheduleLinks(day, (link) => link?.type === "task" && link.sourceDate && link.sourceDate !== key);
+}
+
 function purgeMisdatedTaskScheduleArtifacts(day = ensureDay(), key = iso(selectedDate)) {
   let changed = false;
   if (purgePrematureCarryoverEntries(day, key)) changed = true;
   if (purgeCrossDayTaskClones(day, key)) changed = true;
   if (clearOrphanTaskScheduleLinks(day)) changed = true;
+  if (clearMisdatedDirectTaskScheduleLinks(day, key)) changed = true;
   return changed;
 }
 
@@ -14039,6 +14068,7 @@ function getDayTasks(key) {
 function getCarryoverTasks(date) {
   const currentKey = iso(date);
   if (!shouldShowCarryoversForDate(currentKey)) return [];
+  const suppressedIdentities = buildCarryoverSuppressionSet(currentKey);
   const candidates = Object.keys(state.days)
     .filter((key) => key < currentKey)
     .sort()
@@ -14050,9 +14080,44 @@ function getCarryoverTasks(date) {
       if (completedKey && completedKey < currentKey) return false;
       if (task.status === "연기" && task.postponeDate) return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
+      if (isCarryoverIdentitySuppressed(task, suppressedIdentities)) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });
   return dedupeCarryoverTasks(candidates);
+}
+
+function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
+  const suppressed = new Set();
+  if (!isValidIsoDate(currentKey)) return suppressed;
+  Object.keys(state.days || {})
+    .filter((key) => key <= currentKey)
+    .sort()
+    .forEach((key) => {
+      getDayTasks(key).forEach((task) => {
+        if (!task?.text || !shouldSuppressOpenCarryoverCandidate(task, currentKey)) return;
+        getCarryoverIdentityValues(task).forEach((identity) => suppressed.add(identity));
+      });
+    });
+  return suppressed;
+}
+
+function shouldSuppressOpenCarryoverCandidate(task = {}, currentKey = iso(selectedDate)) {
+  const completedKey = task.carryoverDoneDate || "";
+  const deletedFrom = task.carryoverDeletedFrom || "";
+  if (deletedFrom && deletedFrom <= currentKey) return true;
+  if (completedKey && completedKey < currentKey) return true;
+  if (task.done || task.status === "완료") return true;
+  if (["위임", "취소"].includes(task.status)) return true;
+  return Boolean(task.status === "연기" && task.postponeDate);
+}
+
+function getCarryoverIdentityValues(task = {}) {
+  return [getCarryoverTaskIdentity(task), getCarryoverSemanticIdentity(task)].filter(Boolean);
+}
+
+function isCarryoverIdentitySuppressed(task = {}, suppressedIdentities = new Set()) {
+  if (!suppressedIdentities?.size) return false;
+  return getCarryoverIdentityValues(task).some((identity) => suppressedIdentities.has(identity));
 }
 
 function getCarryoverTaskIdentity(task = {}) {
