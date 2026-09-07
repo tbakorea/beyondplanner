@@ -1833,6 +1833,11 @@ async function pullServerStateIfNewer(options = {}) {
     scheduleAccountSave(250);
     return;
   }
+  if (!options.force && hasRecentDailyTaskMutation()) {
+    saveStatus.message = "입력 반영 중";
+    renderSidebarAfterDailyInput();
+    return;
+  }
   if (isAnyPlannerInputEditing()) {
     saveStatus.message = "입력 완료 후 최신 확인";
     renderSidebarAfterDailyInput();
@@ -13547,7 +13552,7 @@ function getDayTasks(key) {
 function getCarryoverTasks(date) {
   const currentKey = iso(date);
   if (!shouldShowCarryoversForDate(currentKey)) return [];
-  return Object.keys(state.days)
+  const candidates = Object.keys(state.days)
     .filter((key) => key < currentKey)
     .sort()
     .flatMap((key) => getDayTasks(key))
@@ -13560,6 +13565,35 @@ function getCarryoverTasks(date) {
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
       return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
     });
+  return dedupeCarryoverTasks(candidates);
+}
+
+function getCarryoverTaskIdentity(task = {}) {
+  const postponeRoot = task.postponedFrom || task.postponeId || "";
+  if (postponeRoot) return `postpone:${postponeRoot}`;
+  if (task.repeatId) return `repeat:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}`;
+  if (task.financeItemId) return `money:${task.financeItemId}`;
+  if (task.projectTaskId) return `project:${task.projectTaskId}`;
+  const taskRoot = task.carryoverForkFrom || task.id || "";
+  if (taskRoot) return `task:${taskRoot}`;
+  return `text:${normalizeSearchText(task.text || "")}:${task.priority || ""}`;
+}
+
+function shouldPreferCarryoverCandidate(next = {}, current = {}) {
+  const nextDate = next.date || "";
+  const currentDate = current.date || "";
+  if (nextDate !== currentDate) return nextDate > currentDate;
+  return getTaskOrder(next) > getTaskOrder(current);
+}
+
+function dedupeCarryoverTasks(tasks = []) {
+  const byIdentity = new Map();
+  tasks.forEach((task) => {
+    const identity = getCarryoverTaskIdentity(task);
+    const existing = byIdentity.get(identity);
+    if (!existing || shouldPreferCarryoverCandidate(task, existing)) byIdentity.set(identity, task);
+  });
+  return Array.from(byIdentity.values());
 }
 
 function shouldShowCarryoversForDate(key = iso(selectedDate)) {
@@ -14207,11 +14241,21 @@ function renderStartupFrame(options = {}) {
   ensureDay();
   if (options.syncMoney && syncMoneyTaskLinks()) saveState({ fastSave: true });
   renderSidebar();
-  renderDay();
+  renderDay({ forceLists: Boolean(options.forceLists) });
   renderWeatherChip();
   normalizePrimaryNavigationLabels();
   updateSettingsTabState();
   updateStickyPanelTop();
+}
+
+function renderHydratedTodayFrame() {
+  selectedDate = todayInPlanner();
+  selectedFinanceMonth = monthKey(selectedDate);
+  currentDayPanel = "main";
+  daySwipeKey = "";
+  showView("day");
+  renderStartupFrame({ syncMoney: true, forceLists: true });
+  stabilizeDaySwipePosition("main");
 }
 
 function scheduleIdleTask(callback, timeout = 1200) {
@@ -14432,15 +14476,14 @@ async function setup() {
   renderBootCoaching();
   hydrateWeatherFromCache();
   renderWeatherChip();
-  hideBootScreen(hasInitialDeviceCache ? 40 : 80);
+  if (hasInitialDeviceCache) hideBootScreen(40);
   await hydrateServerState();
-  renderStartupFrame({ syncMoney: true });
+  renderHydratedTodayFrame();
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
   setBootMessage("최신 내용을 반영하는 중");
   hideBootScreen(40);
   window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
-  stabilizeDaySwipePosition("main");
   window.setInterval(queuePassiveServerPull, 15000);
   window.addEventListener("pagehide", persistDisplayCache);
   document.addEventListener("visibilitychange", () => {
