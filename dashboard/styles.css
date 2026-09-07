@@ -21996,3 +21996,14 @@ body.classic-mode .daily-date-button #dayTitle {
     font-size: var(--daily-date-font, clamp(18px, 5.4vw, 25px)) !important;
   }
 }
+
+/* Cancellation state must draw a clear red center line while preserving black task text. */
+.task-row.is-cancelled .task-text-input,
+.task-row.done.is-cancelled .task-text-input {
+  color: var(--ink) !important;
+  -webkit-text-decoration-line: line-through !important;
+  text-decoration-line: line-through !important;
+  text-decoration-color: #d7372f !important;
+  text-decoration-thickness: 3px !important;
+  text-decoration-skip-ink: none !important;
+}

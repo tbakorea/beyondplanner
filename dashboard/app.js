@@ -9779,6 +9779,8 @@ function updateTaskRowPriorityVisual(row, value) {
   const isPriorityLetter = ["A", "B", "C", "?"].includes(label);
   row.classList.toggle("priority-a", isPriorityA);
   row.classList.toggle("priority-none", !isPriorityA);
+  row.classList.toggle("is-cancelled", value === "취소");
+  if (value === "취소") row.classList.add("done");
   const statusCell = row.querySelector(".task-status-cell");
   const statusLabel = row.querySelector(".task-status-label");
   if (statusCell) statusCell.dataset.status = label;
@@ -9866,7 +9868,7 @@ function renderTaskRow(task, priority, index) {
   const marker = getTaskMarker(task);
   const isStruck = shouldStrikeTask(task);
   const menuValue = getPriorityMenuValue(task, priority);
-  row.className = `task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${task.status === "위임" ? "is-delegated" : ""} ${isStruck ? "done" : ""}`;
+  row.className = `task-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${task.status === "위임" ? "is-delegated" : ""} ${task.status === "취소" ? "is-cancelled" : ""} ${isStruck ? "done" : ""}`;
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
   const inlineTags = task.financeItemId ? linkTags.filter((tag) => tag !== "Money") : linkTags;
@@ -10136,6 +10138,7 @@ function reflectTaskMarkerOnRow(row, task) {
   });
   row.classList.toggle("done", shouldStrikeTask(task));
   row.classList.toggle("is-delegated", task.status === "위임");
+  row.classList.toggle("is-cancelled", task.status === "취소");
   const cycle = row.querySelector(".task-cycle");
   if (cycle) cycle.textContent = getTaskMarkerLabel(marker);
 }
@@ -10545,7 +10548,8 @@ function renderCarryoverTask(task) {
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
   const inlineTags = task.financeItemId ? linkTags.filter((tag) => tag !== "Money") : linkTags;
-  row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${completedHere ? "done" : ""}`;
+  const isStruck = completedHere || shouldStrikeTask(task);
+  row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${task.status === "취소" ? "is-cancelled" : ""} ${isStruck ? "done" : ""}`;
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
