@@ -3032,6 +3032,13 @@ function setupSelectors() {
   el("aiTaskSuggest").onclick = () => openSectionCoach("tasks");
   el("aiCompassSuggest").onclick = () => openSectionCoach("week");
   el("aiScheduleSuggest").onclick = () => openSectionCoach("schedule");
+  document.querySelectorAll("[data-schedule-range]").forEach((button) => {
+    button.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      mergeAppointmentRange(ensureDay(), button.dataset.scheduleRange);
+    };
+  });
   el("scheduleUnit30").onclick = () => setScheduleUnitFromDate("30");
   el("scheduleUnit60").onclick = () => setScheduleUnitFromDate("60");
   el("scheduleStartTime").onchange = updateScheduleRangeSetting;
@@ -10943,7 +10950,8 @@ function extractTaskTimeHint(text = "") {
   const match = wrapped || plain;
   if (!match) return null;
   const meridiem = wrapped ? match[1] : match[3];
-  const rawHour = Number(wrapped ? match[2] : match[4]);
+  const hourToken = wrapped ? match[2] : match[4];
+  const rawHour = Number(hourToken);
   const minute = wrapped ? (match[3] ? Number(match[3]) : 0) : Number(match[5]);
   let hour = rawHour;
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
@@ -10955,6 +10963,7 @@ function extractTaskTimeHint(text = "") {
     rawHour,
     minute,
     hasMeridiem: Boolean(meridiem),
+    hasLeadingZero: /^0\d$/.test(hourToken),
     slot: `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`,
     text: source.replace(raw, "").replace(/\s{2,}/g, " ").trim(),
   };
@@ -11241,11 +11250,12 @@ function getTaskTimeHintSlot(text = "", day = ensureDay()) {
 function resolveTaskTimeHintSlot(hint, slots = []) {
   if (!hint) return "";
   const candidates = [hint.slot];
-  if (!hint.hasMeridiem && hint.rawHour >= 1 && hint.rawHour <= 7) {
+  const canInferAfternoon = !hint.hasMeridiem && !hint.hasLeadingZero && hint.rawHour >= 1 && hint.rawHour <= 7;
+  if (canInferAfternoon) {
     candidates.push(`${String(hint.rawHour + 12).padStart(2, "0")}:${String(hint.minute).padStart(2, "0")}`);
   }
   if (hint.minute && !candidates.some((slot) => slots.includes(slot))) {
-    candidates.push(`${String((!hint.hasMeridiem && hint.rawHour >= 1 && hint.rawHour <= 7 ? hint.rawHour + 12 : hint.rawHour)).padStart(2, "0")}:00`);
+    candidates.push(`${String((canInferAfternoon ? hint.rawHour + 12 : hint.rawHour)).padStart(2, "0")}:00`);
   }
   return candidates.find((slot) => slots.includes(slot)) || "";
 }
