@@ -1523,12 +1523,13 @@ async function hydrateServerState() {
       const localUpdatedAt = localMeta.updatedAt || "";
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
-      const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent);
+      const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
+      const canUploadLocal = canUploadLocalStateDuringHydration(payload, localMeta, localHasContent, serverHasContent) || hasRuntimeDirtyEdit;
       if (hasRuntimeLocalEditSince(hydrationStartedSeq) && queueIncomingServerStateMerge(payload, hydrationBaseState, "입력 완료 후 최신 데이터 병합")) {
         return;
       }
       lastServerUpdatedAt = payload.updatedAt || "";
-      if (canUploadLocal && isTimestampNewer(localUpdatedAt, payload.updatedAt)) {
+      if (canUploadLocal && (hasRuntimeDirtyEdit || isTimestampNewer(localUpdatedAt, payload.updatedAt))) {
         saveStatus.message = "최신 변경 저장 중";
         scheduleAccountSave(120);
       } else if (!serverHasContent && localHasContent) {
@@ -1913,6 +1914,10 @@ function markLocalStateUpdated(extra = {}) {
   const updatedAt = new Date().toISOString();
   saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, accountEmail: getAuthSession()?.email || "", ...extra });
   return updatedAt;
+}
+
+function hasCurrentRuntimeDirtyEdit(meta = getStateMeta()) {
+  return Boolean(meta?.dirty && plannerMutationSeq > 0 && Number(meta.mutationSeq || 0) > 0);
 }
 
 function storeStateFromServer(payload, message) {
@@ -9881,6 +9886,7 @@ function renderTaskRow(task, priority, index) {
     event.stopPropagation();
     runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
       const feedback = cycleTaskMarker(task);
+      reflectTaskMarkerOnRow(row, task);
       showTaskCycleFeedback(cycle, feedback);
       saveState({ fastSave: true });
       renderDayAfterTaskMutation();
@@ -10094,14 +10100,6 @@ function runTaskCycleOnce(anchor, handler) {
 
 function cycleTaskMarker(task) {
   const marker = getTaskMarker(task);
-  if (marker === "empty") {
-    task.done = true;
-    task.status = "완료";
-    task.delegate = "";
-    task.postponeMode = "";
-    task.postponeDate = "";
-    return "완료";
-  }
   if (marker === "check") {
     task.done = false;
     task.status = "진행중";
@@ -10115,12 +10113,25 @@ function cycleTaskMarker(task) {
     task.postponeDate = "";
     return "해제";
   }
-  task.done = false;
-  task.status = "미완료";
+
+  task.done = true;
+  task.status = "완료";
   task.delegate = "";
   task.postponeMode = "";
   task.postponeDate = "";
-  return "해제";
+  return "완료";
+}
+
+function reflectTaskMarkerOnRow(row, task) {
+  if (!row || !task) return;
+  const marker = getTaskMarker(task);
+  ["empty", "check", "dot", "delegate", "postpone"].forEach((name) => {
+    row.classList.toggle(`marker-${name}`, marker === name);
+  });
+  row.classList.toggle("done", shouldStrikeTask(task));
+  row.classList.toggle("is-delegated", task.status === "위임");
+  const cycle = row.querySelector(".task-cycle");
+  if (cycle) cycle.textContent = getTaskMarkerLabel(marker);
 }
 
 function showTaskCycleFeedback(anchor, label = "") {
@@ -10625,6 +10636,7 @@ function updateCarryoverTaskMarker(taskRef, anchor = null) {
   const source = sourceRef?.task;
   if (!source) return;
   const feedback = cycleTaskMarker(source);
+  reflectTaskMarkerOnRow(anchor?.closest?.(".task-row"), source);
   showTaskCycleFeedback(anchor, feedback);
   saveState({ fastSave: true });
   renderDayAfterTaskMutation();
