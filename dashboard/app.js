@@ -1733,7 +1733,7 @@ function scheduleAccountSave(delay = 650) {
       window.clearTimeout(accountSaveTimer);
       accountSaveTimer = window.setTimeout(async () => {
         await hydrateServerState();
-        if (accountSaveReady && hasCurrentRuntimeDirtyEdit(getStateMeta())) {
+        if (accountSaveReady && hasPendingPlannerSave()) {
           persistStateToServer();
         } else {
           saveStatus.saving = false;
@@ -1752,15 +1752,16 @@ function scheduleAccountSave(delay = 650) {
   }, delay);
 }
 
-function flushPlannerSave(reason = "즉시 저장") {
+function flushPlannerSave(reason = "즉시 저장", options = {}) {
   window.clearTimeout(accountSaveTimer);
   const meta = getStateMeta();
-  if (!meta.dirty && !saveStatus.saving) {
+  const hasPendingSave = hasPendingPlannerSave(meta);
+  if (!hasPendingSave && !saveStatus.saving) {
     saveStatus.message = "저장됨";
     renderSidebarAfterDailyInput();
     return;
   }
-  if (meta.dirty && !hasCurrentRuntimeDirtyEdit(meta)) {
+  if (!hasPendingSave) {
     saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
     saveStatus.saving = false;
     saveStatus.message = "최신 데이터 확인 중";
@@ -1771,7 +1772,7 @@ function flushPlannerSave(reason = "즉시 저장") {
   saveStatus.saving = true;
   saveStatus.message = reason;
   renderSidebarAfterDailyInput();
-  persistStateToServer();
+  persistStateToServer(options);
 }
 
 async function persistStateToServer(options = {}) {
@@ -1817,12 +1818,18 @@ async function persistStateToServer(options = {}) {
   const baseUpdatedAt = getServerBaseUpdatedAt(meta);
   const stateSnapshot = clonePlannerValue(state);
   const saveStartedMutationSeq = plannerMutationSeq;
+  const requestBody = JSON.stringify({ state: stateSnapshot, updatedAt, baseUpdatedAt });
+  const requestOptions = {
+    method: "POST",
+    cache: "no-store",
+    headers: authStateHeaders({ "Content-Type": "application/json" }),
+    body: requestBody,
+    ...(options.keepalive ? { keepalive: true } : {}),
+  };
   try {
-    const response = await fetchWithTimeout("/api/state", {
-      method: "POST",
-      headers: authStateHeaders({ "Content-Type": "application/json" }),
-      body: JSON.stringify({ state: stateSnapshot, updatedAt, baseUpdatedAt }),
-    }, STATE_SAVE_TIMEOUT_MS);
+    const response = options.keepalive
+      ? await fetch("/api/state", requestOptions)
+      : await fetchWithTimeout("/api/state", requestOptions, STATE_SAVE_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
     if (payload.stale) {
@@ -1997,6 +2004,13 @@ function hasPersistedLocalEditAheadOfServer(meta = getStateMeta(), serverUpdated
   if (!localMs) return false;
   const serverMs = timestampMs(serverUpdatedAt || meta.baseUpdatedAt || meta.lastSavedAt || "");
   return !serverMs || localMs > serverMs;
+}
+
+function hasPendingPlannerSave(meta = getStateMeta()) {
+  if (!meta?.dirty || !hasPlannerContent(state)) return false;
+  if (hasCurrentRuntimeDirtyEdit(meta)) return true;
+  const knownServerUpdatedAt = getServerBaseUpdatedAt(meta) || lastServerUpdatedAt || "";
+  return hasPersistedLocalEditAheadOfServer(meta, knownServerUpdatedAt);
 }
 
 function storeStateFromServer(payload, message) {
@@ -2929,15 +2943,16 @@ function hydrateFieldValueUnlessEditing(field, value = "") {
   if (field.value !== value) field.value = value;
 }
 
-function bindDayTextFields(day = ensureDay()) {
+function bindDayTextFields(day = ensureDay(), dayKey = iso(selectedDate)) {
   document.querySelectorAll("[data-day-field]").forEach((field) => {
     const fieldName = field.dataset.dayField;
     if (!fieldName) return;
-    hydrateFieldValueUnlessEditing(field, day[fieldName] || "");
+    const targetDay = ensureDay(dayKey);
+    hydrateFieldValueUnlessEditing(field, targetDay[fieldName] || "");
     const persistField = (duration = 2500) => {
       markPlannerTextEditing(duration);
       markDailyFieldEditing(duration);
-      day[fieldName] = field.value;
+      ensureDay(dayKey)[fieldName] = field.value;
       saveState({ fastSave: true });
     };
     field.onfocus = () => {
@@ -3207,15 +3222,15 @@ function setupSelectors() {
   window.addEventListener("online", queuePassiveServerPull);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      flushPlannerSave("백그라운드 전 저장");
+      flushPlannerSave("백그라운드 전 저장", { keepalive: true });
       return;
     }
     queuePassiveServerPull();
   });
-  window.addEventListener("pagehide", () => flushPlannerSave("앱 닫기 전 저장"));
+  window.addEventListener("pagehide", () => flushPlannerSave("앱 닫기 전 저장", { keepalive: true }));
   window.addEventListener("beforeunload", (event) => {
     if (!getStateMeta().dirty) return;
-    flushPlannerSave("나가기 전 저장");
+    flushPlannerSave("나가기 전 저장", { keepalive: true });
     event.preventDefault();
     event.returnValue = "";
   });
@@ -6605,9 +6620,9 @@ function renderDay(options = {}) {
     renderRepeatPriorityList();
   }
   renderScheduleUnitControls(day);
-  if (!editing) renderAppointments(day);
+  if (!editing) renderAppointments(day, key);
   renderCoach();
-  bindDayTextFields(day);
+  bindDayTextFields(day, key);
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   if (isPlannerCalendarOpen("daily")) renderPlannerCalendarSheet();
   scheduleDailyHeaderFit();
@@ -11532,7 +11547,7 @@ function resizeMergedAppointmentField(field) {
   field.style.height = `${Math.max(32, nextHeight)}px`;
 }
 
-function renderAppointments(day) {
+function renderAppointments(day, dayKey = iso(selectedDate)) {
   const node = el("appointmentList");
   node.innerHTML = "";
   let pointerActionHandledAt = 0;
@@ -11544,16 +11559,17 @@ function renderAppointments(day) {
     if (!slot) return false;
     event.preventDefault();
     event.stopPropagation();
+    const targetDay = ensureDay(dayKey);
     if (actionButton.classList.contains("appointment-delete")) {
-      deleteAppointmentSlot(day, slot);
+      deleteAppointmentSlot(targetDay, slot);
       return true;
     }
     if (actionButton.classList.contains("split-appointment")) {
-      splitAppointmentSlot(day, slot);
+      splitAppointmentSlot(targetDay, slot);
       return true;
     }
     if (actionButton.classList.contains("appointment-merge-button")) {
-      mergeAppointmentSlot(day, slot);
+      mergeAppointmentSlot(targetDay, slot);
       return true;
     }
     return false;
@@ -11600,18 +11616,19 @@ function renderAppointments(day) {
     let valueBeforeEdit = value;
     input.onfocus = () => {
       markDailyFieldEditing(10 * 60 * 1000);
-      valueBeforeEdit = day.appointments[slot] || "";
+      valueBeforeEdit = ensureDay(dayKey).appointments[slot] || "";
     };
     input.oninput = (event) => {
       markDailyFieldEditing(10 * 60 * 1000);
       const nextValue = event.target.value;
+      const targetDay = ensureDay(dayKey);
       if (!nextValue.trim() && valueBeforeEdit.trim()) {
-        day.appointments[slot] = nextValue;
+        targetDay.appointments[slot] = nextValue;
         row.classList.remove("is-filled");
         resizeMergedAppointmentField(input);
         return;
       }
-      day.appointments[slot] = nextValue;
+      targetDay.appointments[slot] = nextValue;
       input.title = nextValue.trim() || `${rangeLabel} 일정`;
       saveState();
       row.classList.toggle("is-filled", Boolean(nextValue.trim()));
@@ -11621,17 +11638,18 @@ function renderAppointments(day) {
     input.onblur = () => {
       markDailyFieldEditing(0);
       const nextValue = input.value;
+      const targetDay = ensureDay(dayKey);
       if (!nextValue.trim() && valueBeforeEdit.trim()) {
         if (!confirmDelete(`${slot} 일정 '${valueBeforeEdit}'을 삭제할까요?`)) {
           input.value = valueBeforeEdit;
-          day.appointments[slot] = valueBeforeEdit;
+          targetDay.appointments[slot] = valueBeforeEdit;
           saveState({ fastSave: true });
           row.classList.add("is-filled");
           renderSidebar();
           return;
         }
         captureUndo("시간별 일정 삭제");
-        day.appointments[slot] = "";
+        targetDay.appointments[slot] = "";
         saveState();
         row.classList.remove("is-filled");
         renderSidebar();
@@ -11651,9 +11669,9 @@ function renderAppointments(day) {
         event.stopPropagation();
       });
     };
-    bindAppointmentAction(row.querySelector(".appointment-delete"), () => deleteAppointmentSlot(day, slot));
-    bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(day, slot));
-    bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(day, slot));
+    bindAppointmentAction(row.querySelector(".appointment-delete"), () => deleteAppointmentSlot(ensureDay(dayKey), slot));
+    bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(ensureDay(dayKey), slot));
+    bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(ensureDay(dayKey), slot));
     node.appendChild(row);
   });
 }
@@ -11938,14 +11956,14 @@ function isMemoDetailEditingForKey(key) {
 function bindMemoDetailFields(entryKey) {
   if (!entryKey) return;
   const detail = el("memoDetail");
-  const target = ensureDay(entryKey);
   detail?.querySelectorAll("[data-memo-detail-field]").forEach((field) => {
     const fieldName = field.dataset.memoDetailField;
     if (!fieldName) return;
+    const target = ensureDay(entryKey);
     hydrateFieldValueUnlessEditing(field, target[fieldName] || "");
     const persistField = (duration = 2500) => {
       markPlannerTextEditing(duration);
-      target[fieldName] = field.value;
+      ensureDay(entryKey)[fieldName] = field.value;
       saveState({ fastSave: true });
       refreshMemoListItem(entryKey);
     };
