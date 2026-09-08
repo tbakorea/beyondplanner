@@ -990,6 +990,7 @@ function normalizeDayTasks(day) {
   day.tasks ||= { A: emptyTasks(DAILY_EMPTY_TASK_MIN), B: [], C: [] };
   day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
   normalizeDeletedFinanceTaskIds(day);
+  normalizeDeletedCarryoverTaskIdentities(day);
   priorities.forEach(([priority]) => {
     day.tasks[priority] ||= [];
     day.tasks[priority].forEach((task) => {
@@ -1114,6 +1115,15 @@ function normalizeDeletedFinanceTaskIds(day = {}) {
   return day.deletedFinanceTaskIds;
 }
 
+function normalizeDeletedCarryoverTaskIdentities(day = {}) {
+  if (!Array.isArray(day.deletedCarryoverTaskIdentities)) {
+    day.deletedCarryoverTaskIdentities = [];
+    return day.deletedCarryoverTaskIdentities;
+  }
+  day.deletedCarryoverTaskIdentities = Array.from(new Set(day.deletedCarryoverTaskIdentities.map(String).filter(Boolean)));
+  return day.deletedCarryoverTaskIdentities;
+}
+
 function migrateState(nextState) {
   nextState.appSettings = normalizeAppSettings(nextState.appSettings);
   nextState.finance ||= createFinanceState();
@@ -1150,6 +1160,7 @@ function migrateState(nextState) {
     day.appointmentMerges ||= {};
     day.autoTaskScheduleLinks ||= {};
     normalizeDeletedFinanceTaskIds(day);
+    normalizeDeletedCarryoverTaskIdentities(day);
     day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
     ensureAppointmentSlots(day, day.scheduleUnit);
     normalizeAppointmentMerges(day);
@@ -1166,6 +1177,7 @@ function preparePlannerStateForPersistence(nextState = state) {
     day.appointmentMerges ||= {};
     day.autoTaskScheduleLinks ||= {};
     normalizeDeletedFinanceTaskIds(day);
+    normalizeDeletedCarryoverTaskIdentities(day);
     normalizeAppointmentMerges(day);
     normalizeDayTasks(day);
     dedupeDailyTaskCopies(day, dayKey);
@@ -1509,6 +1521,12 @@ function saveState(options = {}) {
   persistDisplayCache();
   markLocalStateUpdated();
   scheduleAccountSave(options.fastSave ? 120 : 650);
+}
+
+function saveCriticalPlannerAction(reason = "중요 변경 저장 중") {
+  saveState({ fastSave: true });
+  if (accountSaveReady) window.setTimeout(() => flushPlannerSave(reason), 0);
+  else scheduleAccountSave(120);
 }
 
 function refreshDailyTaskRelatedViews() {
@@ -2259,7 +2277,28 @@ function getPayloadPlannerState(payload) {
 
 function mergePlannerStates(baseState, localState, remoteState) {
   const merged = mergePlannerValue(baseState || {}, localState || {}, remoteState || {});
+  mergePlannerDeletionMarkers(merged, localState, remoteState);
   return preparePlannerStateForPersistence(migrateState(merged || {}));
+}
+
+function mergePlannerDeletionMarkers(targetState = {}, localState = {}, remoteState = {}) {
+  targetState.days ||= {};
+  const dayKeys = new Set([
+    ...Object.keys(localState?.days || {}),
+    ...Object.keys(remoteState?.days || {}),
+  ]);
+  const deletionKeys = ["deletedCarryoverTaskIdentities", "deletedFinanceTaskIds", "deletedRepeatIds"];
+  dayKeys.forEach((dayKey) => {
+    const targetDay = targetState.days?.[dayKey];
+    if (!targetDay) return;
+    deletionKeys.forEach((key) => {
+      const values = [
+        ...(Array.isArray(localState?.days?.[dayKey]?.[key]) ? localState.days[dayKey][key] : []),
+        ...(Array.isArray(remoteState?.days?.[dayKey]?.[key]) ? remoteState.days[dayKey][key] : []),
+      ].map(String).filter(Boolean);
+      if (values.length) targetDay[key] = Array.from(new Set([...(targetDay[key] || []), ...values]));
+    });
+  });
 }
 
 async function extractSaveError(response) {
@@ -2330,6 +2369,9 @@ function plannerContentScore(source = state) {
     });
     score += countValues(Object.values(day.appointments || {}));
     score += Object.keys(day.appointmentMerges || {}).length;
+    score += (day.deletedCarryoverTaskIdentities || []).length;
+    score += (day.deletedFinanceTaskIds || []).length;
+    score += (day.deletedRepeatIds || []).length;
     score += countValues(["memo", "record", "wins", "carry", "lesson"].map((field) => day[field]));
   });
   score += (source.repeats?.priorityTasks || []).filter((rule) => hasText(rule.text)).length;
@@ -2372,7 +2414,12 @@ function dayHasContent(day) {
   const hasText = (value) => String(value || "").trim().length > 0;
   const hasTask = Object.values(day.tasks || {}).flat().some((task) => hasText(task.text) || task.done || task.status !== "미완료" || hasText(task.delegate));
   const hasAppointment = Object.values(day.appointments || {}).some(hasText) || Object.keys(day.appointmentMerges || {}).length > 0;
-  return hasTask || hasAppointment || ["memo", "record", "wins", "carry", "lesson"].some((field) => hasText(day[field]));
+  const hasDeletionState = Boolean(
+    (day.deletedCarryoverTaskIdentities || []).length ||
+      (day.deletedFinanceTaskIds || []).length ||
+      (day.deletedRepeatIds || []).length
+  );
+  return hasTask || hasAppointment || hasDeletionState || ["memo", "record", "wins", "carry", "lesson"].some((field) => hasText(day[field]));
 }
 
 function financeHasContent(finance) {
@@ -2430,6 +2477,7 @@ function ensureDay(key = iso(selectedDate)) {
     scheduleUnit,
     deletedRepeatIds: [],
     deletedFinanceTaskIds: [],
+    deletedCarryoverTaskIdentities: [],
     memo: "",
     memoTitle: "",
     record: "",
@@ -2448,6 +2496,7 @@ function ensureDay(key = iso(selectedDate)) {
   state.days[key].autoTaskScheduleLinks ||= {};
   state.days[key].deletedRepeatIds ||= [];
   normalizeDeletedFinanceTaskIds(state.days[key]);
+  normalizeDeletedCarryoverTaskIdentities(state.days[key]);
   ensureAppointmentSlots(state.days[key]);
   normalizeAppointmentMerges(state.days[key]);
   normalizeDayTasks(state.days[key]);
@@ -10081,9 +10130,17 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
     event.stopPropagation();
     runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
       const feedback = cycleTaskMarker(task);
+      if (isMaterializedCarryoverTask(task) && (isTaskCompleted(task) || shouldRemoveTaskScheduleLink(task))) {
+        markCarryoverDeletedFromDate(
+          { ...task, priority, date: dayKey },
+          getCarryoverDeleteFromKey(dayKey),
+          null,
+          { preserveTask: task, preserveTaskDayKey: dayKey },
+        );
+      }
       reflectTaskMarkerOnRow(row, task);
       showTaskCycleFeedback(cycle, feedback);
-      saveState({ fastSave: true });
+      saveCriticalPlannerAction("우선업무 완료 상태 저장 중");
       renderDayAfterTaskMutation();
     });
   };
@@ -10409,7 +10466,15 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     }
     applyInactiveTaskStatus(targetTask, value);
     clearTaskScheduleLinkForInactive(targetTask, day);
-    saveState({ fastSave: true });
+    if (isMaterializedCarryoverTask(targetTask)) {
+      markCarryoverDeletedFromDate(
+        { ...targetTask, priority: location?.priority || fromPriority, date: iso(selectedDate) },
+        getCarryoverDeleteFromKey(iso(selectedDate)),
+        null,
+        { preserveTask: targetTask, preserveTaskDayKey: iso(selectedDate) },
+      );
+    }
+    saveCriticalPlannerAction("우선업무 상태 저장 중");
     renderDayAfterTaskMutation();
     return;
   }
@@ -10422,7 +10487,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     return;
   }
   targetTask.priorityUnset = true;
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("우선업무 중요도 저장 중");
   renderDayAfterTaskMutation();
 }
 
@@ -10447,7 +10512,7 @@ function moveLocatedTaskPriority(day, location, toPriority) {
     day.tasks[toPriority] ||= [];
     if (!day.tasks[toPriority].includes(task)) day.tasks[toPriority].push(task);
   }
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("우선업무 중요도 저장 중");
   renderDayAfterTaskMutation();
 }
 
@@ -10460,7 +10525,7 @@ function deleteTask(priority, index, taskRef = null) {
     if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘부터 이월에서 제외됩니다.")) return;
     captureUndo("이월 우선업무 삭제");
     deleteMaterializedCarryoverTask(location);
-    saveState({ fastSave: true });
+    saveCriticalPlannerAction("이월 우선업무 삭제 저장 중");
     renderDayAfterTaskMutation();
     showUndoNotice("이월 우선업무를 삭제했습니다.");
     return;
@@ -10478,10 +10543,11 @@ function deleteTask(priority, index, taskRef = null) {
   day.tasks[location.priority].splice(location.index, 1);
   if (isSystemManagedDailyTaskCandidate(task)) {
     const deleteFromKey = getCarryoverDeleteFromKey(iso(selectedDate));
+    markCarryoverIdentityDeletedForDate({ ...task, priority: location.priority, date: deleteFromKey }, deleteFromKey);
     markSemanticCarryoverDuplicatesDeletedFromDate({ ...task, priority: location.priority, date: deleteFromKey }, deleteFromKey);
     removeCarryoverCopiesMatchingRef({ ...task, priority: location.priority, date: deleteFromKey }, deleteFromKey);
   }
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("우선업무 삭제 저장 중");
   renderDayAfterTaskMutation();
   showUndoNotice("우선업무를 삭제했습니다.");
 }
@@ -10495,6 +10561,10 @@ function schedulePostponedTask(task, priority, targetDate) {
   task.postponeMode = "";
   task.postponeId ||= `postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   task.carryoverDeletedFrom = targetDate;
+  unmarkCarryoverIdentityDeletedForDate(
+    { ...task, priority, date: iso(selectedDate) },
+    getCarryoverDeleteFromKey(iso(selectedDate)),
+  );
   const targetDay = ensureDay(targetDate);
   const storedPriority = ["A", "B", "C"].includes(task.postponePriority) ? task.postponePriority : priority;
   const targetPriority = ["A", "B", "C"].includes(storedPriority) ? storedPriority : "A";
@@ -10533,7 +10603,7 @@ function schedulePostponedTask(task, priority, targetDate) {
       targetDay.tasks[targetPriority].push(existingTask);
     }
   }
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("연기 날짜 저장 중");
   renderAll();
 }
 
@@ -10661,6 +10731,59 @@ function getDailyTaskDuplicateIdentities(task = {}, priority = "", dayKey = iso(
   }
   if (text && isSystemManagedDailyTaskCandidate(task)) identities.push(`text:${text}`);
   return identities.filter(Boolean);
+}
+
+function getCarryoverSuppressionIdentityValues(task = {}, priority = "", dayKey = iso(selectedDate)) {
+  if (!task || typeof task !== "object") return [];
+  const taskCopy = { ...task };
+  if (priority && !taskCopy.priority) taskCopy.priority = priority;
+  if (dayKey && !taskCopy.date) taskCopy.date = dayKey;
+  const text = normalizeSearchText(taskCopy.text || "");
+  const taskPriority = taskCopy.priority || priority || taskCopy.originalPriority || "";
+  const identities = [
+    ...getCarryoverIdentityValues(taskCopy),
+    ...getDailyTaskDuplicateIdentities(taskCopy, taskPriority, taskCopy.date || dayKey),
+  ];
+  if (text) {
+    identities.push(`task-text:${text}`, `text:${text}`);
+    if (taskPriority) identities.push(`text:${text}:${taskPriority}`);
+  }
+  return Array.from(new Set(identities.filter(Boolean)));
+}
+
+function markCarryoverIdentityDeletedForDate(taskRef = {}, deleteFromKey = iso(selectedDate), sourceTask = null, sourceDayKey = "") {
+  if (!isValidIsoDate(deleteFromKey)) return false;
+  state.days ||= {};
+  const day = ensureDay(deleteFromKey);
+  const list = normalizeDeletedCarryoverTaskIdentities(day);
+  const identities = [
+    ...getCarryoverSuppressionIdentityValues(taskRef, taskRef.priority || "", taskRef.date || taskRef.carryoverSourceDate || deleteFromKey),
+    ...(sourceTask ? getCarryoverSuppressionIdentityValues(sourceTask, sourceTask.priority || taskRef.priority || "", sourceDayKey || sourceTask.date || taskRef.date || "") : []),
+  ];
+  let changed = false;
+  Array.from(new Set(identities)).forEach((identity) => {
+    if (!identity || list.includes(identity)) return;
+    list.push(identity);
+    changed = true;
+  });
+  return changed;
+}
+
+function unmarkCarryoverIdentityDeletedForDate(taskRef = {}, deleteFromKey = iso(selectedDate), sourceTask = null, sourceDayKey = "") {
+  if (!isValidIsoDate(deleteFromKey)) return false;
+  const day = state.days?.[deleteFromKey];
+  if (!day) return false;
+  const list = normalizeDeletedCarryoverTaskIdentities(day);
+  if (!list.length) return false;
+  const identities = new Set([
+    ...getCarryoverSuppressionIdentityValues(taskRef, taskRef.priority || "", taskRef.date || taskRef.carryoverSourceDate || deleteFromKey),
+    ...(sourceTask ? getCarryoverSuppressionIdentityValues(sourceTask, sourceTask.priority || taskRef.priority || "", sourceDayKey || sourceTask.date || taskRef.date || "") : []),
+  ].filter(Boolean));
+  if (!identities.size) return false;
+  const next = list.filter((identity) => !identities.has(identity));
+  if (next.length === list.length) return false;
+  day.deletedCarryoverTaskIdentities = next;
+  return true;
 }
 
 function isSystemManagedDailyTaskCandidate(task = {}) {
@@ -10825,7 +10948,7 @@ function isCarryoverCopyOfSource(candidate = {}, sourceTask = {}, sourceDayKey =
   return false;
 }
 
-function removeCarryoverCopiesFromDate(sourceTask = {}, deleteFromKey = iso(selectedDate), sourceDayKey = "") {
+function removeCarryoverCopiesFromDate(sourceTask = {}, deleteFromKey = iso(selectedDate), sourceDayKey = "", options = {}) {
   if (!sourceTask || !deleteFromKey) return false;
   let changed = false;
   Object.entries(state.days || {}).forEach(([dayKey, day]) => {
@@ -10834,6 +10957,7 @@ function removeCarryoverCopiesFromDate(sourceTask = {}, deleteFromKey = iso(sele
       const list = day.tasks[priority] || [];
       const next = list.filter((candidate) => {
         normalizeTask(candidate);
+        if (shouldPreserveCarryoverCandidate(candidate, dayKey, options)) return true;
         if (!isCarryoverCopyOfSource(candidate, sourceTask, sourceDayKey)) return true;
         clearTaskScheduleLinkForInactive(candidate, day);
         return false;
@@ -10847,7 +10971,14 @@ function removeCarryoverCopiesFromDate(sourceTask = {}, deleteFromKey = iso(sele
   return changed;
 }
 
-function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(selectedDate)) {
+function shouldPreserveCarryoverCandidate(candidate = {}, dayKey = "", options = {}) {
+  const preserveTask = options.preserveTask;
+  const preserveDayKey = options.preserveTaskDayKey || "";
+  if (!preserveTask || !preserveDayKey || dayKey !== preserveDayKey) return false;
+  return candidate === preserveTask || (preserveTask.id && candidate.id === preserveTask.id);
+}
+
+function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(selectedDate), options = {}) {
   if (!deleteFromKey) return false;
   const taskPriority = taskRef.priority || "";
   const taskDate = taskRef.date || taskRef.carryoverSourceDate || deleteFromKey;
@@ -10858,6 +10989,7 @@ function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(sele
     semanticIdentity,
     ...getCarryoverIdentityValues(taskRef),
     ...getDailyTaskDuplicateIdentities(taskRef, taskPriority, taskDate),
+    ...getCarryoverSuppressionIdentityValues(taskRef, taskPriority, taskDate),
   ].filter(Boolean));
   const targetText = normalizeSearchText(taskRef.text || "");
   let changed = false;
@@ -10867,6 +10999,7 @@ function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(sele
       const list = day.tasks[priority] || [];
       const next = list.filter((candidate) => {
         normalizeTask(candidate);
+        if (shouldPreserveCarryoverCandidate(candidate, dayKey, options)) return true;
         const candidateIsRemovable = isMaterializedCarryoverTask(candidate) || isSystemManagedDailyTaskCandidate(candidate);
         if (!candidateIsRemovable) return true;
         const candidateIdentity = getCarryoverTaskIdentity(candidate);
@@ -10876,6 +11009,7 @@ function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(sele
           candidateSemantic,
           ...getCarryoverIdentityValues({ ...candidate, priority, date: dayKey }),
           ...getDailyTaskDuplicateIdentities(candidate, priority, dayKey),
+          ...getCarryoverSuppressionIdentityValues(candidate, priority, dayKey),
         ].filter(Boolean);
         const candidateText = normalizeSearchText(candidate.text || "");
         const matches = Boolean(
@@ -10896,7 +11030,7 @@ function removeCarryoverCopiesMatchingRef(taskRef = {}, deleteFromKey = iso(sele
   return changed;
 }
 
-function markSemanticCarryoverDuplicatesDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate)) {
+function markSemanticCarryoverDuplicatesDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate), options = {}) {
   const semanticIdentity = getCarryoverSemanticIdentity(taskRef);
   if (!semanticIdentity || !deleteFromKey) return false;
   let changed = false;
@@ -10909,7 +11043,7 @@ function markSemanticCarryoverDuplicatesDeletedFromDate(taskRef = {}, deleteFrom
         const candidateIdentity = getCarryoverSemanticIdentity({ ...candidate, priority, date: dayKey });
         if (candidateIdentity !== semanticIdentity) return;
         candidate.carryoverDeletedFrom = deleteFromKey;
-        removeCarryoverCopiesFromDate(candidate, deleteFromKey, dayKey);
+        removeCarryoverCopiesFromDate(candidate, deleteFromKey, dayKey, options);
         changed = true;
       });
     });
@@ -10917,17 +11051,23 @@ function markSemanticCarryoverDuplicatesDeletedFromDate(taskRef = {}, deleteFrom
   return changed;
 }
 
-function markCarryoverDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate), fallbackSource = null) {
+function markCarryoverDeletedFromDate(taskRef = {}, deleteFromKey = iso(selectedDate), fallbackSource = null, options = {}) {
   const source = getCarryoverSourceRecord(taskRef, fallbackSource);
+  const markedIdentity = markCarryoverIdentityDeletedForDate(
+    taskRef,
+    deleteFromKey,
+    source?.task || null,
+    source?.dayKey || taskRef.date || taskRef.carryoverSourceDate || "",
+  );
   if (!source?.task) {
-    const removed = removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey);
-    return markSemanticCarryoverDuplicatesDeletedFromDate(taskRef, deleteFromKey) || removed;
+    const removed = removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey, options);
+    return markedIdentity || markSemanticCarryoverDuplicatesDeletedFromDate(taskRef, deleteFromKey, options) || removed;
   }
   source.task.carryoverDeletedFrom = deleteFromKey;
-  const removedByRef = removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey);
-  const markedSemantic = markSemanticCarryoverDuplicatesDeletedFromDate(taskRef, deleteFromKey);
-  const removedBySource = removeCarryoverCopiesFromDate(source.task, deleteFromKey, source.dayKey);
-  return removedByRef || markedSemantic || removedBySource || true;
+  const removedByRef = removeCarryoverCopiesMatchingRef(taskRef, deleteFromKey, options);
+  const markedSemantic = markSemanticCarryoverDuplicatesDeletedFromDate(taskRef, deleteFromKey, options);
+  const removedBySource = removeCarryoverCopiesFromDate(source.task, deleteFromKey, source.dayKey, options);
+  return markedIdentity || removedByRef || markedSemantic || removedBySource || true;
 }
 
 function deleteMaterializedCarryoverTask(location) {
@@ -11107,7 +11247,7 @@ function deleteCarryoverTask(taskRef) {
   if (!source && isMaterializedCarryoverTask(taskRef)) {
     Object.values(state.days || {}).forEach((day) => dedupeMaterializedCarryoverCopies(day));
   }
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("이월 우선업무 삭제 저장 중");
   renderAll();
   showUndoNotice("이월 우선업무를 삭제했습니다.");
 }
@@ -11117,9 +11257,17 @@ function updateCarryoverTaskMarker(taskRef, anchor = null, targetKey = iso(selec
   const source = sourceRef?.task;
   if (!source) return;
   const feedback = cycleTaskMarker(source);
+  if (isTaskCompleted(source) || shouldRemoveTaskScheduleLink(source)) {
+    markCarryoverDeletedFromDate(
+      { ...source, priority: sourceRef.priority, date: targetKey },
+      getCarryoverDeleteFromKey(targetKey),
+      sourceRef,
+      { preserveTask: source, preserveTaskDayKey: targetKey },
+    );
+  }
   reflectTaskMarkerOnRow(anchor?.closest?.(".task-row"), source);
   showTaskCycleFeedback(anchor, feedback);
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("이월 우선업무 완료 상태 저장 중");
   renderDayAfterTaskMutation();
 }
 
@@ -11138,7 +11286,13 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
     }
     applyInactiveTaskStatus(source.task, value);
     clearTaskScheduleLinkForInactive(source.task, source.day || selectedDay);
-    saveState({ fastSave: true });
+    markCarryoverDeletedFromDate(
+      { ...source.task, priority: source.priority, date: targetKey },
+      getCarryoverDeleteFromKey(targetKey),
+      source,
+      { preserveTask: source.task, preserveTaskDayKey: targetKey },
+    );
+    saveCriticalPlannerAction("이월 우선업무 상태 저장 중");
     renderDayAfterTaskMutation();
     return;
   }
@@ -11152,12 +11306,12 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
       source.day.tasks[source.priority] = source.day.tasks[source.priority].filter((task) => task !== source.task);
       source.day.tasks[value].push(source.task);
     }
-    saveState({ fastSave: true });
+    saveCriticalPlannerAction("이월 우선업무 중요도 저장 중");
     renderDayAfterTaskMutation();
     return;
   }
   source.task.priorityUnset = true;
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("이월 우선업무 중요도 저장 중");
   renderDayAfterTaskMutation();
 }
 
@@ -14376,9 +14530,13 @@ function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
     .filter((key) => key <= currentKey)
     .sort()
     .forEach((key) => {
+      const day = state.days?.[key];
+      if (day) {
+        normalizeDeletedCarryoverTaskIdentities(day).forEach((identity) => suppressed.add(identity));
+      }
       getDayTasks(key).forEach((task) => {
         if (!task?.text || !shouldSuppressOpenCarryoverCandidate(task, currentKey)) return;
-        getCarryoverIdentityValues(task).forEach((identity) => suppressed.add(identity));
+        getCarryoverSuppressionIdentityValues(task, task.priority, task.date || key).forEach((identity) => suppressed.add(identity));
       });
     });
   return suppressed;
@@ -14386,12 +14544,10 @@ function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
 
 function shouldSuppressOpenCarryoverCandidate(task = {}, currentKey = iso(selectedDate)) {
   const completedKey = task.carryoverDoneDate || "";
-  const deletedFrom = task.carryoverDeletedFrom || "";
-  if (deletedFrom && deletedFrom <= currentKey) return true;
   if (completedKey && completedKey < currentKey) return true;
   if (task.done || task.status === "완료") return true;
   if (["위임", "취소"].includes(task.status)) return true;
-  return Boolean(task.status === "연기" && task.postponeDate);
+  return false;
 }
 
 function getCarryoverIdentityValues(task = {}) {
@@ -14400,7 +14556,8 @@ function getCarryoverIdentityValues(task = {}) {
 
 function isCarryoverIdentitySuppressed(task = {}, suppressedIdentities = new Set()) {
   if (!suppressedIdentities?.size) return false;
-  return getCarryoverIdentityValues(task).some((identity) => suppressedIdentities.has(identity));
+  return getCarryoverSuppressionIdentityValues(task, task.priority, task.date || task.carryoverSourceDate || iso(selectedDate))
+    .some((identity) => suppressedIdentities.has(identity));
 }
 
 function getCarryoverTaskIdentity(task = {}) {
