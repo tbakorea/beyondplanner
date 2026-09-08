@@ -908,7 +908,20 @@ function newTaskId() {
 
 function normalizeTask(task = {}) {
   task.id ||= newTaskId();
-  task.status ||= task.done ? "완료" : "미완료";
+  const status = String(task.status || "").trim();
+  if (["위임", "취소", "연기"].includes(status)) {
+    task.status = status;
+    task.done = false;
+  } else if (task.done || status === "완료") {
+    task.status = "완료";
+    task.done = true;
+  } else if (status === "진행중") {
+    task.status = "진행중";
+    task.done = false;
+  } else {
+    task.status = "미완료";
+    task.done = false;
+  }
   task.delegate ||= "";
   task.carryoverDeletedFrom ||= "";
   if (!task.text?.trim() && task.status === "미완료" && task.priorityUnset === undefined) {
@@ -1590,11 +1603,10 @@ async function hydrateServerState() {
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const hasUnflushedLocalEdit = localMeta.dirty && localHasContent && isTimestampNewer(localMeta.updatedAt, payload.updatedAt || lastServerUpdatedAt);
-      const mergeBaseState = hasUnflushedLocalEdit
-        ? readPlannerBaseState() || getPayloadPlannerState(payload) || hydrationBaseState
-        : hydrationBaseState;
-      if ((hasRuntimeDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq) || hasUnflushedLocalEdit) && queueIncomingServerStateMerge(payload, mergeBaseState, "입력 완료 후 최신 데이터 병합")) {
+      if (!hasRuntimeDirtyEdit && localMeta.dirty) {
+        saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+      }
+      if ((hasRuntimeDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq)) && queueIncomingServerStateMerge(payload, hydrationBaseState, "입력 완료 후 최신 데이터 병합")) {
         return;
       }
       lastServerUpdatedAt = payload.updatedAt || "";
@@ -1818,18 +1830,12 @@ async function persistStateToServer(options = {}) {
   }
   let meta = getStateMeta();
   if (meta.dirty && !hasCurrentRuntimeDirtyEdit(meta)) {
-    const knownServerUpdatedAt = getServerBaseUpdatedAt(meta) || lastServerUpdatedAt || "";
-    if (!hasPersistedLocalEditAheadOfServer(meta, knownServerUpdatedAt)) {
-      saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
-      saveStatus.saving = false;
-      saveStatus.message = "최신 데이터 확인 중";
-      renderSidebarAfterDailyInput();
-      await pullServerStateIfNewer({ force: true });
-      return;
-    }
-    saveStatus.saving = true;
-    saveStatus.message = "이전 변경 저장 중";
+    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+    saveStatus.saving = false;
+    saveStatus.message = "최신 데이터 확인 중";
     renderSidebarAfterDailyInput();
+    await pullServerStateIfNewer({ force: true });
+    return;
   }
   const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : meta.updatedAt || markLocalStateUpdated();
   meta = getStateMeta();
@@ -2034,9 +2040,7 @@ function hasPersistedLocalEditAheadOfServer(meta = getStateMeta(), serverUpdated
 
 function hasPendingPlannerSave(meta = getStateMeta()) {
   if (!meta?.dirty || !hasPlannerContent(state)) return false;
-  if (hasCurrentRuntimeDirtyEdit(meta)) return true;
-  const knownServerUpdatedAt = getServerBaseUpdatedAt(meta) || lastServerUpdatedAt || "";
-  return hasPersistedLocalEditAheadOfServer(meta, knownServerUpdatedAt);
+  return hasCurrentRuntimeDirtyEdit(meta);
 }
 
 function storeStateFromServer(payload, message) {
@@ -6755,8 +6759,7 @@ function renderDay(options = {}) {
   if (!editing && purgeMisdatedTaskScheduleArtifacts(day, key) && canPersistDerivedState()) saveState({ fastSave: true });
   const allTasks = getDayTasks(key);
   const carryovers = getCarryoverTasks(parseDate(key));
-  const done = allTasks.filter((task) => task.text && task.done).length + carryovers.filter((task) => isCarryoverCompletedOn(task, key)).length;
-  const total = allTasks.filter((task) => task.text).length + carryovers.length;
+  const { done, total } = getDailyCompletionSummary(day, key, carryovers);
   el("dailyCompletion").textContent = `${done}/${total}`;
   renderDailyPulse(day, allTasks, carryovers, { done, total });
   renderOnboarding(day);
@@ -10158,6 +10161,33 @@ function getTaskDisplayItems(day, carryovers = []) {
   return [...carryoverItems, ...dayItems].sort(compareTaskDisplayItems);
 }
 
+function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers = []) {
+  const seen = new Set();
+  return getTaskDisplayItems(day, carryovers).reduce((summary, item) => {
+    const task = item.task || {};
+    if (!String(task.text || "").trim()) return summary;
+    const taskPriority = item.priority || task.priority || "";
+    const identityParts = item.type === "carryover"
+      ? [
+          "carryover",
+          getCarryoverTaskIdentity({ ...task, priority: taskPriority, date: task.date || task.carryoverSourceDate || dayKey }),
+          task.date || task.carryoverSourceDate || "",
+        ]
+      : [
+          "day",
+          task.id || getDailyTaskDuplicateIdentities(task, taskPriority, dayKey).join("|") || `${taskPriority}:${item.index || 0}`,
+        ];
+    const identity = identityParts.filter(Boolean).join(":");
+    if (seen.has(identity)) return summary;
+    seen.add(identity);
+    summary.total += 1;
+    if (item.type === "carryover" ? (isCarryoverCompletedOn(task, dayKey) || isTaskCompleted(task)) : isTaskCompleted(task)) {
+      summary.done += 1;
+    }
+    return summary;
+  }, { done: 0, total: 0 });
+}
+
 function compareTaskDisplayItems(a, b) {
   const activeDelta = Number(isActiveTaskSlot(b.task)) - Number(isActiveTaskSlot(a.task));
   if (activeDelta) return activeDelta;
@@ -10517,6 +10547,16 @@ function isTaskCompleted(task = {}) {
   return Boolean(task.done || task.status === "완료");
 }
 
+function getStoredTaskPriority(task = {}, fallbackPriority = "") {
+  return [task.priority, task.postponePriority, task.originalPriority, fallbackPriority]
+    .find((value) => ["A", "B", "C"].includes(value)) || "";
+}
+
+function getPostponeRestorePriority(task = {}, fallbackPriority = "") {
+  return [task.postponePriority, task.priority, task.originalPriority, fallbackPriority]
+    .find((value) => ["A", "B", "C"].includes(value)) || "";
+}
+
 function applyInactiveTaskStatus(task, status) {
   if (!task) return;
   task.status = status;
@@ -10559,7 +10599,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   ensureTaskOrder(day, targetTask);
   if (["위임", "취소", "연기"].includes(value)) {
     if (value === "연기") {
-      targetTask.postponePriority = ["A", "B", "C"].includes(targetTask.priority) ? targetTask.priority : location?.priority || fromPriority || "";
+      targetTask.postponePriority = getStoredTaskPriority(targetTask, location?.priority || fromPriority || "");
       targetTask.postponePriorityUnset = Boolean(targetTask.priorityUnset);
     }
     applyInactiveTaskStatus(targetTask, value);
@@ -10652,21 +10692,27 @@ function deleteTask(priority, index, taskRef = null) {
 
 function schedulePostponedTask(task, priority, targetDate) {
   if (!targetDate || Number.isNaN(parseDate(targetDate).getTime())) return;
-  clearTaskScheduleLinkForInactive(task, ensureDay());
+  const sourceKey = iso(selectedDate);
+  const sourceDay = ensureDay(sourceKey);
+  const storedPriority = getPostponeRestorePriority(task, priority);
+  const targetPriority = storedPriority || "A";
+  const targetPriorityUnset = Boolean(task.postponePriorityUnset && !storedPriority);
+  clearTaskScheduleLinkForInactive(task, sourceDay);
   task.status = "연기";
   task.done = false;
   task.postponeDate = targetDate;
   task.postponeMode = "";
   task.postponeId ||= `postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  task.carryoverDeletedFrom = targetDate;
-  unmarkCarryoverIdentityDeletedForDate(
-    { ...task, priority, date: iso(selectedDate) },
-    getCarryoverDeleteFromKey(iso(selectedDate)),
-  );
+  task.postponePriority = storedPriority;
+  task.postponePriorityUnset = targetPriorityUnset;
+  task.carryoverDeletedFrom = sourceKey;
+  const sourceTaskRef = { ...task, priority: storedPriority || priority, date: sourceKey };
+  markCarryoverIdentityDeletedForDate(sourceTaskRef, getCarryoverDeleteFromKey(sourceKey));
+  removeCarryoverCopiesMatchingRef(sourceTaskRef, getCarryoverDeleteFromKey(sourceKey), {
+    preserveTask: task,
+    preserveTaskDayKey: sourceKey,
+  });
   const targetDay = ensureDay(targetDate);
-  const storedPriority = ["A", "B", "C"].includes(task.postponePriority) ? task.postponePriority : priority;
-  const targetPriority = ["A", "B", "C"].includes(storedPriority) ? storedPriority : "A";
-  const targetPriorityUnset = Boolean(task.postponePriorityUnset);
   removePostponedTaskOccurrence(task.postponeId, targetDate);
   let existingTask = null;
   let existingPriority = "";
@@ -10684,7 +10730,7 @@ function schedulePostponedTask(task, priority, targetDate) {
       priorityUnset: targetPriorityUnset,
       priority: targetPriorityUnset ? "" : targetPriority,
       postponedFrom: task.postponeId,
-      postponedSourceDate: iso(selectedDate),
+      postponedSourceDate: sourceKey,
       originalPriority: targetPriority,
     };
     assignTaskOrder(targetDay, existingTask);
@@ -11379,7 +11425,7 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
   if (!source) return;
   if (isInactiveValue) {
     if (value === "연기") {
-      source.task.postponePriority = ["A", "B", "C"].includes(source.task.priority) ? source.task.priority : source.priority || taskRef.priority || "";
+      source.task.postponePriority = getStoredTaskPriority(source.task, source.priority || taskRef.priority || "");
       source.task.postponePriorityUnset = Boolean(source.task.priorityUnset || taskRef.priorityUnset);
     }
     applyInactiveTaskStatus(source.task, value);
