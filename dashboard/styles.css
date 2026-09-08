@@ -21876,7 +21876,7 @@ body.classic-mode .quick-strip::-webkit-scrollbar {
 }
 
 /* Postponed priority tasks: one visible control only.
-   The status button itself displays "미정" or the selected date and opens the calendar. */
+   The status button itself displays "날자" or the selected date and opens the calendar. */
 .task-status-cell:has(.postpone-date-button) .task-status-label,
 .task-status-cell:has(.postpone-date-button) .postpone-date-label {
   display: none !important;

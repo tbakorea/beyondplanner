@@ -10257,7 +10257,7 @@ function getTaskStatusLabel(task, menuValue) {
   if (task.status === "위임") return task.delegate?.trim() || "위임";
   if (task.status === "연기") {
     if (task.postponeDate) return formatCompactMonthDay(task.postponeDate);
-    return "미정";
+    return "날자";
   }
   return menuValue === "선택" ? "?" : menuValue || "?";
 }
@@ -10280,8 +10280,8 @@ function getTaskStatusControl(task, menuValue) {
     return `<input class="delegate-input" type="text" value="${escapeAttr(task.delegate || "")}" placeholder="위임자" />`;
   }
   if (task.status === "연기") {
-    const label = task.postponeDate ? formatCompactMonthDay(task.postponeDate) : "미정";
-    const ariaLabel = task.postponeDate ? `연기 날짜 ${label}, 다시 선택` : "연기 날짜 미정, 날짜 선택";
+    const label = task.postponeDate ? formatCompactMonthDay(task.postponeDate) : "날자";
+    const ariaLabel = task.postponeDate ? `연기 날짜 ${label}, 다시 선택` : "연기 날짜 선택";
     return `<button class="postpone-date-button ${task.postponeDate ? "is-date-set" : "is-undated"}" type="button" aria-label="${escapeAttr(ariaLabel)}">${escapeHtml(label)}</button>`;
   }
   return `
@@ -14515,10 +14515,10 @@ function getCarryoverTasks(date) {
       const deletedFrom = task.carryoverDeletedFrom || "";
       if (deletedFrom && deletedFrom <= currentKey) return false;
       if (completedKey && completedKey < currentKey) return false;
-      if (task.status === "연기" && task.postponeDate) return false;
+      if (task.status === "연기") return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
       if (isCarryoverIdentitySuppressed(task, suppressedIdentities)) return false;
-      return task.text && !task.done && ["미완료", "진행중", "연기"].includes(task.status);
+      return task.text && !task.done && ["미완료", "진행중"].includes(task.status);
     });
   return dedupeCarryoverTasks(candidates);
 }
