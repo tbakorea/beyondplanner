@@ -1882,6 +1882,7 @@ async function persistStateToServer(options = {}) {
         localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
         persistDisplayCache();
         markLocalStateUpdated({
+          updatedAt: nextPlannerMutationTimestamp(serverUpdatedAt, localMeta.updatedAt, updatedAt),
           baseUpdatedAt: serverUpdatedAt,
           lastSavedAt: serverUpdatedAt,
         });
@@ -2005,10 +2006,17 @@ function saveStateMeta(meta) {
   localStorage.removeItem(STATE_META_KEY);
 }
 
+function nextPlannerMutationTimestamp(...candidates) {
+  const floorMs = candidates.reduce((max, value) => Math.max(max, timestampMs(value)), 0);
+  return new Date(Math.max(Date.now(), floorMs + 1)).toISOString();
+}
+
 function markLocalStateUpdated(extra = {}) {
   plannerMutationSeq += 1;
-  const updatedAt = new Date().toISOString();
-  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, accountEmail: getAuthSession()?.email || "", ...extra });
+  const meta = getStateMeta();
+  const { updatedAt: explicitUpdatedAt, ...rest } = extra || {};
+  const updatedAt = explicitUpdatedAt || nextPlannerMutationTimestamp(lastServerUpdatedAt, meta.updatedAt);
+  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, accountEmail: getAuthSession()?.email || "", ...rest });
   return updatedAt;
 }
 
@@ -2097,6 +2105,7 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
   persistDisplayCache();
   lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
   markLocalStateUpdated({
+    updatedAt: nextPlannerMutationTimestamp(lastServerUpdatedAt, localMeta.updatedAt),
     baseUpdatedAt: lastServerUpdatedAt,
     lastSavedAt: lastServerUpdatedAt,
   });
@@ -2145,8 +2154,26 @@ function isPlainPlannerObject(value) {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
+function getPlannerArrayCarryoverMergeKey(item = {}) {
+  if (!isPlainPlannerObject(item)) return "";
+  if (item.carryoverForkFrom) return `carryoverForkFrom:${String(item.carryoverForkFrom)}`;
+  if (item.postponedFrom) return `postponedFrom:${String(item.postponedFrom)}`;
+  const sourceDate = item.carryoverSourceDate || item.postponedSourceDate || "";
+  const sourceId =
+    item.sourceId ||
+    item.postponeId ||
+    item.repeatId ||
+    item.financeItemId ||
+    item.projectTaskId ||
+    "";
+  if (sourceDate && sourceId) return `carryover:${String(sourceDate)}:${String(sourceId)}`;
+  return "";
+}
+
 function getPlannerArrayItemKey(item, index) {
   if (!isPlainPlannerObject(item)) return "";
+  const carryoverKey = getPlannerArrayCarryoverMergeKey(item);
+  if (carryoverKey) return carryoverKey;
   const identityFields = [
     "id",
     "taskId",
@@ -2173,6 +2200,74 @@ function getPlannerArrayItemKey(item, index) {
     return `annual:${item.month}:${item.day}:${item.title || item.text || item.name}`;
   }
   return `index:${index}`;
+}
+
+function isPlannerTaskRecord(value) {
+  if (!isPlainPlannerObject(value)) return false;
+  const hasTaskIdentity = Boolean(
+    value.id ||
+      value.taskId ||
+      value.carryoverForkFrom ||
+      value.carryoverSourceDate ||
+      value.repeatId ||
+      value.financeItemId ||
+      value.projectTaskId ||
+      value.postponedFrom ||
+      value.postponeId,
+  );
+  const hasTaskShape =
+    "text" in value ||
+    "status" in value ||
+    "done" in value ||
+    "priority" in value ||
+    "priorityUnset" in value ||
+    "delegate" in value ||
+    "postponeDate" in value;
+  return hasTaskIdentity && hasTaskShape;
+}
+
+function mergePlannerTaskRecord(baseTask = {}, localTask = {}, remoteTask = {}) {
+  const keys = new Set([
+    ...Object.keys(isPlainPlannerObject(baseTask) ? baseTask : {}),
+    ...Object.keys(isPlainPlannerObject(localTask) ? localTask : {}),
+    ...Object.keys(isPlainPlannerObject(remoteTask) ? remoteTask : {}),
+  ]);
+  const merged = {};
+  keys.forEach((key) => {
+    const value = mergePlannerValue(baseTask?.[key], localTask?.[key], remoteTask?.[key]);
+    if (value !== undefined) merged[key] = value;
+  });
+
+  const localRank = getTaskResolutionRank(localTask || {});
+  const remoteRank = getTaskResolutionRank(remoteTask || {});
+  const baseRank = getTaskResolutionRank(baseTask || {});
+  const winner = localRank >= remoteRank ? localTask : remoteTask;
+  const winnerRank = Math.max(localRank, remoteRank);
+  if (winnerRank > baseRank && isPlainPlannerObject(winner)) {
+    [
+      "status",
+      "done",
+      "delegate",
+      "postponeMode",
+      "postponeDate",
+      "postponeId",
+      "postponePriority",
+      "postponePriorityUnset",
+      "carryoverDoneDate",
+      "carryoverDeletedFrom",
+    ].forEach((key) => {
+      if (winner[key] !== undefined) merged[key] = clonePlannerValue(winner[key]);
+    });
+    if (winner.done || winner.status === "완료") {
+      merged.done = true;
+      merged.status = "완료";
+    } else if (["취소", "연기", "위임"].includes(winner.status)) {
+      merged.done = false;
+      merged.status = winner.status;
+    }
+  }
+
+  return merged;
 }
 
 function canMergePlannerArrayByKey(...arrays) {
@@ -2249,6 +2344,9 @@ function mergePlannerValue(baseValue, localValue, remoteValue) {
       Array.isArray(localValue) ? localValue : [],
       Array.isArray(remoteValue) ? remoteValue : [],
     );
+  }
+  if (isPlannerTaskRecord(localValue) || isPlannerTaskRecord(remoteValue) || isPlannerTaskRecord(baseValue)) {
+    return mergePlannerTaskRecord(baseValue, localValue, remoteValue);
   }
   if (isPlainPlannerObject(localValue) && isPlainPlannerObject(remoteValue)) {
     const keys = new Set([

@@ -834,7 +834,7 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
     user_id = user.get("id")
     if not user_id:
         raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
-    updated_at = str(payload.get("updatedAt") or utc_now()).strip()
+    updated_at = utc_now()
     base_updated_at = str(payload.get("baseUpdatedAt") or "").strip()
     existing = get_supabase_planner_state(token)
     existing_updated_at = existing.get("updatedAt") or ""
@@ -852,14 +852,6 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
             "ok": True,
             "stale": True,
             "conflict": True,
-            "state": existing.get("state"),
-            "updatedAt": existing_updated_at,
-            "storage": "supabase-db",
-        }
-    if existing.get("exists") and is_newer_timestamp(existing.get("updatedAt"), updated_at):
-        return {
-            "ok": True,
-            "stale": True,
             "state": existing.get("state"),
             "updatedAt": existing_updated_at,
             "storage": "supabase-db",
