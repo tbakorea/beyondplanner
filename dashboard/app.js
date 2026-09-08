@@ -2584,12 +2584,37 @@ function normalizeAppointmentMerges(day) {
   day.appointmentMerges ||= {};
   day.appointments ||= {};
   const slots = getScheduleSlotsForDay(day);
+  const entries = Object.entries(day.appointmentMerges || {})
+    .map(([slot, span]) => {
+      const index = slots.indexOf(slot);
+      const nextSpan = Math.max(1, Math.floor(Number(span) || 1));
+      return {
+        slot,
+        index,
+        span: index >= 0 ? Math.min(nextSpan, slots.length - index) : nextSpan,
+      };
+    })
+    .filter((entry) => entry.index >= 0 && entry.span > 1)
+    .sort((a, b) => a.index - b.index);
   const normalized = {};
-  Object.entries(day.appointmentMerges || {}).forEach(([slot, span]) => {
-    const index = slots.indexOf(slot);
-    const nextSpan = Math.max(1, Math.floor(Number(span) || 1));
-    if (index < 0 || nextSpan <= 1) return;
-    normalized[slot] = Math.min(nextSpan, slots.length - index);
+  let active = null;
+  entries.forEach((entry) => {
+    const entryEnd = Math.min(slots.length, entry.index + entry.span);
+    if (active && entry.index < active.end) {
+      const overlappedSlots = slots.slice(entry.index, entryEnd);
+      const texts = [day.appointments[active.slot], ...overlappedSlots.map((coveredSlot) => day.appointments[coveredSlot])]
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+      if (texts.length) day.appointments[active.slot] = [...new Set(texts)].join(" ");
+      overlappedSlots.forEach((coveredSlot) => {
+        if (coveredSlot !== active.slot && day.appointments[coveredSlot]) day.appointments[coveredSlot] = "";
+      });
+      active.end = Math.max(active.end, entryEnd);
+      normalized[active.slot] = Math.max(normalized[active.slot] || 1, active.end - active.index);
+      return;
+    }
+    normalized[entry.slot] = entryEnd - entry.index;
+    active = { slot: entry.slot, index: entry.index, end: entryEnd };
   });
   day.appointmentMerges = normalized;
   Object.entries(day.appointmentMerges).forEach(([startSlot, span]) => {
@@ -11556,14 +11581,15 @@ function renderAppointments(day) {
     const isCurrent = isCurrentAppointmentSlot(slotIndex, span, slots);
     row.className = `appointment-row ${value ? "is-filled" : ""} ${span > 1 ? "is-merged" : ""} ${isCurrent ? "is-current-time" : ""}`;
     row.dataset.appointmentSlot = slot;
+    row.dataset.appointmentSpan = String(span);
+    row.dataset.appointmentEndSlot = endSlot;
     row.style.setProperty("--slot-span", span);
     const nextIndex = slotIndex + span;
     const canMerge = nextIndex < slots.length;
-    const fieldMarkup = span > 1
-      ? `<textarea rows="${Math.max(2, span)}" placeholder="일정">${escapeHtml(value)}</textarea>`
-      : `<input type="text" value="${escapeAttr(value)}" placeholder="일정" />`;
+    const rangeLabel = span > 1 ? `${slot} ~ ${endSlot}` : slot;
+    const fieldMarkup = `<input type="text" value="${escapeAttr(value)}" placeholder="일정" aria-label="${escapeAttr(`${rangeLabel} 일정`)}" title="${escapeAttr(value || `${rangeLabel} 일정`)}" />`;
     row.innerHTML = `
-      <span class="appointment-time ${span > 1 ? "range" : ""}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}</span>
+      <span class="appointment-time ${span > 1 ? "range" : ""}" aria-label="${escapeAttr(rangeLabel)}">${span > 1 ? `<b>${slot}</b><b>${endSlot}</b>` : slot}</span>
       ${fieldMarkup}
       ${value ? `<button class="appointment-delete" type="button" title="일정 삭제" aria-label="${escapeAttr(slot)} 일정 삭제">×</button>` : ""}
       ${span > 1 ? `<button class="split-appointment" type="button" title="분리">-</button>` : ""}
@@ -11586,6 +11612,7 @@ function renderAppointments(day) {
         return;
       }
       day.appointments[slot] = nextValue;
+      input.title = nextValue.trim() || `${rangeLabel} 일정`;
       saveState();
       row.classList.toggle("is-filled", Boolean(nextValue.trim()));
       resizeMergedAppointmentField(input);
@@ -11695,13 +11722,15 @@ function getScheduleSlotIntervalMinutes(slots = timeSlots) {
 
 function splitAppointmentSlot(day, slot) {
   const slots = getScheduleSlotsForDay(day);
+  day.appointments ||= {};
+  day.appointmentMerges ||= {};
+  normalizeAppointmentMerges(day);
   const splitSlot = findAppointmentMergeStartForSlot(day, slot, slots) || slot;
   const startIndex = slots.indexOf(splitSlot);
   if (startIndex < 0) return;
   const rawSpan = Math.max(1, Math.floor(Number(day.appointmentMerges?.[splitSlot] || 1)));
   if (rawSpan <= 1) return;
   captureUndo("시간별 일정 분리");
-  normalizeAppointmentMerges(day);
   const span = getAppointmentSpan(day, splitSlot);
   if (span <= 1) {
     pendingUndoAction = null;
@@ -11741,13 +11770,17 @@ function findAppointmentMergeStartForSlot(day, slot, slots = getScheduleSlotsFor
 
 function mergeAppointmentSlot(day, slot) {
   const slots = getScheduleSlotsForDay(day);
-  const startIndex = slots.indexOf(slot);
-  if (startIndex < 0) return;
   day.appointments ||= {};
   day.appointmentMerges ||= {};
   captureUndo("시간별 일정 병합");
   normalizeAppointmentMerges(day);
-  const span = getAppointmentSpan(day, slot);
+  const mergeStart = findAppointmentMergeStartForSlot(day, slot, slots) || slot;
+  const startIndex = slots.indexOf(mergeStart);
+  if (startIndex < 0) {
+    pendingUndoAction = null;
+    return;
+  }
+  const span = getAppointmentSpan(day, mergeStart);
   const nextIndex = startIndex + span;
   if (nextIndex >= slots.length) {
     pendingUndoAction = null;
@@ -11755,12 +11788,12 @@ function mergeAppointmentSlot(day, slot) {
   }
   const nextSlot = slots[nextIndex];
   const nextSpan = getAppointmentSpan(day, nextSlot);
-  const currentText = day.appointments[slot] || "";
+  const currentText = day.appointments[mergeStart] || "";
   const nextText = day.appointments[nextSlot] || "";
-  if (nextText && !currentText) day.appointments[slot] = nextText;
-  if (nextText && currentText) day.appointments[slot] = `${currentText} ${nextText}`;
+  if (nextText && !currentText) day.appointments[mergeStart] = nextText;
+  if (nextText && currentText) day.appointments[mergeStart] = `${currentText} ${nextText}`;
   day.appointments[nextSlot] = "";
-  day.appointmentMerges[slot] = span + nextSpan;
+  day.appointmentMerges[mergeStart] = span + nextSpan;
   delete day.appointmentMerges[nextSlot];
   saveState();
   renderAppointments(day);
@@ -11795,18 +11828,24 @@ function mergeAppointmentRange(day, range) {
   const startIndex = slots.indexOf(selected[0]);
   const span = selected.length;
   const startSlot = slots[startIndex];
-  const rangeSlotSet = new Set(selected);
-  const overlappedStarts = slots.filter((slot, index) => {
-    const itemStart = slotToMinutes(slot);
-    const itemEnd = itemStart + getAppointmentSpan(day, slot) * getScheduleSlotIntervalMinutes(slots);
-    return itemStart < rangeEnd && itemEnd > rangeStart && Boolean(day.appointments?.[slot] || day.appointmentMerges?.[slot]);
+  const rangeEndIndex = startIndex + span;
+  const affectedSlots = new Set(selected);
+  Object.entries(day.appointmentMerges || {}).forEach(([mergeStartSlot, mergeSpan]) => {
+    const mergeStartIndex = slots.indexOf(mergeStartSlot);
+    if (mergeStartIndex < 0) return;
+    const mergeEndIndex = Math.min(slots.length, mergeStartIndex + Math.max(1, Number(mergeSpan) || 1));
+    if (mergeStartIndex < rangeEndIndex && mergeEndIndex > startIndex) {
+      slots.slice(mergeStartIndex, mergeEndIndex).forEach((mergeSlot) => affectedSlots.add(mergeSlot));
+    }
   });
-  const mergedText = [...new Set([...selected, ...overlappedStarts])]
+  const orderedAffectedSlots = slots.filter((slot) => affectedSlots.has(slot));
+  const mergedText = orderedAffectedSlots
     .map((slot) => String(day.appointments?.[slot] || "").trim())
     .filter(Boolean)
+    .filter((value, index, values) => values.indexOf(value) === index)
     .join(" ");
-  [...new Set([...selected, ...overlappedStarts])].forEach((slot) => {
-    if (slot !== startSlot || !rangeSlotSet.has(slot)) day.appointments[slot] = "";
+  orderedAffectedSlots.forEach((slot) => {
+    if (slot !== startSlot) day.appointments[slot] = "";
     delete day.appointmentMerges[slot];
   });
   if (mergedText) day.appointments[startSlot] = mergedText;
