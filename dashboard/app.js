@@ -10370,6 +10370,8 @@ function applyInactiveTaskStatus(task, status) {
   if (status === "위임") {
     task.postponeDate = "";
     task.postponeMode = "";
+    task.postponePriority = "";
+    task.postponePriorityUnset = false;
     return;
   }
   task.delegate = "";
@@ -10381,6 +10383,8 @@ function applyInactiveTaskStatus(task, status) {
   }
   task.postponeDate = "";
   task.postponeMode = "";
+  task.postponePriority = "";
+  task.postponePriorityUnset = false;
 }
 
 function clearInactiveTaskStatus(task) {
@@ -10389,6 +10393,8 @@ function clearInactiveTaskStatus(task) {
   task.delegate = "";
   task.postponeDate = "";
   task.postponeMode = "";
+  task.postponePriority = "";
+  task.postponePriorityUnset = false;
 }
 
 function handlePriorityMenuChange(task, fromPriority, index, value) {
@@ -10397,6 +10403,10 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
   const targetTask = location?.task || task;
   ensureTaskOrder(day, targetTask);
   if (["위임", "취소", "연기"].includes(value)) {
+    if (value === "연기") {
+      targetTask.postponePriority = ["A", "B", "C"].includes(targetTask.priority) ? targetTask.priority : location?.priority || fromPriority || "";
+      targetTask.postponePriorityUnset = Boolean(targetTask.priorityUnset);
+    }
     applyInactiveTaskStatus(targetTask, value);
     clearTaskScheduleLinkForInactive(targetTask, day);
     saveState({ fastSave: true });
@@ -10486,7 +10496,9 @@ function schedulePostponedTask(task, priority, targetDate) {
   task.postponeId ||= `postpone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   task.carryoverDeletedFrom = targetDate;
   const targetDay = ensureDay(targetDate);
-  const targetPriority = ["A", "B", "C"].includes(priority) ? priority : "A";
+  const storedPriority = ["A", "B", "C"].includes(task.postponePriority) ? task.postponePriority : priority;
+  const targetPriority = ["A", "B", "C"].includes(storedPriority) ? storedPriority : "A";
+  const targetPriorityUnset = Boolean(task.postponePriorityUnset);
   removePostponedTaskOccurrence(task.postponeId, targetDate);
   let existingTask = null;
   let existingPriority = "";
@@ -10501,7 +10513,8 @@ function schedulePostponedTask(task, priority, targetDate) {
       text: task.text.trim(),
       status: "미완료",
       done: false,
-      priorityUnset: false,
+      priorityUnset: targetPriorityUnset,
+      priority: targetPriorityUnset ? "" : targetPriority,
       postponedFrom: task.postponeId,
       postponedSourceDate: iso(selectedDate),
       originalPriority: targetPriority,
@@ -10512,7 +10525,8 @@ function schedulePostponedTask(task, priority, targetDate) {
     existingTask.text = task.text.trim();
     existingTask.status = "미완료";
     existingTask.done = false;
-    existingTask.priorityUnset = false;
+    existingTask.priorityUnset = targetPriorityUnset;
+    existingTask.priority = targetPriorityUnset ? "" : targetPriority;
     existingTask.originalPriority = targetPriority;
     if (existingPriority && existingPriority !== targetPriority) {
       targetDay.tasks[existingPriority] = targetDay.tasks[existingPriority].filter((item) => item !== existingTask);
@@ -11118,6 +11132,10 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
   const source = materializeCarryoverTask(taskRef, targetKey);
   if (!source) return;
   if (isInactiveValue) {
+    if (value === "연기") {
+      source.task.postponePriority = ["A", "B", "C"].includes(source.task.priority) ? source.task.priority : source.priority || taskRef.priority || "";
+      source.task.postponePriorityUnset = Boolean(source.task.priorityUnset || taskRef.priorityUnset);
+    }
     applyInactiveTaskStatus(source.task, value);
     clearTaskScheduleLinkForInactive(source.task, source.day || selectedDay);
     saveState({ fastSave: true });
