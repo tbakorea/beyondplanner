@@ -10534,6 +10534,111 @@ function dedupeMaterializedCarryoverCopies(day) {
   return changed;
 }
 
+function getDailyTaskDuplicateIdentities(task = {}, priority = "", dayKey = iso(selectedDate)) {
+  normalizeTask(task);
+  const text = normalizeSearchText(task.text || "");
+  const identities = [];
+  if (task.financeItemId) identities.push(`money:${task.financeItemId}`);
+  if (task.repeatId) identities.push(`repeat:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}`);
+  if (task.projectTaskId) identities.push(`project:${task.projectTaskId}`);
+  if (task.postponedFrom || task.postponeId) identities.push(`postpone:${task.postponedFrom || task.postponeId}`);
+  if (isMaterializedCarryoverTask(task)) {
+    identities.push(
+      getCarryoverTaskIdentity({ ...task, priority, date: dayKey }),
+      getCarryoverSemanticIdentity({ ...task, priority, date: dayKey }),
+    );
+  }
+  if (text && isSystemManagedDailyTaskCandidate(task)) identities.push(`text:${text}`);
+  return identities.filter(Boolean);
+}
+
+function isSystemManagedDailyTaskCandidate(task = {}) {
+  if (
+    task.financeItemId ||
+    task.repeatId ||
+    task.projectTaskId ||
+    task.postponedFrom ||
+    task.postponeId ||
+    task.carryoverForkFrom ||
+    task.carryoverSourceDate ||
+    task.carryoverDoneDate ||
+    task.carryoverDeletedFrom
+  ) {
+    return true;
+  }
+  return /자금\s*확인|카드대금|카드값|대출이자|이자|정산|대금|용돈|납부|상환|보험료|렌탈|관리비|money/i.test(task.text || "");
+}
+
+function getTaskResolutionRank(task = {}) {
+  if (task.done || task.status === "완료") return 5;
+  if (["취소", "연기", "위임"].includes(task.status)) return 4;
+  if (task.status === "진행중") return 3;
+  if (task.text?.trim()) return 2;
+  return 1;
+}
+
+function mergeDuplicateDailyTaskState(target = {}, duplicate = {}) {
+  normalizeTask(target);
+  normalizeTask(duplicate);
+  if (getTaskResolutionRank(duplicate) > getTaskResolutionRank(target)) {
+    target.status = duplicate.status;
+    target.done = Boolean(duplicate.done || duplicate.status === "완료");
+    target.delegate = duplicate.delegate || "";
+    target.postponeMode = duplicate.postponeMode || "";
+    target.postponeDate = duplicate.postponeDate || "";
+    target.postponeId = duplicate.postponeId || target.postponeId || "";
+    target.carryoverDoneDate = duplicate.carryoverDoneDate || target.carryoverDoneDate || "";
+    target.carryoverDeletedFrom = duplicate.carryoverDeletedFrom || target.carryoverDeletedFrom || "";
+  }
+  if (!target.text?.trim() && duplicate.text?.trim()) target.text = duplicate.text;
+  if (target.priorityUnset !== false && duplicate.priorityUnset === false) target.priorityUnset = false;
+  [
+    "financeItemId",
+    "repeatId",
+    "repeatStartDate",
+    "repeatSourceDate",
+    "projectTaskId",
+    "postponedFrom",
+    "postponedSourceDate",
+    "originalPriority",
+    "carryoverForkFrom",
+    "carryoverSourceDate",
+    "scheduledSlot",
+    "scheduledText",
+  ].forEach((key) => {
+    if (!target[key] && duplicate[key]) target[key] = duplicate[key];
+  });
+}
+
+function dedupeDailyTaskCopies(day, dayKey = iso(selectedDate)) {
+  if (!day?.tasks) return false;
+  const byIdentity = new Map();
+  const taskIdentities = new Map();
+  let changed = false;
+  priorities.forEach(([priority]) => {
+    const list = day.tasks[priority] || [];
+    day.tasks[priority] = list.filter((task) => {
+      if (!isActiveTaskSlot(task)) return true;
+      const identities = getDailyTaskDuplicateIdentities(task, priority, dayKey);
+      if (!identities.length) return true;
+      const existing = identities.map((identity) => byIdentity.get(identity)).find(Boolean);
+      if (!existing) {
+        identities.forEach((identity) => byIdentity.set(identity, task));
+        taskIdentities.set(task, identities);
+        return true;
+      }
+      mergeDuplicateDailyTaskState(existing, task);
+      const mergedIdentities = Array.from(new Set([...(taskIdentities.get(existing) || []), ...identities]));
+      mergedIdentities.forEach((identity) => byIdentity.set(identity, existing));
+      taskIdentities.set(existing, mergedIdentities);
+      clearTaskScheduleLinkForInactive(task, day);
+      changed = true;
+      return false;
+    });
+  });
+  return changed;
+}
+
 function getCarryoverDeleteFromKey(fallbackKey = iso(selectedDate)) {
   const key = String(fallbackKey || "").trim();
   if (isValidIsoDate(key)) return key;
@@ -11198,6 +11303,7 @@ function clearMisdatedDirectTaskScheduleLinks(day = ensureDay(), key = iso(selec
 
 function purgeMisdatedTaskScheduleArtifacts(day = ensureDay(), key = iso(selectedDate)) {
   let changed = false;
+  if (dedupeDailyTaskCopies(day, key)) changed = true;
   if (purgePrematureCarryoverEntries(day, key)) changed = true;
   if (purgeCrossDayTaskClones(day, key)) changed = true;
   if (clearOrphanTaskScheduleLinks(day)) changed = true;
