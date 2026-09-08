@@ -909,10 +909,11 @@ function newTaskId() {
 function normalizeTask(task = {}) {
   task.id ||= newTaskId();
   const status = String(task.status || "").trim();
+  const completed = isTaskCompleted(task);
   if (["위임", "취소", "연기"].includes(status)) {
     task.status = status;
     task.done = false;
-  } else if (task.done || status === "완료") {
+  } else if (completed) {
     task.status = "완료";
     task.done = true;
   } else if (status === "진행중") {
@@ -1952,7 +1953,9 @@ async function pullServerStateIfNewer(options = {}) {
     return;
   }
   const localMeta = getStateMeta();
-  if (!options.force && localMeta.dirty) {
+  if (!options.force && localMeta.dirty && !hasCurrentRuntimeDirtyEdit(localMeta)) {
+    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+  } else if (!options.force && localMeta.dirty) {
     saveStatus.message = "저장 중";
     renderSidebarAfterDailyInput();
     scheduleAccountSave(250);
@@ -2097,6 +2100,11 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
   if (!remoteState) return false;
   const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt || "";
   const localMeta = getStateMeta();
+  if (localMeta.dirty && !hasCurrentRuntimeDirtyEdit(localMeta)) {
+    storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
+    renderAll();
+    return true;
+  }
   if (!localMeta.dirty) {
     storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
     renderAll();
@@ -2262,7 +2270,7 @@ function mergePlannerTaskRecord(baseTask = {}, localTask = {}, remoteTask = {}) 
     ].forEach((key) => {
       if (winner[key] !== undefined) merged[key] = clonePlannerValue(winner[key]);
     });
-    if (winner.done || winner.status === "완료") {
+    if (isTaskCompleted(winner)) {
       merged.done = true;
       merged.status = "완료";
     } else if (["취소", "연기", "위임"].includes(winner.status)) {
@@ -2467,7 +2475,7 @@ function plannerContentScore(source = state) {
   });
   Object.values(source.days || {}).forEach((day) => {
     Object.values(day.tasks || {}).flat().forEach((task) => {
-      score += hasText(task.text) || task.done || task.status !== "미완료" || hasText(task.delegate) ? 1 : 0;
+      score += hasText(task.text) || isTaskCompleted(task) || task.status !== "미완료" || hasText(task.delegate) ? 1 : 0;
     });
     score += countValues(Object.values(day.appointments || {}));
     score += Object.keys(day.appointmentMerges || {}).length;
@@ -2514,7 +2522,7 @@ function weekHasContent(week) {
 
 function dayHasContent(day) {
   const hasText = (value) => String(value || "").trim().length > 0;
-  const hasTask = Object.values(day.tasks || {}).flat().some((task) => hasText(task.text) || task.done || task.status !== "미완료" || hasText(task.delegate));
+  const hasTask = Object.values(day.tasks || {}).flat().some((task) => hasText(task.text) || isTaskCompleted(task) || task.status !== "미완료" || hasText(task.delegate));
   const hasAppointment = Object.values(day.appointments || {}).some(hasText) || Object.keys(day.appointmentMerges || {}).length > 0;
   const hasDeletionState = Boolean(
     (day.deletedCarryoverTaskIdentities || []).length ||
@@ -7110,7 +7118,7 @@ function getUpcomingMoneyRisks(anchorDate = selectedDate, days = 7) {
   Object.entries(state.finance.months || {}).forEach(([key, rows]) => {
     rows.forEach((item) => {
       const date = getMoneyItemDate(item, key);
-      if (!item.title?.trim() || !date || date < start || date > end || item.status === "완료") return;
+      if (!item.title?.trim() || !date || date < start || date > end || isTaskCompleted(item)) return;
       risks.push({ date, title: item.title, amount: item.amount, source: "month" });
     });
   });
@@ -7118,7 +7126,7 @@ function getUpcomingMoneyRisks(anchorDate = selectedDate, days = 7) {
     if (!item.title?.trim() || !Number(item.dueDay)) return;
     fixedMoneyTaskMonthKeys().forEach((key) => {
       const date = getMoneyItemDate(item, key);
-      if (!date || date < start || date > end || !isFixedMoneyActiveForMonth(item, key) || item.status === "완료") return;
+      if (!date || date < start || date > end || !isFixedMoneyActiveForMonth(item, key) || isTaskCompleted(item)) return;
       risks.push({ date, title: item.title, amount: item.amount, source: "fixed" });
     });
   });
@@ -9880,14 +9888,14 @@ function handleWeeklyPriorityMenuChange(item, value) {
     item.priority = value;
     item.priorityUnset = false;
     clearInactiveTaskStatus(item);
-    item.done = item.status === "완료";
+    item.done = isTaskCompleted(item);
     saveState({ fastSave: true });
     renderDayCompass();
     return;
   }
   item.priorityUnset = true;
   clearInactiveTaskStatus(item);
-  item.done = item.status === "완료";
+  item.done = isTaskCompleted(item);
   saveState({ fastSave: true });
   renderDayCompass();
 }
@@ -10181,11 +10189,16 @@ function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers =
     if (seen.has(identity)) return summary;
     seen.add(identity);
     summary.total += 1;
-    if (item.type === "carryover" ? (isCarryoverCompletedOn(task, dayKey) || isTaskCompleted(task)) : isTaskCompleted(task)) {
+    if (taskCountsAsCompletedForDay(task, item.type, dayKey)) {
       summary.done += 1;
     }
     return summary;
   }, { done: 0, total: 0 });
+}
+
+function taskCountsAsCompletedForDay(task = {}, itemType = "day", dayKey = iso(selectedDate)) {
+  if (itemType === "carryover" && isCarryoverCompletedOn(task, dayKey)) return true;
+  return isTaskCompleted(task);
 }
 
 function compareTaskDisplayItems(a, b) {
@@ -10217,7 +10230,7 @@ function getTaskDisplayOrder(item = {}) {
 function isActiveTaskSlot(task = {}) {
   return Boolean(
     task.text?.trim() ||
-      task.done ||
+      isTaskCompleted(task) ||
       task.delegate?.trim() ||
       task.priorityUnset === false ||
       (task.status && task.status !== "미완료") ||
@@ -10423,7 +10436,7 @@ function getTaskMarker(task) {
   if (task.status === "연기") return "postpone";
   if (task.status === "위임") return "delegate";
   if (task.status === "진행중") return "dot";
-  if (task.done || task.status === "완료") return "check";
+  if (isTaskCompleted(task)) return "check";
   return "empty";
 }
 
@@ -10536,7 +10549,7 @@ function getPriorityMenuValue(task, priority) {
 }
 
 function shouldStrikeTask(task) {
-  return task.done || ["완료", "위임", "취소", "연기"].includes(task.status);
+  return isTaskCompleted(task) || ["위임", "취소", "연기"].includes(task.status);
 }
 
 function shouldRemoveTaskScheduleLink(task = {}) {
@@ -10544,7 +10557,16 @@ function shouldRemoveTaskScheduleLink(task = {}) {
 }
 
 function isTaskCompleted(task = {}) {
-  return Boolean(task.done || task.status === "완료");
+  const status = String(task.status || "").trim();
+  if (["미완료", "진행중", "위임", "취소", "연기"].includes(status)) return false;
+  if (task.done || task.completed || task.checked || task.complete || task.isDone) return true;
+  const normalized = status.toLowerCase();
+  return (
+    status === "완료" ||
+    status.startsWith("완료 ") ||
+    status === "완료됨" ||
+    ["done", "complete", "completed", "checked"].includes(normalized)
+  );
 }
 
 function getStoredTaskPriority(task = {}, fallbackPriority = "") {
@@ -10617,7 +10639,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     return;
   }
   clearInactiveTaskStatus(targetTask);
-  targetTask.done = targetTask.status === "완료";
+  targetTask.done = isTaskCompleted(targetTask);
   if (["A", "B", "C"].includes(value)) {
     targetTask.priorityUnset = false;
     targetTask.priority = value;
@@ -10948,7 +10970,7 @@ function isSystemManagedDailyTaskCandidate(task = {}) {
 }
 
 function getTaskResolutionRank(task = {}) {
-  if (task.done || task.status === "완료") return 5;
+  if (isTaskCompleted(task)) return 5;
   if (["취소", "연기", "위임"].includes(task.status)) return 4;
   if (task.status === "진행중") return 3;
   if (task.text?.trim()) return 2;
@@ -10960,7 +10982,7 @@ function mergeDuplicateDailyTaskState(target = {}, duplicate = {}) {
   normalizeTask(duplicate);
   if (getTaskResolutionRank(duplicate) > getTaskResolutionRank(target)) {
     target.status = duplicate.status;
-    target.done = Boolean(duplicate.done || duplicate.status === "완료");
+    target.done = isTaskCompleted(duplicate);
     target.delegate = duplicate.delegate || "";
     target.postponeMode = duplicate.postponeMode || "";
     target.postponeDate = duplicate.postponeDate || "";
@@ -11441,7 +11463,7 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
     return;
   }
   clearInactiveTaskStatus(source.task);
-  source.task.done = source.task.status === "완료";
+  source.task.done = isTaskCompleted(source.task);
   if (["A", "B", "C"].includes(value)) {
     source.task.priorityUnset = false;
     source.task.priority = value;
@@ -14570,8 +14592,8 @@ function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
   const targetTask = existing || targetDay.tasks[targetPriority].find((task) => !task.text?.trim());
   const task = targetTask || { text: "", status: "미완료", done: false, priorityUnset: false };
   task.text = taskText;
-  task.status = item.status === "완료" ? "완료" : "미완료";
-  task.done = item.status === "완료";
+  task.status = isTaskCompleted(item) ? "완료" : "미완료";
+  task.done = isTaskCompleted(item);
   task.priorityUnset = false;
   task.financeItemId = linkId;
   if (!Number.isFinite(Number(task.order))) assignTaskOrder(targetDay, task);
@@ -14689,7 +14711,7 @@ function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
 function shouldSuppressOpenCarryoverCandidate(task = {}, currentKey = iso(selectedDate)) {
   const completedKey = task.carryoverDoneDate || "";
   if (completedKey && completedKey < currentKey) return true;
-  if (task.done || task.status === "완료") return true;
+  if (isTaskCompleted(task)) return true;
   if (["위임", "취소"].includes(task.status)) return true;
   return false;
 }
@@ -15244,8 +15266,8 @@ function exportPlannerWorkbook() {
 function buildPlannerWorkbookTables() {
   const taskRows = [];
   Object.keys(state.days || {}).sort().forEach((key) => {
-    getDayTasks(key).filter((task) => task.text || task.done || task.status !== "미완료").forEach((task) => {
-      taskRows.push([key, task.priority, task.status || "", task.done ? "완료" : "", task.text || "", task.delegate || ""]);
+    getDayTasks(key).filter((task) => task.text || isTaskCompleted(task) || task.status !== "미완료").forEach((task) => {
+      taskRows.push([key, task.priority, task.status || "", isTaskCompleted(task) ? "완료" : "", task.text || "", task.delegate || ""]);
     });
   });
   const appointmentRows = [];
