@@ -1130,10 +1130,10 @@ function loadCachedPlannerState() {
   return null;
 }
 
-function persistDisplayCache() {
+function persistDisplayCache(nextState = state) {
   try {
     const sessionEmail = getAuthSession()?.email || "";
-    const hasContent = hasPlannerContent(state);
+    const hasContent = hasPlannerContent(nextState);
     if (!hasContent) {
       const existingCache = readDisplayCachedPlannerState(plannerDisplayCacheKey(sessionEmail), sessionEmail)
         || readDisplayCachedPlannerState(LAST_DISPLAY_CACHE_KEY, sessionEmail);
@@ -1142,7 +1142,7 @@ function persistDisplayCache() {
     const payload = {
       accountEmail: getAuthSession()?.email || "",
       updatedAt: new Date().toISOString(),
-      state,
+      state: nextState,
     };
     localStorage.setItem(plannerDisplayCacheKey(sessionEmail), JSON.stringify(payload));
     if (hasContent) localStorage.setItem(LAST_DISPLAY_CACHE_KEY, JSON.stringify(payload));
@@ -1594,9 +1594,11 @@ function normalizeProjectMoney(item) {
 }
 
 function saveState(options = {}) {
-  preparePlannerStateForPersistence(state);
-  localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
-  persistDisplayCache();
+  const stateSnapshot = options.raw
+    ? clonePlannerValue(state)
+    : preparePlannerStateForPersistence(clonePlannerValue(state));
+  localStorage.setItem(plannerStorageKey(), JSON.stringify(stateSnapshot));
+  persistDisplayCache(stateSnapshot);
   markLocalStateUpdated();
   scheduleAccountSave(options.fastSave ? 120 : 650);
 }
@@ -1674,7 +1676,8 @@ async function hydrateServerState() {
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
       const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit || hasPersistedLocalEditAheadOfServer(localMeta, payload.updatedAt || "");
       if (!hasRecoverableDirtyEdit && localMeta.dirty) {
-        saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+        const sessionEmail = getAuthSession()?.email || "";
+        saveStateMeta({ dirty: false, accountEmail: sessionEmail });
       }
       if (
         (hasRecoverableDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq)) &&
@@ -1859,13 +1862,20 @@ function flushPlannerSave(reason = "즉시 저장", options = {}) {
   window.clearTimeout(accountSaveTimer);
   const meta = getStateMeta();
   const hasPendingSave = hasPendingPlannerSave(meta);
-  if (!hasPendingSave && !saveStatus.saving) {
-    saveStatus.message = "저장됨";
-    renderSidebarAfterDailyInput();
-    return;
-  }
   if (!hasPendingSave) {
-    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+    if (meta.dirty) {
+      saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+      saveStatus.saving = false;
+      saveStatus.message = "최신 데이터 확인 중";
+      renderSidebarAfterDailyInput();
+      pullServerStateIfNewer({ force: true });
+      return;
+    }
+    if (!saveStatus.saving) {
+      saveStatus.message = "저장됨";
+      renderSidebarAfterDailyInput();
+      return;
+    }
     saveStatus.saving = false;
     saveStatus.message = "최신 데이터 확인 중";
     renderSidebarAfterDailyInput();
@@ -1894,8 +1904,8 @@ async function persistStateToServer(options = {}) {
     logoutPlanner();
     return;
   }
-  preparePlannerStateForPersistence(state);
-  if (!hasPlannerContent(state)) {
+  const preparedStateSnapshot = preparePlannerStateForPersistence(clonePlannerValue(state));
+  if (!hasPlannerContent(preparedStateSnapshot)) {
     saveStatus.saving = false;
     saveStatus.message = "저장됨";
     renderSidebarAfterDailyInput();
@@ -1913,7 +1923,7 @@ async function persistStateToServer(options = {}) {
   const updatedAt = options.bumpUpdatedAt ? markLocalStateUpdated() : meta.updatedAt || markLocalStateUpdated();
   meta = getStateMeta();
   const baseUpdatedAt = getServerBaseUpdatedAt(meta);
-  const stateSnapshot = clonePlannerValue(state);
+  const stateSnapshot = preparedStateSnapshot;
   const saveStartedMutationSeq = plannerMutationSeq;
   const requestBody = JSON.stringify({ state: stateSnapshot, updatedAt, baseUpdatedAt });
   const requestOptions = {
@@ -1936,7 +1946,14 @@ async function persistStateToServer(options = {}) {
       const retryCount = Number(options.staleRetry || 0);
       const localMeta = getStateMeta();
       const retryUpdatedAt = isTimestampNewer(localMeta.updatedAt, updatedAt) ? localMeta.updatedAt : updatedAt;
-      const hasUnflushedLocalEdit = Boolean(localMeta.dirty && timestampMs(retryUpdatedAt));
+      const retryMs = timestampMs(retryUpdatedAt);
+      const serverMs = timestampMs(serverUpdatedAt);
+      const hasUnflushedLocalEdit = Boolean(
+        localMeta.dirty &&
+          retryMs &&
+          hasPlannerContent(state) &&
+          (hasCurrentRuntimeDirtyEdit(localMeta) || !serverMs || retryMs > serverMs)
+      );
       const remoteState = getPayloadPlannerState(payload);
       if (remoteState && hasUnflushedLocalEdit && retryCount < 4) {
         const baseState = readPlannerBaseState() || remoteState;
@@ -1953,7 +1970,7 @@ async function persistStateToServer(options = {}) {
           return;
         }
         const localState = plannerMutationSeq > saveStartedMutationSeq || isTimestampNewer(localMeta.updatedAt, updatedAt)
-          ? clonePlannerValue(state)
+          ? preparePlannerStateForPersistence(clonePlannerValue(state))
           : stateSnapshot;
         const mergedState = mergePlannerStates(baseState, localState, remoteState);
         state = mergedState;
@@ -1974,6 +1991,17 @@ async function persistStateToServer(options = {}) {
       saveStatus.saving = false;
       saveStatus.message = payload.conflict ? "다른 기기 최신 데이터 불러오는 중" : "최신 데이터 불러오는 중";
       if (remoteState) {
+        const latestMeta = getStateMeta();
+        if (hasPendingPlannerSave(latestMeta, serverUpdatedAt)) {
+          saveStatus.saving = true;
+          saveStatus.message = "저장 재시도 중";
+          renderSidebarAfterDailyInput();
+          scheduleAccountSave(1200);
+          return;
+        }
+        if (latestMeta.dirty) {
+          saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+        }
         storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
         renderAll();
       } else {
@@ -2159,6 +2187,21 @@ function markTaskDeletedForDate(task = {}, dayKey = iso(selectedDate)) {
   return task;
 }
 
+function isTaskDeletedFromDate(task = {}, dayKey = iso(selectedDate)) {
+  const deletedFrom = task?.deletedFromDate || task?.carryoverDeletedFrom || "";
+  if (!deletedFrom || !isValidIsoDate(deletedFrom)) return false;
+  if (!isValidIsoDate(dayKey)) return true;
+  return deletedFrom <= dayKey;
+}
+
+function isTaskResolvedForDate(task = {}, dayKey = iso(selectedDate)) {
+  if (!isPlainPlannerObject(task)) return false;
+  if (isTaskDeletedFromDate(task, dayKey)) return true;
+  if (isCarryoverCompletedOn(task, dayKey)) return true;
+  if (isTaskCompleted(task) || hasTaskCompletionRecord(task, dayKey)) return true;
+  return ["취소", "연기", "위임"].includes(String(task.status || "").trim());
+}
+
 function hasCurrentRuntimeDirtyEdit(meta = getStateMeta()) {
   return Boolean(meta?.dirty && plannerMutationSeq > 0 && Number(meta.mutationSeq || 0) > 0);
 }
@@ -2172,9 +2215,7 @@ function hasPersistedLocalEditAheadOfServer(meta = getStateMeta(), serverUpdated
   if (!localMs) return false;
   const serverStamp = serverUpdatedAt || lastServerUpdatedAt || "";
   const serverMs = timestampMs(serverStamp);
-  const baseStamp = meta.baseUpdatedAt || meta.lastSavedAt || "";
-  if (!serverMs || !baseStamp) return false;
-  if (baseStamp !== serverStamp) return false;
+  if (!serverMs) return true;
   return localMs > serverMs;
 }
 
@@ -2238,6 +2279,7 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
   const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt || "";
   const localMeta = getStateMeta();
   if (localMeta.dirty && !hasPendingPlannerSave(localMeta, serverUpdatedAt)) {
+    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
     storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
     renderAll();
     return true;
@@ -10296,6 +10338,8 @@ function getTaskRefs(day) {
   return priorities
     .flatMap(([priority]) => day.tasks[priority].map((task, index) => ({ task, priority, index })))
     .sort((a, b) => {
+      const activeDelta = Number(isActiveTaskSlot(b.task)) - Number(isActiveTaskSlot(a.task));
+      if (activeDelta) return activeDelta;
       return getTaskOrder(a.task) - getTaskOrder(b.task) || a.index - b.index;
     });
 }
@@ -10381,8 +10425,7 @@ function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers =
 }
 
 function taskCountsAsCompletedForDay(task = {}, itemType = "day", dayKey = iso(selectedDate)) {
-  if (isCarryoverCompletedOn(task, dayKey)) return true;
-  return isTaskCompleted(task) || hasTaskCompletionRecord(task, dayKey);
+  return isTaskResolvedForDate(task, dayKey);
 }
 
 function compareTaskDisplayItems(a, b) {
@@ -11263,6 +11306,7 @@ function isSystemManagedDailyTaskCandidate(task = {}) {
 }
 
 function getTaskResolutionRank(task = {}) {
+  if (task.deletedFromDate || task.deletedAt || task.carryoverDeletedFrom) return 6;
   if (isTaskCompleted(task)) return 5;
   if (["취소", "연기", "위임"].includes(task.status)) return 4;
   if (task.status === "진행중") return 3;
@@ -14993,6 +15037,18 @@ function getDayTasks(key) {
     });
 }
 
+function getDayTaskSnapshots(key) {
+  const day = state.days?.[key];
+  if (!day?.tasks) return [];
+  return priorities
+    .flatMap(([priority]) => (day.tasks[priority] || []).map((task, index) => ({ ...task, priority, date: key, index })))
+    .sort((a, b) => {
+      const activeDelta = Number(isActiveTaskSlot(b)) - Number(isActiveTaskSlot(a));
+      if (activeDelta) return activeDelta;
+      return getTaskOrder(a) - getTaskOrder(b) || a.index - b.index;
+    });
+}
+
 function getCarryoverTasks(date) {
   const currentKey = iso(date);
   if (!shouldShowCarryoversForDate(currentKey)) return [];
@@ -15000,16 +15056,17 @@ function getCarryoverTasks(date) {
   const candidates = Object.keys(state.days)
     .filter((key) => key < currentKey)
     .sort()
-    .flatMap((key) => getDayTasks(key))
+    .flatMap((key) => getDayTaskSnapshots(key))
     .filter((task) => {
       const completedKey = task.carryoverDoneDate || "";
       const deletedFrom = task.carryoverDeletedFrom || "";
       if (deletedFrom && deletedFrom <= currentKey) return false;
+      if (isTaskDeletedFromDate(task, currentKey)) return false;
       if (completedKey && completedKey < currentKey) return false;
       if (task.status === "연기") return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
       if (isCarryoverIdentitySuppressed(task, suppressedIdentities)) return false;
-      return task.text && !isTaskCompleted(task) && ["미완료", "진행중"].includes(task.status);
+      return task.text && !isTaskResolvedForDate(task, currentKey) && ["미완료", "진행중"].includes(task.status);
     });
   return dedupeCarryoverTasks(candidates);
 }
@@ -15025,7 +15082,7 @@ function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
       if (day) {
         normalizeDeletedCarryoverTaskIdentities(day).forEach((identity) => suppressed.add(identity));
       }
-      getDayTasks(key).forEach((task) => {
+      getDayTaskSnapshots(key).forEach((task) => {
         if (!task?.text || !shouldSuppressOpenCarryoverCandidate(task, currentKey)) return;
         getCarryoverSuppressionIdentityValues(task, task.priority, task.date || key).forEach((identity) => suppressed.add(identity));
       });
@@ -15037,8 +15094,8 @@ function shouldSuppressOpenCarryoverCandidate(task = {}, currentKey = iso(select
   if ((task.date || "") === currentKey && String(task.text || "").trim()) return true;
   const completedKey = task.carryoverDoneDate || "";
   if (completedKey && completedKey < currentKey) return true;
-  if (isTaskCompleted(task)) return true;
-  if (["위임", "취소", "연기"].includes(task.status)) return true;
+  if (isTaskDeletedFromDate(task, currentKey)) return true;
+  if (isTaskResolvedForDate(task, currentKey)) return true;
   return false;
 }
 
