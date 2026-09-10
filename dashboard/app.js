@@ -928,6 +928,40 @@ function newTaskId() {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function hasTaskVisibleText(task = {}) {
+  return Boolean(String(task?.text || "").trim());
+}
+
+function hasTaskSystemIdentity(task = {}) {
+  return Boolean(
+    task?.repeatId ||
+      task?.projectTaskId ||
+      task?.financeItemId ||
+      task?.postponedFrom ||
+      task?.postponeId ||
+      task?.weeklyPostponedFrom ||
+      task?.carryoverForkFrom ||
+      task?.carryoverSourceDate,
+  );
+}
+
+function isBlankTaskPlaceholder(task = {}) {
+  return !hasTaskVisibleText(task) && !String(task?.delegate || "").trim() && !hasTaskSystemIdentity(task);
+}
+
+function resetBlankTaskPlaceholder(task = {}) {
+  if (!isPlainPlannerObject(task) || !isBlankTaskPlaceholder(task)) return task;
+  task.status = "미완료";
+  setTaskCompletionState(task, false);
+  task.completedDate = "";
+  task.completedAt = "";
+  task.carryoverDoneDate = "";
+  task.postponeDate = "";
+  task.postponeMode = "";
+  task.priorityUnset = true;
+  return task;
+}
+
 function normalizeTask(task = {}) {
   task.id ||= newTaskId();
   const status = String(task.status || "").trim();
@@ -947,6 +981,7 @@ function normalizeTask(task = {}) {
   }
   task.delegate ||= "";
   task.carryoverDeletedFrom ||= "";
+  resetBlankTaskPlaceholder(task);
   if (!task.text?.trim() && task.status === "미완료" && task.priorityUnset === undefined) {
     task.priorityUnset = true;
   }
@@ -10397,29 +10432,48 @@ function getTaskDisplayItems(day, carryovers = []) {
   return [...carryoverItems, ...dayItems].sort(compareTaskDisplayItems);
 }
 
+function getDailyCompletionIdentity(item = {}, dayKey = iso(selectedDate)) {
+  const task = item.task || {};
+  const taskPriority = item.priority || task.priority || "";
+  const sourceDate = task.date || task.carryoverSourceDate || task.postponedSourceDate || dayKey;
+  const duplicateIdentities = getDailyTaskDuplicateIdentities(task, taskPriority, dayKey);
+  const carryoverIdentities = item.type === "carryover" || isMaterializedCarryoverTask(task)
+    ? [
+        getCarryoverTaskIdentity({ ...task, priority: taskPriority, date: sourceDate }),
+        getCarryoverSemanticIdentity({ ...task, priority: taskPriority, date: sourceDate }),
+      ]
+    : [];
+  const semanticText = normalizeSearchText(task.text || "");
+  const identity = [
+    task.financeItemId ? `money:${task.financeItemId}` : "",
+    task.repeatId ? `repeat:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}` : "",
+    task.projectTaskId ? `project:${task.projectTaskId}` : "",
+    task.postponedFrom ? `postpone:${task.postponedFrom}` : "",
+    task.postponeId ? `postpone:${task.postponeId}` : "",
+    task.weeklyPostponedFrom ? `weekly-postpone:${task.weeklyPostponedFrom}` : "",
+    ...carryoverIdentities,
+    ...duplicateIdentities.filter((value) => value && !value.startsWith("id:")),
+    semanticText && (item.type === "carryover" || isMaterializedCarryoverTask(task) || isSystemManagedDailyTaskCandidate(task))
+      ? `text:${semanticText}:${taskPriority || getStoredTaskPriority(task, "") || "?"}`
+      : "",
+    task.id ? `id:${task.id}` : "",
+  ].find(Boolean);
+  return identity || `row:${item.type || "day"}:${taskPriority || "?"}:${item.index || 0}`;
+}
+
 function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers = []) {
-  const seen = new Set();
-  return getTaskDisplayItems(day, carryovers).reduce((summary, item) => {
+  const byIdentity = new Map();
+  getTaskDisplayItems(day, carryovers).forEach((item) => {
     const task = item.task || {};
-    if (!String(task.text || "").trim()) return summary;
-    const taskPriority = item.priority || task.priority || "";
-    const identityParts = item.type === "carryover"
-      ? [
-          "carryover",
-          getCarryoverTaskIdentity({ ...task, priority: taskPriority, date: task.date || task.carryoverSourceDate || dayKey }),
-          task.date || task.carryoverSourceDate || "",
-        ]
-      : [
-          "day",
-          task.id || getDailyTaskDuplicateIdentities(task, taskPriority, dayKey).join("|") || `${taskPriority}:${item.index || 0}`,
-        ];
-    const identity = identityParts.filter(Boolean).join(":");
-    if (seen.has(identity)) return summary;
-    seen.add(identity);
+    if (!hasTaskVisibleText(task)) return;
+    const identity = getDailyCompletionIdentity(item, dayKey);
+    const existing = byIdentity.get(identity) || { done: false };
+    existing.done = existing.done || taskCountsAsCompletedForDay(task, item.type, dayKey);
+    byIdentity.set(identity, existing);
+  });
+  return Array.from(byIdentity.values()).reduce((summary, item) => {
     summary.total += 1;
-    if (taskCountsAsCompletedForDay(task, item.type, dayKey)) {
-      summary.done += 1;
-    }
+    if (item.done) summary.done += 1;
     return summary;
   }, { done: 0, total: 0 });
 }
@@ -10453,8 +10507,9 @@ function getTaskDisplayOrder(item = {}) {
 }
 
 function isActiveTaskSlot(task = {}) {
+  if (isBlankTaskPlaceholder(task)) return false;
   return Boolean(
-    task.text?.trim() ||
+    hasTaskVisibleText(task) ||
       isTaskCompleted(task) ||
       task.delegate?.trim() ||
       task.priorityUnset === false ||
