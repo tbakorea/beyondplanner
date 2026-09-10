@@ -7177,7 +7177,7 @@ function getRecentWeekdayCompletionStats(anchorDate) {
     const tasks = getDayTasks(iso(date)).filter((task) => task.text?.trim());
     const stat = stats[date.getDay()];
     stat.total += tasks.length;
-    stat.done += tasks.filter((task) => shouldStrikeTask(task)).length;
+    stat.done += tasks.filter((task) => taskCountsAsCompletedForDay(task, "day", iso(date))).length;
   }
   stats.forEach((item) => {
     item.rate = item.total ? Math.round((item.done / item.total) * 100) : 0;
@@ -8610,7 +8610,7 @@ function buildPlannerContext(key = iso(selectedDate)) {
   const tasks = getDayTasks(key).filter((task) => task.text?.trim());
   const carryovers = getCarryoverTasks(date).filter((task) => !isCarryoverCompletedOn(task, key));
   const openTasks = [...tasks.filter((task) => !shouldStrikeTask(task)), ...carryovers];
-  const doneTasks = tasks.filter((task) => shouldStrikeTask(task));
+  const doneTasks = tasks.filter((task) => taskCountsAsCompletedForDay(task, "day", key));
   const scheduleSlots = getScheduleSlotsForDay(day);
   const appointmentEntries = scheduleSlots
     .filter((slot) => !isCoveredAppointmentSlot(day, slot, scheduleSlots))
@@ -9094,7 +9094,7 @@ function getRecentTaskTrend(anchorDate) {
     const key = iso(date);
     const tasks = getDayTasks(key).filter((task) => task.text?.trim());
     total += tasks.length;
-    done += tasks.filter((task) => shouldStrikeTask(task)).length;
+    done += tasks.filter((task) => taskCountsAsCompletedForDay(task, "day", key)).length;
     carryover += getCarryoverTasks(date).length;
   }
   return {
@@ -10500,7 +10500,11 @@ function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers =
 }
 
 function taskCountsAsCompletedForDay(task = {}, itemType = "day", dayKey = iso(selectedDate)) {
-  return isTaskResolvedForDate(task, dayKey);
+  const status = String(task.status || "").trim();
+  if (TASK_NON_COMPLETION_STATUSES.includes(status)) return false;
+  if (isTaskDeletedFromDate(task, dayKey)) return false;
+  if (isCarryoverCompletedOn(task, dayKey)) return true;
+  return isTaskCompleted(task) || hasTaskCompletionRecord(task, dayKey);
 }
 
 function compareTaskDisplayItems(a, b) {
