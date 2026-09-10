@@ -3652,6 +3652,7 @@ function setupSelectors() {
     applyPlannerMode();
     applyMobileDayFocusMode();
     updateStickyPanelTop();
+    renderDailyTodayButton();
     positionDaySwipe("main", true);
     scheduleDailyHeaderFit();
     scheduleClassicViewportFit();
@@ -3675,6 +3676,7 @@ function setupSelectors() {
   window.addEventListener("orientationchange", () => {
     window.setTimeout(() => {
       updateStickyPanelTop();
+      renderDailyTodayButton();
       positionDaySwipe("main", true);
       scheduleDailyHeaderFit();
       scheduleClassicViewportFit();
@@ -7084,6 +7086,16 @@ function getScheduleRangeLabel(day = ensureDay()) {
   return `${start} ~ ${end}`;
 }
 
+function renderDailyPulseSummaryItem({ label = "", value = "", detail = "", classes = "" } = {}) {
+  return `
+    <span class="pulse-summary-item ${classes}" role="listitem">
+      <b>${escapeHtml(label)}</b>
+      <strong>${escapeHtml(value)}</strong>
+      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
+    </span>
+  `;
+}
+
 function renderDailyPulse(day, tasks, carryovers, completion) {
   const node = el("dailyPulse");
   if (!node) return;
@@ -7123,29 +7135,15 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ]);
     return;
   }
-  const weatherTicker = selectedWeather ? `
-    <span class="pulse-ticker-item pulse-weather" role="listitem"><b>날씨</b> ${escapeHtml(getWeatherConditionIcon(selectedWeather))} ${escapeHtml(selectedWeather.summary || "기록")} <small>${escapeHtml(weatherRange || selectedWeather.label || "")}</small></span>
-  ` : "";
-  const tickerItems = `
-    <span class="pulse-ticker-item pulse-primary" role="listitem"><b>오늘</b> ${completion.done}/${completion.total} <small>${completionRate}% · 남은 ${openTasks}</small></span>
-    ${weatherTicker}
-    <span class="pulse-ticker-item" role="listitem"><b>다음</b> ${escapeHtml(nextAppointment.time)} <small>${escapeHtml(nextText)}</small></span>
-    <span class="pulse-ticker-item pulse-${intelligence.severity}" role="listitem"><b>설계</b> ${escapeHtml(intelligence.blueprint.value)} <small>${escapeHtml(intelligence.blueprint.detail)}</small></span>
-    <span class="pulse-ticker-item pulse-${intelligence.timeDebt.severity}" role="listitem"><b>부채</b> ${escapeHtml(intelligence.timeDebt.value)} <small>${escapeHtml(intelligence.timeDebt.detail)}</small></span>
-    <span class="pulse-ticker-item pulse-${intelligence.riskRadar.severity}" role="listitem"><b>리스크</b> ${escapeHtml(intelligence.riskRadar.value)} <small>${escapeHtml(intelligence.riskRadar.detail)}</small></span>
-    <span class="pulse-ticker-item" role="listitem"><b>이월</b> ${carryoverOpen.length}<small>${carryoverOpen.length ? "정리" : "없음"}</small></span>
-    <span class="pulse-ticker-item" role="listitem"><b>실행</b> ${escapeHtml(execution.value)} <small>${escapeHtml(execution.detail)}</small></span>
-    <span class="pulse-ticker-item" role="listitem"><b>패턴</b> ${escapeHtml(pattern.value)} <small>${escapeHtml(pattern.detail)}</small></span>
-    <span class="pulse-ticker-item" role="listitem"><b>연결</b> ${escapeHtml(alignment.value)} <small>${escapeHtml(alignment.detail)}</small></span>
-    <span class="pulse-ticker-item" role="listitem"><b>회고</b> ${escapeHtml(review.value)} <small>${escapeHtml(review.detail)}</small></span>
-    <span class="pulse-ticker-item pulse-${coach.severity}" role="listitem"><b>AI</b> ${escapeHtml(coachLabel)} <small>${escapeHtml(coach.title)}</small></span>
-  `;
+  const pulseItems = [
+    { label: "오늘", value: `${completion.done}/${completion.total}`, detail: `${completionRate}% · 남은 ${openTasks}`, classes: "pulse-primary" },
+    { label: "다음", value: nextAppointment.time, detail: nextText },
+    { label: "리스크", value: intelligence.riskRadar.value, detail: intelligence.riskRadar.detail, classes: `pulse-${intelligence.riskRadar.severity}` },
+    { label: "AI", value: coachLabel, detail: coach.title, classes: `pulse-${coach.severity}` },
+  ].map(renderDailyPulseSummaryItem).join("");
   node.innerHTML = `
-    <div class="pulse-ticker" role="list" aria-label="오늘 실행 요약 전광판">
-      <div class="pulse-ticker-track">
-        <div class="pulse-ticker-group">${tickerItems}</div>
-        <div class="pulse-ticker-group" aria-hidden="true">${tickerItems}</div>
-      </div>
+    <div class="pulse-summary" role="list" aria-label="오늘 실행 요약">
+      ${pulseItems}
     </div>
   `;
   renderDailyPulseDetails([
@@ -8799,6 +8797,14 @@ function getWeatherTitle(record = {}) {
   return `${label}${record.summary || "날씨"}${range ? ` · 최저/최고 ${range}` : ""}${record.advice ? ` · ${record.advice}` : ""}`.trim();
 }
 
+function shouldShowDateWeatherChip() {
+  if (typeof window === "undefined") return true;
+  const width = window.innerWidth || document.documentElement?.clientWidth || 0;
+  const height = window.innerHeight || document.documentElement?.clientHeight || 0;
+  if (!width || !height) return true;
+  return width >= 900 || (width >= 700 && width > height);
+}
+
 function renderDailyTodayButton() {
   const button = el("dailyTodayButton");
   if (!button) return;
@@ -8814,6 +8820,13 @@ function renderDailyTodayButton() {
   if (!isToday) {
     button.setAttribute("aria-label", "오늘 날짜로 이동");
     button.title = "오늘 날짜로 이동";
+    scheduleDailyHeaderFit();
+    return;
+  }
+  if (!shouldShowDateWeatherChip()) {
+    button.setAttribute("aria-label", "오늘 날짜입니다");
+    button.title = "오늘 날짜입니다";
+    scheduleDailyHeaderFit();
     return;
   }
   const weather = getWeatherRecordForDate(todayKey, { preferLive: true });
