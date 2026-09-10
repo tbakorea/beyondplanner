@@ -905,6 +905,18 @@ function hasCachedPlannerState() {
 const TASK_COMPLETION_ALIAS_KEYS = ["completed", "checked", "complete", "isDone"];
 const TASK_NON_COMPLETION_STATUSES = ["위임", "취소", "연기", "진행중"];
 
+function isTaskCompletionTruthyValue(value) {
+  if (value === true || value === 1) return true;
+  if (typeof value !== "string") return false;
+  return ["true", "1", "yes", "y", "done", "complete", "completed", "checked", "완료", "완료됨"].includes(value.trim().toLowerCase());
+}
+
+function isTaskCompletionFalsyValue(value) {
+  if (value === false || value === 0 || value === null) return true;
+  if (typeof value !== "string") return false;
+  return ["", "false", "0", "no", "n", "미완료", "진행중", "취소", "연기", "위임"].includes(value.trim().toLowerCase());
+}
+
 function isNonCompletionTaskStatus(status = "") {
   return TASK_NON_COMPLETION_STATUSES.includes(String(status || "").trim());
 }
@@ -921,7 +933,7 @@ function hasTaskCompletionRecord(task = {}, dayKey = "") {
   if (!task || isNonCompletionTaskStatus(task.status)) return false;
   const completedDate = String(task.completedDate || "").trim();
   if (dayKey && completedDate) return completedDate === dayKey;
-  return Boolean(completedDate || task.completedAt);
+  return Boolean(completedDate || task.completedAt || TASK_COMPLETION_ALIAS_KEYS.some((key) => isTaskCompletionTruthyValue(task[key])));
 }
 
 function newTaskId() {
@@ -958,6 +970,8 @@ function resetBlankTaskPlaceholder(task = {}) {
   task.carryoverDoneDate = "";
   task.postponeDate = "";
   task.postponeMode = "";
+  task.deletedFromDate = "";
+  task.deletedAt = "";
   task.priorityUnset = true;
   return task;
 }
@@ -10521,6 +10535,7 @@ function isActiveTaskSlot(task = {}) {
 }
 
 function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
+  resetBlankTaskPlaceholder(task);
   const row = document.createElement("div");
   const marker = getTaskMarker(task);
   const isStruck = shouldStrikeTask(task);
@@ -10550,6 +10565,13 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
     event.preventDefault();
     event.stopPropagation();
     runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
+      if (isBlankTaskPlaceholder(task)) {
+        resetBlankTaskPlaceholder(task);
+        reflectTaskMarkerOnRow(row, task);
+        saveState({ fastSave: true });
+        renderDayAfterTaskMutation();
+        return;
+      }
       const feedback = cycleTaskMarker(task, dayKey);
       if (isMaterializedCarryoverTask(task)) {
         if (isTaskCompleted(task)) {
@@ -10853,11 +10875,11 @@ function isTaskCompleted(task = {}) {
   if (isNonCompletionTaskStatus(status)) return false;
   const normalized = status.toLowerCase();
   if (
-    task.done === true ||
-    task.completed === true ||
-    task.checked === true ||
-    task.complete === true ||
-    task.isDone === true
+    isTaskCompletionTruthyValue(task.done) ||
+    isTaskCompletionTruthyValue(task.completed) ||
+    isTaskCompletionTruthyValue(task.checked) ||
+    isTaskCompletionTruthyValue(task.complete) ||
+    isTaskCompletionTruthyValue(task.isDone)
   ) {
     return true;
   }
@@ -10869,7 +10891,7 @@ function isTaskCompleted(task = {}) {
   ) {
     return true;
   }
-  if (status === "미완료") return false;
+  if (status === "미완료" || isTaskCompletionFalsyValue(task.done)) return false;
   return false;
 }
 
