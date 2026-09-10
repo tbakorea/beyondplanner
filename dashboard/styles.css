@@ -22246,7 +22246,7 @@ body.ceo-mode.day-view-active .appointment-row.is-current-time .appointment-time
 
 /* 2026-09-10 daily weather and pulse refinement.
    Weather is a large-screen context cue; phone/portrait keeps the date row clean.
-   The old marquee pulse is replaced by fixed, scannable summary chips. */
+   These summary chip styles remain for older cached markup; current today/future rows render empty. */
 .pulse-summary {
   display: grid !important;
   grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
@@ -22390,4 +22390,29 @@ body.ceo-mode.day-view-active .appointment-row.is-current-time .appointment-time
   .pulse-summary-item small {
     display: none !important;
   }
+}
+
+/* Empty daily pulse state after removing the weather/banner content.
+   Keep the Weekly/Memo controls aligned without leaving a visible pill behind. */
+.daily-pulse-center.is-empty {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  cursor: default !important;
+  pointer-events: none !important;
+}
+
+.daily-pulse-center.is-empty .daily-pulse {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 32px !important;
+}
+
+.daily-pulse-center.is-empty .pulse-empty {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 32px !important;
+  background: transparent !important;
 }

@@ -7086,19 +7086,11 @@ function getScheduleRangeLabel(day = ensureDay()) {
   return `${start} ~ ${end}`;
 }
 
-function renderDailyPulseSummaryItem({ label = "", value = "", detail = "", classes = "" } = {}) {
-  return `
-    <span class="pulse-summary-item ${classes}" role="listitem">
-      <b>${escapeHtml(label)}</b>
-      <strong>${escapeHtml(value)}</strong>
-      ${detail ? `<small>${escapeHtml(detail)}</small>` : ""}
-    </span>
-  `;
-}
-
 function renderDailyPulse(day, tasks, carryovers, completion) {
   const node = el("dailyPulse");
   if (!node) return;
+  const centerButton = node.closest(".daily-pulse-center");
+  centerButton?.classList.remove("is-empty");
   const selectedKey = iso(selectedDate);
   const todayKey = iso(todayInPlanner());
   const isPastDate = selectedKey < todayKey;
@@ -7118,6 +7110,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const selectedWeather = selectedKey !== todayKey ? getWeatherRecordForDate(selectedKey) : null;
   const weatherRange = selectedWeather ? formatWeatherTemperatureRange(selectedWeather) : "";
   if (isPastDate) {
+    centerButton?.setAttribute("aria-label", "선택한 날짜의 날씨 기록 보기");
     const icon = selectedWeather ? getWeatherConditionIcon(selectedWeather) : "◇";
     const summary = selectedWeather?.summary || "날씨 기록 없음";
     const range = weatherRange || selectedWeather?.label || "";
@@ -7135,17 +7128,9 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ]);
     return;
   }
-  const pulseItems = [
-    { label: "오늘", value: `${completion.done}/${completion.total}`, detail: `${completionRate}% · 남은 ${openTasks}`, classes: "pulse-primary" },
-    { label: "다음", value: nextAppointment.time, detail: nextText },
-    { label: "리스크", value: intelligence.riskRadar.value, detail: intelligence.riskRadar.detail, classes: `pulse-${intelligence.riskRadar.severity}` },
-    { label: "AI", value: coachLabel, detail: coach.title, classes: `pulse-${coach.severity}` },
-  ].map(renderDailyPulseSummaryItem).join("");
-  node.innerHTML = `
-    <div class="pulse-summary" role="list" aria-label="오늘 실행 요약">
-      ${pulseItems}
-    </div>
-  `;
+  centerButton?.classList.add("is-empty");
+  centerButton?.setAttribute("aria-label", "오늘 실행 요약");
+  node.innerHTML = `<span class="pulse-empty" aria-hidden="true"></span>`;
   renderDailyPulseDetails([
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
     ...(selectedWeather ? [["날씨", `${getWeatherConditionIcon(selectedWeather)} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
