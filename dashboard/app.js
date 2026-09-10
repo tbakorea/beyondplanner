@@ -10776,7 +10776,7 @@ function getPostponeRestorePriority(task = {}, fallbackPriority = "") {
 function applyInactiveTaskStatus(task, status) {
   if (!task) return;
   task.status = status;
-  setTaskCompletionState(task, false);
+  clearTaskCompletionRecord(task);
   task.priorityUnset = false;
   stampTaskLifecycleMutation(task);
   if (status === "위임") {
@@ -10801,7 +10801,7 @@ function applyInactiveTaskStatus(task, status) {
 function clearInactiveTaskStatus(task) {
   if (!task || !["위임", "취소", "연기"].includes(task.status)) return;
   task.status = "미완료";
-  setTaskCompletionState(task, false);
+  clearTaskCompletionRecord(task);
   task.delegate = "";
   task.postponeDate = "";
   task.postponeMode = "";
