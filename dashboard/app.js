@@ -903,6 +903,11 @@ function hasCachedPlannerState() {
 }
 
 const TASK_COMPLETION_ALIAS_KEYS = ["completed", "checked", "complete", "isDone"];
+const TASK_NON_COMPLETION_STATUSES = ["위임", "취소", "연기", "진행중"];
+
+function isNonCompletionTaskStatus(status = "") {
+  return TASK_NON_COMPLETION_STATUSES.includes(String(status || "").trim());
+}
 
 function setTaskCompletionState(task = {}, completed = false) {
   task.done = Boolean(completed);
@@ -912,6 +917,13 @@ function setTaskCompletionState(task = {}, completed = false) {
   return task;
 }
 
+function hasTaskCompletionRecord(task = {}, dayKey = "") {
+  if (!task || isNonCompletionTaskStatus(task.status)) return false;
+  const completedDate = String(task.completedDate || "").trim();
+  if (dayKey && completedDate) return completedDate === dayKey;
+  return Boolean(completedDate || task.completedAt);
+}
+
 function newTaskId() {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -919,7 +931,7 @@ function newTaskId() {
 function normalizeTask(task = {}) {
   task.id ||= newTaskId();
   const status = String(task.status || "").trim();
-  const completed = isTaskCompleted(task);
+  const completed = isTaskCompleted(task) || hasTaskCompletionRecord(task);
   if (["위임", "취소", "연기"].includes(status)) {
     task.status = status;
     setTaskCompletionState(task, false);
@@ -10369,8 +10381,8 @@ function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers =
 }
 
 function taskCountsAsCompletedForDay(task = {}, itemType = "day", dayKey = iso(selectedDate)) {
-  if (itemType === "carryover" && isCarryoverCompletedOn(task, dayKey)) return true;
-  return isTaskCompleted(task);
+  if (isCarryoverCompletedOn(task, dayKey)) return true;
+  return isTaskCompleted(task) || hasTaskCompletionRecord(task, dayKey);
 }
 
 function compareTaskDisplayItems(a, b) {
@@ -10740,7 +10752,7 @@ function shouldRemoveTaskScheduleLink(task = {}) {
 
 function isTaskCompleted(task = {}) {
   const status = String(task.status || "").trim();
-  if (["위임", "취소", "연기", "진행중"].includes(status)) return false;
+  if (isNonCompletionTaskStatus(status)) return false;
   const normalized = status.toLowerCase();
   if (
     task.done === true ||
