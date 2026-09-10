@@ -2111,6 +2111,42 @@ function stampTaskLifecycleMutation(task = {}) {
   return task;
 }
 
+function clearTaskCompletionRecord(task = {}) {
+  if (!isPlainPlannerObject(task)) return task;
+  setTaskCompletionState(task, false);
+  task.completedDate = "";
+  task.completedAt = "";
+  return task;
+}
+
+function markTaskCompletedForDate(task = {}, dayKey = iso(selectedDate)) {
+  if (!isPlainPlannerObject(task)) return task;
+  setTaskCompletionState(task, true);
+  task.status = "완료";
+  task.completedDate = isValidIsoDate(dayKey) ? dayKey : iso(selectedDate);
+  task.completedAt = nextPlannerMutationTimestamp(
+    lastServerUpdatedAt,
+    getStateMeta().updatedAt,
+    task.lifecycleUpdatedAt,
+    task.completedAt,
+  );
+  stampTaskLifecycleMutation(task);
+  return task;
+}
+
+function markTaskDeletedForDate(task = {}, dayKey = iso(selectedDate)) {
+  if (!isPlainPlannerObject(task)) return task;
+  task.deletedFromDate = isValidIsoDate(dayKey) ? dayKey : iso(selectedDate);
+  task.deletedAt = nextPlannerMutationTimestamp(
+    lastServerUpdatedAt,
+    getStateMeta().updatedAt,
+    task.lifecycleUpdatedAt,
+    task.deletedAt,
+  );
+  stampTaskLifecycleMutation(task);
+  return task;
+}
+
 function hasCurrentRuntimeDirtyEdit(meta = getStateMeta()) {
   return Boolean(meta?.dirty && plannerMutationSeq > 0 && Number(meta.mutationSeq || 0) > 0);
 }
@@ -2263,6 +2299,10 @@ const TASK_LIFECYCLE_MERGE_KEYS = [
   "originalPriority",
   "done",
   ...TASK_COMPLETION_ALIAS_KEYS,
+  "completedDate",
+  "completedAt",
+  "deletedFromDate",
+  "deletedAt",
   "delegate",
   "postponeMode",
   "postponeDate",
@@ -9896,7 +9936,7 @@ function renderDayCompass() {
       event.preventDefault();
       event.stopPropagation();
       runTaskCycleActionOnce(item, `weekly:${weekKey(selectedDate)}:${index}:${item.text || ""}`, cycle, () => {
-        const feedback = cycleTaskMarker(item);
+        const feedback = cycleTaskMarker(item, weekKey(selectedDate));
         if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
         showTaskCycleFeedback(cycle, feedback);
         saveState();
@@ -10400,7 +10440,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
     event.preventDefault();
     event.stopPropagation();
     runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
-      const feedback = cycleTaskMarker(task);
+      const feedback = cycleTaskMarker(task, dayKey);
       if (isMaterializedCarryoverTask(task)) {
         if (isTaskCompleted(task)) {
           task.carryoverDoneDate = dayKey;
@@ -10632,16 +10672,16 @@ function runTaskCycleOnce(anchor, handler) {
   }
 }
 
-function cycleTaskMarker(task) {
+function cycleTaskMarker(task, dayKey = iso(selectedDate)) {
   const marker = getTaskMarker(task);
   if (marker === "check") {
-    setTaskCompletionState(task, false);
+    clearTaskCompletionRecord(task);
     task.status = "진행중";
     stampTaskLifecycleMutation(task);
     return "진행중";
   }
   if (marker === "dot") {
-    setTaskCompletionState(task, false);
+    clearTaskCompletionRecord(task);
     task.status = "미완료";
     task.delegate = "";
     task.postponeMode = "";
@@ -10650,12 +10690,10 @@ function cycleTaskMarker(task) {
     return "해제";
   }
 
-  setTaskCompletionState(task, true);
-  task.status = "완료";
   task.delegate = "";
   task.postponeMode = "";
   task.postponeDate = "";
-  stampTaskLifecycleMutation(task);
+  markTaskCompletedForDate(task, dayKey);
   return "완료";
 }
 
@@ -10851,6 +10889,7 @@ function deleteTask(priority, index, taskRef = null) {
   }
   if (!confirmDelete("이 우선업무를 삭제할까요? 반복업무라면 오늘 이후 자동 생성도 함께 조정됩니다.")) return;
   captureUndo("우선업무 삭제");
+  markTaskDeletedForDate(task, iso(selectedDate));
   markDailyTaskDeletedForDate(day, task, location.priority, iso(selectedDate));
   clearTaskScheduleLinkForInactive(task, day);
   if (task.repeatId) {
@@ -11484,6 +11523,7 @@ function deleteMaterializedCarryoverTask(location) {
   const task = location?.task;
   if (!task) return false;
   const day = ensureDay(selectedKey);
+  markTaskDeletedForDate(task, selectedKey);
   clearTaskScheduleLinkForInactive(task, day);
   if (task.financeItemId) markFinanceTaskDeletedForDate(task.financeItemId, deleteFromKey);
   if (task.repeatId) {
@@ -11525,6 +11565,10 @@ function materializeCarryoverTask(taskRef, targetKey = iso(selectedDate)) {
     targetTask = {
       ...source.task,
       id: newTaskId(),
+      completedDate: "",
+      completedAt: "",
+      deletedFromDate: "",
+      deletedAt: "",
       carryoverDoneDate: "",
       carryoverDeletedFrom: "",
       carryoverForkFrom: forkKey,
@@ -11652,6 +11696,8 @@ function deleteCarryoverTask(taskRef) {
   const selectedKey = iso(selectedDate);
   const deleteFromKey = getCarryoverDeleteFromKey(selectedKey);
   const selectedDay = ensureDay();
+  markTaskDeletedForDate(taskRef, selectedKey);
+  if (source?.task) markTaskDeletedForDate(source.task, deleteFromKey);
   clearTaskTextTimeHintFromSchedule(taskRef.text, selectedDay, { linkId: getCarryoverScheduleLinkId(taskRef) });
   if (taskRef.financeItemId) markFinanceTaskDeletedForDate(taskRef.financeItemId, deleteFromKey);
   if (source?.task && taskRef.date === selectedKey) clearTaskScheduleLinkForInactive(source.task, selectedDay);
@@ -11677,7 +11723,7 @@ function updateCarryoverTaskMarker(taskRef, anchor = null, targetKey = iso(selec
   const sourceRef = materializeCarryoverTask(taskRef, targetKey);
   const source = sourceRef?.task;
   if (!source) return;
-  const feedback = cycleTaskMarker(source);
+  const feedback = cycleTaskMarker(source, targetKey);
   if (isTaskCompleted(source)) {
     source.carryoverDoneDate = targetKey;
     stampTaskLifecycleMutation(source);
