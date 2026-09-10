@@ -10443,7 +10443,16 @@ function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
 function getTaskDisplayItems(day, carryovers = []) {
   const carryoverItems = carryovers.map((task, index) => ({ type: "carryover", task, index }));
   const dayItems = getTaskRefs(day).map((ref) => ({ type: "day", ...ref }));
-  return [...carryoverItems, ...dayItems].sort(compareTaskDisplayItems);
+  const activeDayItems = [];
+  const blankDayItems = [];
+  dayItems.forEach((item) => {
+    resetBlankTaskPlaceholder(item.task);
+    if (isBlankTaskPlaceholder(item.task)) blankDayItems.push(item);
+    else activeDayItems.push(item);
+  });
+  return [...carryoverItems, ...activeDayItems]
+    .sort(compareTaskDisplayItems)
+    .concat(blankDayItems.sort(compareBlankTaskDisplayItems));
 }
 
 function getDailyCompletionIdentity(item = {}, dayKey = iso(selectedDate)) {
@@ -10502,6 +10511,17 @@ function compareTaskDisplayItems(a, b) {
   const sourceDelta = getTaskDisplaySourceDate(a).localeCompare(getTaskDisplaySourceDate(b));
   if (sourceDelta) return sourceDelta;
   return getTaskDisplayOrder(a) - getTaskDisplayOrder(b) || (a.index || 0) - (b.index || 0);
+}
+
+function compareBlankTaskDisplayItems(a, b) {
+  const priorityDelta = getPriorityIndex(a.priority) - getPriorityIndex(b.priority);
+  if (priorityDelta) return priorityDelta;
+  return getTaskDisplayOrder(a) - getTaskDisplayOrder(b) || (a.index || 0) - (b.index || 0);
+}
+
+function getPriorityIndex(priority = "") {
+  const index = priorities.findIndex(([value]) => value === priority);
+  return index >= 0 ? index : priorities.length;
 }
 
 function getTaskDisplayGroup(item = {}) {
