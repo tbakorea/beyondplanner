@@ -1716,14 +1716,14 @@ async function hydrateServerState() {
     saveStatus.ready = true;
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
-      // During initial hydration, only verified unsaved edits may be merged upward:
-      // live-session edits or same-server-base edits left by an interrupted save.
+      // During initial hydration, only edits made in the current live page session
+      // may be merged upward. Persisted browser cache is preview-only for logged-in users.
       // Stale device cache must never overwrite or re-seed the database.
       const localMeta = getStateMeta();
       const serverHasContent = hasPlannerContent(payload.state);
       const localHasContent = hasPlannerContent(state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit || hasPersistedLocalEditAheadOfServer(localMeta, payload.updatedAt || "");
+      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit;
       if (!hasRecoverableDirtyEdit && localMeta.dirty) {
         const sessionEmail = getAuthSession()?.email || "";
         saveStateMeta({ dirty: false, accountEmail: sessionEmail });
@@ -2256,6 +2256,7 @@ function hasCurrentRuntimeDirtyEdit(meta = getStateMeta()) {
 }
 
 function hasPersistedLocalEditAheadOfServer(meta = getStateMeta(), serverUpdatedAt = lastServerUpdatedAt) {
+  if (getAuthSession()?.accessToken) return false;
   if (!meta?.dirty || !hasPlannerContent(state)) return false;
   const sessionEmail = getAuthSession()?.email || "";
   if (meta.accountEmail && sessionEmail && meta.accountEmail !== sessionEmail) return false;
@@ -2694,7 +2695,7 @@ function queuePassiveServerPull() {
       queuePassiveServerPull();
       return;
     }
-    pullServerStateIfNewer();
+    pullServerStateIfNewer({ force: true });
   }, 420);
 }
 
