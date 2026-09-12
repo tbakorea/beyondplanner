@@ -464,8 +464,10 @@ let initialServerHydrationFinished = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
+let sidebarRenderTimer = 0;
+let activeViewRenderTimer = 0;
 const BOOT_MIN_READING_MS = 0;
-const BOOT_FAILSAFE_MS = 2200;
+const BOOT_FAILSAFE_MS = 1100;
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
 const STATE_FETCH_TIMEOUT_MS = 10000;
 const STATE_SAVE_TIMEOUT_MS = 15000;
@@ -1683,12 +1685,19 @@ function flushDailyTaskRelatedRefresh() {
   refreshDailyTaskRelatedViews();
 }
 
+function queueSidebarRender(delay = 90) {
+  window.clearTimeout(sidebarRenderTimer);
+  sidebarRenderTimer = window.setTimeout(() => {
+    renderSidebar();
+  }, delay);
+}
+
 function renderSidebarAfterDailyInput() {
   if (isAnyPlannerInputEditing()) {
     scheduleDailyTaskRelatedRefresh(700);
     return;
   }
-  renderSidebar();
+  queueSidebarRender();
 }
 
 function canPersistDerivedState() {
@@ -2052,7 +2061,7 @@ async function persistStateToServer(options = {}) {
           saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
         }
         storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
-        renderAll();
+        renderActiveViewSections({ forceLists: true });
       } else {
         await pullServerStateIfNewer({ force: true });
       }
@@ -2142,7 +2151,7 @@ async function pullServerStateIfNewer(options = {}) {
       return;
     }
     storeStateFromServer(payload, "저장됨");
-    renderAll();
+    renderActiveViewSections({ forceLists: true });
   } catch (error) {
     saveStatus.message = error.message || "저장 확인 실패";
     renderSidebarAfterDailyInput();
@@ -2331,12 +2340,12 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
   if (localMeta.dirty && !hasPendingPlannerSave(localMeta, serverUpdatedAt)) {
     saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
     storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
-    renderAll();
+    renderActiveViewSections({ forceLists: true });
     return true;
   }
   if (!localMeta.dirty) {
     storeStateFromServer({ state: remoteState, updatedAt: serverUpdatedAt }, "저장됨");
-    renderAll();
+    renderActiveViewSections({ forceLists: true });
     return true;
   }
   const mergedState = mergePlannerStates(baseState || readPlannerBaseState() || remoteState, state, remoteState);
@@ -2353,7 +2362,7 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
   saveStatus.ready = true;
   saveStatus.saving = true;
   saveStatus.message = message;
-  renderAll();
+  renderActiveViewSections({ forceLists: true });
   scheduleAccountSave(120);
   return true;
 }
@@ -15897,6 +15906,42 @@ function renderAll() {
   checkScheduledBackupEmail();
 }
 
+function getActiveViewName() {
+  return document.body.dataset.activeView
+    || document.querySelector(".view.active")?.id?.replace("view-", "")
+    || "day";
+}
+
+function renderActiveViewSections(options = {}) {
+  ensureMonth();
+  ensureWeek();
+  ensureDay();
+  if (options.syncMoney && syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
+  renderSidebar();
+  const activeView = getActiveViewName();
+  if (activeView === "foundation") renderFoundation();
+  else if (activeView === "year") renderYear();
+  else if (activeView === "month") renderMonth();
+  else if (activeView === "week") renderWeek();
+  else if (activeView === "projects") renderProjects();
+  else if (activeView === "notes") renderNotes();
+  else if (activeView === "memos") renderMemos();
+  else if (activeView === "search") renderSearch();
+  else if (activeView === "coach") renderCoach(activeCoachSection);
+  else renderDay({ forceLists: Boolean(options.forceLists) });
+  renderWeatherChip();
+  normalizePrimaryNavigationLabels();
+  updateSettingsTabState();
+  updateStickyPanelTop();
+}
+
+function queueActiveViewRender(options = {}, delay = 70) {
+  window.clearTimeout(activeViewRenderTimer);
+  activeViewRenderTimer = window.setTimeout(() => {
+    renderActiveViewSections(options);
+  }, delay);
+}
+
 function renderStartupFrame(options = {}) {
   ensureMonth();
   ensureWeek();
@@ -15934,7 +15979,7 @@ function schedulePostBootRender() {
       schedulePostBootRender();
       return;
     }
-    renderAll();
+    renderActiveViewSections({ forceLists: true });
   }, 900);
 }
 
