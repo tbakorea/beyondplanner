@@ -3114,26 +3114,26 @@ function carryWeeklyPrioritiesIntoWeek(key, week, sourceState = state) {
   if (!week || !key) return;
   const previousKey = previousWeekKey(key);
   const previous = previousKey ? sourceState?.weeks?.[previousKey]?.priorities || [] : [];
-  const deletedCarryoverTexts = new Set(normalizeDeletedWeeklyPriorityCarryovers(week));
   removeCheckedWeeklyPriorityCarryovers(key, week, previousKey, previous);
-  const carriedTexts = previous
+  const carriedSources = previous
     .map(normalizeWeeklyPriority)
     .filter((item) => weeklyPriorityShouldCarry(item))
-    .map((item) => String(item.text).trim())
-    .filter((text) => !deletedCarryoverTexts.has(text))
-    .filter(Boolean);
-  if (!carriedTexts.length) return;
+    .filter((item) => !isWeeklyPriorityDeletedForWeek(week, item));
+  if (!carriedSources.length) return;
   week.priorities ||= [];
   while (week.priorities.length < 5) week.priorities.push(setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false));
   const existingTexts = new Set(week.priorities.map((item) => String(item?.text || "").trim()).filter(Boolean));
-  carriedTexts.forEach((text) => {
-    if (existingTexts.has(text)) return;
-    const source = previous.map(normalizeWeeklyPriority).find((item) => String(item.text || "").trim() === text);
+  const existingOrigins = new Set(week.priorities.map(getWeeklyPriorityOriginId).filter(Boolean));
+  carriedSources.forEach((source) => {
+    const text = String(source?.text || "").trim();
+    const originId = getWeeklyPriorityOriginId(source);
+    if (!text || existingTexts.has(text) || (originId && existingOrigins.has(originId))) return;
     const empty = week.priorities.find((item) => !String(item?.text || "").trim());
     const target = empty || cloneWeeklyPriorityForCarry(source, previousKey);
     Object.assign(target, cloneWeeklyPriorityForCarry(source || { text }, previousKey));
     if (!empty) week.priorities.push(target);
     existingTexts.add(text);
+    if (originId) existingOrigins.add(originId);
   });
 }
 
@@ -3169,10 +3169,45 @@ function normalizeDeletedWeeklyPriorityCarryovers(week) {
   return week.deletedPriorityCarryovers;
 }
 
+function getWeeklyPriorityOriginId(item = {}) {
+  if (!item || typeof item !== "object") return "";
+  return String(item.carryoverSourceId || item.id || "").trim();
+}
+
+function weeklyPriorityDeleteKeys(item = {}) {
+  if (typeof item === "string") {
+    const text = item.trim();
+    return text ? [text, `text:${text}`] : [];
+  }
+  normalizeWeeklyPriority(item);
+  const keys = [];
+  const text = String(item.text || "").trim();
+  const originId = getWeeklyPriorityOriginId(item);
+  if (text) keys.push(text, `text:${text}`);
+  if (originId) keys.push(`id:${originId}`);
+  return Array.from(new Set(keys));
+}
+
+function isWeeklyPriorityDeletedForWeek(week, item = {}) {
+  const deleted = new Set(normalizeDeletedWeeklyPriorityCarryovers(week));
+  return weeklyPriorityDeleteKeys(item).some((key) => deleted.has(key));
+}
+
+function markWeeklyPriorityDeletedForWeek(week, item = {}) {
+  if (!week || typeof week !== "object") return [];
+  const deleted = normalizeDeletedWeeklyPriorityCarryovers(week);
+  weeklyPriorityDeleteKeys(item).forEach((key) => {
+    if (key && !deleted.includes(key)) deleted.push(key);
+  });
+  week.deletedPriorityCarryovers = Array.from(new Set(deleted));
+  return week.deletedPriorityCarryovers;
+}
+
 function normalizeWeeklyPriority(item = {}) {
   if (!item || typeof item !== "object") item = { text: String(item || "") };
   const hadPriority = ["A", "B", "C"].includes(item.priority);
   item.id ||= newTaskId();
+  if (item.carryoverFromWeek && !item.carryoverSourceId) item.carryoverSourceId = item.id;
   item.text ||= "";
   const completed = isTaskCompleted(item);
   item.status ||= completed ? "완료" : "미완료";
@@ -3199,6 +3234,7 @@ function cloneWeeklyPriorityForCarry(item = {}, sourceWeekKey = "") {
   normalizeWeeklyPriority(item);
   return setTaskCompletionState({
     id: newTaskId(),
+    carryoverSourceId: item.carryoverSourceId || item.id || "",
     text: item.text || "",
     status: item.status === "진행중" ? "진행중" : "미완료",
     delegate: "",
@@ -3217,18 +3253,22 @@ function compactWeeklyPriorities(week) {
 }
 
 function removeWeeklyPriorityCarryoversAfterWeek(sourceWeekKey, text) {
-  const normalizedText = String(text || "").trim();
-  if (!sourceWeekKey || !normalizedText) return false;
+  const deleteProbe = typeof text === "string" ? { text } : text || {};
+  const deleteKeys = new Set(weeklyPriorityDeleteKeys(deleteProbe));
+  const normalizedText = String(deleteProbe.text || "").trim();
+  if (!sourceWeekKey || (!normalizedText && !deleteKeys.size)) return false;
   let changed = false;
   Object.keys(state.weeks || {}).sort().forEach((key) => {
     if (key <= sourceWeekKey) return;
     const week = state.weeks[key];
     if (!week?.priorities?.length) return;
+    markWeeklyPriorityDeletedForWeek(week, deleteProbe);
     const before = JSON.stringify(week.priorities);
     week.priorities = week.priorities.map((item) => {
       const itemText = String(item?.text || "").trim();
       const isCarried = !item?.carryoverFromWeek || item.carryoverFromWeek >= sourceWeekKey;
-      if (itemText === normalizedText && !item.done && isCarried) return setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false);
+      const matchesDeletedItem = (normalizedText && itemText === normalizedText) || weeklyPriorityDeleteKeys(item).some((candidate) => deleteKeys.has(candidate));
+      if (matchesDeletedItem && !item.done && isCarried) return setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false);
       return item;
     });
     compactWeeklyPriorities(week);
@@ -10048,7 +10088,7 @@ function renderDayCompass() {
       event.stopPropagation();
       runTaskCycleActionOnce(item, `weekly:${weekKey(selectedDate)}:${index}:${item.text || ""}`, cycle, () => {
         const feedback = cycleTaskMarker(item, weekKey(selectedDate));
-        if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
+        if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item);
         showTaskCycleFeedback(cycle, feedback);
         saveState();
         renderDayCompass();
@@ -10151,13 +10191,12 @@ function deleteWeeklyPriorityItem(week, index) {
   if (text && !confirmDelete(`금주의 주요일정 '${text}'을 삭제할까요?`)) return;
   if (item.weeklyPostponeId) removeWeeklyPostponedTaskOccurrence(item.weeklyPostponeId);
   if (text) {
-    const deletedTexts = normalizeDeletedWeeklyPriorityCarryovers(week);
-    if (!deletedTexts.includes(text)) deletedTexts.push(text);
-    removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), text);
+    markWeeklyPriorityDeletedForWeek(week, item);
+    removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item);
   }
   week.priorities.splice(index, 1);
   compactWeeklyPriorities(week);
-  saveState();
+  saveState({ fastSave: true });
   renderDayCompass();
 }
 
@@ -10165,7 +10204,7 @@ function handleWeeklyPriorityMenuChange(item, value) {
   normalizeWeeklyPriority(item);
   if (["위임", "취소", "연기"].includes(value)) {
     applyInactiveTaskStatus(item, value);
-    if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item.text);
+    if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item);
     saveState({ fastSave: true });
     renderDayCompass();
     return;
