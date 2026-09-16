@@ -15019,7 +15019,11 @@ function syncMoneyTaskLinks() {
   let changed = removeStaleMoneyTasks(expectedLinks);
   expectedLinks.forEach((link) => {
     if (isFinanceTaskDeletedForDate(link.id, link.date)) return;
-    if (hasFinanceLinkedTaskAt(link.id, link.date)) return;
+    const existing = findFinanceLinkedTaskAt(link.id, link.date);
+    if (existing) {
+      if (syncTaskTimeHintToSchedule(existing.task, existing.day, { dayKey: link.date })) changed = true;
+      return;
+    }
     linkMoneyItemToTask(link.item, link.monthKey, link.id, link.fixed);
     changed = true;
   });
@@ -15055,12 +15059,18 @@ function removeStaleMoneyTasks(expectedLinks) {
       const filtered = tasks.filter((task) => {
         if (!task.financeItemId) {
           const keepLegacy = shouldKeepLegacyFixedMoneyTask(task, dayKey);
-          if (!keepLegacy) changed = true;
+          if (!keepLegacy) {
+            clearTaskScheduleLinkForInactive(task, day);
+            changed = true;
+          }
           return keepLegacy;
         }
         const expected = expectedLinks.get(task.financeItemId);
         const keep = Boolean(expected && expected.date === dayKey && !isFinanceTaskDeletedForDate(task.financeItemId, dayKey));
-        if (!keep) changed = true;
+        if (!keep) {
+          clearTaskScheduleLinkForInactive(task, day);
+          changed = true;
+        }
         return keep;
       });
       if (filtered.length !== tasks.length) day.tasks[priority] = filtered;
@@ -15106,10 +15116,18 @@ function hasFinanceLinkedTask(linkId = "") {
 }
 
 function hasFinanceLinkedTaskAt(linkId = "", dayKey = "") {
-  if (!linkId || !dayKey) return false;
+  return Boolean(findFinanceLinkedTaskAt(linkId, dayKey));
+}
+
+function findFinanceLinkedTaskAt(linkId = "", dayKey = "") {
+  if (!linkId || !dayKey) return null;
   const day = state.days?.[dayKey];
-  if (!day) return false;
-  return priorities.some(([priority]) => (day.tasks?.[priority] || []).some((task) => task.financeItemId === linkId));
+  if (!day) return null;
+  for (const [priority] of priorities) {
+    const task = (day.tasks?.[priority] || []).find((candidate) => candidate.financeItemId === linkId);
+    if (task) return { day, task, priority };
+  }
+  return null;
 }
 
 function openMoneyFromFinanceTask(financeItemId = "") {
@@ -15156,6 +15174,7 @@ function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
   task.financeItemId = linkId;
   if (!Number.isFinite(Number(task.order))) assignTaskOrder(targetDay, task);
   if (!existing && !targetDay.tasks[targetPriority].includes(task)) targetDay.tasks[targetPriority].push(task);
+  syncTaskTimeHintToSchedule(task, targetDay, { dayKey: targetDate });
   item.taskDate = targetDate;
 }
 
@@ -15178,15 +15197,23 @@ function isFixedMoneyActiveForMonth(item, key) {
 }
 
 function removeFinanceLinkedTask(linkId, prefix = false) {
-  if (!linkId) return;
+  if (!linkId) return false;
+  let changed = false;
   Object.values(state.days || {}).forEach((day) => {
+    if (!day?.tasks) return;
     priorities.forEach(([priority]) => {
-      day.tasks[priority] = day.tasks[priority].filter((task) => {
+      const tasks = day.tasks[priority] || [];
+      day.tasks[priority] = tasks.filter((task) => {
         if (!task.financeItemId) return true;
-        return prefix ? !task.financeItemId.startsWith(`${linkId}-`) : task.financeItemId !== linkId;
+        const shouldRemove = prefix ? task.financeItemId.startsWith(`${linkId}-`) : task.financeItemId === linkId;
+        if (!shouldRemove) return true;
+        clearTaskScheduleLinkForInactive(task, day);
+        changed = true;
+        return false;
       });
     });
   });
+  return changed;
 }
 
 function getMoneyItemDate(item, key) {
