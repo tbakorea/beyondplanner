@@ -466,6 +466,10 @@ let passiveRefreshTimer = 0;
 let lastServerUpdatedAt = "";
 let sidebarRenderTimer = 0;
 let activeViewRenderTimer = 0;
+let activeViewRenderFrame = 0;
+let backgroundRenderTimer = 0;
+let sidebarRenderFrame = 0;
+let pendingActiveViewRenderOptions = {};
 const BOOT_MIN_READING_MS = 0;
 const BOOT_FAILSAFE_MS = 1100;
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
@@ -1687,8 +1691,20 @@ function flushDailyTaskRelatedRefresh() {
 
 function queueSidebarRender(delay = 90) {
   window.clearTimeout(sidebarRenderTimer);
+  if (sidebarRenderFrame && typeof window.cancelAnimationFrame === "function") {
+    window.cancelAnimationFrame(sidebarRenderFrame);
+    sidebarRenderFrame = 0;
+  }
   sidebarRenderTimer = window.setTimeout(() => {
-    renderSidebar();
+    const run = () => {
+      sidebarRenderFrame = 0;
+      renderSidebar();
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+      sidebarRenderFrame = window.requestAnimationFrame(run);
+    } else {
+      run();
+    }
   }, delay);
 }
 
@@ -10420,14 +10436,30 @@ function renderTaskBoard(day, dayKey = iso(selectedDate)) {
   board.appendChild(list);
 }
 
-function renderDayAfterTaskMutation() {
+function refreshDailyStatusViews(day = ensureDay(), dayKey = iso(selectedDate)) {
+  const allTasks = getDayTasks(dayKey);
+  const carryovers = getCarryoverTasks(parseDate(dayKey));
+  const completion = getDailyCompletionSummary(day, dayKey, carryovers);
+  const completionNode = el("dailyCompletion");
+  if (completionNode) completionNode.textContent = `${completion.done}/${completion.total}`;
+  renderDailyPulse(day, allTasks, carryovers, completion);
+  renderScheduleUnitControls(day);
+  scheduleDailyHeaderFit();
+}
+
+function renderDayAfterTaskMutation(options = {}) {
   const panel = currentDayPanel || "main";
   markDailyTaskMutation(1800);
   markPlannerInputEditing(900);
   markDailyFieldEditing(900);
-  renderDay({ forceLists: true });
+  if (options.fastSummary) {
+    refreshDailyStatusViews();
+    queueActiveViewRender({ forceLists: true }, options.delay || 120);
+  } else {
+    renderDay({ forceLists: true });
+  }
   if (isPagedDaySwipe()) positionDaySwipe(panel, true);
-  scheduleDailyTaskRelatedRefresh(220);
+  scheduleDailyTaskRelatedRefresh(options.fastSummary ? 360 : 220);
 }
 
 function getTaskRefs(day) {
@@ -10664,7 +10696,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
       reflectTaskMarkerOnRow(row, task);
       showTaskCycleFeedback(cycle, feedback);
       saveCriticalPlannerAction("우선업무 완료 상태 저장 중");
-      renderDayAfterTaskMutation();
+      renderDayAfterTaskMutation({ fastSummary: true });
     });
   };
   if (prioritySelect) {
@@ -15350,6 +15382,7 @@ function showView(name) {
   if (name === "day") positionDaySwipe(previousView === "day" ? currentDayPanel : "main", previousView !== "day");
   keepActiveTopViewVisible(name);
   scheduleClassicViewportFit();
+  queueActiveViewRender({ forceLists: name === "day" }, 32);
 }
 
 function keepActiveTopViewVisible(name) {
@@ -15922,27 +15955,15 @@ function importPlanner(event) {
   reader.readAsText(file);
 }
 
-function renderAll() {
+function renderAll(options = {}) {
   ensureMonth();
   ensureWeek();
   ensureDay();
-  if (syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
-  renderSidebar();
-  renderFoundation();
-  renderYear();
-  renderMonth();
-  renderWeek();
-  renderDay();
-  renderProjects();
-  renderNotes();
-  renderMemos();
-  renderSheets();
-  renderSearch();
-  renderWeatherChip();
-  normalizePrimaryNavigationLabels();
-  updateSettingsTabState();
-  updateStickyPanelTop();
-  checkScheduledBackupEmail();
+  renderActiveViewSections({
+    forceLists: options.forceLists !== false,
+    syncMoney: options.syncMoney !== false,
+  });
+  queueBackgroundViewRender();
 }
 
 function getActiveViewName() {
@@ -15974,10 +15995,63 @@ function renderActiveViewSections(options = {}) {
   updateStickyPanelTop();
 }
 
-function queueActiveViewRender(options = {}, delay = 70) {
+function renderBackgroundViewSections() {
+  const activeView = getActiveViewName();
+  if (isAnyPlannerInputEditing()) {
+    queueBackgroundViewRender(1200);
+    return;
+  }
+  if (activeView !== "foundation") renderFoundation();
+  if (activeView !== "year") renderYear();
+  if (activeView !== "month") renderMonth();
+  if (activeView !== "week") renderWeek();
+  if (activeView !== "day") renderDay();
+  if (activeView !== "projects") renderProjects();
+  if (activeView !== "notes") renderNotes();
+  if (activeView !== "memos") renderMemos();
+  if (activeView !== "search") renderSearch();
+  renderWeatherChip();
+  normalizePrimaryNavigationLabels();
+  updateSettingsTabState();
+  updateStickyPanelTop();
+  checkScheduledBackupEmail();
+}
+
+function queueBackgroundViewRender(delay = 650) {
+  window.clearTimeout(backgroundRenderTimer);
+  backgroundRenderTimer = window.setTimeout(() => {
+    scheduleIdleTask(renderBackgroundViewSections, 900);
+  }, delay);
+}
+
+function mergeActiveRenderOptions(previous, next) {
+  return {
+    ...previous,
+    ...next,
+    forceLists: Boolean(previous.forceLists || next.forceLists),
+    syncMoney: Boolean(previous.syncMoney || next.syncMoney),
+  };
+}
+
+function queueActiveViewRender(options = {}, delay = 48) {
+  pendingActiveViewRenderOptions = mergeActiveRenderOptions(pendingActiveViewRenderOptions, options);
   window.clearTimeout(activeViewRenderTimer);
+  if (activeViewRenderFrame && typeof window.cancelAnimationFrame === "function") {
+    window.cancelAnimationFrame(activeViewRenderFrame);
+    activeViewRenderFrame = 0;
+  }
   activeViewRenderTimer = window.setTimeout(() => {
-    renderActiveViewSections(options);
+    const pendingOptions = pendingActiveViewRenderOptions;
+    pendingActiveViewRenderOptions = {};
+    const run = () => {
+      activeViewRenderFrame = 0;
+      renderActiveViewSections(pendingOptions);
+    };
+    if (typeof window.requestAnimationFrame === "function") {
+      activeViewRenderFrame = window.requestAnimationFrame(run);
+    } else {
+      run();
+    }
   }, delay);
 }
 
