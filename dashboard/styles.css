@@ -22416,3 +22416,94 @@ body.ceo-mode.day-view-active .appointment-row.is-current-time .appointment-time
   min-height: 32px !important;
   background: transparent !important;
 }
+
+/* 2026-09-16 video QA polish.
+   Keep the date-row weather chip legible on wide/landscape screens and give
+   the daily task/schedule scrollers enough bottom runway so the last rows are
+   never hidden by the viewport edge or floating controls. */
+@media (min-width: 900px), (orientation: landscape) and (min-width: 700px) {
+  body.day-view-active .day-date-nav.has-today-weather,
+  body.ceo-mode.day-view-active .day-date-nav.has-today-weather,
+  body.classic-mode.day-view-active .day-date-nav.has-today-weather {
+    grid-template-columns:
+      clamp(34px, 3vw, 42px)
+      minmax(0, min(53vw, 520px))
+      clamp(34px, 3vw, 42px)
+      minmax(clamp(136px, 10vw, 178px), max-content) !important;
+  }
+
+  body.day-view-active .daily-title .today-jump.is-weather-today:not([hidden]),
+  body.ceo-mode.day-view-active .daily-title .today-jump.is-weather-today:not([hidden]),
+  body.classic-mode.day-view-active .daily-title .today-jump.is-weather-today:not([hidden]) {
+    min-width: clamp(136px, 10vw, 178px) !important;
+    max-width: clamp(136px, 10vw, 178px) !important;
+    height: clamp(42px, 4.2vw, 54px) !important;
+    min-height: clamp(42px, 4.2vw, 54px) !important;
+    padding-inline: clamp(10px, 1vw, 15px) !important;
+    gap: clamp(8px, 0.9vw, 12px) !important;
+    overflow: visible !important;
+  }
+
+  body.day-view-active .today-weather-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: clamp(36px, 2.9vw, 46px) !important;
+    min-width: clamp(36px, 2.9vw, 46px) !important;
+    height: clamp(32px, 2.7vw, 42px) !important;
+    font-size: clamp(31px, 2.65vw, 41px) !important;
+    line-height: 1 !important;
+    filter: drop-shadow(0 3px 7px rgba(35, 48, 42, 0.16)) !important;
+  }
+
+  body.day-view-active .today-weather-range {
+    min-width: max-content !important;
+    font-size: clamp(13.5px, 1.08vw, 16px) !important;
+    line-height: 1 !important;
+    font-weight: 980 !important;
+    white-space: nowrap !important;
+  }
+}
+
+body.day-view-active .day-task-panel,
+body.day-view-active .day-schedule-panel {
+  scroll-padding-bottom: max(96px, calc(env(safe-area-inset-bottom) + 76px)) !important;
+}
+
+body.day-view-active .task-board,
+body.day-view-active .appointment-list,
+body.classic-mode.day-view-active .task-board,
+body.classic-mode.day-view-active .appointment-list,
+body.ceo-mode.day-view-active .task-board,
+body.ceo-mode.day-view-active .appointment-list {
+  padding-bottom: max(92px, calc(env(safe-area-inset-bottom) + 72px)) !important;
+  scroll-padding-bottom: max(108px, calc(env(safe-area-inset-bottom) + 86px)) !important;
+}
+
+body.day-view-active .task-list {
+  padding-bottom: max(28px, env(safe-area-inset-bottom)) !important;
+}
+
+body.day-view-active .task-add-options {
+  margin-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+}
+
+@media (max-width: 640px) {
+  body.day-view-active .task-board,
+  body.day-view-active .appointment-list {
+    padding-bottom: max(118px, calc(env(safe-area-inset-bottom) + 92px)) !important;
+    scroll-padding-bottom: max(130px, calc(env(safe-area-inset-bottom) + 104px)) !important;
+  }
+
+  body.day-view-active .task-add-options {
+    margin-bottom: max(26px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (pointer: coarse) and (min-width: 641px) and (max-width: 1366px) {
+  body.day-view-active .task-board,
+  body.day-view-active .appointment-list {
+    padding-bottom: max(104px, calc(env(safe-area-inset-bottom) + 82px)) !important;
+    scroll-padding-bottom: max(118px, calc(env(safe-area-inset-bottom) + 96px)) !important;
+  }
+}
