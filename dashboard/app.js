@@ -10099,15 +10099,22 @@ function renderDayCompass() {
     const postponeDateButton = row.querySelector(".postpone-date-button");
     const text = row.querySelector(".weekly-priority-text");
     const deleteButton = row.querySelector(".weekly-priority-delete");
+    cycle.addEventListener("pointerdown", (event) => {
+      event.stopPropagation();
+    });
     cycle.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      runTaskCycleActionOnce(item, `weekly:${weekKey(selectedDate)}:${index}:${item.text || ""}`, cycle, () => {
-        const feedback = cycleTaskMarker(item, weekKey(selectedDate));
-        if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item);
+      const selectedWeekKey = weekKey(selectedDate);
+      const selectedDayKey = iso(selectedDate);
+      runTaskCycleActionOnce(item, `weekly:${selectedWeekKey}:${index}:${item.text || ""}`, cycle, () => {
+        const feedback = cycleTaskMarker(item, selectedDayKey);
+        if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(selectedWeekKey, item);
+        reflectTaskMarkerOnRow(row, item);
         showTaskCycleFeedback(cycle, feedback);
-        saveState();
+        saveCriticalPlannerAction("금주의 주요일정 저장 중");
         renderDayCompass();
+        renderWeek();
       });
     };
     if (prioritySelect) {
@@ -10212,17 +10219,22 @@ function deleteWeeklyPriorityItem(week, index) {
   }
   week.priorities.splice(index, 1);
   compactWeeklyPriorities(week);
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("금주의 주요일정 삭제 저장 중");
   renderDayCompass();
+  renderWeek();
 }
 
 function handleWeeklyPriorityMenuChange(item, value) {
   normalizeWeeklyPriority(item);
+  const saveAndRefreshWeeklyPriorities = () => {
+    saveCriticalPlannerAction("금주의 주요일정 저장 중");
+    renderDayCompass();
+    renderWeek();
+  };
   if (["위임", "취소", "연기"].includes(value)) {
     applyInactiveTaskStatus(item, value);
     if (!weeklyPriorityShouldCarry(item)) removeWeeklyPriorityCarryoversAfterWeek(weekKey(selectedDate), item);
-    saveState({ fastSave: true });
-    renderDayCompass();
+    saveAndRefreshWeeklyPriorities();
     return;
   }
   if (["A", "B", "C"].includes(value)) {
@@ -10230,15 +10242,13 @@ function handleWeeklyPriorityMenuChange(item, value) {
     item.priorityUnset = false;
     clearInactiveTaskStatus(item);
     setTaskCompletionState(item, isTaskCompleted(item));
-    saveState({ fastSave: true });
-    renderDayCompass();
+    saveAndRefreshWeeklyPriorities();
     return;
   }
   item.priorityUnset = true;
   clearInactiveTaskStatus(item);
   setTaskCompletionState(item, isTaskCompleted(item));
-  saveState({ fastSave: true });
-  renderDayCompass();
+  saveAndRefreshWeeklyPriorities();
 }
 
 function scheduleWeeklyPriorityPostpone(item, targetDate) {
@@ -10289,7 +10299,7 @@ function scheduleWeeklyPriorityPostpone(item, targetDate) {
   }
 
   if (existingTask) syncTaskTimeHintToSchedule(existingTask, targetDay, { dayKey: targetDate });
-  saveState({ fastSave: true });
+  saveCriticalPlannerAction("금주의 주요일정 연기 저장 중");
   renderAll();
 }
 
