@@ -468,6 +468,8 @@ let sidebarRenderTimer = 0;
 let activeViewRenderTimer = 0;
 let activeViewRenderFrame = 0;
 let backgroundRenderTimer = 0;
+let plannerMaintenanceTimer = 0;
+let displayCacheTimer = 0;
 let sidebarRenderFrame = 0;
 let pendingActiveViewRenderOptions = {};
 const BOOT_MIN_READING_MS = 0;
@@ -1206,6 +1208,11 @@ function persistDisplayCache(nextState = state) {
   }
 }
 
+function queueDisplayCachePersist(nextState = state, delay = 900) {
+  window.clearTimeout(displayCacheTimer);
+  displayCacheTimer = window.setTimeout(() => persistDisplayCache(nextState), delay);
+}
+
 function readPlannerBaseState() {
   try {
     const parsed = JSON.parse(localStorage.getItem(plannerStateBaseKey()) || "null");
@@ -1653,7 +1660,7 @@ function saveState(options = {}) {
     ? clonePlannerValue(state)
     : preparePlannerStateForPersistence(clonePlannerValue(state));
   localStorage.setItem(plannerStorageKey(), JSON.stringify(stateSnapshot));
-  persistDisplayCache(stateSnapshot);
+  queueDisplayCachePersist(stateSnapshot, options.fastSave ? 1200 : 900);
   markLocalStateUpdated();
   scheduleAccountSave(options.fastSave ? 120 : 650);
 }
@@ -15996,11 +16003,16 @@ function renderAll(options = {}) {
   ensureMonth();
   ensureWeek();
   ensureDay();
+  const shouldSyncMoneyLater = options.syncMoney !== false;
   renderActiveViewSections({
     forceLists: options.forceLists !== false,
-    syncMoney: options.syncMoney !== false,
+    syncMoney: Boolean(options.syncMoney),
   });
-  queueBackgroundViewRender();
+  if (options.background) queueBackgroundViewRender(options.backgroundDelay || 1800);
+  queuePlannerMaintenance({
+    syncMoney: shouldSyncMoneyLater,
+    backup: options.backup !== false,
+  });
 }
 
 function getActiveViewName() {
@@ -16042,7 +16054,9 @@ function renderBackgroundViewSections() {
   if (activeView !== "year") renderYear();
   if (activeView !== "month") renderMonth();
   if (activeView !== "week") renderWeek();
-  if (activeView !== "day") renderDay();
+  // Daily rendering performs schedule/task reconciliation and can persist
+  // derived state. Keep it out of background rendering so scrolling and
+  // text entry stay responsive.
   if (activeView !== "projects") renderProjects();
   if (activeView !== "notes") renderNotes();
   if (activeView !== "memos") renderMemos();
@@ -16058,6 +16072,22 @@ function queueBackgroundViewRender(delay = 650) {
   window.clearTimeout(backgroundRenderTimer);
   backgroundRenderTimer = window.setTimeout(() => {
     scheduleIdleTask(renderBackgroundViewSections, 900);
+  }, delay);
+}
+
+function queuePlannerMaintenance(options = {}, delay = 2200) {
+  window.clearTimeout(plannerMaintenanceTimer);
+  plannerMaintenanceTimer = window.setTimeout(() => {
+    scheduleIdleTask(() => {
+      if (isAnyPlannerInputEditing()) {
+        queuePlannerMaintenance(options, 1600);
+        return;
+      }
+      if (options.syncMoney && syncMoneyTaskLinks() && canPersistDerivedState()) {
+        saveState({ fastSave: true });
+      }
+      if (options.backup !== false) checkScheduledBackupEmail();
+    }, 1400);
   }, delay);
 }
 
@@ -16111,7 +16141,8 @@ function renderHydratedTodayFrame() {
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
-  renderStartupFrame({ syncMoney: true, forceLists: true });
+  renderStartupFrame({ forceLists: true });
+  queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
   stabilizeDaySwipePosition("main");
 }
 
@@ -16125,11 +16156,17 @@ function scheduleIdleTask(callback, timeout = 1200) {
 
 function schedulePostBootRender() {
   scheduleIdleTask(() => {
-    if (getAuthSession()?.accessToken && !initialServerHydrationFinished) {
+    const hasSession = Boolean(getAuthSession()?.accessToken);
+    if (hasSession && !initialServerHydrationFinished) {
       schedulePostBootRender();
       return;
     }
+    if (hasSession && initialServerHydrationFinished) {
+      queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
+      return;
+    }
     renderActiveViewSections({ forceLists: true });
+    queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
   }, 900);
 }
 
