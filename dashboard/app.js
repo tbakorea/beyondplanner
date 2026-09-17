@@ -863,6 +863,35 @@ function todayInPlanner() {
   return today;
 }
 
+const DAILY_EDIT_LOCK_HOURS = 48;
+
+function getDayEditBoundary(dayKey = iso(selectedDate)) {
+  const date = parseDate(dayKey);
+  if (Number.isNaN(date.getTime())) return new Date();
+  date.setDate(date.getDate() + 1);
+  return date;
+}
+
+function isDailyEditLocked(dayKey = iso(selectedDate)) {
+  const boundary = getDayEditBoundary(dayKey);
+  return Date.now() - boundary.getTime() >= DAILY_EDIT_LOCK_HOURS * 60 * 60 * 1000;
+}
+
+function showDailyEditLockNotice(dayKey = iso(selectedDate)) {
+  const now = Date.now();
+  if (showDailyEditLockNotice.lastShownAt && now - showDailyEditLockNotice.lastShownAt < 5000) return;
+  showDailyEditLockNotice.lastShownAt = now;
+  window.alert(`${formatDate(parseDate(dayKey))} 기록은 48시간이 지나 보존 모드입니다. 내용은 그대로 보존되고 수정할 수 없습니다.`);
+}
+
+function guardDailyEdit(dayKey = iso(selectedDate), event = null) {
+  if (!isDailyEditLocked(dayKey)) return false;
+  event?.preventDefault?.();
+  event?.stopPropagation?.();
+  showDailyEditLockNotice(dayKey);
+  return true;
+}
+
 function startOfWeek(date) {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
@@ -3459,18 +3488,28 @@ function bindDayTextFields(day = ensureDay(), dayKey = iso(selectedDate)) {
     const fieldName = field.dataset.dayField;
     if (!fieldName) return;
     const targetDay = ensureDay(dayKey);
+    const locked = isDailyEditLocked(dayKey);
     hydrateFieldValueUnlessEditing(field, targetDay[fieldName] || "");
+    field.readOnly = locked;
+    field.classList.toggle("is-edit-locked", locked);
+    field.title = locked ? "48시간이 지난 기록은 보존 모드입니다." : "";
     const persistField = (duration = 2500) => {
+      if (isDailyEditLocked(dayKey)) {
+        hydrateFieldValueUnlessEditing(field, ensureDay(dayKey)[fieldName] || "");
+        return;
+      }
       markPlannerTextEditing(duration);
       markDailyFieldEditing(duration);
       ensureDay(dayKey)[fieldName] = field.value;
       saveState({ fastSave: true });
     };
     field.onfocus = () => {
+      if (isDailyEditLocked(dayKey)) return;
       markPlannerTextEditing(10 * 60 * 1000);
       markDailyFieldEditing(10 * 60 * 1000);
     };
     field.oncompositionstart = () => {
+      if (isDailyEditLocked(dayKey)) return;
       markPlannerTextEditing(10 * 60 * 1000);
       markDailyFieldEditing(10 * 60 * 1000);
     };
@@ -3725,6 +3764,7 @@ function setupSelectors() {
     applyPlannerMode();
     applyMobileDayFocusMode();
     updateStickyPanelTop();
+    renderDailyDateTitle();
     renderDailyTodayButton();
     positionDaySwipe("main", true);
     scheduleDailyHeaderFit();
@@ -3749,6 +3789,7 @@ function setupSelectors() {
   window.addEventListener("orientationchange", () => {
     window.setTimeout(() => {
       updateStickyPanelTop();
+      renderDailyDateTitle();
       renderDailyTodayButton();
       positionDaySwipe("main", true);
       scheduleDailyHeaderFit();
@@ -5231,6 +5272,18 @@ function fitDailyHeaderText() {
 function scheduleDailyHeaderFit() {
   window.cancelAnimationFrame(dailyHeaderFitFrame);
   dailyHeaderFitFrame = window.requestAnimationFrame(fitDailyHeaderText);
+}
+
+function renderDailyDateTitle() {
+  const dayTitle = el("dayTitle");
+  if (!dayTitle) return;
+  const key = iso(selectedDate);
+  const formattedDate = formatDate(selectedDate);
+  const weatherMarkup = getDailyDateWeatherMarkup(key);
+  dayTitle.innerHTML = `<span class="day-title-date">${escapeHtml(formattedDate)}</span>${weatherMarkup}`;
+  dayTitle.classList.toggle("has-date-weather", Boolean(weatherMarkup));
+  dayTitle.setAttribute("data-full-date", formattedDate);
+  el("dailyCalendarToggle")?.setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
 }
 
 function shouldFitDesktopClassicWorkspace() {
@@ -7109,14 +7162,12 @@ function renderDay(options = {}) {
   const day = ensureDay();
   const editing = !options.forceLists && isAnyPlannerTextEditing();
   const key = iso(selectedDate);
-  const formattedDate = formatDate(selectedDate);
   const dayTitle = el("dayTitle");
   if (dayTitle) {
     dayTitle.classList.remove("slide-out-next", "slide-out-prev");
-    dayTitle.textContent = formattedDate;
-    dayTitle.setAttribute("data-full-date", formattedDate);
+    renderDailyDateTitle();
   }
-  el("dailyCalendarToggle").setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
+  renderDailyTodayButton();
   updateDailyActionAiAvailability();
   if (!editing && purgeMisdatedTaskScheduleArtifacts(day, key) && canPersistDerivedState()) saveState({ fastSave: true });
   const allTasks = getDayTasks(key);
@@ -7137,8 +7188,42 @@ function renderDay(options = {}) {
   bindDayTextFields(day, key);
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   if (isPlannerCalendarOpen("daily")) renderPlannerCalendarSheet();
+  applyDailyEditLock(key);
   scheduleDailyHeaderFit();
   positionDaySwipe();
+}
+
+function applyDailyEditLock(dayKey = iso(selectedDate)) {
+  const view = el("view-day");
+  if (!view) return;
+  const locked = isDailyEditLocked(dayKey);
+  view.classList.toggle("is-daily-edit-locked", locked);
+  view.setAttribute("data-edit-lock", locked ? "locked" : "open");
+  view.querySelectorAll([
+    "#taskBoard .completion-cycle",
+    "#taskBoard .priority-select",
+    "#taskBoard .delegate-input",
+    "#taskBoard .postpone-date-button",
+    "#taskBoard .task-text-input",
+    "#taskBoard .delete-row",
+    "#taskBoard .task-add-primary",
+    "#taskBoard .task-add-repeat",
+    "#appointmentList input",
+    "#appointmentList textarea",
+    "#appointmentList button",
+    "[data-day-field]",
+    "#memoPage input",
+    "#memoPage textarea",
+    "#memoPage button",
+  ].join(",")).forEach((control) => {
+    const isField = control.matches("input, textarea");
+    const isCommand = control.matches("button, select");
+    if (isField) control.readOnly = locked;
+    if (isCommand) control.disabled = locked;
+    control.classList.toggle("is-edit-locked", locked);
+    if (locked) control.title = "48시간이 지난 기록은 보존 모드입니다.";
+    else control.removeAttribute("title");
+  });
 }
 
 function renderScheduleUnitControls(day = ensureDay()) {
@@ -8822,9 +8907,31 @@ function getWeatherRecordForDate(key = iso(selectedDate), options = {}) {
       status: weatherState.status,
     };
   }
+  if (normalizedKey >= todayKey && Array.isArray(weatherState.forecastDays)) {
+    const forecast = weatherState.forecastDays.find((item) => item?.date === normalizedKey);
+    if (forecast) return forecast;
+  }
   const record = state.days?.[normalizedKey]?.weather;
   if (!record || record.date !== normalizedKey) return null;
   return record;
+}
+
+function getDailyDateWeatherMarkup(key = iso(selectedDate)) {
+  if (!shouldShowDateWeatherChip()) return "";
+  const weather = getWeatherRecordForDate(key, { preferLive: key === iso(todayInPlanner()) });
+  if (!weather) return "";
+  const isLoading = weather.status === "loading" || weather.status === "refreshing";
+  const icon = isLoading ? "…" : getWeatherConditionIcon(weather);
+  const range = formatWeatherTemperatureRange(weather);
+  const label = [weather.summary, range].filter(Boolean).join(" ");
+  if (!label && !isLoading) return "";
+  const title = isLoading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weather);
+  return `
+    <span class="day-title-weather" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">
+      <span class="day-title-weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>
+      <span class="day-title-weather-text">${escapeHtml(label || "날씨")}</span>
+    </span>
+  `;
 }
 
 function formatWeatherTemperatureRange(record = {}) {
@@ -8860,7 +8967,7 @@ function shouldShowDateWeatherChip() {
   const width = window.innerWidth || document.documentElement?.clientWidth || 0;
   const height = window.innerHeight || document.documentElement?.clientHeight || 0;
   if (!width || !height) return true;
-  return width >= 900 || (width >= 700 && width > height);
+  return width >= 720 || (width >= 700 && width > height);
 }
 
 function renderDailyTodayButton() {
@@ -8870,43 +8977,28 @@ function renderDailyTodayButton() {
   const selectedKey = iso(selectedDate);
   const todayKey = iso(todayInPlanner());
   const isToday = selectedKey === todayKey;
-  button.hidden = false;
+  button.hidden = isToday;
   button.classList.toggle("is-current-day", isToday);
   button.classList.toggle("is-weather-today", false);
   nav?.classList.toggle("has-today-weather", false);
+  nav?.classList.toggle("is-current-day", isToday);
   button.textContent = "오늘";
+  button.innerHTML = "오늘";
   if (!isToday) {
     button.setAttribute("aria-label", "오늘 날짜로 이동");
     button.title = "오늘 날짜로 이동";
     scheduleDailyHeaderFit();
     return;
   }
-  if (!shouldShowDateWeatherChip()) {
-    button.setAttribute("aria-label", "오늘 날짜입니다");
-    button.title = "오늘 날짜입니다";
-    scheduleDailyHeaderFit();
-    return;
-  }
-  const weather = getWeatherRecordForDate(todayKey, { preferLive: true });
-  const loading = weather?.status === "loading" || weather?.status === "refreshing";
-  const hasWeather = weather && (loading || weather.summary || Number.isFinite(Number(weather.temp)) || Number.isFinite(Number(weather.tempMin)));
-  if (!hasWeather) {
-    button.setAttribute("aria-label", "오늘 날짜입니다");
-    button.title = "오늘 날짜입니다";
-    return;
-  }
-  const icon = loading ? "…" : getWeatherConditionIcon(weather);
-  const range = formatWeatherTemperatureRange(weather);
-  button.classList.add("is-weather-today");
-  nav?.classList.toggle("has-today-weather", true);
-  button.innerHTML = `
-    <span class="today-weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>
-    <span class="today-weather-range">${escapeHtml(range || "날씨")}</span>
-  `;
-  const title = loading ? "오늘 날씨를 확인하는 중입니다." : getWeatherTitle(weather);
-  button.title = title;
-  button.setAttribute("aria-label", title);
+  button.setAttribute("aria-label", "오늘 날짜입니다");
+  button.title = "오늘 날짜입니다";
   scheduleDailyHeaderFit();
+}
+
+function renderWeatherDependentSurfaces() {
+  renderWeatherChip();
+  renderDailyDateTitle();
+  renderDailyTodayButton();
 }
 
 function isWeatherRecordFresh(record, maxAgeMs = 2 * 60 * 60 * 1000) {
@@ -8954,8 +9046,7 @@ async function setupWeather(options = {}) {
   const settings = getWeatherSettings();
   if (settings.enabled === false) {
     weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
-    renderWeatherChip();
-    renderDailyTodayButton();
+    renderWeatherDependentSurfaces();
     renderWeatherSettings("날씨 자동 입력이 꺼져 있습니다.");
     return;
   }
@@ -8963,19 +9054,16 @@ async function setupWeather(options = {}) {
   if (!options.force && isWeatherRecordFresh(stored)) {
     weatherState = { ...stored, status: "ready" };
     storeWeatherCache();
-    renderWeatherChip();
-    renderDailyTodayButton();
+    renderWeatherDependentSurfaces();
     renderWeatherSettings();
     return;
   }
   const hasCache = hydrateWeatherFromCache();
   if (hasCache) {
-    renderWeatherChip();
-    renderDailyTodayButton();
+    renderWeatherDependentSurfaces();
   }
   weatherState = { ...weatherState, status: hasCache ? "refreshing" : "loading" };
-  renderWeatherChip();
-  renderDailyTodayButton();
+  renderWeatherDependentSurfaces();
   try {
     const data = await fetchOpenMeteoWeather(await getWeatherCoordinates());
     weatherState = { ...data, status: "ready" };
@@ -8994,8 +9082,7 @@ async function setupWeather(options = {}) {
           advice: "날씨 정보를 가져오지 못했습니다. 외부 일정은 이동 시간을 여유 있게 잡으세요.",
         };
   }
-  renderWeatherChip();
-  renderDailyTodayButton();
+  renderWeatherDependentSurfaces();
   renderWeatherSettings();
   updateCoachBubble();
   if (activeCoachSection === "weather" || activeCoachSection === "") renderCoach();
@@ -9045,8 +9132,8 @@ async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
     latitude: String(coords.latitude),
     longitude: String(coords.longitude),
     current: "temperature_2m,weather_code,precipitation,wind_speed_10m",
-    daily: "temperature_2m_max,temperature_2m_min",
-    forecast_days: "1",
+    daily: "temperature_2m_max,temperature_2m_min,weather_code",
+    forecast_days: "16",
     timezone: "auto",
   });
   let response;
@@ -9066,6 +9153,23 @@ async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
   const wind = Number(current.wind_speed_10m);
   const precipitation = Number(current.precipitation || 0);
   const info = getWeatherCodeInfo(code);
+  const forecastDays = (Array.isArray(daily.time) ? daily.time : []).map((dateKey, index) => {
+    const dayCode = Number(Array.isArray(daily.weather_code) ? daily.weather_code[index] : daily.weather_code);
+    const dayInfo = getWeatherCodeInfo(dayCode);
+    const record = {
+      date: dateKey,
+      icon: dayInfo.icon,
+      code: dayCode,
+      tempMin: Number(Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min[index] : daily.temperature_2m_min),
+      tempMax: Number(Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max[index] : daily.temperature_2m_max),
+      temp: null,
+      label: coords.label || DEFAULT_WEATHER_COORDS.label,
+      summary: dayInfo.summary,
+      status: "ready",
+      forecast: true,
+    };
+    return { ...record, advice: buildWeatherAdvice(record) };
+  });
   const state = {
     icon: info.icon,
     temp: Number.isFinite(temp) ? temp : null,
@@ -9076,6 +9180,7 @@ async function fetchOpenMeteoWeather(coords = DEFAULT_WEATHER_COORDS) {
     precipitation: Number.isFinite(precipitation) ? precipitation : 0,
     label: coords.label || DEFAULT_WEATHER_COORDS.label,
     summary: info.summary,
+    forecastDays,
   };
   return { ...state, advice: buildWeatherAdvice(state) };
 }
@@ -10435,7 +10540,8 @@ function renderTaskBoard(day, dayKey = iso(selectedDate)) {
   const add = document.createElement("button");
   add.className = "add-row task-add-primary";
   add.textContent = "일반 업무 추가";
-  add.onclick = () => {
+  add.onclick = (event) => {
+    if (guardDailyEdit(dayKey, event)) return;
     const task = setTaskCompletionState({ id: newTaskId(), text: "", status: "미완료", delegate: "", priorityUnset: true }, false);
     assignTaskOrder(day, task);
     day.tasks.A.push(task);
@@ -10447,7 +10553,10 @@ function renderTaskBoard(day, dayKey = iso(selectedDate)) {
   repeat.className = "add-row task-add-repeat";
   repeat.type = "button";
   repeat.textContent = "반복 업무 추가";
-  repeat.onclick = () => openRepeatManager("create");
+  repeat.onclick = (event) => {
+    if (guardDailyEdit(dayKey, event)) return;
+    openRepeatManager("create");
+  };
   addGroup.append(add, repeat);
   list.appendChild(addGroup);
   board.appendChild(list);
@@ -10510,6 +10619,12 @@ function updateTaskRowPriorityVisual(row, value) {
 function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
   if (!input) return null;
   const dayKey = options.dayKey || iso(selectedDate);
+  if (isDailyEditLocked(dayKey)) {
+    const dayState = ensureDay(dayKey);
+    const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
+    hydrateFieldValueUnlessEditing(input, location?.task?.text || task?.text || "");
+    return null;
+  }
   const isTyping = options.typing !== false;
   if (isTyping) {
     dailyTextEditingActive = true;
@@ -10684,6 +10799,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   cycle.onclick = (event) => {
     event.preventDefault();
     event.stopPropagation();
+    if (guardDailyEdit(dayKey, event)) return;
     runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
       if (isBlankTaskPlaceholder(task)) {
         resetBlankTaskPlaceholder(task);
@@ -10719,6 +10835,11 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   if (prioritySelect) {
     let handledValue = "";
     const applyPrioritySelection = () => {
+      if (isDailyEditLocked(dayKey)) {
+        prioritySelect.value = getPriorityMenuValue(task, priority);
+        showDailyEditLockNotice(dayKey);
+        return;
+      }
       if (handledValue === prioritySelect.value) return;
       handledValue = prioritySelect.value;
       updateTaskRowPriorityVisual(row, prioritySelect.value);
@@ -10729,12 +10850,17 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   }
   if (delegateInput) {
     delegateInput.oninput = () => {
+      if (isDailyEditLocked(dayKey)) {
+        delegateInput.value = task.delegate || "";
+        return;
+      }
       task.delegate = delegateInput.value;
       saveState({ fastSave: true });
     };
   }
   if (postponeDateButton) {
     bindPostponeDateControl(postponeDateButton, () => {
+      if (guardDailyEdit(dayKey)) return;
       openPostponeDatePicker(
         postponeDateButton,
         task.postponeDate || iso(selectedDate),
@@ -10754,7 +10880,10 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   };
   text.addEventListener("change", commitTextAndSchedule);
   text.addEventListener("blur", commitTextAndSchedule);
-  deleteButton.onclick = () => deleteTask(priority, index, task);
+  deleteButton.onclick = (event) => {
+    if (guardDailyEdit(dayKey, event)) return;
+    deleteTask(priority, index, task);
+  };
   if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
   return row;
 }
@@ -11063,6 +11192,7 @@ function clearInactiveTaskStatus(task) {
 }
 
 function handlePriorityMenuChange(task, fromPriority, index, value) {
+  if (guardDailyEdit(iso(selectedDate))) return;
   const day = ensureDay();
   const location = resolveDailyTaskEditLocation(day, task, fromPriority, index);
   const targetTask = location?.task || task;
@@ -11126,6 +11256,7 @@ function moveLocatedTaskPriority(day, location, toPriority) {
 }
 
 function deleteTask(priority, index, taskRef = null) {
+  if (guardDailyEdit(iso(selectedDate))) return;
   const day = ensureDay();
   const location = findCurrentTaskLocation(day, taskRef, priority, index);
   const task = location?.task;
@@ -11164,6 +11295,7 @@ function deleteTask(priority, index, taskRef = null) {
 }
 
 function schedulePostponedTask(task, priority, targetDate) {
+  if (guardDailyEdit(iso(selectedDate))) return;
   if (!targetDate || Number.isNaN(parseDate(targetDate).getTime())) return;
   const sourceKey = iso(selectedDate);
   const sourceDay = ensureDay(sourceKey);
@@ -12459,17 +12591,18 @@ function renderAppointments(day, dayKey = iso(selectedDate)) {
     if (!slot) return false;
     event.preventDefault();
     event.stopPropagation();
+    if (guardDailyEdit(dayKey, event)) return true;
     const targetDay = ensureDay(dayKey);
     if (actionButton.classList.contains("appointment-delete")) {
-      deleteAppointmentSlot(targetDay, slot);
+      deleteAppointmentSlot(targetDay, slot, dayKey);
       return true;
     }
     if (actionButton.classList.contains("split-appointment")) {
-      splitAppointmentSlot(targetDay, slot);
+      splitAppointmentSlot(targetDay, slot, dayKey);
       return true;
     }
     if (actionButton.classList.contains("appointment-merge-button")) {
-      mergeAppointmentSlot(targetDay, slot);
+      mergeAppointmentSlot(targetDay, slot, dayKey);
       return true;
     }
     return false;
@@ -12514,11 +12647,17 @@ function renderAppointments(day, dayKey = iso(selectedDate)) {
     const input = row.querySelector("input, textarea");
     resizeMergedAppointmentField(input);
     let valueBeforeEdit = value;
+    input.readOnly = isDailyEditLocked(dayKey);
     input.onfocus = () => {
+      if (isDailyEditLocked(dayKey)) return;
       markDailyFieldEditing(10 * 60 * 1000);
       valueBeforeEdit = ensureDay(dayKey).appointments[slot] || "";
     };
     input.oninput = (event) => {
+      if (isDailyEditLocked(dayKey)) {
+        event.target.value = ensureDay(dayKey).appointments[slot] || "";
+        return;
+      }
       markDailyFieldEditing(10 * 60 * 1000);
       const nextValue = event.target.value;
       const targetDay = ensureDay(dayKey);
@@ -12536,6 +12675,7 @@ function renderAppointments(day, dayKey = iso(selectedDate)) {
       renderSidebar();
     };
     input.onblur = () => {
+      if (isDailyEditLocked(dayKey)) return;
       markDailyFieldEditing(0);
       const nextValue = input.value;
       const targetDay = ensureDay(dayKey);
@@ -12569,14 +12709,15 @@ function renderAppointments(day, dayKey = iso(selectedDate)) {
         event.stopPropagation();
       });
     };
-    bindAppointmentAction(row.querySelector(".appointment-delete"), () => deleteAppointmentSlot(ensureDay(dayKey), slot));
-    bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(ensureDay(dayKey), slot));
-    bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(ensureDay(dayKey), slot));
+    bindAppointmentAction(row.querySelector(".appointment-delete"), () => deleteAppointmentSlot(ensureDay(dayKey), slot, dayKey));
+    bindAppointmentAction(row.querySelector(".split-appointment"), () => splitAppointmentSlot(ensureDay(dayKey), slot, dayKey));
+    bindAppointmentAction(row.querySelector(".appointment-merge-button"), () => mergeAppointmentSlot(ensureDay(dayKey), slot, dayKey));
     node.appendChild(row);
   });
 }
 
-function deleteAppointmentSlot(day, slot) {
+function deleteAppointmentSlot(day, slot, dayKey = iso(selectedDate)) {
+  if (guardDailyEdit(dayKey)) return;
   if (!day) return;
   const slots = getScheduleSlotsForDay(day);
   const startSlot = findAppointmentMergeStartForSlot(day, slot, slots) || slot;
@@ -12638,7 +12779,8 @@ function getScheduleSlotIntervalMinutes(slots = timeSlots) {
   return Math.max(30, slotToMinutes(slots[1]) - slotToMinutes(slots[0]));
 }
 
-function splitAppointmentSlot(day, slot) {
+function splitAppointmentSlot(day, slot, dayKey = iso(selectedDate)) {
+  if (guardDailyEdit(dayKey)) return;
   const slots = getScheduleSlotsForDay(day);
   day.appointments ||= {};
   day.appointmentMerges ||= {};
@@ -12686,7 +12828,8 @@ function findAppointmentMergeStartForSlot(day, slot, slots = getScheduleSlotsFor
   })?.[0] || "";
 }
 
-function mergeAppointmentSlot(day, slot) {
+function mergeAppointmentSlot(day, slot, dayKey = iso(selectedDate)) {
+  if (guardDailyEdit(dayKey)) return;
   const slots = getScheduleSlotsForDay(day);
   day.appointments ||= {};
   day.appointmentMerges ||= {};
@@ -12719,7 +12862,8 @@ function mergeAppointmentSlot(day, slot) {
   showUndoNotice("시간별 일정을 병합했습니다.");
 }
 
-function mergeAppointmentRange(day, range) {
+function mergeAppointmentRange(day, range, dayKey = iso(selectedDate)) {
+  if (guardDailyEdit(dayKey)) return;
   const slots = getScheduleSlotsForDay(day);
   if (!slots.length) return;
   day.appointments ||= {};
@@ -12860,15 +13004,27 @@ function bindMemoDetailFields(entryKey) {
     const fieldName = field.dataset.memoDetailField;
     if (!fieldName) return;
     const target = ensureDay(entryKey);
+    const locked = isDailyEditLocked(entryKey);
     hydrateFieldValueUnlessEditing(field, target[fieldName] || "");
+    field.readOnly = locked;
+    field.classList.toggle("is-edit-locked", locked);
+    field.title = locked ? "48시간이 지난 기록은 보존 모드입니다." : "";
     const persistField = (duration = 2500) => {
+      if (isDailyEditLocked(entryKey)) {
+        hydrateFieldValueUnlessEditing(field, ensureDay(entryKey)[fieldName] || "");
+        return;
+      }
       markPlannerTextEditing(duration);
       ensureDay(entryKey)[fieldName] = field.value;
       saveState({ fastSave: true });
       refreshMemoListItem(entryKey);
     };
-    field.onfocus = () => markPlannerTextEditing(10 * 60 * 1000);
-    field.oncompositionstart = () => markPlannerTextEditing(10 * 60 * 1000);
+    field.onfocus = () => {
+      if (!isDailyEditLocked(entryKey)) markPlannerTextEditing(10 * 60 * 1000);
+    };
+    field.oncompositionstart = () => {
+      if (!isDailyEditLocked(entryKey)) markPlannerTextEditing(10 * 60 * 1000);
+    };
     field.oncompositionend = () => persistField();
     field.oninput = () => persistField();
     field.onblur = () => persistField(500);
