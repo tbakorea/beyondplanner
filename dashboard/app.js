@@ -121,6 +121,74 @@ const weatherRegions = {
 };
 const projectStatuses = ["대기", "진행", "보류", "완료"];
 const projectMoneyTypes = ["수입", "비용"];
+const projectTemplates = {
+  construction: {
+    label: "현장 공사계획",
+    shortLabel: "공사",
+    sampleTitle: "ㅇㅇ현장 공사계획",
+    goalLabel: "개요",
+    goalPlaceholder: "공사 개요, 범위, 완료 기준을 적습니다.",
+    budgetLabel: "소요자금",
+    actualLabel: "집행",
+    startLabel: "착수",
+    endLabel: "준공",
+    nextActionLabel: "다음 확인",
+    dueDateLabel: "확인일",
+    notesLabel: "기타",
+    notesPlaceholder: "공사기간, 수지분석, 인허가, 리스크, 기타 메모",
+    nextAction: "공사 범위와 소요자금 확인",
+    notes: "공사기간:\n수지분석:\n인허가/리스크:\n기타:",
+    finances: [
+      { type: "수입", title: "예상 수입", probability: "70", timing: "회수 시점" },
+      { type: "비용", title: "공사비", probability: "100", timing: "공사 기간" },
+      { type: "비용", title: "설계/허가/기타", probability: "100", timing: "착수 전" },
+    ],
+  },
+  event: {
+    label: "행사 준비",
+    shortLabel: "행사",
+    sampleTitle: "ㅇㅇ 행사",
+    goalLabel: "행사개요",
+    goalPlaceholder: "행사 목적, 대상, 장소, 성공 기준을 적습니다.",
+    budgetLabel: "예산",
+    actualLabel: "사용",
+    startLabel: "시작",
+    endLabel: "종료",
+    nextActionLabel: "다음 준비",
+    dueDateLabel: "준비일",
+    notesLabel: "세부내용",
+    notesPlaceholder: "일정, 세부내용, 체크리스트, 담당, 기타",
+    nextAction: "일정과 체크리스트 확정",
+    notes: "일정:\n세부내용:\n체크리스트:\n기타:",
+    finances: [
+      { type: "수입", title: "참가비/매출", probability: "60", timing: "행사 전후" },
+      { type: "비용", title: "장소/장비", probability: "100", timing: "예약 시" },
+      { type: "비용", title: "홍보/인력/기타", probability: "100", timing: "준비 기간" },
+    ],
+  },
+  custom: {
+    label: "자유 프로젝트",
+    shortLabel: "자유",
+    sampleTitle: "새 프로젝트",
+    goalLabel: "목표",
+    goalPlaceholder: "완료 기준과 기대 결과",
+    budgetLabel: "예산",
+    actualLabel: "실사용",
+    startLabel: "시작",
+    endLabel: "마감",
+    nextActionLabel: "다음 행동",
+    dueDateLabel: "실행일",
+    notesLabel: "메모",
+    notesPlaceholder: "리스크, 의사결정, 확인할 숫자",
+    nextAction: "",
+    notes: "",
+    finances: [
+      { type: "수입", title: "", probability: "70", timing: "" },
+      { type: "비용", title: "", probability: "100", timing: "" },
+      { type: "비용", title: "", probability: "100", timing: "" },
+    ],
+  },
+};
 const sheetCellTypes = ["general", "number", "currency", "date", "checkbox"];
 const sheetAlignments = ["left", "center", "right"];
 const sheetFills = ["none", "yellow", "sage", "rose"];
@@ -1608,17 +1676,19 @@ function inferMoneyCategory(item = {}) {
 function createProjectState() {
   return {
     items: [
-      emptyProject("신규 프로젝트"),
-      emptyProject("운영 개선"),
-      emptyProject("매출 프로젝트"),
+      emptyProject("ㅇㅇ현장 공사계획", "construction"),
+      emptyProject("ㅇㅇ 행사", "event"),
+      emptyProject("새 프로젝트", "custom"),
     ],
   };
 }
 
-function emptyProject(title = "") {
-  return {
+function emptyProject(title = "", templateType = "custom") {
+  const normalizedType = projectTemplates[templateType] ? templateType : "custom";
+  const project = {
     id: `project-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     title,
+    templateType: normalizedType,
     status: "진행",
     owner: "",
     startDate: "",
@@ -1631,6 +1701,8 @@ function emptyProject(title = "") {
     notes: "",
     finances: [emptyProjectMoney("수입"), emptyProjectMoney("비용"), emptyProjectMoney("비용")],
   };
+  applyProjectTemplateDefaults(project, normalizedType, { fillTitle: !title });
+  return project;
 }
 
 function emptyProjectMoney(type = "비용") {
@@ -1645,6 +1717,40 @@ function emptyProjectMoney(type = "비용") {
   };
 }
 
+function projectMoneyFromTemplate(item = {}) {
+  const row = emptyProjectMoney(projectMoneyTypes.includes(item.type) ? item.type : "비용");
+  row.title = item.title || "";
+  row.amount = item.amount || "";
+  row.probability = item.probability || row.probability;
+  row.timing = item.timing || "";
+  row.memo = item.memo || "";
+  return row;
+}
+
+function projectTemplateMeta(projectOrType = "custom") {
+  const type = typeof projectOrType === "string"
+    ? projectOrType
+    : normalizeProjectTemplateType(projectOrType);
+  return projectTemplates[type] || projectTemplates.custom;
+}
+
+function projectHasFilledMoney(project = {}) {
+  return (project.finances || []).some((item) => item.title?.trim() || item.amount?.trim() || item.memo?.trim());
+}
+
+function applyProjectTemplateDefaults(project, templateType = "custom", options = {}) {
+  const type = projectTemplates[templateType] ? templateType : "custom";
+  const meta = projectTemplateMeta(type);
+  project.templateType = type;
+  if (options.fillTitle && !project.title?.trim()) project.title = meta.sampleTitle;
+  if (!project.nextAction?.trim()) project.nextAction = meta.nextAction || "";
+  if (!project.notes?.trim()) project.notes = meta.notes || "";
+  if (!projectHasFilledMoney(project)) {
+    project.finances = meta.finances.map((item) => projectMoneyFromTemplate(item));
+  }
+  return project;
+}
+
 function normalizeProjectState(projects) {
   projects.items ||= [];
   if (!projects.items.length) projects.items = createProjectState().items;
@@ -1655,9 +1761,11 @@ function normalizeProjectState(projects) {
 }
 
 function normalizeProject(project) {
+  const templateType = normalizeProjectTemplateType(project);
   return {
     id: project?.id || `project-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     title: project?.title || "",
+    templateType,
     status: projectStatuses.includes(project?.status) ? project.status : "진행",
     owner: project?.owner || "",
     startDate: project?.startDate || "",
@@ -1670,6 +1778,14 @@ function normalizeProject(project) {
     notes: project?.notes || "",
     finances: Array.isArray(project?.finances) ? project.finances.map((item) => normalizeProjectMoney(item)) : [emptyProjectMoney("수입"), emptyProjectMoney("비용")],
   };
+}
+
+function normalizeProjectTemplateType(project = {}) {
+  if (projectTemplates[project?.templateType]) return project.templateType;
+  const source = `${project?.title || ""} ${project?.goal || ""} ${project?.notes || ""}`;
+  if (/공사|현장|시공|준공|수지|인허가|허가/.test(source)) return "construction";
+  if (/행사|세미나|워크숍|모임|회의|체크리스트/.test(source)) return "event";
+  return "custom";
 }
 
 function normalizeProjectMoney(item) {
@@ -3612,7 +3728,7 @@ function setupSelectors() {
     renderFinanceMonthTabs(true);
   };
   el("fixedMoneyAdd").onclick = () => addMoneyRow(state.finance.fixed, { fixed: true });
-  el("addProjectButton").onclick = addProject;
+  el("addProjectButton").onclick = () => addProject("custom");
   el("addSheetButton").onclick = () => addCustomSheet(el("sheetTemplateSelect").value);
   el("closeSheetDetailButton").onclick = closeSheetDetail;
   el("duplicateSheetButton").onclick = duplicateCurrentSheet;
@@ -14383,7 +14499,9 @@ function renderProjectBoard() {
   const node = el("projectBoard");
   if (!node) return;
   node.innerHTML = "";
-  node.className = `project-board ${projectDetailOpen && !projectSlideOpening ? "is-detail-open" : ""}`;
+  const selectedIndex = getSelectedProjectIndex();
+  const selectedProject = state.projects.items[selectedIndex];
+  node.className = `project-board project-hub ${projectDetailOpen && !projectSlideOpening ? "is-detail-open" : ""}`;
   if (projectDetailOpen && projectSlideOpening) {
     window.requestAnimationFrame(() => {
       node.classList.add("is-detail-open");
@@ -14395,10 +14513,18 @@ function renderProjectBoard() {
   listPanel.innerHTML = `
     <div class="project-page-sticky">
       <h3 class="panel-title-row">
-        <span>프로젝트 리스트</span>
+        <span>프로젝트</span>
         <span class="project-list-count">${state.projects.items.filter((project) => project.status !== "완료").length}</span>
       </h3>
-      <button class="add-row project-add-inline" id="projectAddInline" type="button">신규 프로젝트</button>
+      <button class="add-row project-add-inline" id="projectAddInline" type="button">새 프로젝트</button>
+    </div>
+    <div class="project-focus-card">
+      <span class="project-focus-kicker">바로 실행</span>
+      <strong>${escapeHtml(selectedProject ? projectTitle(selectedProject) : "진행할 프로젝트를 선택하세요")}</strong>
+      <small>${escapeHtml(selectedProject ? projectSmartHint(selectedProject) : "목표와 다음 행동을 한 화면에서 정리합니다.")}</small>
+    </div>
+    <div class="project-template-rail" aria-label="프로젝트 양식 선택">
+      ${projectTemplateButtons("", "create")}
     </div>
     <div class="project-list" id="projectList"></div>
   `;
@@ -14415,10 +14541,20 @@ function renderProjectBoard() {
       if (projectSwipeSuppressClick) return;
       selectProject(project.id, { openDetail: true });
     };
-    item.querySelector(".project-task-button").onclick = () => addProjectNextActionToToday(project);
+    item.querySelector(".project-task-button")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      addProjectNextActionToToday(project);
+    });
+    item.querySelector(".project-delete-button")?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteProject(project.id);
+    });
     list.appendChild(item);
   });
-  listPanel.querySelector("#projectAddInline").onclick = addProject;
+  listPanel.querySelector("#projectAddInline").onclick = () => addProject("custom");
+  listPanel.querySelectorAll(".project-template-create").forEach((button) => {
+    button.onclick = () => addProject(button.dataset.templateType || "custom");
+  });
   setupProjectPageSwipe(listPanel, "list");
 
   const index = getSelectedProjectIndex();
@@ -14448,30 +14584,47 @@ function renderProjectBoard() {
   card.className = `panel project-card project-status-${project.status}`;
   card.dataset.projectIndex = String(index);
   const finance = calculateProjectFinance(project);
+  const progress = projectSmartProgress(project);
+  const meta = projectTemplateMeta(project);
   card.innerHTML = `
       <div class="project-page-sticky">
         <h3 class="panel-title-row">
-          <span>프로젝트 세부내용</span>
+          <span>프로젝트 상세</span>
           <button class="icon-close project-detail-close" type="button" aria-label="프로젝트 세부내용 닫기">×</button>
         </h3>
       </div>
+      <div class="project-detail-hero">
+        <div>
+          <span class="project-focus-kicker">실행 초점</span>
+          <strong>${escapeHtml(projectSmartHint(project))}</strong>
+        </div>
+        <span class="project-progress-chip">${progress}%</span>
+      </div>
       <div class="project-card-head">
-        <input class="project-title-input" type="text" value="${escapeAttr(project.title)}" placeholder="프로젝트명" />
+        <input class="project-title-input" type="text" value="${escapeAttr(project.title)}" placeholder="${escapeAttr(meta.label)} 이름" />
         <select aria-label="프로젝트 상태">
           ${projectStatuses.map((status) => `<option value="${status}" ${project.status === status ? "selected" : ""}>${status}</option>`).join("")}
         </select>
       </div>
+      <div class="project-template-strip" aria-label="프로젝트 양식 변경">
+        ${projectTemplateButtons(project.templateType, "apply")}
+      </div>
+      <div class="project-progress-line" aria-hidden="true"><span style="width:${progress}%"></span></div>
       <div class="project-meta-grid">
         <label><span class="row-label">담당</span><input type="text" data-field="owner" value="${escapeAttr(project.owner)}" placeholder="담당자" /></label>
-        <label><span class="row-label">시작</span><input type="date" data-field="startDate" value="${escapeAttr(project.startDate)}" /></label>
-        <label><span class="row-label">마감</span><input type="date" data-field="endDate" value="${escapeAttr(project.endDate)}" /></label>
-        <label><span class="row-label">예산</span><input type="text" data-field="budget" inputmode="numeric" value="${escapeAttr(project.budget)}" placeholder="예산" /></label>
-        <label><span class="row-label">실사용</span><input type="text" data-field="actual" inputmode="numeric" value="${escapeAttr(project.actual)}" placeholder="실사용" /></label>
+        <label><span class="row-label">${escapeHtml(meta.startLabel)}</span><input type="date" data-field="startDate" value="${escapeAttr(project.startDate)}" /></label>
+        <label><span class="row-label">${escapeHtml(meta.endLabel)}</span><input type="date" data-field="endDate" value="${escapeAttr(project.endDate)}" /></label>
+        <label><span class="row-label">${escapeHtml(meta.budgetLabel)}</span><input type="text" data-field="budget" inputmode="numeric" value="${escapeAttr(project.budget)}" placeholder="${escapeAttr(meta.budgetLabel)}" /></label>
+        <label><span class="row-label">${escapeHtml(meta.actualLabel)}</span><input type="text" data-field="actual" inputmode="numeric" value="${escapeAttr(project.actual)}" placeholder="${escapeAttr(meta.actualLabel)}" /></label>
       </div>
-      <label class="project-wide-field"><span class="row-label">목표</span><textarea data-field="goal" rows="1" placeholder="완료 기준과 기대 결과">${escapeHtml(project.goal)}</textarea></label>
+      <label class="project-wide-field"><span class="row-label">${escapeHtml(meta.goalLabel)}</span><textarea data-field="goal" rows="1" placeholder="${escapeAttr(meta.goalPlaceholder)}">${escapeHtml(project.goal)}</textarea></label>
       <div class="project-action-row">
-        <label><span class="row-label">다음 행동</span><input type="text" data-field="nextAction" value="${escapeAttr(project.nextAction)}" placeholder="오늘 또는 이번 주 실행할 일" /></label>
-        <label><span class="row-label">실행일</span><input type="date" data-field="dueDate" value="${escapeAttr(project.dueDate)}" /></label>
+        <label><span class="row-label">${escapeHtml(meta.nextActionLabel)}</span><input type="text" data-field="nextAction" value="${escapeAttr(project.nextAction)}" placeholder="오늘 또는 이번 주 실행할 일" /></label>
+        <label><span class="row-label">${escapeHtml(meta.dueDateLabel)}</span><input type="date" data-field="dueDate" value="${escapeAttr(project.dueDate)}" /></label>
+      </div>
+      <div class="project-action-buttons">
+        <button class="project-primary-action" type="button">다음 행동을 오늘 업무로 보내기</button>
+        <button class="project-report-action" type="button">보고서</button>
       </div>
       <div class="project-sim-summary">
         <span>예상 수입 ${formatMoneyAmount(finance.expectedIncome)}</span>
@@ -14481,12 +14634,17 @@ function renderProjectBoard() {
       </div>
       <div class="project-money-grid"></div>
       <button class="add-row project-money-add" type="button">시뮬레이션 항목 추가</button>
-      <label class="project-wide-field"><span class="row-label">메모</span><textarea data-field="notes" rows="2" placeholder="리스크, 의사결정, 확인할 숫자">${escapeHtml(project.notes)}</textarea></label>
+      <label class="project-wide-field"><span class="row-label">${escapeHtml(meta.notesLabel)}</span><textarea data-field="notes" rows="2" placeholder="${escapeAttr(meta.notesPlaceholder)}">${escapeHtml(project.notes)}</textarea></label>
     `;
   const [titleInput, statusSelect] = card.querySelectorAll(".project-card-head input, .project-card-head select");
   titleInput.oninput = () => updateProjectField(index, "title", titleInput.value);
   statusSelect.onchange = () => updateProjectField(index, "status", statusSelect.value);
   card.querySelector(".project-detail-close").onclick = closeProjectDetail;
+  card.querySelector(".project-primary-action").onclick = () => addProjectNextActionToToday(project);
+  card.querySelector(".project-report-action").onclick = () => openProjectReport(project);
+  card.querySelectorAll(".project-template-apply").forEach((button) => {
+    button.onclick = () => applyProjectTemplate(index, button.dataset.templateType || "custom");
+  });
   card.querySelectorAll("[data-field]").forEach((field) => {
     field.oninput = () => updateProjectField(index, field.dataset.field, field.value);
     field.onchange = () => updateProjectField(index, field.dataset.field, field.value);
@@ -14502,6 +14660,267 @@ function projectTitle(project) {
   return project.title?.trim() || "새 프로젝트";
 }
 
+function projectTemplateButtons(selectedType = "custom", mode = "apply") {
+  return Object.entries(projectTemplates).map(([type, meta]) => {
+    const active = selectedType === type;
+    const className = mode === "create" ? "project-template-create" : "project-template-apply";
+    return `
+      <button class="project-template-button ${className} ${active ? "is-active" : ""}" type="button" data-template-type="${type}">
+        <span>${escapeHtml(meta.shortLabel)}</span>
+        <small>${escapeHtml(meta.label)}</small>
+      </button>
+    `;
+  }).join("");
+}
+
+function applyProjectTemplate(index, templateType) {
+  const project = state.projects.items[index];
+  if (!project || !projectTemplates[templateType]) return;
+  applyProjectTemplateDefaults(project, templateType);
+  saveState();
+  renderProjects();
+  window.requestAnimationFrame(() => document.querySelector(`.project-card[data-project-index="${index}"] .project-title-input`)?.focus());
+}
+
+function projectSmartProgress(project = {}) {
+  const financeReady = (project.finances || []).some((item) => item.title?.trim() || item.amount?.trim());
+  const checks = [
+    project.title?.trim() && !["신규 프로젝트", "운영 개선", "매출 프로젝트", "새 프로젝트"].includes(project.title.trim()),
+    project.goal?.trim(),
+    project.nextAction?.trim(),
+    project.dueDate || project.endDate,
+    project.owner?.trim(),
+    financeReady,
+    project.notes?.trim(),
+  ];
+  const done = checks.filter(Boolean).length;
+  return Math.max(8, Math.round((done / checks.length) * 100));
+}
+
+function projectSmartHint(project = {}) {
+  const title = projectTitle(project);
+  if (project.status === "완료") return "완료된 프로젝트입니다. 기록을 보존하세요.";
+  if (!project.nextAction?.trim()) return "다음 행동 1개가 필요합니다.";
+  if (!project.goal?.trim()) return "완료 기준을 한 문장으로 정리하세요.";
+  if (project.dueDate) {
+    const left = daysBetween(todayInPlanner(), parseDate(project.dueDate));
+    if (left < 0 && project.status !== "완료") return "실행일이 지났습니다. 오늘 할 일로 내려보세요.";
+    if (left <= 3) return `${formatShortDate(parseDate(project.dueDate))} 실행 예정입니다.`;
+  }
+  return `${title}의 다음 행동이 준비되어 있습니다.`;
+}
+
+function projectReportDate(value = "") {
+  if (!value) return "-";
+  const date = parseDate(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return formatDate(date);
+}
+
+function projectReportFilename(project = {}) {
+  const title = projectTitle(project).replace(/[\\/:*?"<>|]/g, "-").replace(/\s+/g, " ").trim();
+  return `${title || "project"}-report-${iso(todayInPlanner())}.html`;
+}
+
+function projectReportShareText(project = {}) {
+  const meta = projectTemplateMeta(project);
+  const finance = calculateProjectFinance(project);
+  const lines = [
+    `Beyond Work 프로젝트 보고서`,
+    `프로젝트: ${projectTitle(project)}`,
+    `유형: ${meta.label}`,
+    `상태: ${project.status || "-"}`,
+    `담당: ${project.owner || "-"}`,
+    `${meta.startLabel}: ${projectReportDate(project.startDate)}`,
+    `${meta.endLabel}: ${projectReportDate(project.endDate)}`,
+    `${meta.goalLabel}: ${project.goal || "-"}`,
+    `${meta.nextActionLabel}: ${project.nextAction || "-"}`,
+    `${meta.dueDateLabel}: ${projectReportDate(project.dueDate)}`,
+    `${meta.budgetLabel}: ${project.budget || "-"}`,
+    `${meta.actualLabel}: ${project.actual || "-"}`,
+    `예상 수입: ${formatMoneyAmount(finance.expectedIncome)}`,
+    `예상 비용: ${formatMoneyAmount(finance.expectedCost)}`,
+    `예상 손익: ${formatMoneyAmount(finance.expectedProfit)}`,
+  ];
+  if (project.notes?.trim()) lines.push(`${meta.notesLabel}: ${project.notes.trim()}`);
+  return lines.join("\n");
+}
+
+function createProjectReportHtml(project = {}) {
+  const meta = projectTemplateMeta(project);
+  const finance = calculateProjectFinance(project);
+  const progress = projectSmartProgress(project);
+  const generatedAt = new Date().toLocaleString("ko-KR");
+  const financeRows = (project.finances || []).filter((item) =>
+    item.title?.trim() || item.amount?.trim() || item.timing?.trim() || item.memo?.trim()
+  );
+  const plainText = projectReportShareText(project);
+  const fileName = projectReportFilename(project);
+  const summaryRows = [
+    ["유형", meta.label],
+    ["상태", project.status || "-"],
+    ["담당", project.owner || "-"],
+    [meta.startLabel, projectReportDate(project.startDate)],
+    [meta.endLabel, projectReportDate(project.endDate)],
+    [meta.dueDateLabel, projectReportDate(project.dueDate)],
+    [meta.budgetLabel, project.budget || "-"],
+    [meta.actualLabel, project.actual || "-"],
+  ];
+  const planRows = [
+    [meta.goalLabel, project.goal || "-"],
+    [meta.nextActionLabel, project.nextAction || "-"],
+    [meta.notesLabel, project.notes || "-"],
+  ];
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(projectTitle(project))} 보고서</title>
+  <style>
+    :root { color-scheme: light; --ink:#263c34; --muted:#68756f; --line:#ded9ce; --paper:#fffdf8; --soft:#f5f3ec; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f3ec; color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+    .toolbar { position: sticky; top: 0; z-index: 2; display: flex; gap: 8px; justify-content: flex-end; padding: 12px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left)); background: rgba(245, 243, 236, .88); backdrop-filter: blur(14px); }
+    button { min-height: 38px; border: 1px solid rgba(38, 60, 52, .22); border-radius: 999px; background: var(--paper); color: var(--ink); padding: 8px 14px; font-weight: 800; cursor: pointer; }
+    button.primary { background: var(--ink); color: var(--paper); }
+    main { width: min(920px, calc(100vw - 28px)); margin: 12px auto 48px; border: 1px solid rgba(95, 118, 104, .18); border-radius: 18px; background: var(--paper); box-shadow: 0 20px 60px rgba(38, 60, 52, .08); overflow: hidden; }
+    header { padding: 30px 32px 20px; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #fffdf8, #eef4ee); }
+    .eyebrow { margin: 0 0 8px; color: #65786f; font-size: 12px; font-weight: 900; letter-spacing: .02em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(28px, 5vw, 44px); line-height: 1.08; letter-spacing: 0; }
+    .subtitle { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; color: var(--muted); font-size: 14px; font-weight: 760; }
+    .chip { display: inline-flex; align-items: center; min-height: 30px; border: 1px solid rgba(95, 118, 104, .2); border-radius: 999px; background: rgba(255, 253, 248, .68); padding: 5px 10px; }
+    section { padding: 22px 32px; border-bottom: 1px solid var(--line); }
+    h2 { margin: 0 0 12px; font-size: 18px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+    .summary-card { border: 1px solid rgba(95, 118, 104, .16); border-radius: 12px; background: var(--soft); padding: 12px; }
+    .summary-card small { display: block; margin-bottom: 5px; color: var(--muted); font-size: 11px; font-weight: 820; }
+    .summary-card strong { font-size: 17px; line-height: 1.2; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid var(--line); padding: 11px 8px; text-align: left; vertical-align: top; }
+    th { color: var(--muted); font-size: 12px; font-weight: 900; }
+    td:first-child, th:first-child { width: 130px; color: var(--muted); font-weight: 840; }
+    .text-block { white-space: pre-wrap; line-height: 1.55; }
+    .footer { color: var(--muted); font-size: 12px; }
+    #shareText { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; white-space: pre-wrap; }
+    @media (max-width: 680px) {
+      .toolbar { justify-content: flex-start; overflow-x: auto; }
+      main { width: calc(100vw - 16px); margin-top: 8px; border-radius: 14px; }
+      header, section { padding-left: 18px; padding-right: 18px; }
+      .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media print {
+      body { background: #fff; }
+      .toolbar { display: none; }
+      main { width: 100%; margin: 0; border: 0; border-radius: 0; box-shadow: none; }
+      section, header { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="toolbar" aria-label="보고서 도구">
+    <button class="primary" type="button" onclick="window.print()">출력/PDF</button>
+    <button type="button" onclick="saveReport()">저장</button>
+    <button type="button" onclick="sendReport()">보내기</button>
+    <button type="button" onclick="window.close()">닫기</button>
+  </nav>
+  <main>
+    <header>
+      <p class="eyebrow">Beyond Work Project Report</p>
+      <h1>${escapeHtml(projectTitle(project))}</h1>
+      <div class="subtitle">
+        <span class="chip">${escapeHtml(meta.label)}</span>
+        <span class="chip">진행률 ${progress}%</span>
+        <span class="chip">생성 ${escapeHtml(generatedAt)}</span>
+      </div>
+    </header>
+    <section>
+      <h2>핵심 요약</h2>
+      <div class="summary-grid">
+        <div class="summary-card"><small>예상 수입</small><strong>${escapeHtml(formatMoneyAmount(finance.expectedIncome))}</strong></div>
+        <div class="summary-card"><small>예상 비용</small><strong>${escapeHtml(formatMoneyAmount(finance.expectedCost))}</strong></div>
+        <div class="summary-card"><small>예상 손익</small><strong>${escapeHtml(formatMoneyAmount(finance.expectedProfit))}</strong></div>
+        <div class="summary-card"><small>예산 차이</small><strong>${escapeHtml(formatMoneyAmount(finance.budgetLeft))}</strong></div>
+      </div>
+    </section>
+    <section>
+      <h2>기본 정보</h2>
+      <table><tbody>${summaryRows.map(([label, value]) => `<tr><td>${escapeHtml(label)}</td><td>${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>
+    </section>
+    <section>
+      <h2>계획 내용</h2>
+      <table><tbody>${planRows.map(([label, value]) => `<tr><td>${escapeHtml(label)}</td><td class="text-block">${escapeHtml(value)}</td></tr>`).join("")}</tbody></table>
+    </section>
+    <section>
+      <h2>수지/자금 시뮬레이션</h2>
+      <table>
+        <thead><tr><th>구분</th><th>항목</th><th>금액</th><th>확률</th><th>시점</th><th>메모</th></tr></thead>
+        <tbody>
+          ${financeRows.length ? financeRows.map((item) => `
+            <tr>
+              <td>${escapeHtml(item.type || "-")}</td>
+              <td>${escapeHtml(item.title || "-")}</td>
+              <td>${escapeHtml(item.amount || "-")}</td>
+              <td>${escapeHtml(item.probability ? `${item.probability}%` : "-")}</td>
+              <td>${escapeHtml(item.timing || "-")}</td>
+              <td>${escapeHtml(item.memo || "-")}</td>
+            </tr>
+          `).join("") : `<tr><td colspan="6">기록 없음</td></tr>`}
+        </tbody>
+      </table>
+    </section>
+    <section class="footer">이 보고서는 Beyond Work 프로젝트 기록을 기준으로 생성되었습니다.</section>
+  </main>
+  <pre id="shareText">${escapeHtml(plainText)}</pre>
+  <script>
+    const reportFilename = ${JSON.stringify(fileName)};
+    function saveReport() {
+      const source = '<!doctype html>\\n' + document.documentElement.outerHTML;
+      const blob = new Blob([source], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = reportFilename;
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 800);
+    }
+    async function sendReport() {
+      const title = document.querySelector('h1')?.textContent || 'Beyond Work Report';
+      const text = document.getElementById('shareText')?.textContent || title;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title, text });
+          return;
+        } catch (error) {
+          if (error && error.name === 'AbortError') return;
+        }
+      }
+      location.href = 'mailto:?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text);
+    }
+  </script>
+</body>
+</html>`;
+}
+
+function openProjectReport(project = {}) {
+  const html = createProjectReportHtml(project);
+  const reportWindow = window.open("", "_blank");
+  if (!reportWindow) {
+    downloadTextFile(html, projectReportFilename(project), "text/html;charset=utf-8");
+    showUndoNotice?.("팝업이 차단되어 보고서 파일로 저장했습니다.");
+    return;
+  }
+  reportWindow.document.open();
+  reportWindow.document.write(html);
+  reportWindow.document.close();
+}
+
+function projectDateSummary(project = {}) {
+  const date = project.dueDate || project.endDate || "";
+  if (!date) return "일정 미정";
+  return formatShortDate(parseDate(date));
+}
+
 function getSelectedProjectIndex() {
   const projects = state.projects?.items || [];
   const index = projects.findIndex((project) => project.id === state.projects.selectedId);
@@ -14514,6 +14933,21 @@ function selectProject(projectId, options = {}) {
     projectSlideOpening = !projectDetailOpen;
     projectDetailOpen = true;
   }
+  saveState();
+  renderProjects();
+}
+
+function deleteProject(projectId) {
+  const projects = state.projects?.items || [];
+  const index = projects.findIndex((project) => project.id === projectId);
+  if (index < 0) return;
+  const project = projects[index];
+  const ok = window.confirm(`${projectTitle(project)} 프로젝트를 삭제할까요? 연결된 오늘 업무 항목도 함께 정리됩니다.`);
+  if (!ok) return;
+  removeProjectLinkedTask(project.id);
+  state.projects.items.splice(index, 1);
+  state.projects.selectedId = state.projects.items[Math.max(0, index - 1)]?.id || state.projects.items[0]?.id || "";
+  if (!state.projects.items.length) projectDetailOpen = false;
   saveState();
   renderProjects();
 }
@@ -14591,6 +15025,7 @@ function renderProjectMoneyRows(node, rows, projectIndex) {
       <input type="number" min="0" max="100" value="${escapeAttr(item.probability)}" placeholder="%" />
       <input type="text" value="${escapeAttr(item.timing)}" placeholder="시점" />
       <input type="text" value="${escapeAttr(item.memo)}" placeholder="메모" />
+      <button class="project-money-delete" type="button" aria-label="시뮬레이션 항목 삭제">×</button>
     `;
     const [type, title, amount, probability, timing, memo] = row.querySelectorAll("select, input");
     type.onchange = () => updateProjectMoney(projectIndex, rowIndex, "type", type.value);
@@ -14599,13 +15034,15 @@ function renderProjectMoneyRows(node, rows, projectIndex) {
     probability.oninput = () => updateProjectMoney(projectIndex, rowIndex, "probability", probability.value);
     timing.oninput = () => updateProjectMoney(projectIndex, rowIndex, "timing", timing.value);
     memo.oninput = () => updateProjectMoney(projectIndex, rowIndex, "memo", memo.value);
+    row.querySelector(".project-money-delete").onclick = () => deleteProjectMoneyRow(projectIndex, rowIndex);
     node.appendChild(row);
   });
 }
 
-function addProject() {
+function addProject(templateType = "custom") {
   state.projects ||= createProjectState();
-  const project = emptyProject("새 프로젝트");
+  const normalizedType = projectTemplates[templateType] ? templateType : "custom";
+  const project = emptyProject(projectTemplateMeta(normalizedType).sampleTitle, normalizedType);
   state.projects.items.push(project);
   state.projects.selectedId = project.id;
   projectSlideOpening = !projectDetailOpen;
@@ -14630,6 +15067,15 @@ function addProjectMoneyRow(projectIndex) {
   const project = state.projects.items[projectIndex];
   if (!project) return;
   project.finances.push(emptyProjectMoney("비용"));
+  saveState();
+  renderProjects();
+}
+
+function deleteProjectMoneyRow(projectIndex, rowIndex) {
+  const rows = state.projects.items[projectIndex]?.finances;
+  if (!rows?.[rowIndex]) return;
+  rows.splice(rowIndex, 1);
+  if (!rows.length) rows.push(emptyProjectMoney("비용"));
   saveState();
   renderProjects();
 }
@@ -14664,23 +15110,38 @@ function renderProjectListItem(index) {
   item.className = `project-list-item project-status-${project.status} ${project.id === state.projects.selectedId ? "is-active" : ""}`;
   item.innerHTML = projectListItemMarkup(project, index, finance);
   item.querySelector(".project-list-open").onclick = () => selectProject(project.id, { openDetail: true });
-  item.querySelector(".project-task-button").onclick = () => addProjectNextActionToToday(project);
+  item.querySelector(".project-task-button")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    addProjectNextActionToToday(project);
+  });
+  item.querySelector(".project-delete-button")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    deleteProject(project.id);
+  });
 }
 
 function projectListItemMarkup(project, index, finance = calculateProjectFinance(project)) {
   const nextAction = project.nextAction?.trim();
-  const dueText = project.dueDate ? formatShortDate(parseDate(project.dueDate)) : "실행일 미정";
+  const dueText = projectDateSummary(project);
+  const progress = projectSmartProgress(project);
+  const hint = projectSmartHint(project);
+  const meta = projectTemplateMeta(project);
   return `
     <button class="project-list-open" type="button" aria-label="${escapeAttr(projectTitle(project))} 세부내용 열기">
     <span class="project-list-title">${index + 1}. ${escapeHtml(projectTitle(project))}</span>
     <span class="project-list-meta">
+      <b class="project-kind">${escapeHtml(meta.shortLabel)}</b>
       <b>${escapeHtml(project.status)}</b>
       <span>${dueText}</span>
       <span>${formatMoneyAmount(finance.expectedProfit)}</span>
     </span>
-    <small>${escapeHtml(nextAction || "다음 행동을 입력하세요")}</small>
+    <small>${escapeHtml(nextAction || hint)}</small>
+    <span class="project-progress-mini" aria-hidden="true"><i style="width:${progress}%"></i></span>
     </button>
-    <button class="project-task-button" type="button">${getAppLanguage() === "ko" ? "오늘 업무" : "Today"}</button>
+    <div class="project-list-actions">
+      <button class="project-task-button" type="button">${getAppLanguage() === "ko" ? "오늘" : "Today"}</button>
+      <button class="project-delete-button" type="button" aria-label="${escapeAttr(projectTitle(project))} 삭제">×</button>
+    </div>
   `;
 }
 
