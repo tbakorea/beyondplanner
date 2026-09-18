@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20260910f" />
+    <link rel="stylesheet" href="./styles.css?v=20260919a" />
   </head>
   <body>
     <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
@@ -724,7 +724,6 @@
               <h2>Memo</h2>
             </div>
             <div class="page-title-actions">
-              <button class="mini-action memo-project-button" id="createProjectMemoButton" type="button">프로젝트 메모</button>
               <button class="mini-action section-ai-button" type="button" data-section-ai="memo">AI</button>
             </div>
           </div>
@@ -745,7 +744,10 @@
             <article class="panel memo-detail-panel">
               <div class="memo-detail-sticky">
                 <button class="memo-back-button" id="memoBackButton" type="button">‹ 목록</button>
-                <button class="memo-open-day-button" id="memoOpenDayButton" type="button">오늘 섹션에서 열기</button>
+                <div class="memo-detail-actions">
+                  <button class="memo-template-button" id="memoTemplateButton" type="button">양식 삽입</button>
+                  <button class="memo-open-day-button" id="memoOpenDayButton" type="button">오늘에서 열기</button>
+                </div>
               </div>
               <div class="memo-detail" id="memoDetail"></div>
             </article>
@@ -1036,6 +1038,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20260918a"></script>
+    <script src="./app.js?v=20260919a"></script>
   </body>
 </html>

@@ -3784,7 +3784,6 @@ function setupSelectors() {
   };
   el("fixedMoneyAdd").onclick = () => addMoneyRow(state.finance.fixed, { fixed: true });
   el("addProjectButton").onclick = () => addProject("custom");
-  el("createProjectMemoButton")?.addEventListener("click", createProjectMemo);
   el("addSheetButton").onclick = () => addCustomSheet(el("sheetTemplateSelect").value);
   el("closeSheetDetailButton").onclick = closeSheetDetail;
   el("duplicateSheetButton").onclick = duplicateCurrentSheet;
@@ -13164,6 +13163,10 @@ function getMemoPreview(day = {}) {
   return text || "아직 본문이 없습니다.";
 }
 
+function getMemoMonthLabel(key = "") {
+  return formatYearMonth(parseDateKey(key));
+}
+
 function parseDateKey(key = iso(selectedDate)) {
   const [year, month, day] = String(key || "").split("-").map(Number);
   if (!year || !month || !day) return new Date(selectedDate);
@@ -13241,13 +13244,20 @@ function renderMemos() {
     `;
   } else {
     if (!selectedMemoKey || !entries.some((entry) => entry.key === selectedMemoKey)) selectedMemoKey = entries[0].key;
-    list.innerHTML = entries.map((entry) => `
-      <button class="memo-list-item ${entry.key === selectedMemoKey ? "is-active" : ""}" type="button" data-memo-key="${escapeAttr(entry.key)}">
-        <span>${escapeHtml(formatDate(parseDateKey(entry.key)))}</span>
-        <strong><span class="memo-list-title-text">${escapeHtml(entry.title)}</span>${entry.isProjectMemo ? `<em class="memo-project-badge">프로젝트</em>` : ""}</strong>
-        <small>${escapeHtml(entry.preview)}</small>
-      </button>
-    `).join("");
+    let currentMonth = "";
+    list.innerHTML = entries.map((entry) => {
+      const monthLabel = getMemoMonthLabel(entry.key);
+      const monthHeader = monthLabel !== currentMonth ? `<div class="memo-list-group">${escapeHtml(monthLabel)}</div>` : "";
+      currentMonth = monthLabel;
+      return `
+        ${monthHeader}
+        <button class="memo-list-item ${entry.key === selectedMemoKey ? "is-active" : ""}" type="button" data-memo-key="${escapeAttr(entry.key)}">
+          <span>${escapeHtml(formatDate(parseDateKey(entry.key)))}</span>
+          <strong><span class="memo-list-title-text">${escapeHtml(entry.title)}</span>${entry.isProjectMemo ? `<em class="memo-project-badge">프로젝트</em>` : ""}</strong>
+          <small>${escapeHtml(entry.preview)}</small>
+        </button>
+      `;
+    }).join("");
     list.querySelectorAll("[data-memo-key]").forEach((button) => {
       button.onclick = () => {
         selectedMemoKey = button.dataset.memoKey;
@@ -13280,7 +13290,7 @@ function renderMemoDetail(entry) {
   }
   const day = ensureDay(entry.key);
   detail.innerHTML = `
-    <div class="memo-detail-date">${escapeHtml(formatDate(parseDateKey(entry.key)))}</div>
+    <div class="memo-detail-date"><span>${escapeHtml(formatDate(parseDateKey(entry.key)))}</span>${entry.isProjectMemo ? `<em class="memo-project-badge">프로젝트</em>` : ""}</div>
     <input class="memo-detail-title" data-memo-detail-field="memoTitle" type="text" value="${escapeAttr(day.memoTitle || "")}" placeholder="${escapeAttr(getMemoTitle(day, entry.key))}" />
     <label class="memo-detail-field">
       <span>메모</span>
@@ -13338,7 +13348,10 @@ function refreshMemoListItem(key) {
   const day = ensureDay(key);
   const title = button.querySelector("strong");
   const preview = button.querySelector("small");
-  if (title) title.textContent = getMemoTitle(day, key);
+  if (title) {
+    const text = `${getMemoTitle(day, key)}\n${day.memo || ""}\n${day.record || ""}\n${day.wins || ""}\n${day.carry || ""}\n${day.lesson || ""}`;
+    title.innerHTML = `<span class="memo-list-title-text">${escapeHtml(getMemoTitle(day, key))}</span>${isProjectMemoText(text) ? `<em class="memo-project-badge">프로젝트</em>` : ""}`;
+  }
   if (preview) preview.textContent = getMemoPreview(day);
 }
 
@@ -13353,6 +13366,12 @@ function bindMemoDetailActions(key = selectedMemoKey) {
   if (open) {
     open.disabled = !key;
     open.onclick = () => openMemoDay(key);
+  }
+  const template = el("memoTemplateButton");
+  if (template) {
+    template.disabled = !key || isDailyEditLocked(key);
+    template.onclick = () => createProjectMemo();
+    template.title = template.disabled ? "48시간이 지난 기록은 보존 모드입니다." : "현재 메모에 프로젝트 양식을 삽입합니다.";
   }
   document.querySelector(".memo-app-shell")?.classList.toggle("is-detail-open", Boolean(key));
 }
