@@ -65,7 +65,7 @@
           <button type="button" data-top-view="day">Today</button>
           <button type="button" data-top-view="week">Week</button>
           <button type="button" data-top-view="month">Month</button>
-          <button type="button" data-top-view="projects">Projects</button>
+          <button type="button" data-top-view="projects" hidden>Projects</button>
           <button type="button" data-top-view="notes">Money</button>
           <button type="button" data-top-view="memos">Memo</button>
           <div class="top-status" aria-label="플래너 상태">
@@ -135,7 +135,7 @@
           <button class="tab active" data-view="day">Today</button>
           <button class="tab" data-view="week">Week</button>
           <button class="tab" data-view="month">Month</button>
-          <button class="tab" data-view="projects">Projects</button>
+          <button class="tab" data-view="projects" hidden>Projects</button>
           <button class="tab" data-view="notes">Money</button>
           <button class="tab" data-view="memos">Memo</button>
           <button class="tab" data-view="sheets" hidden>Sheets</button>
@@ -261,7 +261,7 @@
                       <div class="menu-visibility-grid" aria-label="메인 메뉴 표시 설정">
                         <label><input type="checkbox" data-menu-visibility="week" /> <span>주간</span></label>
                         <label><input type="checkbox" data-menu-visibility="month" /> <span>월간</span></label>
-                        <label><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
+                        <label hidden><input type="checkbox" data-menu-visibility="projects" /> <span>프로젝트</span></label>
                         <label><input type="checkbox" data-menu-visibility="notes" /> <span>Money</span></label>
                         <label><input type="checkbox" data-menu-visibility="memos" /> <span>메모</span></label>
                         <label hidden><input type="checkbox" data-menu-visibility="sheets" /> <span>시트</span></label>
@@ -724,6 +724,7 @@
               <h2>Memo</h2>
             </div>
             <div class="page-title-actions">
+              <button class="mini-action memo-project-button" id="createProjectMemoButton" type="button">프로젝트 메모</button>
               <button class="mini-action section-ai-button" type="button" data-section-ai="memo">AI</button>
             </div>
           </div>

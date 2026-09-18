@@ -257,7 +257,7 @@ const defaultAppSettings = {
     menu: {
       week: true,
       month: true,
-      projects: true,
+      projects: false,
       notes: true,
       memos: true,
       sheets: false,
@@ -3784,6 +3784,7 @@ function setupSelectors() {
   };
   el("fixedMoneyAdd").onclick = () => addMoneyRow(state.finance.fixed, { fixed: true });
   el("addProjectButton").onclick = () => addProject("custom");
+  el("createProjectMemoButton")?.addEventListener("click", createProjectMemo);
   el("addSheetButton").onclick = () => addCustomSheet(el("sheetTemplateSelect").value);
   el("closeSheetDetailButton").onclick = closeSheetDetail;
   el("duplicateSheetButton").onclick = duplicateCurrentSheet;
@@ -6827,7 +6828,7 @@ function bindMenuVisibilityControls() {
   const menu = getMenuVisibilitySettings();
   document.querySelectorAll("[data-menu-visibility]").forEach((checkbox) => {
     const view = checkbox.dataset.menuVisibility;
-    if (view === "sheets") {
+    if (view === "sheets" || view === "projects") {
       checkbox.checked = false;
       checkbox.closest("label")?.setAttribute("hidden", "");
       return;
@@ -6849,6 +6850,7 @@ function getMenuVisibilitySettings() {
 
 function isMainMenuViewVisible(view) {
   if (view === "sheets") return false;
+  if (view === "projects") return false;
   if (view === "day" || view === "foundation") return true;
   return getMenuVisibilitySettings()[view] !== false;
 }
@@ -13123,9 +13125,14 @@ function getMemoEntries() {
         title,
         body,
         preview: getMemoPreview(day),
+        isProjectMemo: isProjectMemoText(`${title}\n${body}`),
       };
     })
     .sort((a, b) => b.key.localeCompare(a.key));
+}
+
+function isProjectMemoText(text = "") {
+  return /\[프로젝트 메모\]|프로젝트명\s*:|소요자금\s*:|수지\/예산\s*:|보고서 메모\s*:/.test(String(text || ""));
 }
 
 function dayMemoHasContent(day = {}) {
@@ -13232,7 +13239,7 @@ function renderMemos() {
     list.innerHTML = entries.map((entry) => `
       <button class="memo-list-item ${entry.key === selectedMemoKey ? "is-active" : ""}" type="button" data-memo-key="${escapeAttr(entry.key)}">
         <span>${escapeHtml(formatDate(parseDateKey(entry.key)))}</span>
-        <strong>${escapeHtml(entry.title)}</strong>
+        <strong><span class="memo-list-title-text">${escapeHtml(entry.title)}</span>${entry.isProjectMemo ? `<em class="memo-project-badge">프로젝트</em>` : ""}</strong>
         <small>${escapeHtml(entry.preview)}</small>
       </button>
     `).join("");
@@ -13286,6 +13293,38 @@ function renderMemoDetail(entry) {
   `;
   bindMemoDetailFields(entry.key);
   bindMemoDetailActions(entry.key);
+}
+
+function createProjectMemo() {
+  let key = selectedMemoKey || iso(selectedDate);
+  if (!key || isDailyEditLocked(key)) key = iso(todayInPlanner());
+  selectedMemoKey = key;
+  const day = ensureDay(key);
+  if (!String(day.memoTitle || "").trim()) day.memoTitle = "프로젝트 메모";
+  const template = [
+    "[프로젝트 메모]",
+    "유형: 현장 공사 / 행사 / 기타",
+    "프로젝트명:",
+    "개요:",
+    "기간:",
+    "소요자금:",
+    "수지/예산:",
+    "체크리스트:",
+    "- [ ] ",
+    "다음 행동:",
+    "보고서 메모:",
+  ].join("\n");
+  const current = String(day.memo || "").trim();
+  day.memo = current ? `${current}\n\n${template}` : template;
+  saveState({ fastSave: true });
+  renderMemos();
+  document.querySelector(".memo-app-shell")?.classList.add("is-detail-open");
+  window.requestAnimationFrame(() => {
+    const textarea = document.querySelector(`#memoDetail textarea[data-memo-detail-field="memo"]`);
+    textarea?.focus();
+    if (textarea) textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  });
+  if (typeof showUndoNotice === "function") showUndoNotice("프로젝트 메모 양식을 추가했습니다.");
 }
 
 function refreshMemoListItem(key) {

@@ -3781,13 +3781,42 @@ body.ceo-mode .project-money-row input:last-child {
 }
 
 .memo-list-item strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
   overflow: hidden;
   color: var(--ink);
   font-size: 15px;
   font-weight: 880;
+}
+
+.memo-list-title-text {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.memo-project-badge {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid rgba(31, 67, 55, 0.16);
+  border-radius: 999px;
+  background: rgba(232, 239, 232, 0.72);
+  color: var(--forest);
+  padding: 0 8px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 880;
+}
+
+.memo-project-button {
+  border-color: rgba(31, 67, 55, 0.22);
+  background: rgba(232, 239, 232, 0.72);
+  color: var(--forest);
 }
 
 .memo-list-item small {
