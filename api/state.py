@@ -14,7 +14,7 @@ class handler(BaseHTTPRequestHandler):
             self.write_json(401, {"error": "로그인 세션이 필요합니다."})
             return
         try:
-            self.write_json(200, get_planner_state(token))
+            self.write_json(200, get_planner_state(token, request_since(self.path, self.headers)))
         except RuntimeError as exc:
             self.write_json(503, {"error": str(exc)})
         except urllib.error.HTTPError as exc:
@@ -75,6 +75,17 @@ def bearer_token(headers):
     return value.split(" ", 1)[1].strip()
 
 
+def request_since(path, headers):
+    header_value = str(headers.get("X-Planner-If-Updated-After", "") or "").strip()
+    if header_value:
+        return header_value
+    try:
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(path).query)
+    except Exception:
+        return ""
+    return str((query.get("since") or [""])[0] or "").strip()
+
+
 class DestructiveOverwriteError(Exception):
     pass
 
@@ -98,13 +109,32 @@ def call_supabase_user(token):
         return json.loads(response.read().decode("utf-8"))
 
 
-def get_planner_state(token):
+def get_planner_state(token, since=""):
     supabase_url, anon_key = supabase_base()
     user = call_supabase_user(token)
     user_id = user.get("id")
     if not user_id:
         raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
     encoded_user_id = urllib.parse.quote(user_id, safe="")
+    if since:
+        meta_request = urllib.request.Request(
+            f"{supabase_url}/rest/v1/planner_states?user_id=eq.{encoded_user_id}&select=updated_at&limit=1",
+            headers={"apikey": anon_key, "Authorization": f"Bearer {token}", "Accept": "application/json"},
+            method="GET",
+        )
+        with urllib.request.urlopen(meta_request, timeout=30) as response:
+            meta_rows = json.loads(response.read().decode("utf-8"))
+        if not meta_rows:
+            return {"exists": False, "state": None, "updatedAt": "", "storage": "supabase-db"}
+        server_updated_at = meta_rows[0].get("updated_at") or ""
+        if server_updated_at and not is_newer(server_updated_at, since):
+            return {
+                "exists": True,
+                "state": None,
+                "updatedAt": server_updated_at,
+                "notModified": True,
+                "storage": "supabase-db",
+            }
     request = urllib.request.Request(
         f"{supabase_url}/rest/v1/planner_states?user_id=eq.{encoded_user_id}&select=state,updated_at&limit=1",
         headers={"apikey": anon_key, "Authorization": f"Bearer {token}", "Accept": "application/json"},

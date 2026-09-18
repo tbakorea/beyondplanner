@@ -538,6 +538,7 @@ let activeViewRenderFrame = 0;
 let backgroundRenderTimer = 0;
 let plannerMaintenanceTimer = 0;
 let displayCacheTimer = 0;
+let plannerBaseCacheTimer = 0;
 let sidebarRenderFrame = 0;
 let pendingActiveViewRenderOptions = {};
 const BOOT_MIN_READING_MS = 0;
@@ -1330,6 +1331,13 @@ function writePlannerBaseState(nextState = state) {
   }
 }
 
+function queuePlannerBaseStatePersist(nextState = state, delay = 900) {
+  window.clearTimeout(plannerBaseCacheTimer);
+  plannerBaseCacheTimer = window.setTimeout(() => {
+    scheduleIdleTask(() => writePlannerBaseState(nextState), 1200);
+  }, delay);
+}
+
 function normalizeDeletedFinanceTaskIds(day = {}) {
   if (!Array.isArray(day.deletedFinanceTaskIds)) {
     day.deletedFinanceTaskIds = [];
@@ -1873,6 +1881,44 @@ function canPersistDerivedState() {
   return Boolean(accountSaveReady && initialServerHydrationFinished);
 }
 
+function knownServerStateUpdatedAt(meta = getStateMeta()) {
+  if (lastServerUpdatedAt) return lastServerUpdatedAt;
+  if (meta?.baseUpdatedAt) return meta.baseUpdatedAt;
+  if (meta?.lastSavedAt) return meta.lastSavedAt;
+  return meta?.dirty ? "" : meta?.updatedAt || "";
+}
+
+function plannerStateFetchUrl(options = {}) {
+  const since = String(options.since ?? knownServerStateUpdatedAt()).trim();
+  return since ? `/api/state?since=${encodeURIComponent(since)}` : "/api/state";
+}
+
+function applyServerNotModifiedPayload(payload = {}, message = "저장됨") {
+  const updatedAt = payload.updatedAt || knownServerStateUpdatedAt();
+  const localMeta = getStateMeta();
+  accountSaveReady = true;
+  saveStatus.ready = true;
+  if (updatedAt) {
+    lastServerUpdatedAt = updatedAt;
+    if (hasCurrentRuntimeDirtyEdit(localMeta) || hasRuntimeLocalEditSince()) {
+      saveStateMeta({ baseUpdatedAt: updatedAt, lastSavedAt: updatedAt, accountEmail: getAuthSession()?.email || "" });
+      saveStatus.saving = true;
+      saveStatus.message = "변경 저장 중";
+      scheduleAccountSave(120);
+      return;
+    }
+    saveStateMeta({
+      updatedAt,
+      lastSavedAt: updatedAt,
+      baseUpdatedAt: updatedAt,
+      dirty: false,
+      accountEmail: getAuthSession()?.email || "",
+    });
+  }
+  saveStatus.saving = false;
+  saveStatus.message = message;
+}
+
 async function hydrateServerState() {
   const hydrationStartedSeq = plannerMutationSeq;
   const hydrationBaseState = clonePlannerValue(state);
@@ -1886,11 +1932,15 @@ async function hydrateServerState() {
       logoutPlanner();
       return;
     }
-    const response = await fetchWithTimeout("/api/state", { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
+    const response = await fetchWithTimeout(plannerStateFetchUrl(), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     accountSaveReady = true;
     saveStatus.ready = true;
+    if (payload.notModified) {
+      applyServerNotModifiedPayload(payload, "저장됨");
+      return;
+    }
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
       // During initial hydration, only edits made in the current live page session
@@ -2303,9 +2353,14 @@ async function pullServerStateIfNewer(options = {}) {
     return;
   }
   try {
-    const response = await fetchWithTimeout("/api/state", { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
+    const response = await fetchWithTimeout(plannerStateFetchUrl(), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
+    if (payload.notModified) {
+      applyServerNotModifiedPayload(payload, "저장됨");
+      renderSidebarAfterDailyInput();
+      return;
+    }
     if (!payload.exists || !payload.state || !payload.updatedAt) return;
     if (!options.force && lastServerUpdatedAt && !isTimestampNewer(payload.updatedAt, lastServerUpdatedAt)) return;
     const latestMeta = getStateMeta();
@@ -2456,8 +2511,8 @@ function storeStateFromServer(payload, message) {
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
-  persistDisplayCache();
-  writePlannerBaseState(state);
+  queueDisplayCachePersist(state, 1200);
+  queuePlannerBaseStatePersist(state, 900);
   saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
   saveStatus.message = message;
 }
@@ -16752,13 +16807,17 @@ function renderStartupFrame(options = {}) {
   updateStickyPanelTop();
 }
 
-function renderHydratedTodayFrame() {
+function renderHydratedTodayFrame(options = {}) {
   selectedDate = todayInPlanner();
   selectedFinanceMonth = monthKey(selectedDate);
   currentDayPanel = "main";
   daySwipeKey = "";
   showView("day");
-  renderStartupFrame({ forceLists: true });
+  if (options.defer) {
+    queueActiveViewRender({ forceLists: true }, options.delay ?? 80);
+  } else {
+    renderStartupFrame({ forceLists: true });
+  }
   queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
   stabilizeDaySwipePosition("main");
 }
@@ -16991,7 +17050,7 @@ async function finishInitialServerHydration() {
   try {
     await hydrateServerState();
     if (getAuthSession()?.accessToken) {
-      renderHydratedTodayFrame();
+      renderHydratedTodayFrame({ defer: hasInitialDeviceCache, delay: 80 });
       setBootMessage("최신 내용을 반영했습니다");
     }
   } catch (error) {
@@ -17019,7 +17078,7 @@ async function setup() {
   renderWeatherChip();
   scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
   if (hasInitialDeviceCache) hideBootScreen(40);
-  finishInitialServerHydration();
+  window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 60 : 0);
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
   window.setInterval(queuePassiveServerPull, 15000);
