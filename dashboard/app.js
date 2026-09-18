@@ -6828,6 +6828,11 @@ function bindMenuVisibilityControls() {
   const menu = getMenuVisibilitySettings();
   document.querySelectorAll("[data-menu-visibility]").forEach((checkbox) => {
     const view = checkbox.dataset.menuVisibility;
+    if (view === "memos") {
+      checkbox.checked = true;
+      state.appSettings.sections.menu.memos = true;
+      return;
+    }
     if (view === "sheets" || view === "projects") {
       checkbox.checked = false;
       checkbox.closest("label")?.setAttribute("hidden", "");
@@ -6851,7 +6856,7 @@ function getMenuVisibilitySettings() {
 function isMainMenuViewVisible(view) {
   if (view === "sheets") return false;
   if (view === "projects") return false;
-  if (view === "day" || view === "foundation") return true;
+  if (view === "day" || view === "foundation" || view === "memos") return true;
   return getMenuVisibilitySettings()[view] !== false;
 }
 

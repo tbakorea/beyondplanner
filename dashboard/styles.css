@@ -21910,6 +21910,45 @@ body.classic-mode .quick-strip::-webkit-scrollbar {
   display: none !important;
 }
 
+/* Mobile primary navigation: keep Memo reachable and move Search out of the first row. */
+@media (max-width: 640px) {
+  .quick-strip > .top-search-wrap {
+    display: none !important;
+  }
+
+  .quick-strip > .settings-nav-button.utility-icon {
+    order: 1 !important;
+  }
+
+  .quick-strip > button[data-top-view="day"] {
+    order: 2 !important;
+  }
+
+  .quick-strip > button[data-top-view="memos"] {
+    order: 3 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 64px !important;
+  }
+
+  .quick-strip > button[data-top-view="week"] {
+    order: 4 !important;
+  }
+
+  .quick-strip > button[data-top-view="month"] {
+    order: 5 !important;
+  }
+
+  .quick-strip > button[data-top-view="notes"] {
+    order: 6 !important;
+  }
+
+  .quick-strip > .top-status {
+    order: 99 !important;
+  }
+}
+
 /* Postponed priority tasks: one visible control only.
    The status button itself displays "날자" or the selected date and opens the calendar. */
 .task-status-cell:has(.postpone-date-button) .task-status-label,
