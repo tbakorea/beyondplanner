@@ -1944,14 +1944,16 @@ async function hydrateServerState() {
     }
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
-      // During initial hydration, only edits made in the current live page session
-      // may be merged upward. Persisted browser cache is preview-only for logged-in users.
-      // Stale device cache must never overwrite or re-seed the database.
+      // During initial hydration, the DB stays authoritative. The only local state
+      // allowed back up is a same-account dirty edit that is newer than the server.
+      // This preserves edits made just before a tab/app was closed without letting
+      // stale device cache overwrite the database.
       const localMeta = getStateMeta();
       const serverHasContent = hasPlannerContent(payload.state);
-      const localHasContent = serverHasContent ? false : hasPlannerContent(state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit;
+      const hasPersistedDirtyEdit = hasPersistedLocalEditAheadOfServer(localMeta, payload.updatedAt || "");
+      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit || hasPersistedDirtyEdit;
+      const localHasContent = serverHasContent ? hasRecoverableDirtyEdit && hasPlannerContent(state) : hasPlannerContent(state);
       if (!hasRecoverableDirtyEdit && localMeta.dirty) {
         const sessionEmail = getAuthSession()?.email || "";
         saveStateMeta({ dirty: false, accountEmail: sessionEmail });
@@ -1980,7 +1982,7 @@ async function hydrateServerState() {
     } else {
       const localMeta = getStateMeta();
       const localHasContent = hasPlannerContent(state);
-      if (hasCurrentRuntimeDirtyEdit(localMeta) && localHasContent) {
+      if (hasPendingPlannerSave(localMeta, "") && localHasContent) {
         lastServerUpdatedAt = "";
         saveStatus.message = "새 변경 저장 중";
         scheduleAccountSave(120);
@@ -2490,17 +2492,20 @@ function hasCurrentRuntimeDirtyEdit(meta = getStateMeta()) {
 }
 
 function hasPersistedLocalEditAheadOfServer(meta = getStateMeta(), serverUpdatedAt = lastServerUpdatedAt) {
-  if (getAuthSession()?.accessToken) return false;
   if (!meta?.dirty || !hasPlannerContent(state)) return false;
   const sessionEmail = getAuthSession()?.email || "";
-  if (meta.accountEmail && sessionEmail && meta.accountEmail !== sessionEmail) return false;
+  if (sessionEmail && meta.accountEmail !== sessionEmail) return false;
   if (hasCurrentRuntimeDirtyEdit(meta)) return false;
   const localMs = timestampMs(meta.updatedAt);
   if (!localMs) return false;
-  const serverStamp = serverUpdatedAt || lastServerUpdatedAt || "";
-  const serverMs = timestampMs(serverStamp);
-  if (!serverMs) return true;
-  return localMs > serverMs;
+  const remoteMs = Math.max(
+    timestampMs(serverUpdatedAt),
+    timestampMs(lastServerUpdatedAt),
+    timestampMs(meta.baseUpdatedAt),
+    timestampMs(meta.lastSavedAt),
+  );
+  if (!remoteMs) return true;
+  return localMs > remoteMs;
 }
 
 function hasPendingPlannerSave(meta = getStateMeta(), serverUpdatedAt = lastServerUpdatedAt) {
