@@ -516,7 +516,7 @@ let selectedMemoKey = iso(selectedDate);
 let memoSearchQuery = "";
 let activeMoneyDraftId = "";
 const initialCachedPlannerState = loadCachedPlannerState();
-let hasInitialDeviceCache = Boolean(initialCachedPlannerState);
+let hasInitialDeviceCache = Boolean(initialCachedPlannerState && hasPlannerContent(initialCachedPlannerState));
 let state = initialCachedPlannerState || loadEmptyState();
 let plannerMutationSeq = 0;
 let carryoverTaskCache = { key: "", version: "", items: [] };
@@ -16882,17 +16882,61 @@ function queueActiveViewRender(options = {}, delay = 48) {
   }, delay);
 }
 
+function renderDailyDateFallback() {
+  const dayTitle = el("dayTitle");
+  if (!dayTitle) return;
+  const formattedDate = formatDate(selectedDate);
+  dayTitle.textContent = formattedDate;
+  dayTitle.classList.remove("has-date-weather");
+  dayTitle.setAttribute("data-full-date", formattedDate);
+  el("dailyCalendarToggle")?.setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
+}
+
+function renderCriticalDailyShell() {
+  try {
+    renderDailyDateTitle();
+  } catch {
+    renderDailyDateFallback();
+  }
+  try {
+    renderDailyTodayButton();
+  } catch {
+    // The date row must stay visible even if the optional today button fails.
+  }
+  try {
+    const day = ensureDay();
+    const key = iso(selectedDate);
+    const carryovers = getCarryoverTasks(parseDate(key));
+    const { done, total } = getDailyCompletionSummary(day, key, carryovers);
+    const completion = el("dailyCompletion");
+    if (completion) completion.textContent = `${done}/${total}`;
+    renderDailyPulse(day, getDayTasks(key), carryovers, { done, total });
+  } catch {
+    const completion = el("dailyCompletion");
+    if (completion && completion.textContent === "0/0") completion.textContent = "0/0";
+  }
+}
+
 function renderStartupFrame(options = {}) {
-  ensureMonth();
-  ensureWeek();
-  ensureDay();
-  if (options.syncMoney && syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
-  renderSidebar();
-  renderDay({ forceLists: Boolean(options.forceLists) });
-  renderWeatherChip();
-  normalizePrimaryNavigationLabels();
-  updateSettingsTabState();
-  updateStickyPanelTop();
+  renderCriticalDailyShell();
+  try { ensureMonth(); } catch {}
+  try { ensureWeek(); } catch {}
+  try { ensureDay(); } catch {}
+  if (options.syncMoney) {
+    try {
+      if (syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
+    } catch {}
+  }
+  try { renderSidebar(); } catch {}
+  try {
+    renderDay({ forceLists: Boolean(options.forceLists) });
+  } catch {
+    renderCriticalDailyShell();
+  }
+  try { renderWeatherChip(); } catch {}
+  try { normalizePrimaryNavigationLabels(); } catch {}
+  try { updateSettingsTabState(); } catch {}
+  try { updateStickyPanelTop(); } catch {}
 }
 
 function renderHydratedTodayFrame(options = {}) {
