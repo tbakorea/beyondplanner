@@ -1890,6 +1890,7 @@ function knownServerStateUpdatedAt(meta = getStateMeta()) {
 }
 
 function plannerStateFetchUrl(options = {}) {
+  if (options.forceFull) return "/api/state";
   const since = String(options.since ?? knownServerStateUpdatedAt()).trim();
   return since ? `/api/state?since=${encodeURIComponent(since)}` : "/api/state";
 }
@@ -1933,7 +1934,9 @@ async function hydrateServerState() {
       logoutPlanner();
       return;
     }
-    const response = await fetchWithTimeout(plannerStateFetchUrl(), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
+    // Initial account hydration must read the full DB row. A notModified response is
+    // only safe after we already trust the current in-memory state for this session.
+    const response = await fetchWithTimeout(plannerStateFetchUrl({ forceFull: true }), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     accountSaveReady = true;
