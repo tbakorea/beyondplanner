@@ -16958,6 +16958,86 @@ function buildBootValuePhrases(note = {}) {
   ];
 }
 
+const WEEKLY_BOOT_MENTOR_NOTES = [
+  { theme: "관심", ko: "사람은 설득보다 이해받을 때 움직입니다. 오늘 첫 대화는 상대가 중요하게 여기는 것부터 묻고 시작하세요.", en: "People move when they feel understood. Start the first conversation by asking what matters to them." },
+  { theme: "이름", ko: "이름을 정확히 부르는 일은 가장 짧은 존중입니다. 오늘 만나는 사람의 이름을 한 번 더 정중히 불러보세요.", en: "A name said well is compact respect. Use one person's name with care today." },
+  { theme: "경청", ko: "좋은 대화는 말솜씨보다 듣는 힘에서 시작됩니다. 답하기 전에 한 문장 더 듣는 여유를 가지세요.", en: "Good conversation begins less with words and more with listening. Hear one sentence more before answering." },
+  { theme: "인정", ko: "비판보다 인정이 먼저 열쇠가 됩니다. 오늘 누군가의 작은 수고를 구체적으로 말해 주세요.", en: "Recognition opens doors faster than criticism. Name one specific effort you appreciate today." },
+  { theme: "미소", ko: "표정은 말보다 먼저 도착합니다. 중요한 일 전에는 얼굴의 긴장을 먼저 낮추세요.", en: "Your face arrives before your words. Lower the tension before important work." },
+  { theme: "비난 절제", ko: "비난은 방어를 부르고 질문은 생각을 부릅니다. 지적하고 싶은 순간에 먼저 이유를 물어보세요.", en: "Blame invites defense; questions invite thought. Ask why before correcting." },
+  { theme: "상대 관점", ko: "내 논리보다 상대의 필요가 길을 엽니다. 오늘 제안은 상대의 이익으로 번역해서 말하세요.", en: "The other person's need opens the path. Translate your proposal into their benefit." },
+  { theme: "작은 동의", ko: "큰 설득은 작은 동의에서 자랍니다. 먼저 함께 인정할 수 있는 사실 하나를 찾으세요.", en: "Large agreement grows from small yeses. Find one shared fact first." },
+  { theme: "체면", ko: "사람은 체면이 지켜질 때 더 잘 바뀝니다. 고칠 일도 품격 있게 전달하세요.", en: "People change better when dignity is protected. Correct with grace." },
+  { theme: "격려", ko: "격려는 느슨한 칭찬이 아니라 다음 행동을 보이게 하는 힘입니다. 오늘 한 사람에게 다음 가능성을 말해 주세요.", en: "Encouragement is not soft praise; it reveals the next possible action." },
+  { theme: "불안 정리", ko: "불안은 머릿속에 있을 때 커지고 종이에 내려오면 작아집니다. 걱정 하나를 업무 한 줄로 바꾸세요.", en: "Worry grows in the head and shrinks on paper. Turn one concern into a task." },
+  { theme: "오늘 집중", ko: "내일의 짐까지 오늘 들 필요는 없습니다. 오늘 처리할 수 있는 범위만 선명하게 잡으세요.", en: "You do not have to carry tomorrow today. Define what can be handled now." },
+  { theme: "최악 대비", ko: "최악을 차분히 인정하면 마음은 다시 선택권을 얻습니다. 피하고 싶은 상황을 적고 대응 한 줄을 정하세요.", en: "When you calmly name the worst case, choice returns. Write one response plan." },
+  { theme: "행동 우선", ko: "걱정은 멈춰 있을 때 커집니다. 10분 안에 시작할 수 있는 첫 행동을 먼저 고정하세요.", en: "Worry grows in stillness. Lock in the first action you can start within ten minutes." },
+  { theme: "휴식", ko: "지친 판단은 비용이 큽니다. 오늘 중요한 결정 전에는 짧은 정리를 먼저 하세요.", en: "Tired judgment is expensive. Reset briefly before an important decision." },
+  { theme: "우선순위", ko: "모든 일을 다 하려는 마음이 중요한 일을 흐립니다. 오늘은 가장 가치 있는 일 하나를 먼저 보호하세요.", en: "Trying to do everything blurs what matters. Protect one high-value task first." },
+  { theme: "시간 고정", ko: "계획은 시간표에 들어갈 때 현실이 됩니다. 우선업무 하나를 실제 시간대에 놓으세요.", en: "A plan becomes real when it enters the calendar. Place one priority into time." },
+  { theme: "작게 시작", ko: "큰 변화는 작은 시작을 매일 잃지 않는 데서 옵니다. 오늘의 시작은 작아도 정확하게 하세요.", en: "Big change comes from not losing the small start. Begin small, but precisely." },
+  { theme: "결정", ko: "결정하지 않은 일은 계속 마음의 비용을 청구합니다. 보류할 일과 실행할 일을 분리하세요.", en: "Undecided work keeps charging mental rent. Separate what waits from what moves." },
+  { theme: "정리", ko: "정돈된 화면은 정돈된 판단을 돕습니다. 오늘의 목록에서 버릴 것 하나를 먼저 지우세요.", en: "A clean view supports clean judgment. Remove one unnecessary item first." },
+  { theme: "약속", ko: "작은 약속을 지키는 사람은 큰 신뢰를 얻습니다. 오늘 약속한 시간 하나를 정확히 지키세요.", en: "Small promises build large trust. Keep one promised time precisely today." },
+  { theme: "관계", ko: "성과는 관계를 통해 오래 갑니다. 바쁜 날에도 감사 한마디를 일정처럼 챙기세요.", en: "Results last through relationships. Schedule one word of thanks into a busy day." },
+  { theme: "질문", ko: "좋은 질문은 회의 시간을 줄이고 실행 시간을 늘립니다. 오늘 회의의 첫 질문을 미리 정하세요.", en: "Good questions shorten meetings and lengthen execution. Prepare the first question." },
+  { theme: "집중", ko: "주의력은 가장 값비싼 자산입니다. 한 시간만이라도 알림보다 목표가 이기게 하세요.", en: "Attention is your costly asset. Let the goal beat notifications for one hour." },
+  { theme: "기록", ko: "기록은 기억보다 공정합니다. 오늘 판단의 이유를 한 줄 남기세요.", en: "Records are fairer than memory. Leave one line explaining a decision." },
+  { theme: "회고", ko: "하루는 끝날 때 완성됩니다. 오늘 배운 점 하나를 내일의 기준으로 남기세요.", en: "A day is completed at review. Turn one lesson into tomorrow's standard." },
+  { theme: "용기", ko: "용기는 두려움이 없는 상태가 아니라 해야 할 일을 먼저 보는 태도입니다. 피하던 일을 한 칸 앞으로 당기세요.", en: "Courage is seeing the needed action before the fear. Move one avoided task forward." },
+  { theme: "절제", ko: "좋은 절제는 가능성을 줄이는 것이 아니라 힘을 모으는 기술입니다. 오늘 덜어낼 일을 정하세요.", en: "Discipline does not shrink possibility; it gathers strength. Choose what to subtract." },
+  { theme: "건강", ko: "몸의 리듬이 무너지면 계획도 흔들립니다. 중요한 업무 사이에 회복 시간을 작게라도 넣으세요.", en: "When the body loses rhythm, planning wobbles. Put recovery between key tasks." },
+  { theme: "재정", ko: "돈의 흐름은 결정의 흔적입니다. 오늘 숫자 하나를 확인하고 판단을 미루지 마세요.", en: "Money flow records decisions. Check one number and do not postpone the judgment." },
+  { theme: "프로젝트", ko: "프로젝트는 큰 제목이 아니라 다음 행동들의 질서입니다. 다음 한 단계를 오늘 업무로 끌어오세요.", en: "A project is ordered next actions, not a big title. Pull one next step into today." },
+  { theme: "회의", ko: "회의의 목적은 말이 아니라 결정입니다. 들어가기 전 오늘 얻을 결정을 적으세요.", en: "The point of a meeting is a decision, not talk. Name the decision you need first." },
+  { theme: "위임", ko: "위임은 일을 떠넘기는 것이 아니라 책임의 위치를 선명하게 하는 일입니다. 맡길 일의 결과 기준을 적으세요.", en: "Delegation clarifies responsibility. Write the result standard before handing it off." },
+  { theme: "갈등", ko: "갈등은 감정으로 키우지 말고 사실로 좁히세요. 확인된 사실과 추정을 분리해 말하세요.", en: "Do not feed conflict with emotion; narrow it with facts. Separate fact from assumption." },
+  { theme: "설득", ko: "상대를 이기려는 말보다 함께 이기는 그림이 오래 갑니다. 제안의 공동 이익을 먼저 보여주세요.", en: "A shared win lasts longer than winning an argument. Show the mutual benefit first." },
+  { theme: "칭찬", ko: "칭찬은 넓게 말하면 약하고 구체적으로 말하면 강합니다. 무엇이 좋았는지 정확히 말하세요.", en: "Praise is weak when broad and strong when specific. Say exactly what worked." },
+  { theme: "책임", ko: "책임은 무거운 단어가 아니라 내가 통제할 수 있는 것부터 붙드는 태도입니다. 오늘의 통제 가능 영역을 고르세요.", en: "Responsibility starts with what you can control. Choose that area today." },
+  { theme: "마무리", ko: "끝낸 일은 마음의 공간을 돌려줍니다. 작더라도 완료 표시 하나로 하루의 탄력을 만드세요.", en: "Completed work returns mental space. Mark one finish and regain momentum." },
+  { theme: "배움", ko: "실수는 숨기면 반복되고 기록하면 자산이 됩니다. 오늘 하나의 실수를 다음 규칙으로 바꾸세요.", en: "A hidden mistake repeats; a recorded one becomes an asset. Turn one miss into a rule." },
+  { theme: "신뢰", ko: "신뢰는 큰 선언보다 예측 가능한 행동에서 생깁니다. 오늘 반복 가능한 기준 하나를 지키세요.", en: "Trust grows from predictable action, not big claims. Keep one repeatable standard." },
+  { theme: "선택", ko: "좋은 하루는 더 많이 하는 날이 아니라 덜 흔들리는 날입니다. 선택지를 줄이고 실행을 늘리세요.", en: "A good day is not more activity; it is less drift. Reduce options and increase action." },
+  { theme: "몰입", ko: "몰입은 시간이 남을 때 오지 않고 시간을 지킬 때 옵니다. 깊게 할 일을 먼저 예약하세요.", en: "Focus does not arrive when time is left over; it comes when time is protected." },
+  { theme: "품격", ko: "품격은 바쁠 때 드러납니다. 급한 말도 부드럽고 정확하게 전달하세요.", en: "Grace shows under pressure. Speak urgently, but gently and clearly." },
+  { theme: "끈기", ko: "끈기는 기분보다 시스템을 믿는 태도입니다. 오늘도 정해둔 한 칸을 채우세요.", en: "Persistence trusts the system more than mood. Fill the planned block today." },
+  { theme: "명료함", ko: "모호한 일은 미뤄지고 명확한 일은 움직입니다. 업무명을 행동문장으로 바꾸세요.", en: "Vague work stalls; clear work moves. Rewrite one task as an action sentence." },
+  { theme: "리듬", ko: "하루의 리듬은 첫 한 시간에서 많이 정해집니다. 시작 업무를 가볍게 두지 마세요.", en: "The first hour sets much of the day's rhythm. Choose the first task with care." },
+  { theme: "평정", ko: "평정은 상황이 쉬워서가 아니라 기준이 분명해서 생깁니다. 오늘의 기준을 한 문장으로 정하세요.", en: "Calm comes less from easy conditions and more from clear standards. Name today's standard." },
+  { theme: "실행", ko: "실행은 완벽한 준비 뒤가 아니라 충분한 다음 행동 뒤에 옵니다. 지금 가능한 다음 한 걸음을 하세요.", en: "Execution follows a sufficient next action, not perfect preparation. Take the next step." },
+  { theme: "정직", ko: "정직한 현황 파악이 가장 빠른 개선입니다. 오늘 늦어진 일을 변명 없이 표시하세요.", en: "Honest status is the fastest improvement. Mark what is late without excuse." },
+  { theme: "감사", ko: "감사는 감정을 좋게 만드는 데서 끝나지 않고 관계의 방향을 바꿉니다. 오늘 고마운 사람 한 명을 떠올리세요.", en: "Gratitude does more than lift mood; it redirects relationships. Name one person to thank." },
+  { theme: "성장", ko: "성장은 어제의 나를 작게 이기는 반복입니다. 오늘 하나만 더 낫게 처리하세요.", en: "Growth is repeatedly beating yesterday by a little. Do one thing slightly better today." },
+  { theme: "재시작", ko: "흐트러진 날도 다시 시작할 수 있습니다. 남은 시간에 가장 중요한 한 칸만 회복하세요.", en: "A scattered day can restart. Recover the one most important block left." },
+  { theme: "축적", ko: "탁월함은 드문 폭발보다 조용한 축적에 가깝습니다. 오늘의 기록 한 줄을 미래의 자산으로 남기세요.", en: "Excellence is quiet accumulation more than rare bursts. Leave one useful record today." },
+];
+
+function getWeekOfYearIndex(date = todayInPlanner()) {
+  const yearStart = new Date(date.getFullYear(), 0, 1);
+  const yearStartSunday = startOfWeek(yearStart);
+  return Math.max(0, Math.floor(daysBetween(yearStartSunday, date) / 7));
+}
+
+function buildWeeklyBootOpeningNote(date = todayInPlanner()) {
+  const index = getWeekOfYearIndex(date) % WEEKLY_BOOT_MENTOR_NOTES.length;
+  const note = WEEKLY_BOOT_MENTOR_NOTES[index] || WEEKLY_BOOT_MENTOR_NOTES[0];
+  const weekStart = startOfWeek(date);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  const isKo = getAppLanguage() === "ko";
+  return {
+    title: isKo ? `${formatShortDate(weekStart)}-${formatShortDate(weekEnd)} 주간 멘토링` : `Week ${index + 1} mentoring`,
+    message: isKo ? note.ko : note.en,
+    theme: note.theme,
+    source: isKo ? `주간 실행 원칙 · ${note.theme}` : `Weekly principle · ${note.theme}`,
+    signals: isKo
+      ? ["오늘 우선업무 하나를 시간표에 고정하세요.", "대화와 판단은 기록될 때 더 선명해집니다."]
+      : ["Place one priority into the schedule.", "Conversation and judgment sharpen when recorded."],
+  };
+}
+
 const NAVIGATE_60_CACHE_KEY = "beyondWork.navigate60.web.v1";
 let bootNavigateVerse = null;
 let bootVerseTextCache = {};
@@ -17083,7 +17163,7 @@ async function hydrateNavigateVerseText(verse) {
   }
 }
 
-function renderBootCoaching({ hydrateVerse = false } = {}) {
+function renderBootCoaching() {
   const message = el("bootCoachingMessage");
   const english = el("bootNavigateEnglish");
   const signals = el("bootCoachingSignals");
@@ -17091,24 +17171,15 @@ function renderBootCoaching({ hydrateVerse = false } = {}) {
   const valueStrip = el("bootValueStrip");
   const source = el("bootVerseSource");
   if (!message || !signals) return;
-  const note = buildDailyOpeningNote(iso(todayInPlanner()));
-  const navigate = pickNavigateVerse();
-  loadNavigateVerseCache();
-  if (dayline) dayline.textContent = `${note.title} · 오늘을 정렬합니다`;
+  const note = buildWeeklyBootOpeningNote(todayInPlanner());
+  if (dayline) dayline.textContent = `${note.title} · ${note.theme}`;
   if (valueStrip) {
-    valueStrip.innerHTML = buildBootValuePhrases(note).map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
+    valueStrip.innerHTML = note.signals.map((phrase) => `<span>${escapeHtml(phrase)}</span>`).join("");
   }
   message.textContent = note.message;
-  if (english) english.textContent = bootVerseTextCache[navigate.ref] || `${navigate.ref} · ${buildNavigateReflection(navigate)}`;
-  if (source) source.textContent = `Navigate 60 · ${navigate.groupKo} · ${navigate.ref}`;
-  signals.innerHTML = [
-    note.signals.find((signal) => signal.includes("첫 실행")) || note.signals[0],
-    note.signals.find((signal) => signal.includes("다음 일정")) || buildNavigatePrompt(navigate),
-    note.signals.find((signal) => signal.includes("이월")) || note.signals[1],
-  ].filter(Boolean).slice(0, 2).map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
-  if (hydrateVerse) {
-    window.setTimeout(() => hydrateNavigateVerseText(navigate), 0);
-  }
+  if (english) english.textContent = note.signals[0] || "";
+  if (source) source.textContent = note.source;
+  signals.innerHTML = note.signals.map((signal) => `<li>${escapeHtml(signal)}</li>`).join("");
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
 }
 
