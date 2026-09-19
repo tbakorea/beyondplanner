@@ -1923,7 +1923,7 @@ function applyServerNotModifiedPayload(payload = {}, message = "저장됨") {
   saveStatus.message = message;
 }
 
-async function hydrateServerState() {
+async function hydrateServerState(options = {}) {
   const hydrationStartedSeq = plannerMutationSeq;
   const hydrationBaseState = clonePlannerValue(state);
   try {
@@ -1936,9 +1936,11 @@ async function hydrateServerState() {
       logoutPlanner();
       return;
     }
-    // Initial account hydration must read the full DB row. A notModified response is
-    // only safe after we already trust the current in-memory state for this session.
-    const response = await fetchWithTimeout(plannerStateFetchUrl({ forceFull: true }), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
+    // If an account-scoped boot cache exists, use the server timestamp path first.
+    // This keeps the database authoritative while avoiding a full planner JSON
+    // download on every launch for large accounts such as long-running CEO planners.
+    const forceFull = options.forceFull ?? !hasInitialDeviceCache;
+    const response = await fetchWithTimeout(plannerStateFetchUrl({ forceFull }), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     accountSaveReady = true;
@@ -16812,22 +16814,13 @@ function renderActiveViewSections(options = {}) {
 }
 
 function renderBackgroundViewSections() {
-  const activeView = getActiveViewName();
   if (isAnyPlannerInputEditing()) {
-    queueBackgroundViewRender(1200);
+    queueBackgroundViewRender(1600);
     return;
   }
-  if (activeView !== "foundation") renderFoundation();
-  if (activeView !== "year") renderYear();
-  if (activeView !== "month") renderMonth();
-  if (activeView !== "week") renderWeek();
-  // Daily rendering performs schedule/task reconciliation and can persist
-  // derived state. Keep it out of background rendering so scrolling and
-  // text entry stay responsive.
-  if (activeView !== "projects") renderProjects();
-  if (activeView !== "notes") renderNotes();
-  if (activeView !== "memos") renderMemos();
-  if (activeView !== "search") renderSearch();
+  // Keep startup responsive: do not pre-render hidden heavy sections on boot.
+  // Projects, Memo archives, Money, Sheets, and Settings render when opened.
+  // The server/database remains the source of truth; this only avoids extra DOM work.
   renderWeatherChip();
   normalizePrimaryNavigationLabels();
   updateSettingsTabState();
@@ -17173,7 +17166,7 @@ async function setup() {
   renderWeatherChip();
   scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
   if (hasInitialDeviceCache) hideBootScreen(40);
-  window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 60 : 0);
+  window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 650 : 0);
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
   window.setInterval(queuePassiveServerPull, 15000);
