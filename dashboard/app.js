@@ -519,6 +519,7 @@ const initialCachedPlannerState = loadCachedPlannerState();
 let hasInitialDeviceCache = Boolean(initialCachedPlannerState);
 let state = initialCachedPlannerState || loadEmptyState();
 let plannerMutationSeq = 0;
+let carryoverTaskCache = { key: "", version: "", items: [] };
 let pendingServerStateMerge = null;
 let pendingServerStateMergeTimer = 0;
 let searchQuery = "";
@@ -1948,7 +1949,7 @@ async function hydrateServerState() {
       // Stale device cache must never overwrite or re-seed the database.
       const localMeta = getStateMeta();
       const serverHasContent = hasPlannerContent(payload.state);
-      const localHasContent = hasPlannerContent(state);
+      const localHasContent = serverHasContent ? false : hasPlannerContent(state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
       const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit;
       if (!hasRecoverableDirtyEdit && localMeta.dirty) {
@@ -2418,6 +2419,7 @@ function nextPlannerMutationTimestamp(...candidates) {
 
 function markLocalStateUpdated(extra = {}) {
   plannerMutationSeq += 1;
+  invalidateCarryoverTaskCache();
   const meta = getStateMeta();
   const { updatedAt: explicitUpdatedAt, ...rest } = extra || {};
   const updatedAt = explicitUpdatedAt || nextPlannerMutationTimestamp(lastServerUpdatedAt, meta.updatedAt);
@@ -2510,6 +2512,7 @@ function storeStateFromServer(payload, message) {
   state = preparePlannerStateForPersistence(getPayloadPlannerState(payload) || migrateState(payload.state));
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
+  invalidateCarryoverTaskCache();
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   queueDisplayCachePersist(state, 1200);
   queuePlannerBaseStatePersist(state, 900);
@@ -16008,9 +16011,26 @@ function getDayTaskSnapshots(key) {
     });
 }
 
+function invalidateCarryoverTaskCache() {
+  carryoverTaskCache = { key: "", version: "", items: [] };
+}
+
+function carryoverTaskCacheVersion() {
+  const dayCount = Object.keys(state.days || {}).length;
+  return `${plannerMutationSeq}:${lastServerUpdatedAt || ""}:${dayCount}`;
+}
+
+function cloneCarryoverTaskList(items = []) {
+  return items.map((item) => ({ ...item }));
+}
+
 function getCarryoverTasks(date) {
   const currentKey = iso(date);
   if (!shouldShowCarryoversForDate(currentKey)) return [];
+  const version = carryoverTaskCacheVersion();
+  if (carryoverTaskCache.key === currentKey && carryoverTaskCache.version === version) {
+    return cloneCarryoverTaskList(carryoverTaskCache.items);
+  }
   const suppressedIdentities = buildCarryoverSuppressionSet(currentKey);
   const candidates = Object.keys(state.days)
     .filter((key) => key < currentKey)
@@ -16027,7 +16047,9 @@ function getCarryoverTasks(date) {
       if (isCarryoverIdentitySuppressed(task, suppressedIdentities)) return false;
       return task.text && !isTaskResolvedForDate(task, currentKey) && ["미완료", "진행중"].includes(task.status);
     });
-  return dedupeCarryoverTasks(candidates);
+  const items = dedupeCarryoverTasks(candidates);
+  carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(items) };
+  return cloneCarryoverTaskList(items);
 }
 
 function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
