@@ -1267,7 +1267,9 @@ function readStoredPlannerState(key) {
 function readDisplayCachedPlannerState(key, sessionEmail = getAuthSession()?.email || "") {
   try {
     const cached = JSON.parse(localStorage.getItem(key) || "null");
-    if (!cached?.state || (cached.accountEmail && cached.accountEmail !== sessionEmail)) return null;
+    if (!cached?.state) return null;
+    if (sessionEmail && cached.accountEmail !== sessionEmail) return null;
+    if (!sessionEmail && cached.accountEmail) return null;
     const cachedState = migrateState(cached.state);
     return hasPlannerContent(cachedState) ? cachedState : null;
   } catch {
