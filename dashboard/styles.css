@@ -23468,3 +23468,148 @@ body.ceo-mode .project-hub .project-detail-close {
     padding-inline: 12px !important;
   }
 }
+
+/* 2026-09-21 iPad release polish: final guardrail for daily score and menu. */
+body.day-view-active .daily-title,
+body.ceo-mode.day-view-active .daily-title,
+body.classic-mode.day-view-active .daily-title {
+  grid-template-columns: minmax(0, 1fr) clamp(92px, 8vw, 124px) !important;
+  align-items: center !important;
+  gap: clamp(8px, 0.8vw, 14px) !important;
+  height: clamp(50px, 4.7vw, 62px) !important;
+  min-height: clamp(50px, 4.7vw, 62px) !important;
+  max-height: none !important;
+  padding: 5px clamp(8px, 1vw, 14px) !important;
+  overflow: visible !important;
+  z-index: 44 !important;
+}
+
+body.day-view-active .daily-score,
+body.ceo-mode.day-view-active .daily-score,
+body.classic-mode.day-view-active .daily-score {
+  align-self: stretch !important;
+  display: grid !important;
+  grid-template-rows: auto 1fr !important;
+  place-items: center !important;
+  width: clamp(92px, 8vw, 124px) !important;
+  min-width: clamp(92px, 8vw, 124px) !important;
+  max-width: clamp(92px, 8vw, 124px) !important;
+  height: auto !important;
+  min-height: 44px !important;
+  max-height: none !important;
+  padding: 5px clamp(8px, 0.8vw, 13px) !important;
+  border-left: 2px solid rgba(95, 118, 104, 0.32) !important;
+  border-radius: 0 10px 10px 0 !important;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.9), rgba(244, 247, 241, 0.78)) !important;
+  overflow: visible !important;
+}
+
+body.day-view-active .daily-score span,
+body.ceo-mode.day-view-active .daily-score span,
+body.classic-mode.day-view-active .daily-score span {
+  font-size: clamp(9px, 0.72vw, 11px) !important;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+}
+
+body.day-view-active .daily-score strong,
+body.ceo-mode.day-view-active .daily-score strong,
+body.classic-mode.day-view-active .daily-score strong {
+  font-size: clamp(26px, 2.6vw, 38px) !important;
+  line-height: 0.95 !important;
+  letter-spacing: 0 !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+body.day-view-active .day-date-nav,
+body.day-view-active .day-date-nav.has-today-weather,
+body.ceo-mode.day-view-active .day-date-nav,
+body.ceo-mode.day-view-active .day-date-nav.has-today-weather,
+body.classic-mode.day-view-active .day-date-nav,
+body.classic-mode.day-view-active .day-date-nav.has-today-weather {
+  grid-template-columns: clamp(36px, 3.2vw, 44px) minmax(0, 1fr) clamp(36px, 3.2vw, 44px) minmax(96px, max-content) !important;
+  align-items: center !important;
+  justify-content: stretch !important;
+  gap: clamp(7px, 0.75vw, 12px) !important;
+  min-width: 0 !important;
+}
+
+body.day-view-active .daily-date-button,
+body.ceo-mode.day-view-active .daily-date-button,
+body.classic-mode.day-view-active .daily-date-button {
+  max-width: none !important;
+  min-width: 0 !important;
+  height: clamp(38px, 3.7vw, 48px) !important;
+  min-height: clamp(38px, 3.7vw, 48px) !important;
+  overflow: hidden !important;
+}
+
+body.day-view-active #dayTitle,
+body.ceo-mode.day-view-active #dayTitle,
+body.classic-mode.day-view-active #dayTitle {
+  font-size: clamp(24px, 2.25vw, 34px) !important;
+  line-height: 1 !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+@media (pointer: coarse) and (min-width: 720px) and (max-width: 1366px) {
+  body.day-view-active .app-header {
+    grid-template-columns: minmax(178px, 0.48fr) minmax(560px, 1.52fr) !important;
+    padding: 7px clamp(14px, 2vw, 24px) !important;
+  }
+
+  body.day-view-active .quick-strip {
+    min-height: 40px !important;
+    padding: 4px 6px !important;
+    gap: 6px !important;
+    border-radius: 999px !important;
+  }
+
+  body.day-view-active .quick-strip button {
+    min-height: 34px !important;
+    padding-inline: clamp(12px, 1.1vw, 18px) !important;
+    font-size: clamp(12px, 1.05vw, 14px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  body.day-view-active .daily-title,
+  body.ceo-mode.day-view-active .daily-title,
+  body.classic-mode.day-view-active .daily-title {
+    grid-template-columns: minmax(0, 1fr) clamp(62px, 15vw, 82px) !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 4px 6px !important;
+  }
+
+  body.day-view-active .daily-score,
+  body.ceo-mode.day-view-active .daily-score,
+  body.classic-mode.day-view-active .daily-score {
+    width: clamp(62px, 15vw, 82px) !important;
+    min-width: clamp(62px, 15vw, 82px) !important;
+    max-width: clamp(62px, 15vw, 82px) !important;
+    min-height: 38px !important;
+    padding: 4px 5px !important;
+  }
+
+  body.day-view-active .daily-score strong,
+  body.ceo-mode.day-view-active .daily-score strong,
+  body.classic-mode.day-view-active .daily-score strong {
+    font-size: clamp(19px, 5.8vw, 28px) !important;
+  }
+
+  body.day-view-active .day-date-nav,
+  body.day-view-active .day-date-nav.has-today-weather,
+  body.ceo-mode.day-view-active .day-date-nav,
+  body.ceo-mode.day-view-active .day-date-nav.has-today-weather,
+  body.classic-mode.day-view-active .day-date-nav,
+  body.classic-mode.day-view-active .day-date-nav.has-today-weather {
+    grid-template-columns: 34px minmax(0, 1fr) 34px minmax(48px, max-content) !important;
+    gap: 4px !important;
+  }
+}
