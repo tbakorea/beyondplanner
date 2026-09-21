@@ -23319,3 +23319,152 @@ body.ceo-mode .project-hub.is-detail-open .project-page {
 body.ceo-mode .project-hub .project-detail-close {
   display: inline-grid;
 }
+
+
+/* 2026-09-21 iPad/classic polish: completion counter and primary menu must read like a finished app. */
+.daily-title {
+  column-gap: clamp(6px, 1vw, 14px) !important;
+}
+
+.daily-score {
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  justify-items: center !important;
+  align-content: center !important;
+  gap: 2px !important;
+  min-width: clamp(76px, 7.6vw, 112px) !important;
+  width: clamp(76px, 7.6vw, 112px) !important;
+  min-height: 42px !important;
+  padding: 5px clamp(7px, 0.8vw, 12px) !important;
+  border-left: 2px solid rgba(95, 118, 104, 0.34) !important;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.74), rgba(245, 247, 241, 0.62)) !important;
+  border-radius: 0 8px 8px 0 !important;
+  overflow: visible !important;
+}
+
+.daily-score span {
+  display: block !important;
+  color: rgba(95, 118, 104, 0.9) !important;
+  font-size: clamp(9px, 0.85vw, 12px) !important;
+  font-weight: 900 !important;
+  line-height: 1 !important;
+  white-space: nowrap !important;
+}
+
+.daily-score strong {
+  display: block !important;
+  color: var(--forest) !important;
+  font-size: clamp(22px, 2.8vw, 36px) !important;
+  line-height: 0.95 !important;
+  white-space: nowrap !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  font-variant-numeric: tabular-nums !important;
+}
+
+.quick-strip {
+  min-height: 38px !important;
+  gap: clamp(4px, 0.45vw, 7px) !important;
+  padding: 4px !important;
+  border-color: rgba(31, 58, 49, 0.1) !important;
+  background: rgba(255, 253, 248, 0.68) !important;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.72) inset, 0 10px 24px rgba(38, 50, 56, 0.04) !important;
+}
+
+.quick-strip button {
+  min-height: 34px !important;
+  padding: 7px clamp(10px, 1vw, 15px) !important;
+  border-color: rgba(221, 216, 203, 0.72) !important;
+  background: rgba(255, 253, 248, 0.78) !important;
+  color: rgba(31, 45, 40, 0.88) !important;
+  font-size: clamp(12px, 1vw, 14px) !important;
+  font-weight: 900 !important;
+}
+
+.quick-strip button.is-active {
+  background: var(--forest) !important;
+  border-color: var(--forest) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 18px rgba(31, 58, 49, 0.16) !important;
+}
+
+.quick-strip .settings-nav-button,
+.quick-strip > .top-status #topSaveStatus,
+.quick-strip > .top-status .top-more-menu summary {
+  inline-size: 34px !important;
+  width: 34px !important;
+  min-width: 34px !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 !important;
+}
+
+@media (pointer: coarse) and (min-width: 720px) and (max-width: 1366px) {
+  .app-header {
+    grid-template-columns: minmax(180px, 0.55fr) minmax(520px, 1.45fr) !important;
+    gap: 10px !important;
+    padding-block: 6px !important;
+    padding-inline: clamp(12px, 2vw, 22px) !important;
+  }
+
+  .header-tools {
+    justify-items: end !important;
+  }
+
+  .quick-strip {
+    max-width: min(720px, 100%) !important;
+  }
+
+  .daily-title,
+  body.ceo-mode .daily-title,
+  body.classic-mode .daily-title {
+    grid-template-columns: minmax(0, 1fr) clamp(82px, 8vw, 104px) !important;
+    min-height: 48px !important;
+    padding-block: 5px !important;
+  }
+
+  .day-date-nav,
+  .day-date-nav.has-today-weather,
+  body.ceo-mode .day-date-nav,
+  body.classic-mode .day-date-nav {
+    grid-template-columns: 40px minmax(0, 1fr) 40px minmax(76px, max-content) !important;
+    gap: 8px !important;
+  }
+
+  .daily-date-button #dayTitle,
+  body.ceo-mode .daily-date-button #dayTitle,
+  body.classic-mode .daily-date-button #dayTitle {
+    font-size: clamp(24px, 2.4vw, 32px) !important;
+  }
+
+  .daily-score {
+    min-width: clamp(82px, 8vw, 104px) !important;
+    width: clamp(82px, 8vw, 104px) !important;
+  }
+
+  .daily-score strong {
+    font-size: clamp(24px, 3vw, 34px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .daily-score {
+    min-width: clamp(58px, 15vw, 74px) !important;
+    width: clamp(58px, 15vw, 74px) !important;
+    min-height: 38px !important;
+    padding: 4px 5px !important;
+  }
+
+  .daily-score span {
+    font-size: 9px !important;
+  }
+
+  .daily-score strong {
+    font-size: clamp(18px, 6.1vw, 27px) !important;
+  }
+
+  .quick-strip button {
+    min-height: 36px !important;
+    padding-inline: 12px !important;
+  }
+}
