@@ -521,6 +521,8 @@ let hasInitialDeviceCache = Boolean(initialCachedPlannerState && hasPlannerConte
 let state = initialCachedPlannerState || loadEmptyState();
 let plannerMutationSeq = 0;
 let carryoverTaskCache = { key: "", version: "", items: [] };
+const carryoverTaskCacheByDate = new Map();
+const carryoverSuppressionCacheByDate = new Map();
 let pendingServerStateMerge = null;
 let pendingServerStateMergeTimer = 0;
 let searchQuery = "";
@@ -16059,6 +16061,8 @@ function getDayTaskSnapshots(key) {
 
 function invalidateCarryoverTaskCache() {
   carryoverTaskCache = { key: "", version: "", items: [] };
+  carryoverTaskCacheByDate.clear();
+  carryoverSuppressionCacheByDate.clear();
 }
 
 function carryoverTaskCacheVersion() {
@@ -16076,6 +16080,11 @@ function getCarryoverTasks(date) {
   const version = carryoverTaskCacheVersion();
   if (carryoverTaskCache.key === currentKey && carryoverTaskCache.version === version) {
     return cloneCarryoverTaskList(carryoverTaskCache.items);
+  }
+  const cached = carryoverTaskCacheByDate.get(currentKey);
+  if (cached?.version === version) {
+    carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(cached.items) };
+    return cloneCarryoverTaskList(cached.items);
   }
   const suppressedIdentities = buildCarryoverSuppressionSet(currentKey);
   const candidates = Object.keys(state.days)
@@ -16095,10 +16104,15 @@ function getCarryoverTasks(date) {
     });
   const items = dedupeCarryoverTasks(candidates);
   carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(items) };
+  carryoverTaskCacheByDate.set(currentKey, { version, items: cloneCarryoverTaskList(items) });
+  pruneCarryoverCache(carryoverTaskCacheByDate);
   return cloneCarryoverTaskList(items);
 }
 
 function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
+  const version = carryoverTaskCacheVersion();
+  const cached = carryoverSuppressionCacheByDate.get(currentKey);
+  if (cached?.version === version) return new Set(cached.items);
   const suppressed = new Set();
   if (!isValidIsoDate(currentKey)) return suppressed;
   Object.keys(state.days || {})
@@ -16114,7 +16128,15 @@ function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
         getCarryoverSuppressionIdentityValues(task, task.priority, task.date || key).forEach((identity) => suppressed.add(identity));
       });
     });
+  carryoverSuppressionCacheByDate.set(currentKey, { version, items: Array.from(suppressed) });
+  pruneCarryoverCache(carryoverSuppressionCacheByDate);
   return suppressed;
+}
+
+function pruneCarryoverCache(cache, maxEntries = 18) {
+  if (!cache || cache.size <= maxEntries) return;
+  const deleteCount = cache.size - maxEntries;
+  Array.from(cache.keys()).slice(0, deleteCount).forEach((key) => cache.delete(key));
 }
 
 function shouldSuppressOpenCarryoverCandidate(task = {}, currentKey = iso(selectedDate)) {
@@ -16810,6 +16832,7 @@ function renderAll(options = {}) {
   renderActiveViewSections({
     forceLists: options.forceLists !== false,
     syncMoney: Boolean(options.syncMoney),
+    preEnsured: true,
   });
   if (options.background) queueBackgroundViewRender(options.backgroundDelay || 1800);
   queuePlannerMaintenance({
@@ -16825,9 +16848,11 @@ function getActiveViewName() {
 }
 
 function renderActiveViewSections(options = {}) {
-  ensureMonth();
-  ensureWeek();
-  ensureDay();
+  if (!options.preEnsured) {
+    ensureMonth();
+    ensureWeek();
+    ensureDay();
+  }
   if (options.syncMoney && syncMoneyTaskLinks() && canPersistDerivedState()) saveState({ fastSave: true });
   renderSidebar();
   const activeView = getActiveViewName();
