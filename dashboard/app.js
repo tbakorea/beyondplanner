@@ -107,6 +107,7 @@ const repeatCarryOptions = [
 const REPEAT_PRIORITY_MIN_ROWS = 0;
 const DAILY_EMPTY_TASK_MIN = 3;
 const DAILY_EMPTY_TASK_MAX = 5;
+const DAILY_DISPLAY_EMPTY_TASK_MIN = 5;
 const taskPriorityOptions = ["선택", "A", "B", "C", "위임", "취소", "연기"];
 const moneyTypes = ["수입", "지출", "이자", "카드대금", "용돈", "기타"];
 const moneyCategories = ["", "카드대금", "적금/이자", "할부금", "렌탈", "관리비", "세금", "보험", "인건비", "생활비", "사업비", "기타"];
@@ -1083,6 +1084,19 @@ function resetBlankTaskPlaceholder(task = {}) {
   return task;
 }
 
+function createDisplayOnlyBlankTask() {
+  const task = setTaskCompletionState({
+    id: newTaskId(),
+    text: "",
+    status: "미완료",
+    delegate: "",
+    priorityUnset: true,
+    __displayOnly: true,
+  }, false);
+  task.order = Number.MAX_SAFE_INTEGER;
+  return task;
+}
+
 function normalizeTask(task = {}) {
   task.id ||= newTaskId();
   const status = String(task.status || "").trim();
@@ -1170,6 +1184,7 @@ function resolveDailyTaskEditLocation(day, taskRef, fallbackPriority = "A", fall
   const existing = findCurrentTaskLocation(day, taskRef, fallbackPriority, fallbackIndex, { normalize: false });
   if (existing?.task) return existing;
   const targetPriority = ["A", "B", "C"].includes(fallbackPriority) ? fallbackPriority : "A";
+  delete taskRef.__displayOnly;
   normalizeTask(taskRef);
   day.tasks ||= { A: [], B: [], C: [] };
   day.tasks[targetPriority] ||= [];
@@ -5368,7 +5383,7 @@ function animateDateTitle(delta, nextDate) {
   window.clearTimeout(dateSlideTimer);
   if (!title) {
     selectedDate = nextDate;
-    renderAll();
+    renderActiveViewSections({ forceLists: true, dateShift: true });
     return;
   }
   title.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev");
@@ -5378,7 +5393,7 @@ function animateDateTitle(delta, nextDate) {
     selectedDate = nextDate;
     currentDayPanel = "main";
     daySwipeKey = "";
-    renderAll();
+    renderActiveViewSections({ forceLists: true, dateShift: true });
     animatePageTurn(delta);
     const refreshedTitle = el("dayTitle");
     refreshedTitle?.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev");
@@ -10853,9 +10868,19 @@ function getTaskDisplayItems(day, carryovers = []) {
     if (isBlankTaskPlaceholder(item.task)) blankDayItems.push(item);
     else activeDayItems.push(item);
   });
+  const sortedBlankItems = blankDayItems.sort(compareBlankTaskDisplayItems);
+  while (sortedBlankItems.length < DAILY_DISPLAY_EMPTY_TASK_MIN) {
+    sortedBlankItems.push({
+      type: "day",
+      priority: "A",
+      index: -1,
+      task: createDisplayOnlyBlankTask(),
+      displayOnly: true,
+    });
+  }
   return [...carryoverItems, ...activeDayItems]
     .sort(compareTaskDisplayItems)
-    .concat(blankDayItems.sort(compareBlankTaskDisplayItems));
+    .concat(sortedBlankItems);
 }
 
 function getDailyCompletionIdentity(item = {}, dayKey = iso(selectedDate)) {
@@ -10971,6 +10996,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   const statusControl = getTaskStatusControl(task, menuValue);
   const linkTags = getTaskLinkTags(task);
   const inlineTags = task.financeItemId ? linkTags.filter((tag) => tag !== "Money") : linkTags;
+  if (task.__displayOnly) row.classList.add("is-display-only-blank");
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
@@ -11074,6 +11100,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   text.addEventListener("blur", commitTextAndSchedule);
   deleteButton.onclick = (event) => {
     if (guardDailyEdit(dayKey, event)) return;
+    if (task.__displayOnly || index < 0) return;
     deleteTask(priority, index, task);
   };
   if (moneyLink) moneyLink.onclick = () => openMoneyFromFinanceTask(task.financeItemId);
@@ -16933,7 +16960,9 @@ function renderStartupFrame(options = {}) {
   } catch {
     renderCriticalDailyShell();
   }
-  try { renderWeatherChip(); } catch {}
+  if (!options.skipWeather) {
+    try { renderWeatherChip(); } catch {}
+  }
   try { normalizePrimaryNavigationLabels(); } catch {}
   try { updateSettingsTabState(); } catch {}
   try { updateStickyPanelTop(); } catch {}
@@ -17275,13 +17304,13 @@ async function setup() {
   daySwipeKey = "";
   showView("day");
   setBootMessage(hasInitialDeviceCache ? "마지막 화면을 여는 중" : "앱을 여는 중");
-  renderStartupFrame();
+  renderStartupFrame({ skipWeather: true });
   renderBootCoaching();
   hydrateWeatherFromCache();
   renderWeatherChip();
   scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
   if (hasInitialDeviceCache) hideBootScreen(40);
-  window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 650 : 0);
+  window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 120 : 0);
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
   window.setInterval(queuePassiveServerPull, 15000);

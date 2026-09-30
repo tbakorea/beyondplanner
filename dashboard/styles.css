@@ -4568,6 +4568,15 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   gap: 0;
 }
 
+.task-row.is-display-only-blank .task-delete {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.task-row.is-display-only-blank .task-text-input {
+  border-style: dashed;
+}
+
 .task-list-label {
   display: inline-flex;
   justify-self: start;
@@ -22844,7 +22853,7 @@ body.ceo-mode.day-view-active .appointment-list {
 }
 
 body.day-view-active .task-list {
-  padding-bottom: max(28px, env(safe-area-inset-bottom)) !important;
+  padding-bottom: max(118px, calc(env(safe-area-inset-bottom) + 92px)) !important;
 }
 
 body.day-view-active .task-add-options {
