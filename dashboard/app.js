@@ -10932,8 +10932,8 @@ function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers =
 function taskCountsAsCompletedForDay(task = {}, itemType = "day", dayKey = iso(selectedDate)) {
   const status = String(task.status || "").trim();
   if (TASK_NON_COMPLETION_STATUSES.includes(status)) return false;
-  if (isTaskDeletedFromDate(task, dayKey)) return false;
   if (isCarryoverCompletedOn(task, dayKey)) return true;
+  if (isTaskDeletedFromDate(task, dayKey)) return false;
   return isTaskCompleted(task) || hasTaskCompletionRecord(task, dayKey);
 }
 
@@ -11018,7 +11018,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
     event.preventDefault();
     event.stopPropagation();
     if (guardDailyEdit(dayKey, event)) return;
-    runTaskCycleActionOnce(task, `${iso(selectedDate)}:${priority}:${index}`, cycle, () => {
+    runTaskCycleActionOnce(task, `${dayKey}:${priority}:${index}`, cycle, () => {
       if (isBlankTaskPlaceholder(task)) {
         resetBlankTaskPlaceholder(task);
         reflectTaskMarkerOnRow(row, task);
@@ -11026,25 +11026,31 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
         renderDayAfterTaskMutation();
         return;
       }
-      const feedback = cycleTaskMarker(task, dayKey);
-      if (isMaterializedCarryoverTask(task)) {
-        if (isTaskCompleted(task)) {
-          task.carryoverDoneDate = dayKey;
-          stampTaskLifecycleMutation(task);
-        } else if (task.carryoverDoneDate === dayKey) {
-          task.carryoverDoneDate = "";
-          stampTaskLifecycleMutation(task);
+      const dayState = ensureDay(dayKey);
+      const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
+      const targetTask = location?.task || task;
+      const targetPriority = location?.priority || priority;
+      const feedback = cycleTaskMarker(targetTask, dayKey);
+      const completedNow = isTaskCompleted(targetTask);
+      if (isMaterializedCarryoverTask(targetTask)) {
+        if (completedNow) {
+          targetTask.carryoverDoneDate = dayKey;
+          stampTaskLifecycleMutation(targetTask);
+        } else if (targetTask.carryoverDoneDate === dayKey) {
+          targetTask.carryoverDoneDate = "";
+          stampTaskLifecycleMutation(targetTask);
         }
-        if (isTaskCompleted(task) || shouldRemoveTaskScheduleLink(task)) {
+        if (!completedNow && shouldRemoveTaskScheduleLink(targetTask)) {
           markCarryoverDeletedFromDate(
-            { ...task, priority, date: dayKey },
+            { ...targetTask, priority: targetPriority, date: dayKey },
             getCarryoverDeleteFromKey(dayKey),
             null,
-            { preserveTask: task, preserveTaskDayKey: dayKey },
+            { preserveTask: targetTask, preserveTaskDayKey: dayKey },
           );
         }
       }
-      reflectTaskMarkerOnRow(row, task);
+      if (targetTask !== task) Object.assign(task, targetTask);
+      reflectTaskMarkerOnRow(row, targetTask);
       showTaskCycleFeedback(cycle, feedback);
       saveCriticalPlannerAction("우선업무 완료 상태 저장 중");
       renderDayAfterTaskMutation({ fastSummary: true });
@@ -12328,14 +12334,15 @@ function updateCarryoverTaskMarker(taskRef, anchor = null, targetKey = iso(selec
   const source = sourceRef?.task;
   if (!source) return;
   const feedback = cycleTaskMarker(source, targetKey);
-  if (isTaskCompleted(source)) {
+  const completedNow = isTaskCompleted(source);
+  if (completedNow) {
     source.carryoverDoneDate = targetKey;
     stampTaskLifecycleMutation(source);
   } else if (source.carryoverDoneDate === targetKey) {
     source.carryoverDoneDate = "";
     stampTaskLifecycleMutation(source);
   }
-  if (isTaskCompleted(source) || shouldRemoveTaskScheduleLink(source)) {
+  if (!completedNow && shouldRemoveTaskScheduleLink(source)) {
     markCarryoverDeletedFromDate(
       { ...source, priority: sourceRef.priority, date: targetKey },
       getCarryoverDeleteFromKey(targetKey),
