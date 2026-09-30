@@ -22875,8 +22875,20 @@ body.day-view-active .task-add-options {
 @media (pointer: coarse) and (min-width: 641px) and (max-width: 1366px) {
   body.day-view-active .task-board,
   body.day-view-active .appointment-list {
-    padding-bottom: max(104px, calc(env(safe-area-inset-bottom) + 82px)) !important;
-    scroll-padding-bottom: max(118px, calc(env(safe-area-inset-bottom) + 96px)) !important;
+    padding-bottom: max(168px, calc(env(safe-area-inset-bottom) + 136px)) !important;
+    scroll-padding-bottom: max(188px, calc(env(safe-area-inset-bottom) + 156px)) !important;
+  }
+
+  body.day-view-active .task-list {
+    padding-bottom: max(188px, calc(env(safe-area-inset-bottom) + 158px)) !important;
+  }
+
+  body.day-view-active .task-row.is-display-only-blank {
+    min-height: var(--classic-row-height, 34px) !important;
+  }
+
+  body.day-view-active .task-add-options {
+    margin-bottom: max(58px, calc(env(safe-area-inset-bottom) + 34px)) !important;
   }
 }
 
