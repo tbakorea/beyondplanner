@@ -535,6 +535,7 @@ let accountSaveReady = false;
 let initialServerHydrationFinished = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
+let passiveServerPullInFlight = false;
 let lastServerUpdatedAt = "";
 let sidebarRenderTimer = 0;
 let activeViewRenderTimer = 0;
@@ -2374,7 +2375,7 @@ async function pullServerStateIfNewer(options = {}) {
     if (hasPendingPlannerSave()) scheduleAccountSave(250);
     return;
   }
-  if (isAnyPlannerInputEditing()) {
+  if (isAnyPlannerInputEditing() && !options.allowDuringInput) {
     saveStatus.message = "입력 완료 후 최신 확인";
     renderSidebarAfterDailyInput();
     return;
@@ -2391,11 +2392,12 @@ async function pullServerStateIfNewer(options = {}) {
     if (!payload.exists || !payload.state || !payload.updatedAt) return;
     if (!options.force && lastServerUpdatedAt && !isTimestampNewer(payload.updatedAt, lastServerUpdatedAt)) return;
     const latestMeta = getStateMeta();
+    const hasUnsavedEditing = Boolean(latestMeta.dirty && isAnyPlannerInputEditing());
     if (
       hasPendingPlannerSave(latestMeta, payload.updatedAt) ||
       hasRuntimeLocalEditSince(fetchStartedMutationSeq) ||
       hasRecentDailyTaskMutation() ||
-      isAnyPlannerInputEditing()
+      hasUnsavedEditing
     ) {
       queueIncomingServerStateMerge(payload, fetchBaseState, "입력 완료 후 최신 데이터 병합");
       return;
@@ -2951,15 +2953,26 @@ async function extractSaveError(response) {
   }
 }
 
-function queuePassiveServerPull() {
-  if (!accountSaveReady || document.hidden) return;
-  window.clearTimeout(passiveRefreshTimer);
-  passiveRefreshTimer = window.setTimeout(() => {
-    if (isAnyPlannerInputEditing()) {
-      queuePassiveServerPull();
+async function refreshServerStateInBackground() {
+  if (passiveServerPullInFlight || document.hidden) return;
+  passiveServerPullInFlight = true;
+  try {
+    if (!accountSaveReady) {
+      await hydrateServerState({ forceFull: false });
+      if (accountSaveReady) renderActiveViewSections({ forceLists: true });
       return;
     }
-    pullServerStateIfNewer({ force: true });
+    await pullServerStateIfNewer({ force: true, allowDuringInput: true });
+  } finally {
+    passiveServerPullInFlight = false;
+  }
+}
+
+function queuePassiveServerPull() {
+  if (document.hidden) return;
+  window.clearTimeout(passiveRefreshTimer);
+  passiveRefreshTimer = window.setTimeout(() => {
+    refreshServerStateInBackground();
   }, 420);
 }
 
@@ -3975,6 +3988,7 @@ function setupSelectors() {
   });
   window.addEventListener("focus", queuePassiveServerPull);
   window.addEventListener("online", queuePassiveServerPull);
+  window.addEventListener("pageshow", queuePassiveServerPull);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
       flushPlannerSave("백그라운드 전 저장", { keepalive: true });
