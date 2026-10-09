@@ -536,6 +536,9 @@ let initialServerHydrationFinished = false;
 let accountSaveTimer = 0;
 let passiveRefreshTimer = 0;
 let passiveServerPullInFlight = false;
+let resumeServerValidationTimer = 0;
+let resumeServerValidationPending = false;
+let plannerHiddenAt = 0;
 let lastServerUpdatedAt = "";
 let sidebarRenderTimer = 0;
 let activeViewRenderTimer = 0;
@@ -551,6 +554,7 @@ const BOOT_FAILSAFE_MS = 1100;
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
 const STATE_FETCH_TIMEOUT_MS = 10000;
 const STATE_SAVE_TIMEOUT_MS = 15000;
+const LONG_SUSPEND_SERVER_FIRST_MS = 60 * 1000;
 const bootStartedAt = Date.now();
 let bootHideTimer = 0;
 let bootFailsafeTimer = 0;
@@ -1969,15 +1973,13 @@ async function hydrateServerState(options = {}) {
     }
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
-      // During initial hydration, the DB stays authoritative. The only local state
-      // allowed back up is a same-account dirty edit that is newer than the server.
-      // This preserves edits made just before a tab/app was closed without letting
-      // stale device cache overwrite the database.
+      // During hydration, the DB stays authoritative. Persisted browser cache is
+      // a fast boot preview only; only edits made in this live runtime may merge.
+      // This prevents a device waking after days from uploading its stale cache.
       const localMeta = getStateMeta();
       const serverHasContent = hasPlannerContent(payload.state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const hasPersistedDirtyEdit = hasPersistedLocalEditAheadOfServer(localMeta, payload.updatedAt || "");
-      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit || hasPersistedDirtyEdit;
+      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit;
       const localHasContent = serverHasContent ? hasRecoverableDirtyEdit && hasPlannerContent(state) : hasPlannerContent(state);
       if (!hasRecoverableDirtyEdit && localMeta.dirty) {
         const sessionEmail = getAuthSession()?.email || "";
@@ -2134,6 +2136,12 @@ async function hydrateServerConfig() {
 }
 
 function scheduleAccountSave(delay = 650) {
+  if (resumeServerValidationPending) {
+    saveStatus.saving = true;
+    saveStatus.message = "최신 데이터 확인 후 저장";
+    renderSidebarAfterDailyInput();
+    return;
+  }
   if (!accountSaveReady) {
     const hasSession = Boolean(getAuthSession()?.accessToken);
     saveStatus.saving = hasSession;
@@ -2193,6 +2201,12 @@ function flushPlannerSave(reason = "즉시 저장", options = {}) {
 }
 
 async function persistStateToServer(options = {}) {
+  if (resumeServerValidationPending) {
+    saveStatus.saving = true;
+    saveStatus.message = "최신 데이터 확인 후 저장";
+    renderSidebarAfterDailyInput();
+    return;
+  }
   if (!accountSaveReady) {
     saveStatus.saving = false;
     saveStatus.message = getAuthSession()?.accessToken ? "저장 대기" : "로그인이 필요합니다";
@@ -2517,26 +2531,9 @@ function hasCurrentRuntimeDirtyEdit(meta = getStateMeta()) {
   return Boolean(meta?.dirty && plannerMutationSeq > 0 && Number(meta.mutationSeq || 0) > 0);
 }
 
-function hasPersistedLocalEditAheadOfServer(meta = getStateMeta(), serverUpdatedAt = lastServerUpdatedAt) {
+function hasPendingPlannerSave(meta = getStateMeta()) {
   if (!meta?.dirty || !hasPlannerContent(state)) return false;
-  const sessionEmail = getAuthSession()?.email || "";
-  if (sessionEmail && meta.accountEmail !== sessionEmail) return false;
-  if (hasCurrentRuntimeDirtyEdit(meta)) return false;
-  const localMs = timestampMs(meta.updatedAt);
-  if (!localMs) return false;
-  const remoteMs = Math.max(
-    timestampMs(serverUpdatedAt),
-    timestampMs(lastServerUpdatedAt),
-    timestampMs(meta.baseUpdatedAt),
-    timestampMs(meta.lastSavedAt),
-  );
-  if (!remoteMs) return true;
-  return localMs > remoteMs;
-}
-
-function hasPendingPlannerSave(meta = getStateMeta(), serverUpdatedAt = lastServerUpdatedAt) {
-  if (!meta?.dirty || !hasPlannerContent(state)) return false;
-  return hasCurrentRuntimeDirtyEdit(meta) || hasPersistedLocalEditAheadOfServer(meta, serverUpdatedAt);
+  return hasCurrentRuntimeDirtyEdit(meta);
 }
 
 function storeStateFromServer(payload, message) {
@@ -2974,6 +2971,55 @@ function queuePassiveServerPull() {
   passiveRefreshTimer = window.setTimeout(() => {
     refreshServerStateInBackground();
   }, 420);
+}
+
+function preserveSuspendedPlannerSnapshot(reason = "장기 대기 후 서버 확인") {
+  try {
+    localStorage.setItem(`${plannerStorageKey()}.suspendedRecovery`, JSON.stringify({
+      capturedAt: new Date().toISOString(),
+      reason,
+      accountEmail: getAuthSession()?.email || "",
+      meta: getStateMeta(),
+      state: preparePlannerStateForPersistence(clonePlannerValue(state)),
+    }));
+  } catch {
+    // Recovery snapshot is best effort and must never block the server refresh.
+  }
+}
+
+async function refreshServerStateAfterResume() {
+  if (document.hidden || resumeServerValidationPending || !initialServerHydrationFinished) return;
+  const suspendedMs = plannerHiddenAt ? Math.max(0, Date.now() - plannerHiddenAt) : 0;
+  const longSuspend = suspendedMs >= LONG_SUSPEND_SERVER_FIRST_MS;
+  const meta = getStateMeta();
+
+  window.clearTimeout(accountSaveTimer);
+  if (longSuspend && meta.dirty) {
+    preserveSuspendedPlannerSnapshot("잠자기 해제 전 로컬 상태");
+    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+  }
+
+  resumeServerValidationPending = true;
+  accountSaveReady = false;
+  saveStatus.saving = false;
+  saveStatus.message = "최신 데이터 확인 중";
+  renderSidebarAfterDailyInput();
+  try {
+    await hydrateServerState({ forceFull: true, resumeValidation: true });
+  } finally {
+    resumeServerValidationPending = false;
+    plannerHiddenAt = 0;
+    accountSaveReady = Boolean(getAuthSession()?.accessToken && saveStatus.ready);
+    if (hasCurrentRuntimeDirtyEdit()) scheduleAccountSave(120);
+  }
+}
+
+function queueResumeServerValidation() {
+  if (document.hidden || !initialServerHydrationFinished) return;
+  window.clearTimeout(resumeServerValidationTimer);
+  resumeServerValidationTimer = window.setTimeout(() => {
+    refreshServerStateAfterResume();
+  }, 120);
 }
 
 function hasPlannerContent(source = state) {
@@ -3986,19 +4032,27 @@ function setupSelectors() {
     scheduleDailyHeaderFit();
     scheduleClassicViewportFit();
   });
-  window.addEventListener("focus", queuePassiveServerPull);
-  window.addEventListener("online", queuePassiveServerPull);
-  window.addEventListener("pageshow", queuePassiveServerPull);
+  window.addEventListener("focus", queueResumeServerValidation);
+  window.addEventListener("online", queueResumeServerValidation);
+  window.addEventListener("pageshow", queueResumeServerValidation);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) {
-      flushPlannerSave("백그라운드 전 저장", { keepalive: true });
+      plannerHiddenAt = Date.now();
+      if (hasCurrentRuntimeDirtyEdit()) {
+        flushPlannerSave("백그라운드 전 저장", { keepalive: true });
+      }
       return;
     }
-    queuePassiveServerPull();
+    queueResumeServerValidation();
   });
-  window.addEventListener("pagehide", () => flushPlannerSave("앱 닫기 전 저장", { keepalive: true }));
+  window.addEventListener("pagehide", () => {
+    plannerHiddenAt = Date.now();
+    if (hasCurrentRuntimeDirtyEdit()) {
+      flushPlannerSave("앱 닫기 전 저장", { keepalive: true });
+    }
+  });
   window.addEventListener("beforeunload", (event) => {
-    if (!getStateMeta().dirty) return;
+    if (!hasCurrentRuntimeDirtyEdit()) return;
     flushPlannerSave("나가기 전 저장", { keepalive: true });
     event.preventDefault();
     event.returnValue = "";
