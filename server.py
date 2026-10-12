@@ -63,6 +63,9 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
         if path == "/api/state":
             self.handle_get_state()
             return
+        if path == "/api/today":
+            self.handle_get_today()
+            return
         if path == "/api/admin-users":
             self.handle_admin_users()
             return
@@ -117,6 +120,29 @@ class BeyondPlannerHandler(SimpleHTTPRequestHandler):
             return
         envelope["exists"] = True
         self.write_json(200, envelope)
+
+    def handle_get_today(self):
+        token = bearer_token(self.headers)
+        if planner_storage() != "supabase-db":
+            self.write_json(200, {"available": False, "ready": False, "fallback": "legacy-state"})
+            return
+        if not token:
+            self.write_json(401, {"error": "로그인 세션이 필요합니다."})
+            return
+        target_day = request_date(self.path)
+        if not target_day:
+            self.write_json(400, {"error": "올바른 date가 필요합니다."})
+            return
+        try:
+            self.write_json(200, get_supabase_today_slice(token, target_day))
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")
+            if slice_schema_unavailable(detail):
+                self.write_json(200, {"available": False, "ready": False, "fallback": "legacy-state"})
+                return
+            self.write_json(exc.code, {"error": extract_supabase_error(detail) or "오늘 데이터를 읽을 수 없습니다."})
+        except Exception as exc:
+            self.write_json(502, {"error": "오늘 데이터 연결 중 오류가 발생했습니다.", "detail": str(exc)})
 
     def handle_save_state(self):
         try:
@@ -810,6 +836,58 @@ def request_since(path: str, headers) -> str:
     return str((query.get("since") or [""])[0] or "").strip()
 
 
+def request_date(path: str) -> str:
+    try:
+        value = (urllib.parse.parse_qs(urllib.parse.urlparse(path).query).get("date") or [""])[0]
+        return dt.date.fromisoformat(str(value)).isoformat()
+    except (TypeError, ValueError):
+        return ""
+
+
+def planner_week_start(day_text: str) -> str:
+    day = dt.date.fromisoformat(day_text)
+    days_since_sunday = (day.weekday() + 1) % 7
+    return (day - dt.timedelta(days=days_since_sunday)).isoformat()
+
+
+def get_supabase_today_slice(token: str, target_day: str) -> dict:
+    supabase_url, anon_key = supabase_base()
+    body = {"target_day": target_day, "target_week": planner_week_start(target_day)}
+    request = urllib.request.Request(
+        f"{supabase_url}/rest/v1/rpc/get_planner_today",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "apikey": anon_key,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        payload = json.loads(response.read().decode("utf-8") or "{}")
+    if not isinstance(payload, dict):
+        return {"available": False, "ready": False, "fallback": "legacy-state"}
+    payload["storage"] = "supabase-db-slices"
+    return payload
+
+
+def slice_schema_unavailable(detail: str) -> bool:
+    value = str(detail or "")
+    return any(
+        marker in value
+        for marker in (
+            "get_planner_today",
+            "planner_tasks",
+            "planner_appointments",
+            "planner_daily_notes",
+            "planner_weeks",
+            "Could not find the function",
+            "Could not find the table",
+        )
+    )
+
+
 def get_supabase_planner_state(token: str, since: str = "") -> dict:
     supabase_url, anon_key = supabase_base()
     user = call_supabase_user(token)
@@ -913,7 +991,47 @@ def save_supabase_planner_state(token: str, state: dict, payload: dict) -> dict:
     with urllib.request.urlopen(request, timeout=30) as response:
         rows = json.loads(response.read().decode("utf-8") or "[]")
     saved = rows[0] if rows else {}
-    return {"ok": True, "updatedAt": saved.get("updated_at") or updated_at, "storage": "supabase-db"}
+    saved_updated_at = saved.get("updated_at") or updated_at
+    slices_synced = False
+    active_day = valid_iso_date(payload.get("activeDate"))
+    active_week = valid_iso_date(payload.get("activeWeek"))
+    if active_day and active_week:
+        try:
+            slices_synced = sync_supabase_planner_slices(token, active_day, active_week)
+        except Exception:
+            slices_synced = False
+    return {
+        "ok": True,
+        "updatedAt": saved_updated_at,
+        "storage": "supabase-db",
+        "slicesSynced": slices_synced,
+    }
+
+
+def valid_iso_date(value) -> str:
+    text = str(value or "").strip()
+    try:
+        return dt.date.fromisoformat(text).isoformat()
+    except ValueError:
+        return ""
+
+
+def sync_supabase_planner_slices(token: str, active_day: str, active_week: str) -> bool:
+    supabase_url, anon_key = supabase_base()
+    request = urllib.request.Request(
+        f"{supabase_url}/rest/v1/rpc/sync_planner_slices",
+        data=json.dumps({"target_day": active_day, "target_week": active_week}).encode("utf-8"),
+        headers={
+            "apikey": anon_key,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        result = json.loads(response.read().decode("utf-8") or "{}")
+    return bool(isinstance(result, dict) and result.get("ok"))
 
 
 def normalize_tier(tier: str) -> str:

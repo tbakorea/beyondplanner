@@ -212,7 +212,51 @@ def save_planner_state(token, state, payload):
     with urllib.request.urlopen(request, timeout=30) as response:
         rows = json.loads(response.read().decode("utf-8") or "[]")
     saved = rows[0] if rows else {}
-    return {"ok": True, "updatedAt": saved.get("updated_at") or updated_at, "storage": "supabase-db"}
+    saved_updated_at = saved.get("updated_at") or updated_at
+    slices_synced = False
+    active_day = valid_iso_date(payload.get("activeDate"))
+    active_week = valid_iso_date(payload.get("activeWeek"))
+    if active_day and active_week:
+        try:
+            slices_synced = sync_planner_slices(token, active_day, active_week)
+        except Exception:
+            # The canonical row was saved successfully. Slice tables are an
+            # optional read model during migration and must never turn a safe
+            # planner save into a failure.
+            slices_synced = False
+    return {
+        "ok": True,
+        "updatedAt": saved_updated_at,
+        "storage": "supabase-db",
+        "slicesSynced": slices_synced,
+    }
+
+
+def valid_iso_date(value):
+    text = str(value or "").strip()
+    try:
+        return dt.date.fromisoformat(text).isoformat()
+    except ValueError:
+        return ""
+
+
+def sync_planner_slices(token, active_day, active_week):
+    supabase_url, anon_key = supabase_base()
+    body = {"target_day": active_day, "target_week": active_week}
+    request = urllib.request.Request(
+        f"{supabase_url}/rest/v1/rpc/sync_planner_slices",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "apikey": anon_key,
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=15) as response:
+        result = json.loads(response.read().decode("utf-8") or "{}")
+    return bool(isinstance(result, dict) and result.get("ok"))
 
 
 def extract_supabase_error(detail):

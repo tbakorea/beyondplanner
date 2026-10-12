@@ -520,6 +520,8 @@ const initialCachedPlannerState = loadCachedPlannerState();
 let hasInitialDeviceCache = Boolean(initialCachedPlannerState && hasPlannerContent(initialCachedPlannerState));
 let state = initialCachedPlannerState || loadEmptyState();
 let plannerMutationSeq = 0;
+let todaySliceRequestSeq = 0;
+const todaySliceCache = new Map();
 let carryoverTaskCache = { key: "", version: "", items: [] };
 const carryoverTaskCacheByDate = new Map();
 const carryoverSuppressionCacheByDate = new Map();
@@ -1413,34 +1415,42 @@ function migrateState(nextState) {
   nextState.repeats.priorityTasks ||= emptyRepeatRules(REPEAT_PRIORITY_MIN_ROWS);
   while (nextState.repeats.priorityTasks.length < REPEAT_PRIORITY_MIN_ROWS) nextState.repeats.priorityTasks.push(emptyRepeatRule());
   nextState.repeats.priorityTasks.forEach(normalizeRepeatRule);
-  Object.entries(nextState.weeks || {}).forEach(([key, week]) => {
-    week.priorities ||= createWeeklyPriorities(key, nextState);
-    normalizeDeletedWeeklyPriorityCarryovers(week);
-    while (week.priorities.length < 5) week.priorities.push(setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false));
-    week.priorities.forEach(normalizeWeeklyPriority);
-    week.compass ||= [];
-    week.compass = week.compass.filter((item) => item.role !== "일");
-    week.compass.forEach((item) => {
-      if (Array.isArray(item.actions)) item.actions = item.actions.slice(0, 2);
-    });
-  });
-  Object.entries(nextState.days || {}).forEach(([dayKey, day]) => {
-    day.memo ||= "";
-    day.memoTitle ||= "";
-    normalizeSelfAssessment(day);
-    day.appointmentMerges ||= {};
-    day.autoTaskScheduleLinks ||= {};
-    normalizeDeletedFinanceTaskIds(day);
-    normalizeDeletedCarryoverTaskIdentities(day);
-    normalizeDeletedTaskIdentities(day);
-    day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
-    ensureAppointmentSlots(day, day.scheduleUnit);
-    normalizeAppointmentMerges(day);
-    normalizeDayTasks(day, dayKey);
-    applyDeletedDailyTaskIdentities(day, dayKey);
-    dedupeDailyTaskCopies(day, dayKey);
-  });
+  Object.entries(nextState.weeks || {}).forEach(([key, week]) => normalizePlannerWeekRecord(week, key, nextState));
+  Object.entries(nextState.days || {}).forEach(([dayKey, day]) => normalizePlannerDayRecord(day, dayKey));
   return nextState;
+}
+
+function normalizePlannerWeekRecord(week, key, sourceState = state) {
+  if (!week || typeof week !== "object") return week;
+  week.priorities ||= createWeeklyPriorities(key, sourceState);
+  normalizeDeletedWeeklyPriorityCarryovers(week);
+  while (week.priorities.length < 5) week.priorities.push(setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false));
+  week.priorities.forEach(normalizeWeeklyPriority);
+  week.compass ||= [];
+  week.compass = week.compass.filter((item) => item.role !== "일");
+  week.compass.forEach((item) => {
+    if (Array.isArray(item.actions)) item.actions = item.actions.slice(0, 2);
+  });
+  return week;
+}
+
+function normalizePlannerDayRecord(day, dayKey) {
+  if (!day || typeof day !== "object") return day;
+  day.memo ||= "";
+  day.memoTitle ||= "";
+  normalizeSelfAssessment(day);
+  day.appointmentMerges ||= {};
+  day.autoTaskScheduleLinks ||= {};
+  normalizeDeletedFinanceTaskIds(day);
+  normalizeDeletedCarryoverTaskIdentities(day);
+  normalizeDeletedTaskIdentities(day);
+  day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
+  ensureAppointmentSlots(day, day.scheduleUnit);
+  normalizeAppointmentMerges(day);
+  normalizeDayTasks(day, dayKey);
+  applyDeletedDailyTaskIdentities(day, dayKey);
+  dedupeDailyTaskCopies(day, dayKey);
+  return day;
 }
 
 function preparePlannerStateForPersistence(nextState = state) {
@@ -2041,6 +2051,58 @@ async function hydrateServerState(options = {}) {
   }
 }
 
+function mergeTodaySlicePayload(payload, dayKey) {
+  if (!payload?.ready || !payload?.exists || !payload.day || typeof payload.day !== "object") return false;
+  const preferences = clonePlannerValue(payload.preferences || {});
+  ["days", "weeks", "finance", "projects"].forEach((key) => delete preferences[key]);
+  Object.assign(state, preferences);
+  state.days ||= {};
+  state.weeks ||= {};
+  state.days[dayKey] = normalizePlannerDayRecord(clonePlannerValue(payload.day), dayKey);
+  const targetWeek = weekKey(parseDate(dayKey));
+  if (payload.week && typeof payload.week === "object" && Object.keys(payload.week).length) {
+    state.weeks[targetWeek] = normalizePlannerWeekRecord(clonePlannerValue(payload.week), targetWeek, state);
+  }
+  return true;
+}
+
+function showCachedTodaySlice(targetDate = selectedDate) {
+  const dayKey = iso(targetDate);
+  const payload = todaySliceCache.get(dayKey);
+  if (!payload || !mergeTodaySlicePayload(payload, dayKey)) return false;
+  renderActiveViewSections({ forceLists: true, dateShift: true });
+  return true;
+}
+
+async function hydrateTodaySlice(targetDate = selectedDate, options = {}) {
+  const session = getAuthSession();
+  if (!session?.accessToken) return false;
+  const dayKey = iso(targetDate);
+  const requestSeq = ++todaySliceRequestSeq;
+  const mutationSeq = plannerMutationSeq;
+  try {
+    const response = await fetchWithTimeout(
+      `/api/today?date=${encodeURIComponent(dayKey)}`,
+      { cache: "no-store", headers: authStateHeaders() },
+      Math.min(STATE_FETCH_TIMEOUT_MS, 8000),
+    );
+    if (!response.ok) return false;
+    const payload = await response.json().catch(() => null);
+    if (!payload?.ready || !payload?.exists) return false;
+    todaySliceCache.set(dayKey, payload);
+    if (requestSeq !== todaySliceRequestSeq || plannerMutationSeq !== mutationSeq) return false;
+    if (lastServerUpdatedAt && payload.updatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return false;
+    if (!mergeTodaySlicePayload(payload, dayKey)) return false;
+    if (iso(selectedDate) === dayKey && options.render !== false) {
+      renderStartupFrame({ forceLists: true, skipWeather: true });
+      if (options.hideBoot) hideBootScreen(0);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function loadEmptyState() {
   return {
     foundation: {
@@ -2248,7 +2310,13 @@ async function persistStateToServer(options = {}) {
   const baseUpdatedAt = getServerBaseUpdatedAt(meta);
   const stateSnapshot = preparedStateSnapshot;
   const saveStartedMutationSeq = plannerMutationSeq;
-  const requestBody = JSON.stringify({ state: stateSnapshot, updatedAt, baseUpdatedAt });
+  const requestBody = JSON.stringify({
+    state: stateSnapshot,
+    updatedAt,
+    baseUpdatedAt,
+    activeDate: iso(selectedDate),
+    activeWeek: weekKey(selectedDate),
+  });
   const requestOptions = {
     method: "POST",
     cache: "no-store",
@@ -4429,7 +4497,8 @@ function shiftDay(delta, animate = true) {
     return;
   }
   selectedDate = next;
-  renderAll();
+  if (!showCachedTodaySlice(next)) renderAll();
+  void hydrateTodaySlice(next);
 }
 
 function toggleDailyCalendar() {
@@ -5458,7 +5527,8 @@ function animateDateTitle(delta, nextDate) {
   window.clearTimeout(dateSlideTimer);
   if (!title) {
     selectedDate = nextDate;
-    renderActiveViewSections({ forceLists: true, dateShift: true });
+    if (!showCachedTodaySlice(nextDate)) renderActiveViewSections({ forceLists: true, dateShift: true });
+    void hydrateTodaySlice(nextDate);
     return;
   }
   title.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev");
@@ -5468,7 +5538,8 @@ function animateDateTitle(delta, nextDate) {
     selectedDate = nextDate;
     currentDayPanel = "main";
     daySwipeKey = "";
-    renderActiveViewSections({ forceLists: true, dateShift: true });
+    if (!showCachedTodaySlice(nextDate)) renderActiveViewSections({ forceLists: true, dateShift: true });
+    void hydrateTodaySlice(nextDate);
     animatePageTurn(delta);
     const refreshedTitle = el("dayTitle");
     refreshedTitle?.classList.remove("slide-out-next", "slide-out-prev", "slide-in-next", "slide-in-prev");
@@ -17415,6 +17486,7 @@ async function setup() {
   renderWeatherChip();
   scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
   if (hasInitialDeviceCache) hideBootScreen(40);
+  void hydrateTodaySlice(selectedDate, { hideBoot: !hasInitialDeviceCache });
   window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 120 : 0);
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
