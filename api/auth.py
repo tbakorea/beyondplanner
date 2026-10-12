@@ -1,5 +1,6 @@
 import json
 import os
+import socket
 import urllib.error
 import urllib.request
 from http.server import BaseHTTPRequestHandler
@@ -32,7 +33,13 @@ class handler(BaseHTTPRequestHandler):
             return
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")
-            self.write_json(exc.code, {"error": extract_supabase_error(detail) or "인증 서버 요청에 실패했습니다."})
+            if exc.code in {500, 502, 503, 504, 520, 521, 522, 523, 524}:
+                self.write_json(503, transient_auth_error())
+            else:
+                self.write_json(exc.code, {"error": extract_supabase_error(detail) or "인증 서버 요청에 실패했습니다."})
+            return
+        except (TimeoutError, socket.timeout, urllib.error.URLError):
+            self.write_json(503, transient_auth_error())
             return
         except Exception as exc:
             self.write_json(502, {"error": "인증 서버 연결 중 오류가 발생했습니다.", "detail": str(exc)})
@@ -114,7 +121,7 @@ def call_supabase_auth(action, payload):
         },
         method=method,
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with urllib.request.urlopen(request, timeout=8) as response:
         data = json.loads(response.read().decode("utf-8"))
 
     user = data.get("user") or data
@@ -136,6 +143,14 @@ def call_supabase_auth(action, payload):
             "expiresAt": data.get("expires_at") or "",
         },
         "message": "비밀번호가 변경되었습니다." if action == "update_password" else "",
+    }
+
+
+def transient_auth_error():
+    return {
+        "error": "인증 서버 연결이 일시적으로 지연되고 있습니다. 잠시 후 다시 시도해 주세요.",
+        "code": "auth_temporarily_unavailable",
+        "retryable": True,
     }
 
 

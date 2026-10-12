@@ -784,7 +784,9 @@ async function ensureFreshAuthSession() {
       payload = {};
     }
     if (!response.ok || !payload.session?.accessToken) {
-      throw new Error(payload.error || "로그인 세션을 갱신할 수 없습니다.");
+      const error = new Error(payload.error || "로그인 세션을 갱신할 수 없습니다.");
+      error.transient = response.status >= 500 || payload.retryable === true;
+      throw error;
     }
     const user = payload.user || {};
     const nextSession = {
@@ -804,7 +806,10 @@ async function ensureFreshAuthSession() {
     cacheAuthUser(nextSession);
     return getAuthSession();
   } catch (error) {
-    if (error?.name === "AbortError") return session;
+    // A temporary Auth outage must never erase the last usable account session
+    // or its account-scoped display cache. PostgREST decides whether the access
+    // token is still valid when planner data is requested.
+    if (error?.name === "AbortError" || error?.transient) return session;
     localStorage.removeItem(AUTH_SESSION_KEY);
     return null;
   }

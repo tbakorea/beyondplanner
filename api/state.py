@@ -1,3 +1,5 @@
+import base64
+import binascii
 import json
 import os
 import urllib.error
@@ -18,7 +20,7 @@ class handler(BaseHTTPRequestHandler):
         except RuntimeError as exc:
             self.write_json(503, {"error": str(exc)})
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")
+            detail = http_error_detail(exc)
             self.write_json(normalize_supabase_status(exc.code, detail), normalize_supabase_error_payload(detail, "Supabase DB 상태를 읽을 수 없습니다."))
         except Exception as exc:
             self.write_json(502, {"error": "Supabase DB 연결 중 오류가 발생했습니다.", "detail": str(exc)})
@@ -45,7 +47,7 @@ class handler(BaseHTTPRequestHandler):
         except RuntimeError as exc:
             self.write_json(503, {"error": str(exc)})
         except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", "replace")
+            detail = http_error_detail(exc)
             self.write_json(normalize_supabase_status(exc.code, detail), normalize_supabase_error_payload(detail, "Supabase DB에 저장할 수 없습니다."))
         except Exception as exc:
             self.write_json(502, {"error": "Supabase DB 저장 중 오류가 발생했습니다.", "detail": str(exc)})
@@ -98,23 +100,32 @@ def supabase_base():
     return supabase_url, anon_key
 
 
-def call_supabase_user(token):
-    supabase_url, anon_key = supabase_base()
-    request = urllib.request.Request(
-        f"{supabase_url}/auth/v1/user",
-        headers={"apikey": anon_key, "Authorization": f"Bearer {token}"},
-        method="GET",
-    )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.loads(response.read().decode("utf-8"))
+def user_id_from_access_token(token):
+    """Read the JWT subject while PostgREST remains the trust boundary.
+
+    Supabase PostgREST verifies the JWT signature and applies RLS on every
+    database request below. Decoding the subject here only avoids an extra
+    dependency on the Auth service, so an Auth outage cannot hide planner data
+    from a device that still has a valid access token.
+    """
+    try:
+        parts = str(token or "").split(".")
+        if len(parts) != 3:
+            raise ValueError("invalid JWT")
+        payload_segment = parts[1]
+        payload_segment += "=" * (-len(payload_segment) % 4)
+        payload = json.loads(base64.urlsafe_b64decode(payload_segment.encode("ascii")).decode("utf-8"))
+        user_id = str(payload.get("sub") or "").strip()
+        if not user_id:
+            raise ValueError("missing subject")
+        return user_id
+    except (ValueError, TypeError, json.JSONDecodeError, UnicodeDecodeError, binascii.Error) as exc:
+        raise urllib.error.HTTPError("", 401, "로그인 세션을 확인할 수 없습니다.", {}, None) from exc
 
 
 def get_planner_state(token, since=""):
     supabase_url, anon_key = supabase_base()
-    user = call_supabase_user(token)
-    user_id = user.get("id")
-    if not user_id:
-        raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
+    user_id = user_id_from_access_token(token)
     encoded_user_id = urllib.parse.quote(user_id, safe="")
     if since:
         meta_request = urllib.request.Request(
@@ -155,10 +166,7 @@ def get_planner_state(token, since=""):
 
 def save_planner_state(token, state, payload):
     supabase_url, anon_key = supabase_base()
-    user = call_supabase_user(token)
-    user_id = user.get("id")
-    if not user_id:
-        raise urllib.error.HTTPError("", 401, "인증된 사용자 정보를 확인할 수 없습니다.", {}, None)
+    user_id = user_id_from_access_token(token)
     updated_at = utc_now()
     base_updated_at = str(payload.get("baseUpdatedAt") or "").strip()
     existing = get_planner_state(token)
@@ -213,6 +221,12 @@ def extract_supabase_error(detail):
     except json.JSONDecodeError:
         return detail[:300]
     return str(data.get("msg") or data.get("message") or data.get("error_description") or data.get("error") or "")
+
+
+def http_error_detail(exc):
+    if getattr(exc, "fp", None) is not None:
+        return exc.read().decode("utf-8", "replace")
+    return str(getattr(exc, "reason", "") or "")
 
 
 def normalize_supabase_status(status, detail):

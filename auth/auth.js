@@ -198,11 +198,24 @@ function showMessage(text) {
 }
 
 async function requestAuth(action, payload) {
-  const response = await fetch("/api/auth", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...payload }),
-  });
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), 10000);
+  let response;
+  try {
+    response = await fetch("/api/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("인증 서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
   let data = {};
   try {
     data = await response.json();
@@ -210,7 +223,10 @@ async function requestAuth(action, payload) {
     data = {};
   }
   if (!response.ok) {
-    const error = new Error(data.error || "인증 서버에서 요청을 처리하지 못했습니다.");
+    const fallback = response.status >= 500
+      ? "인증 서버 연결이 일시적으로 지연되고 있습니다. 잠시 후 다시 시도해 주세요."
+      : "인증 서버에서 요청을 처리하지 못했습니다.";
+    const error = new Error(data.error || fallback);
     error.status = response.status;
     throw error;
   }
