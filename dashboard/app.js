@@ -280,6 +280,7 @@ const defaultAppSettings = {
 
 const languageLabels = {
   en: {
+    search: "Search",
     day: "Today",
     week: "Week",
     month: "Month",
@@ -291,6 +292,7 @@ const languageLabels = {
     foundation: "Settings",
   },
   ko: {
+    search: "검색/질문",
     day: "오늘",
     week: "주간",
     month: "월간",
@@ -5711,6 +5713,17 @@ function setupTopViews() {
       renderAll();
     };
   });
+  const moreMenu = document.querySelector(".top-more-menu");
+  if (moreMenu && moreMenu.dataset.navigationBound !== "true") {
+    moreMenu.dataset.navigationBound = "true";
+    const summary = moreMenu.querySelector("summary");
+    const syncExpandedState = () => summary?.setAttribute("aria-expanded", String(moreMenu.open));
+    moreMenu.addEventListener("toggle", syncExpandedState);
+    document.addEventListener("pointerdown", (event) => {
+      if (moreMenu.open && !moreMenu.contains(event.target)) moreMenu.removeAttribute("open");
+    });
+    syncExpandedState();
+  }
 }
 
 function handleOnboardingAction(action) {
@@ -6879,6 +6892,12 @@ function applyLanguagePreference() {
   setAttr("#headerSearch", "placeholder", common.searchPlaceholder);
   setAttr("#plannerSearch", "placeholder", common.searchPlaceholder);
   setAttr("#searchPageInput", "placeholder", language === "ko" ? "검색어 또는 질문을 입력하세요. 예: 소풍간 날이 언제이지?" : "Type a search term or question. Example: When was the picnic?");
+  setText(".manage-menu-label", language === "ko" ? "더보기" : "More");
+  setText(".top-more-heading strong", language === "ko" ? "전체 메뉴" : "All features");
+  setText(
+    ".top-more-heading small",
+    language === "ko" ? "필요한 기능만 간결하게 모았습니다." : "Everything else, kept intentionally simple.",
+  );
   applySettingsLanguagePreference(language);
   normalizePrimaryNavigationLabels(language);
 }
