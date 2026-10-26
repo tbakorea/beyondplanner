@@ -4776,7 +4776,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   width: 22px;
   border-color: var(--sage-dark);
   background: rgba(174, 191, 177, 0.22);
-  color: var(--forest);
+  color: #d7372f !important;
   font-size: 15px;
   letter-spacing: 0;
 }

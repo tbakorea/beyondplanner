@@ -11368,7 +11368,7 @@ function getTaskStatusDisplay(task, menuValue) {
 
 function getTaskStatusControl(task, menuValue) {
   if (task.status === "위임") {
-    return `<input class="delegate-input" type="text" value="${escapeAttr(task.delegate || "")}" placeholder="위임자" />`;
+    return `<input class="delegate-input" type="text" value="${escapeAttr(task.delegate || "")}" placeholder="담당자 이름" aria-label="위임받은 담당자 이름" />`;
   }
   if (task.status === "연기") {
     const label = task.postponeDate ? formatCompactMonthDay(task.postponeDate) : "미정";
