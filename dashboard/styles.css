@@ -4772,6 +4772,22 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   padding-bottom: 3px;
 }
 
+.monthly-task-delete-dialog {
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 22px;
+  border: 1px solid var(--sage-dark);
+  border-radius: 14px;
+  color: var(--ink);
+  background: var(--paper, #fffdf8);
+}
+.monthly-task-delete-dialog::backdrop { background: rgba(20, 35, 28, 0.35); }
+.monthly-task-delete-dialog form { display: grid; gap: 12px; }
+.monthly-task-delete-dialog h3, .monthly-task-delete-dialog p { margin: 0; }
+.monthly-task-delete-dialog button { min-height: 44px; white-space: normal; }
+
 .task-row.marker-delegate .task-cycle {
   width: 22px;
   border-color: var(--sage-dark);

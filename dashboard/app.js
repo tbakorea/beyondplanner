@@ -11645,12 +11645,102 @@ function moveLocatedTaskPriority(day, location, toPriority) {
   renderDayAfterTaskMutation();
 }
 
-function deleteTask(priority, index, taskRef = null) {
+function monthlyTaskSeries(task) {
+  const fixed = (state.finance?.fixed || []).find((item) => task.financeItemId?.startsWith(`${item.id}-`));
+  if (fixed) return { fixed };
+  const match = String(task.repeatId || "").match(/^repeat-(\d+)-/);
+  const index = match ? Number(match[1]) : -1;
+  const rule = state.repeats?.priorityTasks?.[index];
+  return rule?.frequency === "monthly" ? { rule, index } : null;
+}
+
+function chooseMonthlyTaskDeleteScope() {
+  return new Promise((resolve) => {
+    const dialog = document.createElement("dialog");
+    dialog.className = "monthly-task-delete-dialog";
+    dialog.setAttribute("aria-label", "매월 반복업무 삭제 범위");
+    dialog.innerHTML = `<form method="dialog"><h3>반복업무를 어디까지 삭제할까요?</h3><p>두 경우 모두 오늘 표시된 업무는 삭제됩니다.</p><button value="once">이번 이벤트만 삭제</button><button value="future">이번 및 이후 반복업무 삭제</button><button value="cancel">취소</button></form>`;
+    dialog.addEventListener("close", () => {
+      const result = dialog.returnValue;
+      dialog.remove();
+      resolve(result);
+    }, { once: true });
+    document.body.appendChild(dialog);
+    dialog.showModal();
+  });
+}
+
+async function deleteMonthlyTaskOccurrence(task) {
+  const series = monthlyTaskSeries(task);
+  if (!series) return false;
+  const key = iso(selectedDate);
+  const scope = await chooseMonthlyTaskDeleteScope();
+  if (!["once", "future"].includes(scope) || guardDailyEdit(key)) return true;
+  if (scope === "future" && !confirmDelete("원장에서 이 반복업무를 제거하고 이번 및 이후 반복업무도 삭제할까요? 이전 날짜의 기록은 유지됩니다.")) return true;
+  captureUndo("매월 반복업무 삭제");
+  if (scope === "future") {
+    if (series.fixed) {
+      Object.entries(state.days || {}).forEach(([dateKey, pastDay]) => {
+        if (dateKey >= key) return;
+        Object.values(pastDay.tasks || {}).flat().forEach((pastTask) => {
+          if (pastTask.financeItemId?.startsWith(`${series.fixed.id}-`)) {
+            pastTask.financeSeriesDeletedFrom = key;
+          }
+        });
+      });
+      state.finance.fixed = state.finance.fixed.filter((item) => item.id !== series.fixed.id);
+    } else {
+      // Keep the index tombstone so historical repeat IDs cannot change owners.
+      series.rule.active = false;
+      series.rule.removed = true;
+      series.rule.deletedFrom = key;
+    }
+  }
+  const matches = (candidate) => {
+    if (scope === "once") return Boolean(
+      (task.id && candidate.id === task.id) ||
+      (task.repeatId && candidate.repeatId === task.repeatId) ||
+      (task.financeItemId && candidate.financeItemId === task.financeItemId)
+    );
+    return series.fixed
+      ? candidate.financeItemId?.startsWith(`${series.fixed.id}-`)
+      : String(candidate.repeatId || "").startsWith(`repeat-${series.index}-`);
+  };
+  const day = ensureDay(key);
+  markDailyTaskDeletedForDate(day, task, task.priority || "A", key);
+  markTaskDeletedForDate(task, key);
+  if (task.financeItemId) markFinanceTaskDeletedForDate(task.financeItemId, key);
+  if (task.repeatId) {
+    day.deletedRepeatIds ||= [];
+    if (!day.deletedRepeatIds.includes(task.repeatId)) day.deletedRepeatIds.push(task.repeatId);
+  }
+  Object.entries(state.days || {}).forEach(([dateKey, target]) => {
+    if (dateKey < key || !target.tasks) return;
+    priorities.forEach(([priority]) => {
+      target.tasks[priority] = (target.tasks[priority] || []).filter((candidate) => {
+        if (!matches(candidate)) return true;
+        clearTaskScheduleLinkForInactive(candidate, target);
+        return false;
+      });
+    });
+  });
+  // Suppress the selected occurrence's older source as well as materialized copies.
+  const ref = { ...task, date: task.date || key };
+  markCarryoverIdentityDeletedForDate(ref, key);
+  removeCarryoverCopiesMatchingRef(ref, key);
+  saveCriticalPlannerAction("매월 반복업무 삭제 저장 중");
+  renderDayAfterTaskMutation();
+  showUndoNotice("반복업무를 삭제했습니다.");
+  return true;
+}
+
+async function deleteTask(priority, index, taskRef = null) {
   if (guardDailyEdit(iso(selectedDate))) return;
   const day = ensureDay();
   const location = findCurrentTaskLocation(day, taskRef, priority, index);
   const task = location?.task;
   if (!task) return;
+  if (await deleteMonthlyTaskOccurrence(task)) return;
   if (isMaterializedCarryoverTask(task)) {
     if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘부터 이월에서 제외됩니다.")) return;
     captureUndo("이월 우선업무 삭제");
@@ -12464,7 +12554,9 @@ function renderCarryoverTask(task, dayKey = iso(selectedDate)) {
   return row;
 }
 
-function deleteCarryoverTask(taskRef) {
+async function deleteCarryoverTask(taskRef) {
+  if (guardDailyEdit(iso(selectedDate))) return;
+  if (await deleteMonthlyTaskOccurrence(taskRef)) return;
   const source = findTaskSource(taskRef);
   if (!confirmDelete("이월된 우선업무를 삭제할까요? 원래 날짜의 기록은 유지되고 오늘부터 이월에서 제외됩니다.")) return;
   captureUndo("이월 우선업무 삭제");
@@ -16013,6 +16105,7 @@ function removeStaleMoneyTasks(expectedLinks) {
     priorities.forEach(([priority]) => {
       const tasks = day.tasks?.[priority] || [];
       const filtered = tasks.filter((task) => {
+        if (task.financeSeriesDeletedFrom && dayKey < task.financeSeriesDeletedFrom) return true;
         if (!task.financeItemId) {
           const keepLegacy = shouldKeepLegacyFixedMoneyTask(task, dayKey);
           if (!keepLegacy) {
