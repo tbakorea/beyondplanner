@@ -10614,8 +10614,7 @@ function renderDayCompass() {
     }
     if (delegateInput) {
       delegateInput.oninput = () => {
-        item.delegate = delegateInput.value;
-        saveState({ fastSave: true });
+        updateTaskDelegate(item, delegateInput.value);
       };
     }
     if (postponeDateButton) {
@@ -11243,8 +11242,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
         delegateInput.value = task.delegate || "";
         return;
       }
-      task.delegate = delegateInput.value;
-      saveState({ fastSave: true });
+      updateTaskDelegate(task, delegateInput.value);
     };
   }
   if (postponeDateButton) {
@@ -12657,12 +12655,17 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
   renderDayAfterTaskMutation();
 }
 
+function updateTaskDelegate(task, value) {
+  if (!task) return;
+  task.delegate = value;
+  stampTaskLifecycleMutation(task);
+  saveState({ fastSave: true });
+}
+
 function updateCarryoverDelegate(taskRef, value, targetKey = iso(selectedDate)) {
   const source = materializeCarryoverTask(taskRef, targetKey)?.task;
   if (!source) return;
-  source.delegate = value;
-  stampTaskLifecycleMutation(source);
-  saveState({ fastSave: true });
+  updateTaskDelegate(source, value);
 }
 
 function scheduleCarryoverPostponedTask(taskRef, targetDate, targetKey = iso(selectedDate)) {
@@ -17067,15 +17070,21 @@ function importPlanner(event) {
         if (!proceed) return;
       }
       if (!window.confirm("이 파일의 내용으로 플래너를 가져올까요? 현재 저장된 내용은 보호 규칙을 통과한 경우에만 바뀝니다.")) return;
+      captureUndo("백업 파일 가져오기");
       state = migrateState(importedState);
       selectedSheetId = state.customSheets.activeId;
-      saveState();
+      saveCriticalPlannerAction("가져온 백업 DB 저장 중");
       renderAll();
+      showUndoNotice("백업을 가져왔습니다. DB 저장 상태를 확인해주세요.");
     } catch (error) {
       alert(error?.message || "가져오기 파일을 읽을 수 없습니다.");
     } finally {
       event.target.value = "";
     }
+  };
+  reader.onerror = () => {
+    alert("백업 파일을 읽지 못했습니다. 현재 데이터는 유지됩니다.");
+    event.target.value = "";
   };
   reader.readAsText(file);
 }
