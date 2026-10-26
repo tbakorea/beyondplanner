@@ -5267,9 +5267,12 @@ function renderWeekCalendar() {
 
 function closePostponeDatePicker() {
   if (!activePostponeCalendar) return;
+  const anchor = activePostponeCalendar.anchor;
   activePostponeCalendar.cleanup?.();
   activePostponeCalendar.node?.remove();
   activePostponeCalendar = null;
+  anchor?.setAttribute("aria-expanded", "false");
+  if (anchor?.isConnected) anchor.focus({ preventScroll: true });
 }
 
 function openPostponeDatePicker(anchor, initialValue, onSelect) {
@@ -5356,6 +5359,7 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
   popover.className = "daily-calendar-popover sunday-date-popover";
   popover.setAttribute("role", "dialog");
   popover.setAttribute("aria-label", options.label || "날짜 선택");
+  anchor.setAttribute("aria-expanded", "true");
   document.body.appendChild(popover);
 
   const render = () => {
@@ -5454,6 +5458,7 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
   window.visualViewport?.addEventListener("resize", handleResize);
   window.visualViewport?.addEventListener("scroll", handleScroll);
   activePostponeCalendar = {
+    anchor,
     node: popover,
     cleanup: () => {
       document.removeEventListener("pointerdown", handleOutside);
@@ -5464,6 +5469,7 @@ function openSundayDatePicker(anchor, initialValue, onSelect, options = {}) {
       window.visualViewport?.removeEventListener("scroll", handleScroll);
     },
   };
+  popover.querySelector(".daily-calendar-day.is-selected")?.focus({ preventScroll: true });
 }
 
 function setupGlobalSundayDatePicker() {
@@ -11370,8 +11376,8 @@ function getTaskStatusControl(task, menuValue) {
   }
   if (task.status === "연기") {
     const label = task.postponeDate ? formatCompactMonthDay(task.postponeDate) : "미정";
-    const ariaLabel = task.postponeDate ? `연기 날짜 ${label}, 다시 선택` : "연기 날짜 선택";
-    return `<button class="postpone-date-button ${task.postponeDate ? "is-date-set" : "is-undated"}" type="button" aria-label="${escapeAttr(ariaLabel)}">${escapeHtml(label)}</button>`;
+    const ariaLabel = task.postponeDate ? `연기 날짜 ${task.postponeDate}, 다시 선택` : "연기 날짜 미정, 달력에서 날짜 선택";
+    return `<button class="postpone-date-button ${task.postponeDate ? "is-date-set" : "is-undated"}" type="button" aria-label="${escapeAttr(ariaLabel)}" title="${escapeAttr(ariaLabel)}" aria-haspopup="dialog" aria-expanded="false">${escapeHtml(label)}</button>`;
   }
   return `
     <select class="priority-select" aria-label="중요도 선택">

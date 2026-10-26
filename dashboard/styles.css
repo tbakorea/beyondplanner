@@ -4801,7 +4801,7 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   width: 22px;
   border-color: #8e8170;
   background: rgba(255, 253, 248, 0.96);
-  color: var(--forest);
+  color: #d7372f !important;
   font-size: 16px;
   font-weight: 900;
   line-height: 1;
@@ -13218,11 +13218,11 @@ body.ceo-mode .daily-panel-chip {
   width: 28px !important;
   max-width: 28px !important;
   min-height: 26px !important;
-  color: transparent !important;
+  color: var(--slate) !important;
 }
 
 .task-status-cell:not(:has(.postpone-date-label)) .postpone-date-button {
-  color: transparent !important;
+  color: var(--slate) !important;
 }
 
 .postpone-date-label {
@@ -22591,6 +22591,15 @@ body.classic-mode .quick-strip::-webkit-scrollbar {
   cursor: pointer !important;
 }
 
+.task-status-cell .postpone-date-button {
+  padding-inline: 0 !important;
+}
+
+.postpone-date-button:focus-visible {
+  outline: 2px solid var(--forest);
+  outline-offset: 2px;
+}
+
 .task-status-cell .postpone-date-button.is-undated {
   letter-spacing: 0 !important;
 }
@@ -22685,7 +22694,10 @@ body.classic-mode .daily-date-button #dayTitle {
   }
 }
 
-/* Cancellation state must draw a clear red center line while preserving black task text. */
+/* Resolved task states share a red center line while preserving black text. */
+.task-row.marker-check .task-text-input,
+.task-row.marker-delegate .task-text-input,
+.task-row.marker-postpone .task-text-input,
 .task-row.is-cancelled .task-text-input,
 .task-row.done.is-cancelled .task-text-input {
   color: var(--ink) !important;
