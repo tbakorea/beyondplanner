@@ -2007,10 +2007,9 @@ async function hydrateServerState(options = {}) {
       logoutPlanner();
       return;
     }
-    // If an account-scoped boot cache exists, use the server timestamp path first.
-    // This keeps the database authoritative while avoiding a full planner JSON
-    // download on every launch for large accounts such as long-running CEO planners.
-    const forceFull = options.forceFull ?? !hasInitialDeviceCache;
+    // A browser preview and its separate metadata can be out of sync after
+    // quota failures. Never use that timestamp to skip the canonical boot read.
+    const forceFull = true;
     const response = await fetchWithTimeout(plannerStateFetchUrl({ forceFull }), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
@@ -2018,8 +2017,7 @@ async function hydrateServerState(options = {}) {
     accountSaveReady = true;
     saveStatus.ready = true;
     if (payload.notModified) {
-      applyServerNotModifiedPayload(payload, "저장됨");
-      return;
+      throw new Error("자료 전체를 불러오지 못했습니다. 다시 연결해주세요.");
     }
     if (payload.exists && payload.state) {
       // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
@@ -6649,6 +6647,11 @@ function renderPlannerSaveStatus() {
     const saveState = saveStatus.saving ? "saving"
       : /실패|오류|필요|로그인|차단|부족/.test(fullStatusText) ? "alert"
       : fullStatusText === "저장됨" && !dirty ? "saved" : "waiting";
+    const connectionStatus = el("plannerConnectionStatus");
+    if (connectionStatus) {
+      connectionStatus.hidden = saveState === "saved";
+      connectionStatus.textContent = fullStatusText;
+    }
     saveStatusNode.dataset.saveState = saveState;
     saveStatusNode.textContent = compactSaveStatusLabel(saveState);
     saveStatusNode.title = fullStatusText || "저장 상태";
@@ -17723,8 +17726,13 @@ async function finishInitialServerHydration() {
   try {
     await hydrateServerState();
     if (getAuthSession()?.accessToken) {
-      renderHydratedTodayFrame({ defer: hasInitialDeviceCache, delay: 80 });
-      setBootMessage("최신 내용을 반영했습니다");
+      if (saveStatus.ready) {
+        renderHydratedTodayFrame({ defer: hasInitialDeviceCache, delay: 80 });
+        setBootMessage("최신 내용을 반영했습니다");
+      } else {
+        renderStartupFrame({ forceLists: true });
+        setBootMessage(saveStatus.message || "자료 연결을 확인해주세요");
+      }
     }
   } catch (error) {
     saveStatus.message = networkErrorMessage(error, "최신 데이터 확인 지연");
@@ -17752,7 +17760,8 @@ async function setup() {
   renderWeatherChip();
   scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
   if (hasInitialDeviceCache) hideBootScreen(40);
-  void hydrateTodaySlice(selectedDate, { hideBoot: !hasInitialDeviceCache });
+  // The initial screen must come from one complete canonical DB read.
+  // Date-navigation slices remain optional after that read.
   window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 120 : 0);
   schedulePostBootRender();
   scheduleIdleTask(() => setupWeather({ persist: true }), 1800);

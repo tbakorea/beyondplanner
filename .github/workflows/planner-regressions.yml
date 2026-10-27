@@ -25,4 +25,5 @@ jobs:
       - run: node tests/carryover_edit_regression.js
       - run: node tests/restart_integrity_regression.js
       - run: node tests/iphone_quota_regression.js
+      - run: node tests/canonical_startup_regression.js
       - run: python -m unittest discover -s tests

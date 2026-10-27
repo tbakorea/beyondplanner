@@ -24299,3 +24299,17 @@ body.classic-mode.day-view-active #dayTitle {
     font-size: 13px !important;
   }
 }
+
+/* Keep load/save failures readable even when compact mobile navigation hides the pill. */
+.planner-connection-status {
+  margin: 8px 12px;
+  padding: 8px 12px;
+  border: 1px solid #d7c8ad;
+  border-radius: 8px;
+  color: #6e4425;
+  background: #fffaf0;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.planner-connection-status[hidden] { display: none; }
