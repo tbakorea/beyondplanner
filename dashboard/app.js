@@ -1185,6 +1185,9 @@ function findCurrentTaskLocation(day, taskRef, fallbackPriority = "", fallbackIn
       const index = list.findIndex((task) => task.id === taskRef.id);
       if (index >= 0) return { task: list[index], priority, index };
     }
+    // A rerender can reorder or replace the list while an old row still has
+    // an event handler. Never apply that handler to a different task by index.
+    return null;
   }
   for (const [priority] of priorities) {
     const list = day.tasks?.[priority] || [];
@@ -7597,15 +7600,16 @@ function renderDay(options = {}) {
   renderDailyTodayButton();
   updateDailyActionAiAvailability();
   if (!editing && purgeMisdatedTaskScheduleArtifacts(day, key) && canPersistDerivedState()) saveState({ fastSave: true });
+  if (!editing) renderDayCompass();
   const allTasks = getDayTasks(key);
   const carryovers = getCarryoverTasks(parseDate(key));
-  const { done, total } = getDailyCompletionSummary(day, key, carryovers);
+  const displayItems = getTaskDisplayItems(day, carryovers);
+  const { done, total } = getDailyCompletionSummary(day, key, carryovers, displayItems);
   el("dailyCompletion").textContent = `${done}/${total}`;
   renderDailyPulse(day, allTasks, carryovers, { done, total });
   renderOnboarding(day);
   if (!editing) {
-    renderDayCompass();
-    renderTaskBoard(day, key);
+    renderTaskBoard(day, key, displayItems);
     syncVisibleTaskTimeHints(day, carryovers, { dayKey: key });
     renderRepeatPriorityList();
   }
@@ -10948,13 +10952,13 @@ function setupPulsePanelSwipe() {
   });
 }
 
-function renderTaskBoard(day, dayKey = iso(selectedDate)) {
+function renderTaskBoard(day, dayKey = iso(selectedDate), displayItems = null) {
   const board = el("taskBoard");
   board.innerHTML = "";
   const list = document.createElement("section");
   list.className = "task-list";
-  const carryovers = getCarryoverTasks(parseDate(dayKey));
-  getTaskDisplayItems(day, carryovers).forEach((item) => {
+  const items = displayItems || getTaskDisplayItems(day, getCarryoverTasks(parseDate(dayKey)));
+  items.forEach((item) => {
     if (item.type === "carryover") {
       list.appendChild(renderCarryoverTask(item.task, dayKey));
     } else {
@@ -11131,9 +11135,9 @@ function getDailyCompletionIdentity(item = {}, dayKey = iso(selectedDate)) {
   return identity || `row:${item.type || "day"}:${taskPriority || "?"}:${item.index || 0}`;
 }
 
-function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers = []) {
+function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers = [], displayItems = null) {
   const byIdentity = new Map();
-  getTaskDisplayItems(day, carryovers).forEach((item) => {
+  (displayItems || getTaskDisplayItems(day, carryovers)).forEach((item) => {
     const task = item.task || {};
     if (!hasTaskVisibleText(task)) return;
     const identity = getDailyCompletionIdentity(item, dayKey);
@@ -11917,6 +11921,7 @@ function findTaskSource(taskRef) {
       const index = day.tasks[priority].findIndex((task) => task.id === taskRef.id);
       if (index >= 0) return { day, task: day.tasks[priority][index], priority, index };
     }
+    return null;
   }
   const fallback = day.tasks?.[taskRef.priority]?.[taskRef.index];
   if (!fallback) return null;
