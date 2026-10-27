@@ -519,9 +519,11 @@ let selectedFinanceMonth = monthKey(selectedDate);
 let selectedMemoKey = iso(selectedDate);
 let memoSearchQuery = "";
 let activeMoneyDraftId = "";
-const initialCachedPlannerState = loadCachedPlannerState();
-let hasInitialDeviceCache = Boolean(initialCachedPlannerState && hasPlannerContent(initialCachedPlannerState));
-let state = initialCachedPlannerState || loadEmptyState();
+// Cache migration reads schedule settings, task constants, and merge helpers.
+// Bootstrap state first; migrate only after all module bindings are initialized.
+let initialCachedPlannerState = null;
+let hasInitialDeviceCache = false;
+let state = loadEmptyState();
 let plannerMutationSeq = 0;
 let todaySliceRequestSeq = 0;
 const todaySliceCache = new Map();
@@ -17771,6 +17773,17 @@ async function setup() {
     if (document.hidden) persistDisplayCache();
   });
 }
+
+function initializePlannerCachedState() {
+  initialCachedPlannerState = loadCachedPlannerState();
+  hasInitialDeviceCache = Boolean(initialCachedPlannerState && hasPlannerContent(initialCachedPlannerState));
+  if (initialCachedPlannerState) {
+    state = initialCachedPlannerState;
+    selectedSheetId = state.customSheets.activeId;
+  }
+}
+
+initializePlannerCachedState();
 
 setup().catch((error) => {
   saveStatus.message = networkErrorMessage(error, "앱 시작 확인 지연");
