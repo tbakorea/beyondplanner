@@ -18,4 +18,5 @@ jobs:
       - run: node tests/postpone_regression.js
       - run: node tests/money_completion_regression.js
       - run: node tests/today_cache_regression.js
+      - run: node tests/completion_counter_regression.js
       - run: python -m unittest discover -s tests

@@ -11109,8 +11109,11 @@ function getDailyCompletionSummary(day, dayKey = iso(selectedDate), carryovers =
 function taskCountsAsCompletedForDay(task = {}, itemType = "day", dayKey = iso(selectedDate)) {
   const status = String(task.status || "").trim();
   if (TASK_NON_COMPLETION_STATUSES.includes(status)) return false;
+  // carryoverDeletedFrom only stops future carryover. It must not erase a
+  // visible completed row from this day's score. Only explicit row deletion
+  // excludes completion from the deletion date onward.
+  if (task.deletedFromDate && isTaskDeletedFromDate({ deletedFromDate: task.deletedFromDate }, dayKey)) return false;
   if (isCarryoverCompletedOn(task, dayKey)) return true;
-  if (isTaskDeletedFromDate(task, dayKey)) return false;
   return isTaskCompleted(task) || hasTaskCompletionRecord(task, dayKey);
 }
 
