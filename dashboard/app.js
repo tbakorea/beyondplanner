@@ -1369,11 +1369,12 @@ function writePlannerBaseState(nextState = state) {
   }
 }
 
-function queuePlannerBaseStatePersist(nextState = state, delay = 900) {
+function queuePlannerBaseStatePersist(nextState = state) {
+  // A merge baseline is an acknowledged server revision, not a display cache.
+  // Persist it before returning: a deferred closure over live state records
+  // later unsaved edits as the baseline and makes restart merges discard them.
   window.clearTimeout(plannerBaseCacheTimer);
-  plannerBaseCacheTimer = window.setTimeout(() => {
-    scheduleIdleTask(() => writePlannerBaseState(nextState), 1200);
-  }, delay);
+  writePlannerBaseState(nextState);
 }
 
 function normalizeDeletedFinanceTaskIds(day = {}) {
@@ -1919,6 +1920,8 @@ function queueSidebarRender(delay = 90) {
 }
 
 function renderSidebarAfterDailyInput() {
+  // Never hide a pending/failed DB save behind the text-input render guard.
+  renderPlannerSaveStatus();
   if (isAnyPlannerInputEditing()) {
     scheduleDailyTaskRelatedRefresh(700);
     return;
@@ -6606,10 +6609,21 @@ function renderSidebar() {
   el("topYearProgress").textContent = `${isKorean ? "연간" : "Year"} ${Math.round((elapsed / totalDays) * 100)}%`;
   el("topCarryover").textContent = `${common.topCarryover} ${getCarryoverTasks(selectedDate).length}`;
   el("topSearchCount").textContent = `${common.topSearchCount} ${results.length}`;
+  renderPlannerSaveStatus();
+  const auth = getAuthSession();
+  el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : common.loginNeeded;
+  renderDailyTodayButton();
+  updateCoachBubble();
+}
+
+function renderPlannerSaveStatus() {
   const saveStatusNode = el("topSaveStatus");
   if (saveStatusNode) {
-    const fullStatusText = saveStatus.saving ? "저장 중" : saveStatus.message;
-    const saveState = saveStatus.saving ? "saving" : /실패|오류|필요|로그인/.test(fullStatusText) ? "alert" : /대기|확인/.test(fullStatusText) ? "waiting" : "saved";
+    const fullStatusText = saveStatus.message || "저장 상태 확인 중";
+    const dirty = Boolean(getStateMeta().dirty);
+    const saveState = saveStatus.saving ? "saving"
+      : /실패|오류|필요|로그인|차단|부족/.test(fullStatusText) ? "alert"
+      : fullStatusText === "저장됨" && !dirty ? "saved" : "waiting";
     saveStatusNode.dataset.saveState = saveState;
     saveStatusNode.textContent = compactSaveStatusLabel(saveState);
     saveStatusNode.title = fullStatusText || "저장 상태";
@@ -6622,10 +6636,6 @@ function renderSidebar() {
       manageSummary.setAttribute("aria-label", `관리 메뉴, 저장 상태: ${fullStatusText || "확인 중"}`);
     }
   }
-  const auth = getAuthSession();
-  el("topAccountStatus").textContent = auth ? `${auth.email} · ${formatTierName(auth.tier)}` : common.loginNeeded;
-  renderDailyTodayButton();
-  updateCoachBubble();
 }
 
 function compactSaveStatusLabel(stateName = "waiting") {
