@@ -72,10 +72,10 @@ async function runFullBootRegression(source) {
     renderActiveViewSections=()=>{};renderSidebarAfterDailyInput=()=>{};
     const resumed=resumePendingPlannerSave();
     await hydrateServerState();
-    await persistStateToServer();
+    await Promise.all([persistStateToServer(),persistStateToServer(),persistStateToServer()]);
     return {resumed,dirty:getStateMeta().dirty,ready:saveStatus.ready,message:saveStatus.message};
   `)(win,storage,doc,class{get(){return null;}},{language:"ko-KR"},fakeFetch,class{signal={};abort(){}});
-  assert(saved.resumed&&saved.ready&&posts===1,"pending edits must pass through real restart hydration and one acknowledged HTTP save");checks++;
+  assert(saved.resumed&&saved.ready&&posts===1,"overlapping autosave, exit and manual save must share one acknowledged HTTP transaction after restart");checks++;
   assert(database.days["2026-10-26"].tasks.A[0].done&&database.days["2026-10-26"].tasks.A[0].text==="월요일 수정 완료"&&database.days["2026-10-28"].appointments["10:00"]==="오늘 추가한 일정","DB request must include Monday completion/text and today's appointment after cold restart");checks++;
   assert(database.notes.freeform==="다른 기기의 변경"&&!saved.dirty&&saved.message==="저장됨","unrelated remote data must survive and only DB acknowledgement clears pending state");checks++;
   return `${checks} full production-module boot / restart regression checks passed`;

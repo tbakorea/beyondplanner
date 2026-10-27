@@ -1,6 +1,6 @@
 // Run: node tests/save_reliability_regression.js
 async function runSaveReliabilityRegression(source) {
-  const names=["persistStateToServer","resumePendingPlannerSave","hasCurrentRuntimeDirtyEdit"];
+  const names=["persistStateToServer","persistStateToServerAttempt","resumePendingPlannerSave","hasCurrentRuntimeDirtyEdit"];
   const functions=names.map(name=>{
     const match=source.match(new RegExp(`(?:async )?function ${name}\\([^\\n]*\\{\\n[\\s\\S]*?\\n\\}`));
     if(!match)throw new Error(`Missing ${name}`);
@@ -9,7 +9,7 @@ async function runSaveReliabilityRegression(source) {
   const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
   return new AsyncFunction(`
     const assert=(ok,label)=>{if(!ok)throw new Error(label);};
-    let meta,plannerMutationSeq=5,plannerSaveRetryCount=0,lastServerUpdatedAt="2026-10-27T08:00:00Z",hasBase=true;
+    let meta,plannerMutationSeq=5,plannerSaveRetryCount=0,plannerSaveInFlight=null,lastServerUpdatedAt="2026-10-27T08:00:00Z",hasBase=true;
     const state={memo:"new edit"},selectedDate="2026-10-27",iso=x=>x,weekKey=x=>x;
     const document={hidden:false},saveStatus={};
     const resumeServerValidationPending=false,accountSaveReady=true,STATE_SAVE_TIMEOUT_MS=1000;

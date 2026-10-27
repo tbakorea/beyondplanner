@@ -542,6 +542,7 @@ let accountSaveReady = false;
 let initialServerHydrationFinished = false;
 let accountSaveTimer = 0;
 let plannerSaveRetryCount = 0;
+let plannerSaveInFlight = null;
 let passiveRefreshTimer = 0;
 let passiveServerPullInFlight = false;
 let resumeServerValidationTimer = 0;
@@ -2308,6 +2309,19 @@ function flushPlannerSave(reason = "즉시 저장", options = {}) {
 }
 
 async function persistStateToServer(options = {}) {
+  // Autosave, page exit and manual verification can all arrive together.
+  // Share one transaction so this runtime cannot conflict with its own save.
+  if (plannerSaveInFlight) return plannerSaveInFlight;
+  const transaction = persistStateToServerAttempt(options);
+  plannerSaveInFlight = transaction;
+  try {
+    return await transaction;
+  } finally {
+    if (plannerSaveInFlight === transaction) plannerSaveInFlight = null;
+  }
+}
+
+async function persistStateToServerAttempt(options = {}) {
   if (resumeServerValidationPending) {
     saveStatus.saving = true;
     saveStatus.message = "최신 데이터 확인 후 저장";
@@ -2427,7 +2441,7 @@ async function persistStateToServer(options = {}) {
         saveStatus.saving = true;
         saveStatus.message = "최신 데이터와 병합 저장 중";
         renderSidebarAfterDailyInput();
-        await persistStateToServer({ ...options, staleRetry: retryCount + 1, bumpUpdatedAt: false });
+        await persistStateToServerAttempt({ ...options, staleRetry: retryCount + 1, bumpUpdatedAt: false });
         return;
       }
       saveStatus.saving = false;
