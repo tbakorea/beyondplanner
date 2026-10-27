@@ -538,6 +538,7 @@ let saveStatus = { ready: false, environment: "db", message: "저장 확인 중"
 let accountSaveReady = false;
 let initialServerHydrationFinished = false;
 let accountSaveTimer = 0;
+let plannerSaveRetryCount = 0;
 let passiveRefreshTimer = 0;
 let passiveServerPullInFlight = false;
 let resumeServerValidationTimer = 0;
@@ -2337,8 +2338,15 @@ async function persistStateToServer(options = {}) {
     const response = options.keepalive
       ? await fetch("/api/state", requestOptions)
       : await fetchWithTimeout("/api/state", requestOptions, STATE_SAVE_TIMEOUT_MS);
-    if (!response.ok) throw new Error(await extractSaveError(response));
+    if (!response.ok) {
+      const error = new Error(await extractSaveError(response));
+      error.retryable = response.status >= 500 || [408, 429].includes(response.status);
+      throw error;
+    }
     const payload = await response.json().catch(() => ({}));
+    if (payload.ok !== true || !timestampMs(payload.updatedAt)) {
+      throw new Error("DB 저장 확인 응답이 없어 변경 내용을 유지합니다.");
+    }
     if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) {
       if (hasPendingPlannerSave()) scheduleAccountSave(120);
       return;
@@ -2413,6 +2421,7 @@ async function persistStateToServer(options = {}) {
       }
       return;
     }
+    plannerSaveRetryCount = 0;
     lastServerUpdatedAt = payload.updatedAt || updatedAt;
     writePlannerBaseState(stateSnapshot);
     const latestMeta = getStateMeta();
@@ -2442,6 +2451,11 @@ async function persistStateToServer(options = {}) {
   } catch (error) {
     saveStatus.saving = false;
     saveStatus.message = error.message || "저장 실패";
+    if (error.retryable !== false && hasPendingPlannerSave() && !document.hidden) {
+      const delay = Math.min(30000, 1000 * (2 ** Math.min(plannerSaveRetryCount++, 5)));
+      scheduleAccountSave(delay);
+      saveStatus.message = "변경 유지 · DB 저장 자동 재시도 중";
+    }
     renderSidebarAfterDailyInput();
   }
 }
@@ -2553,8 +2567,20 @@ function markLocalStateUpdated(extra = {}) {
   const meta = getStateMeta();
   const { updatedAt: explicitUpdatedAt, ...rest } = extra || {};
   const updatedAt = explicitUpdatedAt || nextPlannerMutationTimestamp(lastServerUpdatedAt, meta.updatedAt);
-  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, accountEmail: getAuthSession()?.email || "", ...rest });
+  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, pendingEditVersion: 1, accountEmail: getAuthSession()?.email || "", ...rest });
   return updatedAt;
+}
+
+function resumePendingPlannerSave() {
+  const meta = getStateMeta();
+  const email = getAuthSession()?.email || "";
+  // Only edits explicitly marked by this version may survive a new runtime.
+  // Old boot caches never acquire edit authority merely by being newer.
+  if (!email || meta.accountEmail !== email || meta.pendingEditVersion !== 1
+      || !meta.dirty || !Number.isSafeInteger(meta.mutationSeq) || meta.mutationSeq <= 0
+      || !timestampMs(meta.updatedAt) || !readPlannerBaseState()) return false;
+  plannerMutationSeq = Math.max(plannerMutationSeq, meta.mutationSeq);
+  return true;
 }
 
 function stampTaskLifecycleMutation(task = {}) {
@@ -17656,6 +17682,7 @@ async function finishInitialServerHydration() {
 }
 
 async function setup() {
+  resumePendingPlannerSave();
   setupGlobalInputEditingGuard();
   setupSelectors();
   setupTabs();

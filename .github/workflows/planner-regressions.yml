@@ -20,4 +20,5 @@ jobs:
       - run: node tests/today_cache_regression.js
       - run: node tests/completion_counter_regression.js
       - run: node tests/resume_save_regression.js
+      - run: node tests/save_reliability_regression.js
       - run: python -m unittest discover -s tests
