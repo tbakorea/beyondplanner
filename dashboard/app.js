@@ -2,6 +2,7 @@ const STORAGE_KEY = "franklinClassicPlanner2026.v1";
 const LAST_DISPLAY_CACHE_KEY = "beyondWorkLastDisplayState.v1";
 const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
 const STATE_BASE_KEY = "beyondWorkPlannerStateBase.v1";
+const volatilePlannerMeta = new Map();
 const INSTALLATION_KEY = "beyondWorkInstallationId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
 const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
@@ -1326,6 +1327,9 @@ function loadCachedPlannerState() {
 function persistDisplayCache(nextState = state) {
   try {
     const sessionEmail = getAuthSession()?.email || "";
+    // The account snapshot already provides the boot preview. Storing two
+    // additional full copies can exhaust Safari's storage quota.
+    if (localStorage.getItem(plannerStorageKey())) return;
     const hasContent = hasPlannerContent(nextState);
     if (!hasContent) {
       const existingCache = readDisplayCachedPlannerState(plannerDisplayCacheKey(sessionEmail), sessionEmail)
@@ -1338,7 +1342,7 @@ function persistDisplayCache(nextState = state) {
       state: nextState,
     };
     localStorage.setItem(plannerDisplayCacheKey(sessionEmail), JSON.stringify(payload));
-    if (hasContent) localStorage.setItem(LAST_DISPLAY_CACHE_KEY, JSON.stringify(payload));
+    // Keep one account-scoped fallback preview, not a second global copy.
   } catch {
     // Display cache is only a startup preview; DB saving remains authoritative.
   }
@@ -1363,7 +1367,7 @@ function readPlannerBaseState() {
 function writePlannerBaseState(nextState = state) {
   try {
     if (!hasPlannerContent(nextState)) return;
-    localStorage.setItem(plannerStateBaseKey(), JSON.stringify(nextState));
+    writePlannerCacheValue(plannerStateBaseKey(), JSON.stringify(nextState));
   } catch {
     // Base snapshots are only used to merge concurrent edits safely.
   }
@@ -1855,14 +1859,30 @@ function normalizeProjectMoney(item) {
   };
 }
 
+function writePlannerCacheValue(key, value) {
+  try { localStorage.setItem(key, value); return true; } catch {}
+  // Only redundant display previews are disposable. Preserve the primary
+  // pending snapshot, the merge baseline, and all recovery snapshots.
+  try { localStorage.removeItem(plannerDisplayCacheKey()); } catch {}
+  try {
+    const legacy = JSON.parse(localStorage.getItem(LAST_DISPLAY_CACHE_KEY) || "null");
+    if (legacy?.accountEmail === (getAuthSession()?.email || "")) localStorage.removeItem(LAST_DISPLAY_CACHE_KEY);
+  } catch {}
+  try { localStorage.setItem(key, value); return true; } catch { return false; }
+}
+
 function saveState(options = {}) {
   const stateSnapshot = options.raw
     ? clonePlannerValue(state)
     : preparePlannerStateForPersistence(clonePlannerValue(state));
-  localStorage.setItem(plannerStorageKey(), JSON.stringify(stateSnapshot));
+  const cached = writePlannerCacheValue(plannerStorageKey(), JSON.stringify(stateSnapshot));
   queueDisplayCachePersist(stateSnapshot, options.fastSave ? 1200 : 900);
   markLocalStateUpdated();
   scheduleAccountSave(options.fastSave ? 120 : 650);
+  if (!cached) {
+    saveStatus.message = "기기 임시저장 공간 부족 · DB 저장 완료 전 종료하지 마세요";
+    renderSidebarAfterDailyInput();
+  }
 }
 
 function saveCriticalPlannerAction(reason = "중요 변경 저장 중") {
@@ -2053,7 +2073,7 @@ async function hydrateServerState(options = {}) {
       // A missing DB row means a new account state. Never auto-upload leftover device/browser cache.
       state = loadEmptyState();
       selectedSheetId = state.customSheets.activeId;
-      localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+      writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
       persistDisplayCache();
       saveStateMeta({ updatedAt: "", lastSavedAt: "", baseUpdatedAt: "", dirty: false, accountEmail: getAuthSession()?.email || "" });
       saveStatus.message = "새 플래너 준비됨";
@@ -2397,7 +2417,7 @@ async function persistStateToServer(options = {}) {
         const mergedState = mergePlannerStates(baseState, localState, remoteState);
         state = mergedState;
         selectedSheetId = state.customSheets.activeId;
-        localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+        writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
         persistDisplayCache();
         markLocalStateUpdated({
           updatedAt: nextPlannerMutationTimestamp(serverUpdatedAt, localMeta.updatedAt, updatedAt),
@@ -2544,6 +2564,8 @@ function authStateHeaders(extra = {}) {
 }
 
 function getStateMeta() {
+  const fallback = volatilePlannerMeta.get(plannerStateMetaKey());
+  if (fallback) return fallback;
   try {
     const accountMeta = JSON.parse(localStorage.getItem(plannerStateMetaKey()) || "null");
     if (accountMeta && typeof accountMeta === "object") return accountMeta;
@@ -2561,8 +2583,11 @@ function getStateMeta() {
 }
 
 function saveStateMeta(meta) {
-  localStorage.setItem(plannerStateMetaKey(), JSON.stringify({ ...getStateMeta(), ...meta }));
-  localStorage.removeItem(STATE_META_KEY);
+  const key = plannerStateMetaKey();
+  const next = { ...getStateMeta(), ...meta };
+  if (writePlannerCacheValue(key, JSON.stringify(next))) volatilePlannerMeta.delete(key);
+  else volatilePlannerMeta.set(key, next);
+  try { localStorage.removeItem(STATE_META_KEY); } catch {}
 }
 
 function nextPlannerMutationTimestamp(...candidates) {
@@ -2667,7 +2692,7 @@ function storeStateFromServer(payload, message) {
   lastServerUpdatedAt = payload.updatedAt || "";
   todaySliceCache.clear();
   invalidateCarryoverTaskCache();
-  localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+  writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
   queueDisplayCachePersist(state, 1200);
   queuePlannerBaseStatePersist(state, 900);
   saveStateMeta({ updatedAt: lastServerUpdatedAt, lastSavedAt: lastServerUpdatedAt, baseUpdatedAt: lastServerUpdatedAt, dirty: false, accountEmail: getAuthSession()?.email || "" });
@@ -2735,7 +2760,7 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
   const mergedState = mergePlannerStates(baseState || readPlannerBaseState() || remoteState, state, remoteState);
   state = mergedState;
   selectedSheetId = state.customSheets.activeId;
-  localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
+  writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
   persistDisplayCache();
   lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
   markLocalStateUpdated({

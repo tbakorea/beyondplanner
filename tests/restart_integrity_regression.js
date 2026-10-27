@@ -1,6 +1,6 @@
 // Run: node tests/restart_integrity_regression.js
 function runRestartIntegrityRegression(source) {
-  const names=["queuePlannerBaseStatePersist","writePlannerBaseState","readPlannerBaseState","saveState",
+  const names=["writePlannerCacheValue","queuePlannerBaseStatePersist","writePlannerBaseState","readPlannerBaseState","saveState",
     "resumePendingPlannerSave","hasCurrentRuntimeDirtyEdit","clonePlannerValue","plannerValuesEqual",
     "isPlainPlannerObject","mergePlannerValue","mergePlannerArrays","mapPlannerArrayByKey",
     "canMergePlannerArrayByKey","getPlannerArrayItemKey","getPlannerArrayCarryoverMergeKey",
