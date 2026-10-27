@@ -1868,6 +1868,10 @@ function saveCriticalPlannerAction(reason = "중요 변경 저장 중") {
   markDailyTaskMutation(2200);
   markPlannerInputEditing(900);
   markDailyFieldEditing(900);
+  // Count the committed in-memory edit before serializing the full planner.
+  // Invalidate first: carryover suppression changes as soon as a fork is edited.
+  invalidateCarryoverTaskCache();
+  refreshDailyStatusViews();
   saveState({ fastSave: true });
   if (accountSaveReady) window.setTimeout(() => flushPlannerSave(reason), 0);
   else scheduleAccountSave(120);
@@ -12193,7 +12197,8 @@ function mergeDuplicateDailyTaskState(target = {}, duplicate = {}) {
     duplicateLifecycleMs &&
     (!targetLifecycleMs || duplicateLifecycleMs >= targetLifecycleMs) &&
     taskLifecycleChanged(target, duplicate);
-  if (duplicateHasNewerLifecycle || getTaskResolutionRank(duplicate) > getTaskResolutionRank(target)) {
+  const useLegacyRank = !duplicateLifecycleMs && !targetLifecycleMs;
+  if (duplicateHasNewerLifecycle || (useLegacyRank && getTaskResolutionRank(duplicate) > getTaskResolutionRank(target))) {
     copyTaskLifecycleFields(target, duplicate);
   }
   if (!target.text?.trim() && duplicate.text?.trim()) target.text = duplicate.text;
@@ -12478,8 +12483,14 @@ function materializeCarryoverTask(taskRef, targetKey = iso(selectedDate)) {
   const forkKey = carryoverForkKey(taskRef, source);
   let targetPriority = getStoredTaskPriority(source.task, taskRef.priority || source.priority || "") || "A";
   let targetTask = null;
+  // Use the same identities as deduplication. Otherwise a new editable fork
+  // can be discarded in favour of an existing Money/repeat/project row.
+  const sourceIdentities = new Set(getDailyTaskDuplicateIdentities(source.task, source.priority, taskRef.date));
   priorities.some(([priority]) => {
-    targetTask = day.tasks[priority].find((task) => getTaskCarryoverRootKey(task) === forkKey);
+    targetTask = day.tasks[priority].find((task) =>
+      getTaskCarryoverRootKey(task) === forkKey ||
+      getDailyTaskDuplicateIdentities(task, priority, selectedKey).some((identity) => sourceIdentities.has(identity))
+    );
     targetPriority = targetTask ? priority : targetPriority;
     return Boolean(targetTask);
   });
@@ -12510,6 +12521,10 @@ function materializeCarryoverTask(taskRef, targetKey = iso(selectedDate)) {
   } else if (!targetTask.priorityUnset) {
     targetTask.priority = ["A", "B", "C"].includes(targetTask.priority) ? targetTask.priority : targetPriority;
   }
+  // Existing rows also need lineage so subsequent edits continue to resolve
+  // to this canonical target after the source has been suppressed.
+  targetTask.carryoverForkFrom ||= forkKey;
+  targetTask.carryoverSourceDate ||= taskRef.carryoverSourceDate || taskRef.date;
   source.task.carryoverDeletedFrom = selectedKey;
   stampTaskLifecycleMutation(source.task);
   return {
@@ -12671,7 +12686,7 @@ function updateCarryoverTaskMarker(taskRef, anchor = null, targetKey = iso(selec
   reflectTaskMarkerOnRow(anchor?.closest?.(".task-row"), source);
   showTaskCycleFeedback(anchor, feedback);
   saveCriticalPlannerAction("이월 우선업무 완료 상태 저장 중");
-  renderDayAfterTaskMutation();
+  renderDayAfterTaskMutation({ fastSummary: true });
 }
 
 function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDate)) {

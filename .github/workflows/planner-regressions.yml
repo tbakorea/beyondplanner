@@ -22,4 +22,5 @@ jobs:
       - run: node tests/resume_save_regression.js
       - run: node tests/save_reliability_regression.js
       - run: node tests/task_row_consistency_regression.js
+      - run: node tests/carryover_edit_regression.js
       - run: python -m unittest discover -s tests
