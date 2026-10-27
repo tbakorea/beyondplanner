@@ -1,6 +1,7 @@
 import base64
 import importlib.util
 import json
+import io
 import os
 import pathlib
 import unittest
@@ -53,6 +54,10 @@ class AuthOutageResilienceTests(unittest.TestCase):
             state_api.user_id_from_access_token("not-a-jwt")
         self.assertEqual(context.exception.code, 401)
         self.assertEqual(state_api.http_error_detail(context.exception), "로그인 세션을 확인할 수 없습니다.")
+
+    def test_empty_http_error_body_preserves_reason(self):
+        error = urllib.error.HTTPError("", 401, "로그인 세션을 확인할 수 없습니다.", {}, io.BytesIO(b""))
+        self.assertEqual(state_api.http_error_detail(error), "로그인 세션을 확인할 수 없습니다.")
 
     def test_state_read_does_not_call_auth_user_endpoint(self):
         token = jwt_for("user-123")

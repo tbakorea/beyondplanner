@@ -283,7 +283,9 @@ def extract_supabase_error(detail):
 
 def http_error_detail(exc):
     if getattr(exc, "fp", None) is not None:
-        return exc.read().decode("utf-8", "replace")
+        detail = exc.read().decode("utf-8", "replace")
+        if detail:
+            return detail
     return str(getattr(exc, "reason", "") or "")
 
 
