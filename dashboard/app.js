@@ -2055,6 +2055,10 @@ async function hydrateServerState(options = {}) {
 
 function mergeTodaySlicePayload(payload, dayKey) {
   if (!payload?.ready || !payload?.exists || !payload.day || typeof payload.day !== "object") return false;
+  // A date preview is never allowed to replace an unsaved checkbox edit or
+  // a newer canonical server state, even when navigating back to a cached day.
+  if (getStateMeta().dirty) return false;
+  if (lastServerUpdatedAt && (!payload.updatedAt || isTimestampNewer(lastServerUpdatedAt, payload.updatedAt))) return false;
   const preferences = clonePlannerValue(payload.preferences || {});
   ["days", "weeks", "finance", "projects"].forEach((key) => delete preferences[key]);
   Object.assign(state, preferences);
@@ -2065,6 +2069,7 @@ function mergeTodaySlicePayload(payload, dayKey) {
   if (payload.week && typeof payload.week === "object" && Object.keys(payload.week).length) {
     state.weeks[targetWeek] = normalizePlannerWeekRecord(clonePlannerValue(payload.week), targetWeek, state);
   }
+  invalidateCarryoverTaskCache();
   return true;
 }
 
@@ -2091,10 +2096,10 @@ async function hydrateTodaySlice(targetDate = selectedDate, options = {}) {
     if (!response.ok) return false;
     const payload = await response.json().catch(() => null);
     if (!payload?.ready || !payload?.exists) return false;
-    todaySliceCache.set(dayKey, payload);
     if (requestSeq !== todaySliceRequestSeq || plannerMutationSeq !== mutationSeq) return false;
     if (lastServerUpdatedAt && payload.updatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return false;
     if (!mergeTodaySlicePayload(payload, dayKey)) return false;
+    todaySliceCache.set(dayKey, payload);
     if (iso(selectedDate) === dayKey && options.render !== false) {
       renderStartupFrame({ forceLists: true, skipWeather: true });
       if (options.hideBoot) hideBootScreen(0);
@@ -2536,6 +2541,7 @@ function nextPlannerMutationTimestamp(...candidates) {
 
 function markLocalStateUpdated(extra = {}) {
   plannerMutationSeq += 1;
+  todaySliceCache.clear();
   invalidateCarryoverTaskCache();
   const meta = getStateMeta();
   const { updatedAt: explicitUpdatedAt, ...rest } = extra || {};
@@ -2615,6 +2621,7 @@ function storeStateFromServer(payload, message) {
   state = preparePlannerStateForPersistence(getPayloadPlannerState(payload) || migrateState(payload.state));
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
+  todaySliceCache.clear();
   invalidateCarryoverTaskCache();
   localStorage.setItem(plannerStorageKey(), JSON.stringify(state));
   queueDisplayCachePersist(state, 1200);
@@ -16073,7 +16080,9 @@ function syncMoneyTaskLinks() {
   state.finance ||= createFinanceState();
   normalizeFinanceState(state.finance);
   const expectedLinks = buildExpectedMoneyTaskLinks();
-  let changed = removeStaleMoneyTasks(expectedLinks);
+  // Relink first: stale cleanup must not discard the completion record when
+  // the ledger's due date changes.
+  let changed = false;
   expectedLinks.forEach((link) => {
     if (isFinanceTaskDeletedForDate(link.id, link.date)) return;
     const existing = findFinanceLinkedTaskAt(link.id, link.date);
@@ -16084,7 +16093,7 @@ function syncMoneyTaskLinks() {
     linkMoneyItemToTask(link.item, link.monthKey, link.id, link.fixed);
     changed = true;
   });
-  return changed;
+  return removeStaleMoneyTasks(expectedLinks) || changed;
 }
 
 function buildExpectedMoneyTaskLinks() {
@@ -16115,6 +16124,7 @@ function removeStaleMoneyTasks(expectedLinks) {
       const tasks = day.tasks?.[priority] || [];
       const filtered = tasks.filter((task) => {
         if (task.financeSeriesDeletedFrom && dayKey < task.financeSeriesDeletedFrom) return true;
+        if (isHistoricalFixedMoneyTask(task, dayKey) && !isFinanceTaskDeletedForDate(task.financeItemId, dayKey)) return true;
         if (!task.financeItemId) {
           const keepLegacy = shouldKeepLegacyFixedMoneyTask(task, dayKey);
           if (!keepLegacy) {
@@ -16144,7 +16154,8 @@ function shouldKeepLegacyFixedMoneyTask(task = {}, dayKey = "") {
     if (!item.title?.trim()) return false;
     if (!sameMoneyTitle(item.title, title)) return false;
     const key = monthKey(parseDate(dayKey));
-    return isFixedMoneyActiveForMonth(item, key) && getMoneyItemDate(item, key) === dayKey;
+    return getMoneyItemDate(item, key) === dayKey
+      && (dayKey < fixedMoneyTaskWindow().start || isFixedMoneyActiveForMonth(item, key));
   });
 }
 
@@ -16208,8 +16219,27 @@ function openMoneyFromFinanceTask(financeItemId = "") {
   window.requestAnimationFrame(() => document.getElementById("view-notes")?.scrollIntoView({ block: "start" }));
 }
 
+function isHistoricalFixedMoneyTask(task, dayKey) {
+  if (!task.financeItemId || dayKey >= fixedMoneyTaskWindow().start) return false;
+  if (task.carryoverSourceDate || task.carryoverForkFrom) return false;
+  return (state.finance?.fixed || []).some((item) => task.financeItemId === `${item.id}-${dayKey.slice(0, 7)}`);
+}
+
+function findMoneyTaskToPreserve(linkId, targetDate) {
+  const candidates = Object.entries(state.days || {})
+    .sort(([a], [b]) => Number(b === targetDate) - Number(a === targetDate) || a.localeCompare(b))
+    .flatMap(([, day]) => priorities.flatMap(([priority]) =>
+      (day.tasks?.[priority] || []).filter((task) => task.financeItemId === linkId).map((task) => ({ task, priority })),
+    ));
+  if (!candidates.length) return null;
+  const task = clonePlannerValue(candidates[0].task);
+  candidates.slice(1).forEach((candidate) => mergeDuplicateDailyTaskState(task, candidate.task));
+  return { task, priority: task.priority || candidates[0].priority };
+}
+
 function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
   const targetDate = getMoneyItemDate(item, key);
+  const preserved = findMoneyTaskToPreserve(linkId, targetDate);
   removeFinanceLinkedTask(linkId);
   if (!targetDate || !item.title?.trim()) {
     item.taskDate = "";
@@ -16220,28 +16250,36 @@ function linkMoneyItemToTask(item, key, linkId = item.id, fixed = false) {
     return;
   }
   const targetDay = ensureDay(targetDate);
-  const targetPriority = item.type === "수입" ? "B" : "A";
+  const targetPriority = preserved && ["A", "B", "C"].includes(preserved.priority)
+    ? preserved.priority : item.type === "수입" ? "B" : "A";
   const taskText = buildMoneyTaskText(item, fixed);
-  const existing = targetDay.tasks[targetPriority].find((task) => task.financeItemId === linkId);
-  const targetTask = existing || targetDay.tasks[targetPriority].find((task) => !task.text?.trim());
-  const task = targetTask || setTaskCompletionState({ text: "", status: "미완료", priorityUnset: false }, false);
+  const task = preserved?.task || setTaskCompletionState({ id: newTaskId(), text: "", status: "미완료", priorityUnset: false }, false);
   task.text = taskText;
-  task.status = isTaskCompleted(item) ? "완료" : "미완료";
-  setTaskCompletionState(task, isTaskCompleted(item));
-  task.priorityUnset = false;
+  // Ledger rows do not own the daily task's completion / delegation lifecycle.
+  // Only initialize that lifecycle for a genuinely new occurrence.
+  if (!preserved) {
+    task.status = isTaskCompleted(item) ? "완료" : "미완료";
+    setTaskCompletionState(task, isTaskCompleted(item));
+  }
+  task.id ||= newTaskId();
+  if (!preserved) task.priorityUnset = false;
+  task.priority = targetPriority;
   task.financeItemId = linkId;
   if (!Number.isFinite(Number(task.order))) assignTaskOrder(targetDay, task);
-  if (!existing && !targetDay.tasks[targetPriority].includes(task)) targetDay.tasks[targetPriority].push(task);
+  targetDay.tasks[targetPriority].push(task);
   syncTaskTimeHintToSchedule(task, targetDay, { dayKey: targetDate });
   item.taskDate = targetDate;
 }
 
 function linkFixedMoneyItemToTasks(item) {
-  removeFinanceLinkedTask(item.id, true);
-  if (!item.title?.trim() || !Number(item.dueDay)) return;
+  if (!item.title?.trim() || !Number(item.dueDay)) {
+    removeFinanceLinkedTask(item.id, true);
+    return;
+  }
   fixedMoneyTaskMonthKeys().forEach((key) => {
     if (isFixedMoneyActiveForMonth(item, key)) linkMoneyItemToTask(item, key, `${item.id}-${key}`, true);
   });
+  removeStaleMoneyTasks(buildExpectedMoneyTaskLinks());
 }
 
 function isFixedMoneyActiveForMonth(item, key) {
