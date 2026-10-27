@@ -198,20 +198,34 @@ def save_planner_state(token, state, payload):
             "updated_at": updated_at,
         }
     ]
+    # Compare the revision inside the UPDATE itself. A separate GET followed
+    # by an unconditional upsert allows two devices to overwrite one another.
+    endpoint = f"{supabase_url}/rest/v1/planner_states"
+    method = "POST"
+    if existing.get("exists"):
+        encoded_user = urllib.parse.quote(str(user_id), safe="")
+        encoded_revision = urllib.parse.quote(existing_updated_at, safe="")
+        endpoint += f"?user_id=eq.{encoded_user}&updated_at=eq.{encoded_revision}"
+        method = "PATCH"
     request = urllib.request.Request(
-        f"{supabase_url}/rest/v1/planner_states?on_conflict=user_id",
-        data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        endpoint,
+        data=json.dumps(body[0] if method == "PATCH" else body, ensure_ascii=False).encode("utf-8"),
         headers={
             "apikey": anon_key,
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates,return=representation",
+            "Prefer": "return=representation",
         },
-        method="POST",
+        method=method,
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         rows = json.loads(response.read().decode("utf-8") or "[]")
-    saved = rows[0] if rows else {}
+    if not rows:
+        latest = get_planner_state(token)
+        return {"ok": True, "stale": True, "conflict": True,
+                "state": latest.get("state"), "updatedAt": latest.get("updatedAt") or "",
+                "storage": "supabase-db"}
+    saved = rows[0]
     saved_updated_at = saved.get("updated_at") or updated_at
     slices_synced = False
     active_day = valid_iso_date(payload.get("activeDate"))

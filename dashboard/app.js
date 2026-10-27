@@ -1938,6 +1938,7 @@ function plannerStateFetchUrl(options = {}) {
 
 function applyServerNotModifiedPayload(payload = {}, message = "저장됨") {
   const updatedAt = payload.updatedAt || knownServerStateUpdatedAt();
+  if (lastServerUpdatedAt && updatedAt && isTimestampNewer(lastServerUpdatedAt, updatedAt)) return;
   const localMeta = getStateMeta();
   accountSaveReady = true;
   saveStatus.ready = true;
@@ -1982,6 +1983,7 @@ async function hydrateServerState(options = {}) {
     const response = await fetchWithTimeout(plannerStateFetchUrl({ forceFull }), { cache: "no-store", headers: authStateHeaders() }, STATE_FETCH_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
+    if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return;
     accountSaveReady = true;
     saveStatus.ready = true;
     if (payload.notModified) {
@@ -2337,6 +2339,10 @@ async function persistStateToServer(options = {}) {
       : await fetchWithTimeout("/api/state", requestOptions, STATE_SAVE_TIMEOUT_MS);
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json().catch(() => ({}));
+    if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) {
+      if (hasPendingPlannerSave()) scheduleAccountSave(120);
+      return;
+    }
     if (payload.stale) {
       const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
       lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
@@ -2484,6 +2490,7 @@ async function pullServerStateIfNewer(options = {}) {
       return;
     }
     if (!payload.exists || !payload.state || !payload.updatedAt) return;
+    if (lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return;
     if (!options.force && lastServerUpdatedAt && !isTimestampNewer(payload.updatedAt, lastServerUpdatedAt)) return;
     const latestMeta = getStateMeta();
     const hasUnsavedEditing = Boolean(latestMeta.dirty && isAnyPlannerInputEditing());
@@ -2618,6 +2625,7 @@ function hasPendingPlannerSave(meta = getStateMeta()) {
 }
 
 function storeStateFromServer(payload, message) {
+  if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return;
   state = preparePlannerStateForPersistence(getPayloadPlannerState(payload) || migrateState(payload.state));
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
@@ -2635,6 +2643,9 @@ function hasRuntimeLocalEditSince(sequence = plannerMutationSeq) {
 }
 
 function queueIncomingServerStateMerge(payload, baseState, message = "입력 완료 후 최신 데이터 병합") {
+  if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return true;
+  if (pendingServerStateMerge?.payload?.updatedAt && payload.updatedAt
+      && isTimestampNewer(pendingServerStateMerge.payload.updatedAt, payload.updatedAt)) return true;
   const remoteState = getPayloadPlannerState(payload);
   if (!remoteState) return false;
   if (!isAnyPlannerInputEditing()) {
@@ -2669,6 +2680,7 @@ function applyPendingServerStateMerge() {
 }
 
 function mergeIncomingServerStateNow(payload, baseState, message = "최신 데이터 병합 저장 중") {
+  if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return false;
   const remoteState = getPayloadPlannerState(payload);
   if (!remoteState) return false;
   const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt || "";
@@ -3078,7 +3090,11 @@ async function refreshServerStateAfterResume() {
   window.clearTimeout(accountSaveTimer);
   if (longSuspend && meta.dirty) {
     preserveSuspendedPlannerSnapshot("잠자기 해제 전 로컬 상태");
-    saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+    // Edits made by this live session remain pending across sleep. Only an
+    // untouched cache from a previous session yields to the canonical DB row.
+    if (!hasCurrentRuntimeDirtyEdit(meta)) {
+      saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
+    }
   }
 
   resumeServerValidationPending = true;
