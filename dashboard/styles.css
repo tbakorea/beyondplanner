@@ -24313,3 +24313,85 @@ body.classic-mode.day-view-active #dayTitle {
   overflow-wrap: anywhere;
 }
 .planner-connection-status[hidden] { display: none; }
+
+/* The fixed header is already reserved by body padding. Do not reserve it twice. */
+@media (max-width: 640px) {
+  /* Old two-row header rules reserved 128px after navigation moved below. */
+  :root { --app-header-height: 72px !important; }
+  .app-header,
+  body.ceo-mode .app-header,
+  body.classic-mode .app-header {
+    box-sizing: border-box !important;
+    height: 72px !important;
+    min-height: 72px !important;
+    max-height: 72px !important;
+  }
+  .app-shell,
+  body.ceo-mode .app-shell,
+  body.classic-mode .app-shell {
+    padding-top: 4px !important;
+  }
+
+  /* Keep live announcements, without inserting a row while saving/checking. */
+  .planner-connection-status[data-save-state="saving"],
+  .planner-connection-status[data-save-state="waiting"] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .quick-strip > .top-status .manage-menu-button[data-save-state="saving"],
+  .quick-strip > .top-status .manage-menu-button[data-save-state="waiting"] {
+    color: #8a4b0c !important;
+    background: #fff0ce !important;
+  }
+
+  .quick-strip > .top-status .manage-menu-button[data-save-state="saving"] .manage-combo-icon,
+  .quick-strip > .top-status .manage-menu-button[data-save-state="waiting"] .manage-combo-icon {
+    position: relative !important;
+    box-sizing: border-box;
+    width: 20px !important;
+    height: 20px !important;
+    border: 2px solid currentColor;
+    border-radius: 50%;
+    background: none !important;
+  }
+
+  .manage-menu-button[data-save-state="saving"] .manage-combo-icon::before,
+  .manage-menu-button[data-save-state="waiting"] .manage-combo-icon::before {
+    content: "";
+    position: absolute;
+    left: 7px;
+    top: 2px;
+    width: 5px;
+    height: 7px;
+    border-left: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform-origin: 1px 6px;
+    animation: planner-clock-tick 1.4s linear infinite;
+  }
+
+  .quick-strip > .top-status .manage-menu-button[data-save-state="saving"] .manage-menu-label,
+  .quick-strip > .top-status .manage-menu-button[data-save-state="waiting"] .manage-menu-label {
+    display: none !important;
+  }
+  .manage-menu-button[data-save-state="saving"]::after,
+  .manage-menu-button[data-save-state="waiting"]::after {
+    font-size: 11px;
+    font-weight: 850;
+    line-height: 1;
+  }
+  .manage-menu-button[data-save-state="saving"]::after { content: "저장 중"; }
+  .manage-menu-button[data-save-state="waiting"]::after { content: "확인 중"; }
+}
+
+@keyframes planner-clock-tick { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .manage-menu-button .manage-combo-icon::before { animation: none !important; }
+}

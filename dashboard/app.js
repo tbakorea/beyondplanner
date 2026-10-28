@@ -6665,6 +6665,7 @@ function renderPlannerSaveStatus() {
       : fullStatusText === "저장됨" && !dirty ? "saved" : "waiting";
     const connectionStatus = el("plannerConnectionStatus");
     if (connectionStatus) {
+      connectionStatus.dataset.saveState = saveState;
       connectionStatus.hidden = saveState === "saved";
       connectionStatus.textContent = fullStatusText;
     }
