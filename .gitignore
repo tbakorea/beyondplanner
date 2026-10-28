@@ -10,3 +10,6 @@ __pycache__/
 planner-state.json
 planner-state.*.json
 tools/
+node_modules/
+playwright-report/
+test-results/
