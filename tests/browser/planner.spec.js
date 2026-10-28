@@ -21,6 +21,14 @@ test('header, tasks and navigation remain reachable', async ({context,page}, inf
   if(size.width<=640) expect(date.y-header.y-header.height).toBeLessThanOrEqual(12);
   expect(nav.x).toBeGreaterThanOrEqual(-1);
   expect(nav.x+nav.width).toBeLessThanOrEqual(size.width+1);
+  const brand=await page.locator('.brand-row h1').boundingBox();
+  const clock=await page.locator('#headerSaveClock').boundingBox();
+  const coach=await page.locator('#coachBubble').boundingBox();
+  expect(clock.x).toBeGreaterThanOrEqual(brand.x+brand.width-1);
+  expect(clock.x+clock.width).toBeLessThanOrEqual(coach.x+1);
+  expect(clock.y).toBeGreaterThanOrEqual(header.y);
+  expect(clock.y+clock.height).toBeLessThanOrEqual(header.y+header.height+1);
+  await expect(page.locator('#headerSaveClock')).toHaveAttribute('data-save-state','saved');
   const inputs=page.locator('.day-task-panel .task-text-input');
   let visible=0;
   for(let i=0;i<await inputs.count();i++) {
@@ -36,9 +44,9 @@ test('edit, completion, animated save and new browser context preserve server da
   await request.post('/qa/delay',{data:{seconds:2}});
   const input=page.locator('.day-task-panel .task-text-input').first();
   await input.fill('QA 수정 완료'); await input.blur();
-  await expect(page.locator('.manage-menu-button')).toHaveAttribute('data-save-state','saving');
+  await expect(page.locator('#headerSaveClock')).toHaveAttribute('data-save-state','saving');
   if(page.viewportSize().width<=640) {
-    const clock=page.locator('.manage-combo-icon');
+    const clock=page.locator('.save-clock-face');
     expect(await clock.evaluate(el=>getComputedStyle(el,'::before').animationName)).toBe('planner-clock-tick');
     await page.screenshot({path:info.outputPath('saving-clock.png')});
   }

@@ -24395,3 +24395,74 @@ body.classic-mode.day-view-active #dayTitle {
 @media (prefers-reduced-motion: reduce) {
   .manage-menu-button .manage-combo-icon::before { animation: none !important; }
 }
+
+/* Save state belongs beside the brand and AI button on every screen size. */
+.app-header .brand-row { display: flex !important; align-items: center !important; }
+.app-header #coachBubble {
+  position: relative !important;
+  top: auto !important;
+  right: auto !important;
+  transform: none !important;
+  flex-shrink: 0 !important;
+}
+#headerSaveClock {
+  display: inline-flex;
+  position: relative;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  margin-left: auto;
+  color: #8a4b0c;
+  background: #fff0ce;
+  border-radius: 50%;
+}
+#headerSaveClock .save-clock-face {
+  position: relative;
+  box-sizing: border-box;
+  width: 22px;
+  height: 22px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+}
+#headerSaveClock .save-clock-face::before {
+  content: "";
+  position: absolute;
+  left: 8px;
+  top: 2px;
+  width: 6px;
+  height: 8px;
+  border-left: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform-origin: 1px 7px;
+}
+#headerSaveClock[data-save-state="saving"] .save-clock-face::before,
+#headerSaveClock[data-save-state="waiting"] .save-clock-face::before {
+  animation: planner-clock-tick 1.4s linear infinite;
+}
+#headerSaveClock[data-save-state="saved"] { color: #245842; background: #eaf3ec; }
+#headerSaveClock[data-save-state="alert"] { color: #ad3029; background: #fff0ed; }
+#headerSaveClock[data-save-state="saved"]::after,
+#headerSaveClock[data-save-state="alert"]::after {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: currentColor;
+  color: white;
+  font: 900 11px/14px sans-serif;
+  text-align: center;
+}
+#headerSaveClock[data-save-state="saved"]::after { content: "✓"; background: #245842; }
+#headerSaveClock[data-save-state="alert"]::after { content: "!"; background: #ad3029; }
+.quick-strip > .top-status #topSaveStatus.save-status-pill { display: none !important; }
+@media (max-width: 640px) {
+  .app-header .brand-row { width: 100% !important; gap: 8px !important; padding-right: 0 !important; }
+  .app-header .brand-row h1 { min-width: 0 !important; flex-shrink: 1 !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #headerSaveClock .save-clock-face::before { animation: none !important; }
+}

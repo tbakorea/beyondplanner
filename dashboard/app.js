@@ -6664,6 +6664,12 @@ function renderPlannerSaveStatus() {
       : /실패|오류|필요|로그인|차단|부족/.test(fullStatusText) ? "alert"
       : fullStatusText === "저장됨" && !dirty ? "saved" : "waiting";
     const connectionStatus = el("plannerConnectionStatus");
+    const headerClock = el("headerSaveClock");
+    if (headerClock) {
+      headerClock.dataset.saveState = saveState;
+      headerClock.title = fullStatusText;
+      headerClock.setAttribute("aria-label", `저장 상태: ${fullStatusText}`);
+    }
     if (connectionStatus) {
       connectionStatus.dataset.saveState = saveState;
       connectionStatus.hidden = saveState === "saved";
@@ -6676,7 +6682,7 @@ function renderPlannerSaveStatus() {
     saveStatusNode.classList.toggle("is-warning", saveStatusNode.dataset.saveState === "alert" || saveStatusNode.dataset.saveState === "waiting");
     const manageSummary = document.querySelector(".top-more-menu summary.manage-menu-button");
     if (manageSummary) {
-      manageSummary.dataset.saveState = saveState;
+      manageSummary.removeAttribute("data-save-state");
       manageSummary.title = `관리 메뉴 · 저장 상태: ${fullStatusText || "확인 중"}`;
       manageSummary.setAttribute("aria-label", `관리 메뉴, 저장 상태: ${fullStatusText || "확인 중"}`);
     }
