@@ -29,6 +29,18 @@ test('header, tasks and navigation remain reachable', async ({context,page}, inf
   expect(clock.y).toBeGreaterThanOrEqual(header.y);
   expect(clock.y+clock.height).toBeLessThanOrEqual(header.y+header.height+1);
   await expect(page.locator('#headerSaveClock')).toHaveAttribute('data-save-state','saved');
+  const dateFont=await page.locator('#dayTitle').evaluate(el=>getComputedStyle(el).fontSize);
+  for (const id of ['dailyPrevDay','dailyNextDay']) {
+    const box=await page.locator('#'+id).boundingBox();
+    expect(box.width).toBeGreaterThanOrEqual(size.width<=640?44:52);
+  }
+  await expect.poll(()=>page.locator('#dayTitle').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy();
+  await page.locator('#dailyPrevDay').click();
+  await expect(page.locator('#dailyDateSwipeZone')).not.toHaveClass(/is-current-day/);
+  expect(await page.locator('#dayTitle').evaluate(el=>getComputedStyle(el).fontSize)).toBe(dateFont);
+  expect(await page.locator('#dayTitle').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy();
+  await page.locator('#dailyNextDay').click();
+  await expect(page.locator('#dailyDateSwipeZone')).toHaveClass(/is-current-day/);
   const inputs=page.locator('.day-task-panel .task-text-input');
   let visible=0;
   for(let i=0;i<await inputs.count();i++) {

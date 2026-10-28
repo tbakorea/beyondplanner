@@ -24466,3 +24466,53 @@ body.classic-mode.day-view-active #dayTitle {
 @media (prefers-reduced-motion: reduce) {
   #headerSaveClock .save-clock-face::before { animation: none !important; }
 }
+
+/* Broader date arrows; the date's font rules remain unchanged. */
+body.day-view-active #dailyDateSwipeZone {
+  --day-arrow-width: 52px;
+  grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) minmax(76px, max-content) !important;
+}
+body.day-view-active #dailyDateSwipeZone.is-current-day {
+  grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) !important;
+}
+#dailyDateSwipeZone #dailyPrevDay,
+#dailyDateSwipeZone #dailyNextDay {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: var(--day-arrow-width) !important;
+  min-width: var(--day-arrow-width) !important;
+  padding-inline: 0 !important;
+  border: 1px solid rgba(36, 70, 54, 0.16) !important;
+  border-radius: 11px !important;
+  color: #234c3a !important;
+  background: linear-gradient(180deg, #fffefa, #f0f3ed) !important;
+  box-shadow: 0 2px 5px rgba(31, 58, 49, 0.06) !important;
+  transition: background 120ms, box-shadow 120ms;
+}
+#dailyDateSwipeZone #dailyPrevDay:active,
+#dailyDateSwipeZone #dailyNextDay:active {
+  background: #e4ece3 !important;
+  box-shadow: inset 0 1px 3px rgba(31, 58, 49, 0.12) !important;
+}
+#dailyDateSwipeZone button svg {
+  display: block;
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+@media (max-width: 640px) {
+  body.day-view-active #dailyDateSwipeZone {
+    --day-arrow-width: clamp(32px, calc(100vw - 354px), 44px);
+    grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) minmax(42px, max-content) !important;
+  }
+  body.day-view-active #dailyDateSwipeZone.is-current-day {
+    --day-arrow-width: clamp(32px, calc(100vw - 346px), 48px);
+    grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) !important;
+  }
+  #dailyDateSwipeZone button svg { width: 23px; height: 23px; }
+}
