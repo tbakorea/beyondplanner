@@ -58,3 +58,20 @@ test('edit, completion, animated save and new browser context preserve server da
   await expect(reopened.locator('.day-task-panel .task-row').first()).toHaveClass(/done/);
   await fresh.close();
 });
+
+test('two independent browsers merge overlapping saves without reverting unrelated edits', async ({browser,context,page,request},info) => {
+  await open(context,page);
+  const other=await browser.newContext({...info.project.use,timezoneId:'Asia/Seoul'});
+  const second=await other.newPage(); await open(other,second);
+  await request.post('/qa/delay',{data:{seconds:2}});
+  const left=page.locator('.day-task-panel .task-text-input').nth(0);
+  const right=second.locator('.day-task-panel .task-text-input').nth(1);
+  await Promise.all([left.fill('QA 첫 브라우저 수정'),right.fill('QA 두 번째 브라우저 수정')]);
+  await Promise.all([left.blur(),right.blur()]);
+  await Promise.all([page,second].map(p=>expect(p.locator('#topSaveStatus')).toHaveAttribute('data-save-state','saved',{timeout:45000})));
+  await expect.poll(async()=>{
+    const data=await (await request.get('/qa/snapshot')).json();
+    return Object.values(data.state.days).flatMap(d=>Object.values(d.tasks||{}).flat()).map(t=>t.text);
+  },{timeout:15000}).toEqual(expect.arrayContaining(['QA 첫 브라우저 수정','QA 두 번째 브라우저 수정']));
+  await other.close();
+});
