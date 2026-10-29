@@ -101,7 +101,13 @@ test('two independent browsers merge overlapping saves without reverting unrelat
   await open(context,page);
   const other=await browser.newContext({...info.project.use,timezoneId:'Asia/Seoul'});
   const second=await other.newPage(); await open(other,second);
-  await request.post('/qa/delay',{data:{seconds:2}});
+  await request.post('/qa/delay',{data:{seconds:4}});
+  const conflictReplies=[];
+  for(const p of [page,second]) p.on('response',response=>{
+    if(new URL(response.url()).pathname==='/api/state' && response.request().method()==='POST') {
+      conflictReplies.push(response.json().then(body=>body.stale===true));
+    }
+  });
   const left=page.locator('.day-task-panel .task-text-input').nth(0);
   const right=second.locator('.day-task-panel .task-text-input').nth(1);
   // Finish each editing gesture before switching the automation keyboard to
@@ -115,6 +121,7 @@ test('two independent browsers merge overlapping saves without reverting unrelat
     const data=await (await request.get('/qa/snapshot')).json();
     return Object.values(data.state.days).flatMap(d=>Object.values(d.tasks||{}).flat()).map(t=>t.text);
   },{timeout:15000}).toEqual(expect.arrayContaining(['QA 첫 브라우저 수정','QA 두 번째 브라우저 수정']));
+  expect((await Promise.all(conflictReplies)).some(Boolean)).toBeTruthy();
   await other.close();
 });
 
