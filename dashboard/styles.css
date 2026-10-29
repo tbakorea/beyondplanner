@@ -24468,6 +24468,9 @@ body.classic-mode.day-view-active #dayTitle {
 }
 
 /* Broader date arrows; the date's font rules remain unchanged. */
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  body.day-view-active #dailyDateSwipeZone { --day-arrow-width: 104px !important; }
+}
 body.day-view-active #dailyDateSwipeZone {
   --day-arrow-width: 52px;
   grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) minmax(76px, max-content) !important;

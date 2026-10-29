@@ -32,7 +32,7 @@ test('header, tasks and navigation remain reachable', async ({context,page}, inf
   const dateFont=await page.locator('#dayTitle').evaluate(el=>getComputedStyle(el).fontSize);
   for (const id of ['dailyPrevDay','dailyNextDay']) {
     const box=await page.locator('#'+id).boundingBox();
-    expect(box.width).toBeGreaterThanOrEqual(size.width<=640?44:52);
+    expect(box.width).toBeGreaterThanOrEqual(info.project.name==='desktop'?104:size.width<=640?44:52);
   }
   await expect.poll(()=>page.locator('#dayTitle').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy();
   await page.locator('#dailyPrevDay').click();
