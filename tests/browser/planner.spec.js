@@ -95,3 +95,33 @@ test('two independent browsers merge overlapping saves without reverting unrelat
   },{timeout:15000}).toEqual(expect.arrayContaining(['QA 첫 브라우저 수정','QA 두 번째 브라우저 수정']));
   await other.close();
 });
+
+test('phone navigation never covers task or schedule headers while lists scroll', async ({context,page},info) => {
+  test.skip(info.project.use.viewport.width>640,'Phone-specific overlapping navigation regression');
+  await open(context,page);
+  const check=async()=>{
+    const date=await page.locator('.daily-title').boundingBox();
+    const pulse=await page.locator('#dailyPulseZone').boundingBox();
+    expect(pulse.y).toBeGreaterThanOrEqual(date.y+date.height);
+    for(const selector of ['.day-task-panel > h3','.day-schedule-panel > h3']) {
+      const title=page.locator(selector), box=await title.boundingBox();
+      expect(box.y).toBeGreaterThanOrEqual(pulse.y+pulse.height);
+      expect(await title.evaluate(el=>{
+        const r=el.getBoundingClientRect();
+        return el.contains(document.elementFromPoint(r.x+Math.min(20,r.width/2),r.y+r.height/2));
+      })).toBeTruthy();
+    }
+    const bottom=await page.locator('.quick-strip').boundingBox();
+    for(const id of ['taskBoard','appointmentList']) {
+      const list=await page.locator('#'+id).boundingBox();
+      expect(list.y+list.height).toBeLessThanOrEqual(bottom.y+1);
+    }
+  };
+  await check();
+  await page.locator('#dailyNextDay').click();
+  await expect(page.locator('#dailyDateSwipeZone')).not.toHaveClass(/is-current-day/);
+  await check();
+  for(const id of ['taskBoard','appointmentList']) await page.locator('#'+id).evaluate(el=>{el.scrollTop=200;});
+  await check();
+  await page.screenshot({path:info.outputPath('phone-lists-below-navigation.png')});
+});

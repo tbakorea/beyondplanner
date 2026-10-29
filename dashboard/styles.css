@@ -24519,3 +24519,110 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
   }
   #dailyDateSwipeZone button svg { width: 23px; height: 23px; }
 }
+
+/* Phone Today: one flow owns the date, page navigation and remaining workspace.
+   Neither fixed navigation nor desktop panel rules may cover the list headers. */
+@media (max-width: 640px) {
+  body.day-view-active .app-shell {
+    box-sizing: border-box !important;
+    height: calc(100dvh - var(--app-header-height) - 74px - env(safe-area-inset-bottom)) !important;
+    min-height: 0 !important;
+    padding-top: 4px !important;
+    padding-bottom: 0 !important;
+    overflow: hidden !important;
+  }
+  body.day-view-active #view-day.active {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 6px !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  #view-day > .daily-title,
+  #view-day > #dailyPulseZone {
+    position: relative !important;
+    inset: auto !important;
+    transform: none !important;
+    margin: 0 !important;
+  }
+  #view-day > .daily-title {
+    flex: 0 0 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    max-height: 44px !important;
+  }
+  #view-day > #dailyPulseZone {
+    flex: 0 0 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 40px !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  #dailyPulseZone > button {
+    height: 36px !important;
+    min-height: 36px !important;
+    max-height: 36px !important;
+  }
+  #view-day > #daySwipe,
+  #view-day > #daySwipe.is-mobile-focus-active {
+    position: relative !important;
+    inset: auto !important;
+    display: flex !important;
+    flex: 1 1 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+  }
+  #daySwipe > .swipe-panel {
+    box-sizing: border-box !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  #daySwipe > .day-main-panel {
+    display: grid !important;
+    overflow: hidden !important;
+  }
+  #daySwipe > .day-main-panel:not(.is-focus-tasks):not(.is-focus-schedule) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  #daySwipe .day-main-panel > .panel {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  #daySwipe .day-main-panel > .panel > .panel-title-row {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 auto !important;
+    min-height: 40px !important;
+    margin: 0 !important;
+    padding: 5px 6px !important;
+  }
+  #daySwipe #taskBoard,
+  #daySwipe #appointmentList {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 16px !important;
+    scroll-padding-top: 4px !important;
+    scroll-padding-bottom: 16px !important;
+  }
+}
