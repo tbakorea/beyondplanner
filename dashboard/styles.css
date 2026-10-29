@@ -24634,3 +24634,40 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
     scroll-padding-bottom: 16px !important;
   }
 }
+
+/* Desktop arrows frame the whole date area, immediately before the score. */
+@media (min-width: 761px) and (hover: hover) and (pointer: fine) {
+  #view-day .daily-heading {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding-inline: 0 !important;
+    justify-self: stretch !important;
+  }
+  #view-day .daily-heading > .eyebrow { display: none !important; }
+  body.day-view-active #dailyDateSwipeZone {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: none !important;
+    padding-inline: 0 !important;
+    grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) minmax(60px, max-content) var(--day-arrow-width) !important;
+    justify-self: stretch !important;
+    justify-content: stretch !important;
+  }
+  #dailyDateSwipeZone #dailyPrevDay { grid-column: 1 !important; grid-row: 1 !important; }
+  #dailyDateSwipeZone #dailyCalendarToggle {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  #dailyDateSwipeZone #dailyTodayButton { grid-column: 3 !important; grid-row: 1 !important; }
+  #dailyDateSwipeZone #dailyNextDay { grid-column: 4 !important; grid-row: 1 !important; justify-self: end !important; }
+  body.day-view-active #dailyDateSwipeZone.is-current-day {
+    grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) !important;
+  }
+  #dailyDateSwipeZone.is-current-day #dailyTodayButton { display: none !important; }
+  #dailyDateSwipeZone.is-current-day #dailyNextDay { grid-column: 3 !important; }
+}

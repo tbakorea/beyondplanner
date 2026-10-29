@@ -9,6 +9,7 @@ module.exports = defineConfig({
     { name: 'iphone-large', use: { browserName: 'webkit', viewport: {width:430,height:932}, isMobile:true, hasTouch:true } },
     { name: 'ipad', use: { browserName: 'webkit', viewport: {width:768,height:1024}, isMobile:true, hasTouch:true } },
     { name: 'desktop', use: { browserName: 'chromium', viewport: {width:1366,height:900} } },
+    { name: 'desktop-compact-ceo', metadata: { plannerMode: 'ceo' }, use: { browserName: 'chromium', viewport: {width:900,height:1000} } },
   ],
   webServer: { command: 'python3 tests/browser/server.py', port:8765, reuseExistingServer:false },
 });

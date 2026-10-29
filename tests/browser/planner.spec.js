@@ -1,6 +1,7 @@
 const { test, expect } = require('@playwright/test');
 const session = { email:'browser-qa@example.test', provider:'supabase', accessToken:'isolated-fixture-only', tier:'ceo', expiresAt:4102444800 };
 async function open(context, page) {
+  if(test.info().project.metadata.plannerMode) await context.addInitScript(mode=>localStorage.setItem('beyondWorkMode',mode),test.info().project.metadata.plannerMode);
   await context.addInitScript(s => {
     if (!localStorage.getItem('beyondWorkAuthSession.v1')) localStorage.setItem('beyondWorkAuthSession.v1', JSON.stringify(s));
   }, session);
@@ -32,7 +33,7 @@ test('header, tasks and navigation remain reachable', async ({context,page}, inf
   const dateFont=await page.locator('#dayTitle').evaluate(el=>getComputedStyle(el).fontSize);
   for (const id of ['dailyPrevDay','dailyNextDay']) {
     const box=await page.locator('#'+id).boundingBox();
-    expect(box.width).toBeGreaterThanOrEqual(info.project.name==='desktop'?104:size.width<=640?44:52);
+    expect(box.width).toBeGreaterThanOrEqual(info.project.name.startsWith('desktop')?104:size.width<=640?44:52);
   }
   await expect.poll(()=>page.locator('#dayTitle').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy();
   await page.locator('#dailyPrevDay').click();
@@ -41,6 +42,23 @@ test('header, tasks and navigation remain reachable', async ({context,page}, inf
   expect(await page.locator('#dayTitle').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy();
   await page.locator('#dailyNextDay').click();
   await expect(page.locator('#dailyDateSwipeZone')).toHaveClass(/is-current-day/);
+  if(info.project.name.startsWith('desktop')) {
+    const edges=async()=>{
+      const zone=await page.locator('#dailyDateSwipeZone').boundingBox();
+      const heading=await page.locator('.daily-heading').boundingBox();
+      const previous=await page.locator('#dailyPrevDay').boundingBox();
+      const next=await page.locator('#dailyNextDay').boundingBox();
+      expect(Math.abs(previous.x-heading.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(next.x+next.width-heading.x-heading.width)).toBeLessThanOrEqual(2);
+      expect(zone.width).toBeGreaterThanOrEqual(heading.width-2);
+    };
+    await edges();
+    await page.locator('#dailyPrevDay').click();
+    await expect(page.locator('#dailyDateSwipeZone')).not.toHaveClass(/is-current-day/);
+    await edges();
+    await page.locator('#dailyNextDay').click();
+    await expect(page.locator('#dailyDateSwipeZone')).toHaveClass(/is-current-day/);
+  }
   const inputs=page.locator('.day-task-panel .task-text-input');
   let visible=0;
   for(let i=0;i<await inputs.count();i++) {
