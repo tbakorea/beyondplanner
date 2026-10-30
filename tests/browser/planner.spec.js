@@ -175,6 +175,12 @@ test('past dates use recorded conditions and temperatures, never today weather',
   await page.locator('#dailyPrevDay').click();
   await expect(page.locator('#weatherChip .weather-temp')).toHaveText('비 · 최저 4° · 최고 12°');
   await expect(page.locator('#weatherChip')).toHaveAttribute('aria-label',/비.*4° \/ 12°/);
+  const brand=await page.locator('.brand-row h1').boundingBox();
+  const weather=await page.locator('#weatherChip').boundingBox();
+  const clock=await page.locator('#headerSaveClock').boundingBox();
+  expect(weather.x).toBeGreaterThanOrEqual(brand.x+brand.width-1);
+  expect(weather.x+weather.width).toBeLessThanOrEqual(clock.x+1);
+  expect(await page.locator('#weatherChip .weather-temp').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBeTruthy();
   await page.reload();
   await expect(page.locator('#dailyDateSwipeZone')).toHaveClass(/is-current-day/);
   await page.locator('#dailyPrevDay').click();

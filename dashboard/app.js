@@ -9426,7 +9426,7 @@ function getDailyDateWeatherMarkup(key = iso(selectedDate)) {
   if (!label && !isLoading) return "";
   const title = isLoading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weather);
   return `
-    <span class="day-title-weather" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">
+    <span class="day-title-weather${key < iso(todayInPlanner()) ? " is-history" : ""}" title="${escapeAttr(title)}" aria-label="${escapeAttr(title)}">
       <span class="day-title-weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>
       <span class="day-title-weather-text">${escapeHtml(label || "날씨")}</span>
     </span>
