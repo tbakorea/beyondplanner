@@ -24707,14 +24707,14 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
 /* Tablet Today: constrain the workspace, not its contents. Safari must have
    a bounded scroll owner for every column instead of clipping the outer page. */
 @media (min-width: 641px) and (pointer: coarse) {
-  body.day-view-active .app-shell {
+  body:is(.classic-mode, .ceo-mode).day-view-active .app-shell {
     box-sizing: border-box !important;
     height: calc(100dvh - var(--app-header-height)) !important;
     min-height: 0 !important;
     padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
     overflow: hidden !important;
   }
-  body.day-view-active #view-day.active {
+  body:is(.classic-mode, .ceo-mode).day-view-active #view-day.active {
     display: flex !important;
     flex-direction: column !important;
     height: 100% !important;
