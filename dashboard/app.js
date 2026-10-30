@@ -9451,8 +9451,9 @@ function formatWeatherTemperatureValue(value) {
 }
 
 function getWeatherConditionIcon(record = {}) {
-  const info = getWeatherCodeInfo(Number(record.code));
-  if (Number.isFinite(Number(record.code)) && info?.icon) return info.icon;
+  const code = weatherTemperatureNumber(record.code);
+  const info = code === null ? null : getWeatherCodeInfo(code);
+  if (code !== null && info?.icon) return info.icon;
   const summary = record.summary || "";
   if (/맑/.test(summary)) return "☀️";
   if (/구름|조금/.test(summary)) return "⛅";
