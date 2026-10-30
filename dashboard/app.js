@@ -5737,6 +5737,7 @@ function renderDailyDateTitle() {
   dayTitle.classList.toggle("has-date-weather", Boolean(weatherMarkup));
   dayTitle.setAttribute("data-full-date", formattedDate);
   el("dailyCalendarToggle")?.setAttribute("aria-label", `${formattedDate}, 달력에서 날짜 선택`);
+  renderWeatherChip();
 }
 
 function shouldFitDesktopClassicWorkspace() {
@@ -9419,7 +9420,9 @@ function getDailyDateWeatherMarkup(key = iso(selectedDate)) {
   const isLoading = weather.status === "loading" || weather.status === "refreshing";
   const icon = isLoading ? "…" : getWeatherConditionIcon(weather);
   const range = formatWeatherTemperatureRange(weather);
-  const label = range;
+  const label = key < iso(todayInPlanner())
+    ? `${weather.summary || "날씨"} · 최저 ${formatWeatherTemperatureValue(weather.tempMin)} · 최고 ${formatWeatherTemperatureValue(weather.tempMax)}`
+    : range;
   if (!label && !isLoading) return "";
   const title = isLoading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weather);
   return `
@@ -9440,6 +9443,11 @@ function weatherTemperatureNumber(value) {
   if (value === null || value === undefined || String(value).trim() === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
+}
+
+function formatWeatherTemperatureValue(value) {
+  const number = weatherTemperatureNumber(value);
+  return number === null ? "—" : `${Math.round(number)}°`;
 }
 
 function getWeatherConditionIcon(record = {}) {
@@ -9496,7 +9504,6 @@ function renderDailyTodayButton() {
 }
 
 function renderWeatherDependentSurfaces() {
-  renderWeatherChip();
   renderDailyDateTitle();
   renderDailyTodayButton();
 }
@@ -9512,10 +9519,10 @@ function toWeatherRecord(weather = weatherState) {
   return {
     date: key,
     icon: weather.icon || "◇",
-    temp: Number.isFinite(Number(weather.temp)) ? Number(weather.temp) : null,
-    tempMin: Number.isFinite(Number(weather.tempMin)) ? Number(weather.tempMin) : null,
-    tempMax: Number.isFinite(Number(weather.tempMax)) ? Number(weather.tempMax) : null,
-    code: Number.isFinite(Number(weather.code)) ? Number(weather.code) : null,
+    temp: weatherTemperatureNumber(weather.temp),
+    tempMin: weatherTemperatureNumber(weather.tempMin),
+    tempMax: weatherTemperatureNumber(weather.tempMax),
+    code: weatherTemperatureNumber(weather.code),
     wind: Number.isFinite(Number(weather.wind)) ? Number(weather.wind) : null,
     precipitation: Number.isFinite(Number(weather.precipitation)) ? Number(weather.precipitation) : 0,
     label: weather.label || DEFAULT_WEATHER_COORDS.label,
@@ -9531,7 +9538,7 @@ function sameWeatherRecord(a = {}, b = {}) {
 }
 
 function storeWeatherForToday(weather = weatherState, options = {}) {
-  if (!weather || weather.status === "error" || weather.status === "idle") return false;
+  if (!weather || (weather.status && weather.status !== "ready")) return false;
   const key = iso(todayInPlanner());
   const day = ensureDay(key);
   const next = toWeatherRecord(weather);
@@ -9719,17 +9726,24 @@ function getWeatherCoachingLine(weather = weatherState) {
 function renderWeatherChip() {
   const node = el("weatherChip");
   if (!node) return;
-  if (weatherState.status === "idle") {
+  const key = iso(selectedDate);
+  const isPast = key < iso(todayInPlanner());
+  const weather = isPast ? getWeatherRecordForDate(key) : weatherState;
+  if (!isPast && weather.status === "idle") {
     node.hidden = true;
     return;
   }
-  const loading = weatherState.status === "loading" || weatherState.status === "refreshing";
-  const icon = loading ? "…" : getWeatherConditionIcon(weatherState);
-  const temp = formatWeatherTemperatureRange(weatherState);
+  const loading = !isPast && (weather.status === "loading" || weather.status === "refreshing");
+  const icon = loading ? "…" : weather ? getWeatherConditionIcon(weather) : "◇";
+  const temp = isPast
+    ? weather ? `${weather.summary || "날씨"} · 최저 ${formatWeatherTemperatureValue(weather.tempMin)} · 최고 ${formatWeatherTemperatureValue(weather.tempMax)}` : "기록 없음"
+    : formatWeatherTemperatureRange(weather);
+  node.classList.toggle("is-history", isPast);
   node.hidden = false;
   node.classList.toggle("is-loading", loading);
   node.innerHTML = `<span class="weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>${temp ? `<span class="weather-temp">${escapeHtml(temp)}</span>` : ""}`;
-  const title = loading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weatherState);
+  const title = isPast ? `${key} · ${weather ? getWeatherTitle(weather) : "날씨 기록 없음"}`
+    : loading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weather);
   node.title = title;
   node.setAttribute("aria-label", title);
 }

@@ -14,6 +14,8 @@ def reset():
         {"id": f"qa-{i}", "text": f"QA 업무 {i:02}", "done": False, "status": "미완료"}
         for i in range(1, 21)], "B": [], "C": []},
         "appointments": {"10:00": "QA 일정"}}}, "weeks": {}, "months": {}}
+    yesterday = (datetime.date.fromisoformat(today)-datetime.timedelta(days=1)).isoformat()
+    state['days'][yesterday] = {'weather': {'date':yesterday,'icon':'🌧️','code':61,'summary':'비','tempMin':4,'tempMax':12,'label':'울산','source':'qa-fixture'}}
     revision, delay = 1, 0
 
 def stamp():

@@ -169,3 +169,20 @@ test('top weather shows icon and minimum/maximum without covering brand or save 
   expect(weather.x+weather.width).toBeLessThanOrEqual(clock.x+1);
   await expect(page.locator('#weatherChip')).toHaveAttribute('aria-label',/최저\/최고 6° \/ 18°/);
 });
+
+test('past dates use recorded conditions and temperatures, never today weather', async ({context,page,request}) => {
+  await open(context,page);
+  await page.locator('#dailyPrevDay').click();
+  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('비 · 최저 4° · 최고 12°');
+  await expect(page.locator('#weatherChip')).toHaveAttribute('aria-label',/비.*4° \/ 12°/);
+  await page.reload();
+  await expect(page.locator('#dailyDateSwipeZone')).toHaveClass(/is-current-day/);
+  await page.locator('#dailyPrevDay').click();
+  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('비 · 최저 4° · 최고 12°');
+  await page.locator('#dailyPrevDay').click();
+  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('기록 없음');
+  const snapshot=await (await request.get('/qa/snapshot')).json();
+  const recorded=Object.values(snapshot.state.days).map(d=>d.weather).filter(w=>w?.source==='qa-fixture');
+  expect(recorded).toHaveLength(1);
+  expect(recorded[0]).toMatchObject({summary:'비',tempMin:4,tempMax:12});
+});
