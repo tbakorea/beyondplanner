@@ -24682,3 +24682,19 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
   #dailyDateSwipeZone #dailyNextDay { right: 0 !important; left: auto !important; }
   #dailyDateSwipeZone.is-current-day #dailyTodayButton { display: none !important; }
 }
+
+/* One compact weather range: icon, minimum, maximum. */
+.brand-row #weatherChip {
+  flex: 0 0 auto !important;
+  width: auto !important;
+  min-width: 90px !important;
+  gap: 4px !important;
+  margin-left: 6px !important;
+  padding-inline: 8px !important;
+  white-space: nowrap !important;
+}
+#weatherChip .weather-temp {
+  font-size: 11px !important;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

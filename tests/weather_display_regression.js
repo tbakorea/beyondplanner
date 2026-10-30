@@ -1,0 +1,11 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../dashboard/app.js'),'utf8');
+const names=['weatherTemperatureNumber','formatWeatherTemperatureRange'];
+const functions=names.map(name=>source.match(new RegExp(`function ${name}\\([^\\n]*\\{\\n[\\s\\S]*?\\n\\}`))[0]).join('\n');
+const range=new Function(functions+';return formatWeatherTemperatureRange;')();
+assert.equal(range({tempMin:6,tempMax:18,temp:12}),'6° / 18°');
+assert.equal(range({tempMin:-4.2,tempMax:0}),'−4° / 0°'.replace('−','-'));
+assert.equal(range({tempMin:null,tempMax:18}),'— / 18°');
+assert.equal(range({tempMin:'',tempMax:undefined,temp:12}),'— / —');
+assert.equal(range({tempMin:'0',tempMax:'7.6'}),'0° / 8°');
+console.log('5 weather minimum/maximum and missing-data checks passed');

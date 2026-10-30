@@ -154,3 +154,18 @@ test('phone navigation never covers task or schedule headers while lists scroll'
   await check();
   await page.screenshot({path:info.outputPath('phone-lists-below-navigation.png')});
 });
+
+test('top weather shows icon and minimum/maximum without covering brand or save clock', async ({context,page}) => {
+  await context.addInitScript(()=>localStorage.setItem('beyondWork.weather.v1',JSON.stringify({
+    createdAt:Date.now(),data:{status:'ready',icon:'☀️',summary:'맑음',temp:12,tempMin:6,tempMax:18,label:'울산'}
+  })));
+  await open(context,page);
+  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('6° / 18°');
+  await expect(page.locator('#weatherChip .weather-icon')).not.toHaveText('');
+  const brand=await page.locator('.brand-row h1').boundingBox();
+  const weather=await page.locator('#weatherChip').boundingBox();
+  const clock=await page.locator('#headerSaveClock').boundingBox();
+  expect(weather.x).toBeGreaterThanOrEqual(brand.x+brand.width-1);
+  expect(weather.x+weather.width).toBeLessThanOrEqual(clock.x+1);
+  await expect(page.locator('#weatherChip')).toHaveAttribute('aria-label',/최저\/최고 6° \/ 18°/);
+});

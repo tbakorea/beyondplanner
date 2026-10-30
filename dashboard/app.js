@@ -9395,8 +9395,8 @@ function getWeatherRecordForDate(key = iso(selectedDate), options = {}) {
       date: todayKey,
       icon: weatherState.icon || "◇",
       temp: Number.isFinite(Number(weatherState.temp)) ? Number(weatherState.temp) : null,
-      tempMin: Number.isFinite(Number(weatherState.tempMin)) ? Number(weatherState.tempMin) : null,
-      tempMax: Number.isFinite(Number(weatherState.tempMax)) ? Number(weatherState.tempMax) : null,
+      tempMin: weatherTemperatureNumber(weatherState.tempMin),
+      tempMax: weatherTemperatureNumber(weatherState.tempMax),
       label: weatherState.label || DEFAULT_WEATHER_COORDS.label,
       summary: weatherState.summary || (weatherState.status === "loading" || weatherState.status === "refreshing" ? "확인 중" : "날씨"),
       advice: weatherState.advice || "",
@@ -9419,7 +9419,7 @@ function getDailyDateWeatherMarkup(key = iso(selectedDate)) {
   const isLoading = weather.status === "loading" || weather.status === "refreshing";
   const icon = isLoading ? "…" : getWeatherConditionIcon(weather);
   const range = formatWeatherTemperatureRange(weather);
-  const label = [weather.summary, range].filter(Boolean).join(" ");
+  const label = range;
   if (!label && !isLoading) return "";
   const title = isLoading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weather);
   return `
@@ -9431,11 +9431,15 @@ function getDailyDateWeatherMarkup(key = iso(selectedDate)) {
 }
 
 function formatWeatherTemperatureRange(record = {}) {
-  const min = Number(record.tempMin);
-  const max = Number(record.tempMax);
-  if (Number.isFinite(min) && Number.isFinite(max)) return `${Math.round(min)}°/${Math.round(max)}°`;
-  const temp = Number(record.temp);
-  return Number.isFinite(temp) ? `${Math.round(temp)}°` : "";
+  const min = weatherTemperatureNumber(record.tempMin);
+  const max = weatherTemperatureNumber(record.tempMax);
+  return `${min === null ? "—" : `${Math.round(min)}°`} / ${max === null ? "—" : `${Math.round(max)}°`}`;
+}
+
+function weatherTemperatureNumber(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
 function getWeatherConditionIcon(record = {}) {
@@ -9720,12 +9724,12 @@ function renderWeatherChip() {
     return;
   }
   const loading = weatherState.status === "loading" || weatherState.status === "refreshing";
-  const icon = loading ? "…" : weatherState.icon || "◇";
-  const temp = Number.isFinite(Number(weatherState.temp)) ? `${Math.round(Number(weatherState.temp))}°` : "";
+  const icon = loading ? "…" : getWeatherConditionIcon(weatherState);
+  const temp = formatWeatherTemperatureRange(weatherState);
   node.hidden = false;
   node.classList.toggle("is-loading", loading);
   node.innerHTML = `<span class="weather-icon" aria-hidden="true">${escapeHtml(icon)}</span>${temp ? `<span class="weather-temp">${escapeHtml(temp)}</span>` : ""}`;
-  const title = getWeatherCoachingLine(weatherState) || "오늘 날씨를 확인하고 코칭에 반영합니다.";
+  const title = loading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weatherState);
   node.title = title;
   node.setAttribute("aria-label", title);
 }
