@@ -24703,3 +24703,81 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
   /* The header already shows the range; keep the date readable. */
   .day-title-weather.is-history { display: none !important; }
 }
+
+/* Tablet Today: constrain the workspace, not its contents. Safari must have
+   a bounded scroll owner for every column instead of clipping the outer page. */
+@media (min-width: 641px) and (pointer: coarse) {
+  body.day-view-active .app-shell {
+    box-sizing: border-box !important;
+    height: calc(100dvh - var(--app-header-height)) !important;
+    min-height: 0 !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom)) !important;
+    overflow: hidden !important;
+  }
+  body.day-view-active #view-day.active {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    gap: 6px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+  #view-day > .daily-title,
+  #view-day > #dailyPulseZone {
+    position: relative !important;
+    inset: auto !important;
+    transform: none !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+  #view-day > #daySwipe {
+    position: relative !important;
+    inset: auto !important;
+    flex: 1 1 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding-block: 0 !important;
+    overflow-y: hidden !important;
+  }
+  #daySwipe > .swipe-panel,
+  #daySwipe .day-main-panel > .panel {
+    box-sizing: border-box !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+  }
+  #daySwipe > .day-main-panel { overflow-y: hidden !important; }
+  #daySwipe .day-main-panel > .panel {
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    padding-bottom: 0 !important;
+  }
+  #daySwipe .day-main-panel > .panel > .panel-title-row {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 auto !important;
+  }
+  #daySwipe #taskBoard,
+  #daySwipe #appointmentList {
+    flex: 1 1 0 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y !important;
+    padding-bottom: 24px !important;
+    scroll-padding-bottom: 24px !important;
+  }
+  #daySwipe > .swipe-panel:not(.day-main-panel) {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y !important;
+    padding-bottom: 24px !important;
+  }
+}
