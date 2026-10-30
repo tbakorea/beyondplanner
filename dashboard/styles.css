@@ -24699,30 +24699,7 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
   white-space: nowrap;
 }
 
-/* Past-day conditions stay explicit without consuming the brand's width. */
-.brand-row #weatherChip.is-history {
-  max-width: 180px !important;
-  white-space: normal !important;
-}
-#weatherChip.is-history .weather-temp {
-  display: block;
-  max-width: 144px;
-  font-size: 10px !important;
-  line-height: 1.25;
-  white-space: normal;
-}
-.day-title-weather.is-history { max-width: 190px; }
-.day-title-weather.is-history .day-title-weather-text {
-  white-space: normal;
-  text-overflow: clip;
-  font-size: 11px;
-  line-height: 1.2;
-}
 @media (max-width: 1024px) {
-  /* The header already shows the complete record; keep the date readable. */
+  /* The header already shows the range; keep the date readable. */
   .day-title-weather.is-history { display: none !important; }
-}
-@media (max-width: 640px) {
-  .brand-row #weatherChip.is-history { max-width: 118px !important; padding-inline: 6px !important; }
-  #weatherChip.is-history .weather-temp { max-width: 82px; }
 }

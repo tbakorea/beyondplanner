@@ -9421,7 +9421,7 @@ function getDailyDateWeatherMarkup(key = iso(selectedDate)) {
   const icon = isLoading ? "…" : getWeatherConditionIcon(weather);
   const range = formatWeatherTemperatureRange(weather);
   const label = key < iso(todayInPlanner())
-    ? `${weather.summary || "날씨"} · 최저 ${formatWeatherTemperatureValue(weather.tempMin)} · 최고 ${formatWeatherTemperatureValue(weather.tempMax)}`
+    ? range.replace(" / ", "/")
     : range;
   if (!label && !isLoading) return "";
   const title = isLoading ? "날씨를 확인하는 중입니다." : getWeatherTitle(weather);
@@ -9443,11 +9443,6 @@ function weatherTemperatureNumber(value) {
   if (value === null || value === undefined || String(value).trim() === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
-}
-
-function formatWeatherTemperatureValue(value) {
-  const number = weatherTemperatureNumber(value);
-  return number === null ? "—" : `${Math.round(number)}°`;
 }
 
 function getWeatherConditionIcon(record = {}) {
@@ -9737,7 +9732,7 @@ function renderWeatherChip() {
   const loading = !isPast && (weather.status === "loading" || weather.status === "refreshing");
   const icon = loading ? "…" : weather ? getWeatherConditionIcon(weather) : "◇";
   const temp = isPast
-    ? weather ? `${weather.summary || "날씨"} · 최저 ${formatWeatherTemperatureValue(weather.tempMin)} · 최고 ${formatWeatherTemperatureValue(weather.tempMax)}` : "기록 없음"
+    ? weather ? formatWeatherTemperatureRange(weather).replace(" / ", "/") : "기록 없음"
     : formatWeatherTemperatureRange(weather);
   node.classList.toggle("is-history", isPast);
   node.hidden = false;

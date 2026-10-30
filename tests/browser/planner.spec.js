@@ -173,7 +173,7 @@ test('top weather shows icon and minimum/maximum without covering brand or save 
 test('past dates use recorded conditions and temperatures, never today weather', async ({context,page,request}) => {
   await open(context,page);
   await page.locator('#dailyPrevDay').click();
-  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('비 · 최저 4° · 최고 12°');
+  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('4°/12°');
   await expect(page.locator('#weatherChip')).toHaveAttribute('aria-label',/비.*4° \/ 12°/);
   const brand=await page.locator('.brand-row h1').boundingBox();
   const weather=await page.locator('#weatherChip').boundingBox();
@@ -184,7 +184,7 @@ test('past dates use recorded conditions and temperatures, never today weather',
   await page.reload();
   await expect(page.locator('#dailyDateSwipeZone')).toHaveClass(/is-current-day/);
   await page.locator('#dailyPrevDay').click();
-  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('비 · 최저 4° · 최고 12°');
+  await expect(page.locator('#weatherChip .weather-temp')).toHaveText('4°/12°');
   await page.locator('#dailyPrevDay').click();
   await expect(page.locator('#weatherChip .weather-temp')).toHaveText('기록 없음');
   const snapshot=await (await request.get('/qa/snapshot')).json();
