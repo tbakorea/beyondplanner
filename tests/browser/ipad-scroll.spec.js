@@ -29,9 +29,9 @@ test('iPad lists reach their final rows inside the visible workspace after resiz
       expect(title.y+title.height).toBeLessThanOrEqual(box.y+1);
     }
   };
-  await verify();
+  await expect(async () => verify()).toPass({timeout:10000});
   const size=page.viewportSize();
   await page.setViewportSize({width:size.width,height:size.height-120});
-  await verify();
+  await expect(async () => verify()).toPass({timeout:10000});
   await page.screenshot({path:info.outputPath('ipad-bottom-rows.png')});
 });

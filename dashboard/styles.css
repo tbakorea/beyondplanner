@@ -24743,6 +24743,10 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
     padding-block: 0 !important;
     overflow-y: hidden !important;
   }
+  body.classic-mode #view-day > #daySwipe,
+  #daySwipe > .day-main-panel {
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
   #daySwipe > .swipe-panel,
   #daySwipe .day-main-panel > .panel {
     box-sizing: border-box !important;
@@ -24779,5 +24783,8 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
     -webkit-overflow-scrolling: touch;
     touch-action: pan-y !important;
     padding-bottom: 24px !important;
+  }
+  #daySwipe .task-list {
+    padding-bottom: 16px !important;
   }
 }
