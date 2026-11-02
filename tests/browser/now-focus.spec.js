@@ -1,0 +1,35 @@
+const {test,expect}=require('@playwright/test');
+test('one thing now recommends an open task without changing data and follows completion',async({context,page,request},info)=>{
+  await request.post('/qa/reset');
+  await context.addInitScript(mode=>{
+    localStorage.setItem('beyondWorkAuthSession.v1',JSON.stringify({email:'browser-qa@example.test',provider:'supabase',accessToken:'isolated-fixture-only',tier:'ceo',expiresAt:4102444800}));
+    if(mode)localStorage.setItem('beyondWorkMode',mode);
+  },info.project.metadata.plannerMode);
+  await context.route('**/*',r=>new URL(r.request().url()).hostname==='127.0.0.1'?r.continue():r.abort());
+  const date=await (await request.get('/qa/snapshot')).json();
+  const today=Object.keys(date.state.days).sort().at(-1);
+  await page.clock.setFixedTime(new Date(today+'T14:00:00+09:00'));
+  await page.goto('/dashboard/index.html');
+  await expect(page.locator('.day-task-panel .task-text-input').first()).toHaveValue('QA 업무 01');
+  const trigger=page.locator('#dailyPulseToggle');
+  await trigger.click();
+  const dialog=page.locator('#nowFocusDialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('h2')).toHaveText('QA 업무 01');
+  const box=await dialog.boundingBox(),size=page.viewportSize();
+  expect(box.x).toBeGreaterThanOrEqual(0);expect(box.x+box.width).toBeLessThanOrEqual(size.width);
+  expect(box.y).toBeGreaterThanOrEqual(0);expect(box.y+box.height).toBeLessThanOrEqual(size.height);
+  await page.screenshot({path:info.outputPath('now-focus.png')});
+  const saved=await (await request.get('/qa/snapshot')).json();
+  expect(saved.state.days[today].tasks.A[0].done).toBe(false);
+  await dialog.locator('.now-focus-go').click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.locator('.day-task-panel .task-row').first()).toBeFocused();
+  await page.locator('.day-task-panel .task-cycle').first().click();
+  await expect(page.locator('.day-task-panel .task-row').first()).toHaveClass(/done/);
+  await trigger.click();
+  await expect(dialog.locator('h2')).not.toHaveText('QA 업무 01');
+  await dialog.locator('.now-focus-close').click();
+  await page.locator('#dailyPrevDay').click();
+  await expect(trigger).not.toHaveAttribute('aria-label','지금 할 한 가지 추천 열기');
+});
