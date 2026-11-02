@@ -192,3 +192,26 @@ test('past dates use recorded conditions and temperatures, never today weather',
   expect(recorded).toHaveLength(1);
   expect(recorded[0]).toMatchObject({summary:'비',tempMin:4,tempMax:12});
 });
+
+test('legacy duplicated weekly carryovers consolidate, archive and survive reload', async ({context,page,request}) => {
+  const snapshot=await (await request.get('/qa/snapshot')).json();
+  const today=Object.keys(snapshot.state.days).sort().at(-1);
+  const date=new Date(today+'T12:00:00Z');date.setUTCDate(date.getUTCDate()-date.getUTCDay());
+  const week=date.toISOString().slice(0,10);
+  date.setUTCDate(date.getUTCDate()-7);const previous=date.toISOString().slice(0,10);
+  const rows=['사업장 이동','김기찬세무사 방문','법원앞부지 건축과 사전'].map((text,i)=>({id:'old-a-'+i,text,done:false,status:'미완료',carryoverSourceId:'source-'+i,carryoverFromWeek:previous}));
+  snapshot.state.weeks[week]={priorities:[...rows,...rows.map((t,i)=>({...t,id:'old-b-'+i}))],compass:[]};
+  await request.post('/api/state',{data:{state:snapshot.state,baseUpdatedAt:snapshot.updatedAt}});
+  await open(context,page);
+  const values=()=>page.locator('#dayCompass .weekly-priority-text').evaluateAll(nodes=>nodes.map(n=>n.value).filter(Boolean));
+  expect(await values()).toEqual(rows.map(t=>t.text));
+  await page.locator('.day-task-panel .task-text-input').first().fill('QA 주간 중복 보존 검사');
+  await page.locator('.day-task-panel .task-text-input').first().blur();
+  await expect.poll(async()=>{
+    const saved=await (await request.get('/qa/snapshot')).json();
+    return saved.state.weeks[week]?.priorityDuplicateArchive?.length;
+  }).toBe(3);
+  await page.reload();
+  await expect(page.locator('.day-task-panel .task-text-input').first()).toHaveValue('QA 주간 중복 보존 검사');
+  expect(await values()).toEqual(rows.map(t=>t.text));
+});

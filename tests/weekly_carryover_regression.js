@@ -1,0 +1,30 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../dashboard/app.js'),'utf8');
+const extract=name=>source.match(new RegExp(`function ${name}\\([^\\n]*\\{\\n[\\s\\S]*?\\n\\}`))[0];
+const run=new Function('assert',`
+const isPlainPlannerObject=v=>v&&typeof v==='object'&&!Array.isArray(v);
+const getPlannerArrayCarryoverMergeKey=()=>'', normalizeWeeklyPriority=t=>t;
+const setTaskCompletionState=(t,done)=>({...t,done}),newTaskId=()=>Math.random().toString();
+const clonePlannerValue=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
+const plannerValuesEqual=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const mergePlannerValue=(base,local,remote)=>({...remote,...local});
+${['getPlannerArrayItemKey','canMergePlannerArrayByKey','mapPlannerArrayByKey','mergePlannerArrays','cloneWeeklyPriorityForCarry','consolidateWeeklyPriorityCarryovers'].map(extract).join('\n')}
+const original={id:'source',text:'사업장 이동',status:'미완료',priority:'A'};
+const a=cloneWeeklyPriorityForCarry(original,'2026-10-25'),b=cloneWeeklyPriorityForCarry(original,'2026-10-25');
+assert.equal(a.id,b.id,'independent first opens must create the same carryover ID');
+a.id='old-device-a';b.id='old-device-b';
+assert.equal(mergePlannerArrays([], [a], [b]).length,1,'legacy device IDs must merge by weekly origin');
+const week={priorities:[a,{id:'blank',text:'',status:'미완료'},b]};
+consolidateWeeklyPriorityCarryovers(week);
+assert.equal(week.priorities.filter(t=>t.text).length,1);
+assert.equal(week.priorityDuplicateArchive[0].id,b.id,'removed duplicate remains recoverable');
+consolidateWeeklyPriorityCarryovers(week);
+assert.equal(week.priorityDuplicateArchive.length,1,'repeated rendering must be idempotent');
+const independent={priorities:[{id:'one',text:'동일 문구'},{id:'two',text:'동일 문구'}]};
+consolidateWeeklyPriorityCarryovers(independent);assert.equal(independent.priorities.length,2);
+const edits={priorities:[{...a},{...b,text:'수정된 사업장 이동'}]};
+consolidateWeeklyPriorityCarryovers(edits);
+assert.equal(edits.priorities.length,2,'different edits must survive consolidation');
+assert.equal(mergePlannerArrays([],edits.priorities,edits.priorities).length,2,'different legacy edits must survive future merges');
+assert.notEqual(cloneWeeklyPriorityForCarry(original,'2026-11-01').id,cloneWeeklyPriorityForCarry(original,'2026-10-25').id);
+`);run(assert);console.log('9 weekly carryover identity, merge and recovery checks passed');

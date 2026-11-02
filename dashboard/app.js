@@ -1440,6 +1440,7 @@ function normalizePlannerWeekRecord(week, key, sourceState = state) {
   normalizeDeletedWeeklyPriorityCarryovers(week);
   while (week.priorities.length < 5) week.priorities.push(setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false));
   week.priorities.forEach(normalizeWeeklyPriority);
+  consolidateWeeklyPriorityCarryovers(week);
   week.compass ||= [];
   week.compass = week.compass.filter((item) => item.role !== "일");
   week.compass.forEach((item) => {
@@ -2891,6 +2892,9 @@ function getPlannerArrayCarryoverMergeKey(item = {}) {
 
 function getPlannerArrayItemKey(item, index) {
   if (!isPlainPlannerObject(item)) return "";
+  if (item.carryoverFromWeek && item.carryoverSourceId) {
+    return `weekly:${item.carryoverFromWeek}:${item.carryoverSourceId}${item.weeklyCarryoverVariant ? `:variant:${item.weeklyCarryoverVariant}` : ""}`;
+  }
   const carryoverKey = getPlannerArrayCarryoverMergeKey(item);
   if (carryoverKey) return carryoverKey;
   const identityFields = [
@@ -3331,6 +3335,7 @@ function ensureWeek(key = weekKey()) {
   carryWeeklyPrioritiesIntoWeek(key, state.weeks[key], state);
   while (state.weeks[key].priorities.length < 5) state.weeks[key].priorities.push(setTaskCompletionState({ text: "", status: "미완료", priorityUnset: true }, false));
   state.weeks[key].priorities.forEach(normalizeWeeklyPriority);
+  consolidateWeeklyPriorityCarryovers(state.weeks[key]);
   state.weeks[key].compass ||= [];
   carryWeeklyCompassIntoWeek(key, state.weeks[key], state);
   const roles = compassRoleNames();
@@ -3720,7 +3725,7 @@ function weeklyPriorityShouldCarry(item = {}) {
 function cloneWeeklyPriorityForCarry(item = {}, sourceWeekKey = "") {
   normalizeWeeklyPriority(item);
   return setTaskCompletionState({
-    id: newTaskId(),
+    id: `weekly:${sourceWeekKey}:${item.carryoverSourceId || item.id}`,
     carryoverSourceId: item.carryoverSourceId || item.id || "",
     text: item.text || "",
     status: item.status === "진행중" ? "진행중" : "미완료",
@@ -3730,6 +3735,38 @@ function cloneWeeklyPriorityForCarry(item = {}, sourceWeekKey = "") {
     priorityUnset: item.priorityUnset !== false,
     carryoverFromWeek: sourceWeekKey,
   }, false);
+}
+
+function consolidateWeeklyPriorityCarryovers(week) {
+  const seen = new Set();
+  const origins = new Set();
+  const duplicates = [];
+  week.priorities = (week.priorities || []).filter((item) => {
+    if (!item.carryoverFromWeek || !item.carryoverSourceId || !String(item.text || "").trim()) return true;
+    // Only identical copies of the same carryover are safe to consolidate.
+    // Independent entries and differing edits must remain available.
+    const content = Object.fromEntries(Object.entries(item).filter(([key]) => !["id", "weeklyCarryoverVariant"].includes(key)).sort(([a], [b]) => a.localeCompare(b)));
+    const fingerprint = JSON.stringify(content);
+    if (!seen.has(fingerprint)) {
+      seen.add(fingerprint);
+      const origin = `${item.carryoverFromWeek}:${item.carryoverSourceId}`;
+      if (origins.has(origin)) item.weeklyCarryoverVariant ||= item.id;
+      origins.add(origin);
+      return true;
+    }
+    duplicates.push(JSON.parse(JSON.stringify(item)));
+    return false;
+  });
+  if (!duplicates.length) return;
+  week.priorityDuplicateArchive ||= [];
+  const archived = new Set(week.priorityDuplicateArchive.map((item) => JSON.stringify(item)));
+  duplicates.forEach((item) => {
+    if (!archived.has(JSON.stringify(item))) week.priorityDuplicateArchive.push(item);
+  });
+  // Discard only surplus pristine placeholders produced by the duplicate block.
+  const blank = (item) => !String(item.text || "").trim() && !item.done && item.status === "미완료" && !item.delegate && !item.postponeDate;
+  let remaining = Math.max(0, 5 - week.priorities.filter((item) => !blank(item)).length);
+  week.priorities = week.priorities.filter((item) => !blank(item) || remaining-- > 0);
 }
 
 function compactWeeklyPriorities(week) {

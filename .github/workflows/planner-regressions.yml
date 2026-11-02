@@ -15,6 +15,7 @@ jobs:
           python-version: '3.12'
       - run: node --check dashboard/app.js
       - run: node tests/weather_display_regression.js
+      - run: node tests/weekly_carryover_regression.js
       - run: node tests/delegation_regression.js
       - run: node tests/postpone_regression.js
       - run: node tests/money_completion_regression.js
