@@ -7802,8 +7802,6 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const selectedWeather = selectedKey !== todayKey ? getWeatherRecordForDate(selectedKey) : null;
   const weatherRange = selectedWeather ? formatWeatherTemperatureRange(selectedWeather) : "";
   if (isPastDate) {
-    centerButton?.removeAttribute("aria-haspopup");
-    centerButton?.setAttribute("aria-controls", "dailyPulseDetails");
     centerButton?.setAttribute("aria-label", "선택한 날짜의 날씨 기록 보기");
     const icon = selectedWeather ? getWeatherConditionIcon(selectedWeather) : "◇";
     const summary = selectedWeather?.summary || "날씨 기록 없음";
@@ -7822,13 +7820,9 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ]);
     return;
   }
-  const isToday = selectedKey === todayKey;
-  centerButton?.classList.toggle("is-empty", !isToday);
-  centerButton?.setAttribute("aria-label", isToday ? "지금 할 한 가지 추천 열기" : "오늘 실행 요약");
-  centerButton?.setAttribute("aria-haspopup", isToday ? "dialog" : "false");
-  centerButton?.setAttribute("aria-controls", isToday ? "nowFocusDialog" : "dailyPulseDetails");
-  if (isToday) centerButton?.removeAttribute("aria-expanded");
-  node.innerHTML = isToday ? `<span class="now-focus-trigger">✦ ${getAppLanguage() === "ko" ? "지금 할 일" : "Focus now"}</span>` : `<span class="pulse-empty" aria-hidden="true"></span>`;
+  centerButton?.classList.add("is-empty");
+  centerButton?.setAttribute("aria-label", "오늘 실행 요약");
+  node.innerHTML = `<span class="pulse-empty" aria-hidden="true"></span>`;
   renderDailyPulseDetails([
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
     ...(selectedWeather ? [["날씨", `${getWeatherConditionIcon(selectedWeather)} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
@@ -8137,87 +8131,12 @@ function renderDailyPulseDetails(items) {
 }
 
 function toggleDailyPulseDetails() {
-  if (iso(selectedDate) === iso(todayInPlanner())) {
-    openNowFocus();
-    return;
-  }
   const node = el("dailyPulseDetails");
   const toggle = el("dailyPulseToggle");
   if (!node || !toggle) return;
   const nextHidden = !node.hidden ? true : false;
   node.hidden = nextHidden;
   toggle.setAttribute("aria-expanded", String(!nextHidden));
-}
-
-function buildNowFocusRecommendation(tasks = [], appointments = [], minute = 0, korean = true) {
-  const events = appointments.filter((entry) => entry.text && entry.end > minute).sort((a, b) => a.start - b.start);
-  const current = events.find((entry) => entry.start <= minute);
-  if (current) return { kind: "schedule", title: current.text, reason: korean ? "지금 진행 시간인 일정입니다." : "This event is scheduled for now.", minutes: current.end - minute, slot: current.slot };
-  const next = events[0];
-  const free = next ? next.start - minute : null;
-  if (next && free <= 10) return { kind: "schedule", title: next.text, reason: korean ? `${free}분 뒤 일정입니다. 지금 준비하세요.` : `Starts in ${free} minutes. Prepare now.`, minutes: free, slot: next.slot };
-  const candidates = tasks.filter((task) => String(task.text || "").trim() && !task.resolved);
-  const score = (task) => ({ A: 30, B: 20, C: 10 }[task.priority] || 0) + (task.carried ? 4 : 0);
-  const task = candidates.map((task, index) => ({ task, index })).sort((a, b) => score(b.task) - score(a.task) || a.index - b.index)[0]?.task;
-  if (!task) return { kind: "empty", title: korean ? "잠시 숨을 고르세요" : "Take a breather", reason: next ? (korean ? `열린 우선업무가 없습니다. 다음 일정은 ${next.slot}입니다.` : `No open tasks. Next event: ${next.slot}.`) : (korean ? "열린 우선업무와 남은 일정이 없습니다." : "No open tasks or remaining events."), minutes: 0 };
-  const minutes = Math.min(25, free === null ? 25 : Math.max(1, free - 5));
-  const reason = [task.priority ? (korean ? `${task.priority} 중요도` : `Priority ${task.priority}`) : (korean ? "미완료 업무" : "Open task"), task.carried ? (korean ? "이월된 업무" : "Carried over") : "", free === null ? (korean ? "다음 등록 일정 없음" : "No upcoming event") : (korean ? `다음 일정까지 ${free}분` : `${free} minutes until next event`)].filter(Boolean).join(" · ");
-  return { kind: "task", title: task.text, id: task.id, reason, minutes };
-}
-
-function openNowFocus() {
-  if (iso(selectedDate) !== iso(todayInPlanner())) return;
-  const key = iso(selectedDate);
-  const day = ensureDay(key);
-  const items = getTaskDisplayItems(day, getCarryoverTasks(parseDate(key)));
-  const tasks = items.map(({ task, type, priority }) => ({
-    id: task.id, text: task.text, priority: task.priorityUnset ? "" : priority || task.priority,
-    carried: type === "carryover" || Boolean(task.carryoverSourceDate),
-    resolved: shouldStrikeTask(task) || (type === "carryover" && isCarryoverCompletedOn(task, key)),
-  }));
-  const slots = getScheduleSlotsForDay(day);
-  const appointments = slots.filter((slot) => !isCoveredAppointmentSlot(day, slot, slots)).map((slot) => ({
-    slot, text: String(day.appointments?.[slot] || "").trim(), start: slotToMinutes(slot),
-    end: slotToMinutes(slot) + getAppointmentSpan(day, slot) * getScheduleSlotIntervalMinutes(slots),
-  }));
-  const now = new Date();
-  const korean = getAppLanguage() === "ko";
-  const recommendation = buildNowFocusRecommendation(tasks, appointments, now.getHours() * 60 + now.getMinutes(), korean);
-  let dialog = el("nowFocusDialog");
-  if (!dialog) {
-    dialog = document.createElement("dialog");
-    dialog.id = "nowFocusDialog";
-    dialog.className = "now-focus-dialog";
-    dialog.setAttribute("aria-labelledby", "nowFocusTitle");
-    document.body.append(dialog);
-  }
-  dialog.innerHTML = `<form method="dialog"><button class="now-focus-close" aria-label="${korean ? "닫기" : "Close"}">×</button></form>
-    <p class="now-focus-label">${korean ? "지금 할 한 가지" : "One thing now"}</p>
-    <h2 id="nowFocusTitle">${escapeHtml(recommendation.title)}</h2>
-    <p class="now-focus-reason">${escapeHtml(recommendation.reason)}</p>
-    ${recommendation.kind === "task" ? `<p class="now-focus-time">${recommendation.minutes}${korean ? "분" : " min"} <span>· ${korean ? "이 업무의 첫 단계에 집중해 보세요" : "Focus on the first step"}</span></p>` : ""}
-    ${recommendation.kind !== "empty" ? `<button type="button" class="now-focus-go">${korean ? "해당 항목 보기" : "View item"}</button>` : ""}`;
-  dialog.querySelector(".now-focus-go")?.addEventListener("click", () => {
-    dialog.close();
-    scrollDayPanel("main");
-    requestAnimationFrame(() => {
-      const selector = recommendation.kind === "task" ? "#taskBoard .task-text-input" : "#appointmentList input, #appointmentList textarea";
-      const input = [...document.querySelectorAll(selector)].find((node) => {
-        if (recommendation.kind === "task" && recommendation.id) return node.closest(".task-row")?.dataset.focusTaskId === recommendation.id;
-        if (recommendation.kind === "schedule") return node.closest(".appointment-row")?.querySelector(".appointment-time")?.textContent.trim() === recommendation.slot;
-        return node.value === recommendation.title;
-      });
-      input?.scrollIntoView({ block: "center", behavior: "smooth" });
-      const row = input?.closest(".task-row, .appointment-row");
-      if (row) {
-        row.tabIndex = -1;
-        row.classList.add("now-focus-target");
-        row.focus({ preventScroll: true });
-        window.setTimeout(() => row.classList.remove("now-focus-target"), 3500);
-      }
-    });
-  });
-  if (!dialog.open) dialog.showModal();
 }
 
 function getNextAppointmentSummary(day) {
@@ -11412,7 +11331,6 @@ function isActiveTaskSlot(task = {}) {
 function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
   resetBlankTaskPlaceholder(task);
   const row = document.createElement("div");
-  row.dataset.focusTaskId = task.id || "";
   const marker = getTaskMarker(task);
   const isStruck = shouldStrikeTask(task);
   const menuValue = getPriorityMenuValue(task, priority);
@@ -12753,7 +12671,6 @@ function renderCarryoverTask(task, dayKey = iso(selectedDate)) {
   const inlineTags = task.financeItemId ? linkTags.filter((tag) => tag !== "Money") : linkTags;
   const isStruck = completedHere || shouldStrikeTask(task);
   row.className = `task-row carryover-row priority-${menuValue === "A" ? "a" : "none"} marker-${marker} ${task.repeatId ? "is-repeat-task" : ""} ${task.status === "취소" ? "is-cancelled" : ""} ${isStruck ? "done" : ""}`;
-  row.dataset.focusTaskId = task.id || "";
   row.innerHTML = `
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>

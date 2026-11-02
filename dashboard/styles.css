@@ -24788,23 +24788,3 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
     padding-bottom: 16px !important;
   }
 }
-
-/* One actionable recommendation without adding a row to the planner. */
-.now-focus-trigger { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--forest); font-size: 12px; font-weight: 800; }
-.now-focus-dialog { box-sizing: border-box; width: min(460px, calc(100vw - 28px)); max-height: calc(100dvh - 40px); overflow-y: auto; border: 1px solid #d8ddd4; border-radius: 20px; padding: 28px; color: #243e34; background: #fffdf8; box-shadow: 0 24px 80px #152b3340; }
-.now-focus-dialog::backdrop { background: #152b3366; }
-.now-focus-dialog form { margin: 0; }
-.now-focus-close { float: right; min-width: 44px; min-height: 44px; border: 0; border-radius: 50%; background: #f0f2ec; font-size: 24px; cursor: pointer; }
-.now-focus-label { font-size: 13px; font-weight: 800; margin: 12px 0 20px; }
-.now-focus-dialog h2 { clear: both; font-size: 24px; line-height: 1.4; overflow-wrap: anywhere; }
-.now-focus-reason { font-size: 14px; line-height: 1.7; }
-.now-focus-time { margin: 24px 0; font-size: 30px; font-weight: 800; }
-.now-focus-time span { display: block; font-size: 14px; font-weight: 500; margin-top: 8px; }
-.now-focus-note { color: #68766f; font-size: 12px; line-height: 1.6; }
-.now-focus-go { width: 100%; min-height: 46px; margin-top: 16px; border: 0; border-radius: 12px; color: white; background: #203e33; font-weight: 800; cursor: pointer; }
-@media (min-width: 641px) and (pointer: coarse) {
-  /* The current-day grid has three columns: a fourth button creates a second
-     row over the recommendation/navigation strip in tablet Safari. */
-  #dailyDateSwipeZone.is-current-day #dailyTodayButton { display: none !important; }
-}
-.now-focus-target { outline: 2px solid #688f77; outline-offset: -2px; background-color: #eaf1e5 !important; }
