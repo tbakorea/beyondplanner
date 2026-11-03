@@ -23,6 +23,7 @@ function runRestartIntegrityRegression(source) {
     const timestampMs=x=>Date.parse(x)||0;
     let state,db,scheduledSaves=0;
     const queueDisplayCachePersist=()=>{},scheduleAccountSave=()=>scheduledSaves++;
+    const captureTaskRecoveryHistory=()=>{};
     const markLocalStateUpdated=()=>{plannerMutationSeq++;saveStateMeta({dirty:true,mutationSeq:plannerMutationSeq,pendingEditVersion:1,accountEmail:"same@example.test",updatedAt:"2026-10-28T00:01:00Z"});};
     const mergePlannerTaskRecord=()=>{throw new Error("unexpected conflicting task fields in this scenario");};
     const node={dataset:{},textContent:"",setAttribute(k,v){this[k]=v;},classList:{toggle(){}}};

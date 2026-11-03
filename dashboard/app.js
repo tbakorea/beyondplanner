@@ -1876,6 +1876,7 @@ function writePlannerCacheValue(key, value) {
 }
 
 function saveState(options = {}) {
+  captureTaskRecoveryHistory();
   const stateSnapshot = options.raw
     ? clonePlannerValue(state)
     : preparePlannerStateForPersistence(clonePlannerValue(state));
@@ -1887,6 +1888,136 @@ function saveState(options = {}) {
     saveStatus.message = "기기 임시저장 공간 부족 · DB 저장 완료 전 종료하지 마세요";
     renderSidebarAfterDailyInput();
   }
+}
+
+function taskRecoverySnapshot(task = {}, priority = "A") {
+  return {
+    text: String(task.text || ""), status: String(task.status || (task.done ? "완료" : "미완료")),
+    done: Boolean(task.done), priority, priorityUnset: Boolean(task.priorityUnset),
+    delegate: String(task.delegate || ""), postponeDate: String(task.postponeDate || ""),
+    carryoverStoppedAt: String(task.carryoverDeletedFrom || ""),
+  };
+}
+
+function collectTaskRecoveryChanges(beforeDay = {}, afterDay = {}, dayKey = "") {
+  const index = (day) => {
+    const items = new Map();
+    for (const priority of ["A", "B", "C"]) {
+      for (const task of day.tasks?.[priority] || []) {
+        if (task.id && String(task.text || "").trim()) items.set(task.id, taskRecoverySnapshot(task, priority));
+      }
+    }
+    return items;
+  };
+  const before = index(beforeDay), after = index(afterDay);
+  return [...before].flatMap(([taskId, previous]) => {
+    const current = after.get(taskId) || null;
+    if (JSON.stringify(previous) === JSON.stringify(current)) return [];
+    return [{ dayKey, taskId, before: previous, after: current }];
+  });
+}
+
+function captureTaskRecoveryHistory() {
+  if (!accountSaveReady || !getAuthSession()?.email) return;
+  let baseline;
+  try { baseline = JSON.parse(localStorage.getItem(plannerStateBaseKey()) || "null"); } catch { return; }
+  if (!baseline) return;
+  const changes = Object.keys(baseline.days || {}).flatMap((key) => collectTaskRecoveryChanges(baseline.days[key], state.days?.[key], key));
+  if (!changes.length) return;
+  state.taskRecoveryHistory ||= [];
+  const known = new Set(state.taskRecoveryHistory.map((item) => JSON.stringify([item.dayKey, item.taskId, item.before, item.after])));
+  changes.forEach((change) => {
+    const signature = JSON.stringify([change.dayKey, change.taskId, change.before, change.after]);
+    if (known.has(signature)) return;
+    known.add(signature);
+    const pending = state.taskRecoveryHistory.findLast((item) => item.dayKey === change.dayKey && item.taskId === change.taskId && !item.restoredAt && JSON.stringify(item.before) === JSON.stringify(change.before) && Date.now() - Date.parse(item.at) < 60000);
+    if (pending) {
+      pending.after = change.after;
+      pending.at = new Date().toISOString();
+      return;
+    }
+    state.taskRecoveryHistory.push({ id: newTaskId(), at: new Date().toISOString(), ...change });
+  });
+  state.taskRecoveryHistory = state.taskRecoveryHistory.sort((a, b) => String(a.at).localeCompare(String(b.at))).slice(-200);
+}
+
+function restoreTaskRecoveryCopy(entry) {
+  if (!accountSaveReady || !getAuthSession()?.email || !entry?.id || !entry?.before?.text?.trim()) return false;
+  const day = ensureDay(iso(todayInPlanner()));
+  const id = `recovered:${entry.id}`;
+  if (Object.values(day.tasks).flat().some((task) => task.id === id)) return false;
+  const priority = ["A", "B", "C"].includes(entry.before.priority) ? entry.before.priority : "A";
+  const task = setTaskCompletionState({ id, text: entry.before.text, priority, priorityUnset: entry.before.priorityUnset, status: "미완료", delegate: "", postponeDate: "", recoveryCopy: true }, false);
+  assignTaskOrder(day, task);
+  day.tasks[priority].push(task);
+  entry.restoredAt = new Date().toISOString();
+  const storedEntry = state.taskRecoveryHistory?.find((item) => item.id === entry.id);
+  if (storedEntry) storedEntry.restoredAt = entry.restoredAt;
+  selectedDate = todayInPlanner();
+  saveCriticalPlannerAction("업무 복원본 저장 중");
+  renderDay({ forceLists: true });
+  return true;
+}
+
+function openTaskRecoveryHistory() {
+  const korean = getAppLanguage() === "ko";
+  let dialog = el("taskRecoveryDialog");
+  if (!dialog) {
+    dialog = document.createElement("dialog");
+    dialog.id = "taskRecoveryDialog";
+    dialog.className = "task-recovery-dialog";
+    dialog.setAttribute("aria-labelledby", "taskRecoveryTitle");
+    document.body.append(dialog);
+  }
+  if (!accountSaveReady) {
+    dialog.innerHTML = `<form method="dialog"><button class="recovery-close" aria-label="${korean ? "닫기" : "Close"}">×</button></form><h2 id="taskRecoveryTitle">${korean ? "변경 이력 · 되찾기" : "Task history & recovery"}</h2><p role="status">${korean ? "계정의 DB 기록을 확인하고 있습니다. 확인 후 이력을 표시합니다." : "Loading your account history from the database…"}</p>`;
+    if (!dialog.open) dialog.showModal();
+    window.setTimeout(() => { if (dialog.open) openTaskRecoveryHistory(); }, 400);
+    return;
+  }
+  const records = [...(state.taskRecoveryHistory || [])].sort((a, b) => String(b.at).localeCompare(String(a.at))).slice(0, 200);
+  const dates = [...new Set(records.map((entry) => entry.dayKey))].sort().reverse();
+  dialog.innerHTML = `<form method="dialog"><button class="recovery-close" aria-label="${korean ? "닫기" : "Close"}">×</button></form>
+    <h2 id="taskRecoveryTitle">${korean ? "변경 이력 · 되찾기" : "Task history & recovery"}</h2>
+    <p>${korean ? "기능 적용 이후 저장한 우선업무의 이전 내용 · 최근 200건. 복원은 오늘에 미완료 복사본을 추가합니다." : "Previous task versions recorded after this feature was enabled. Latest 200 changes. Restore adds an open copy to today."}</p>
+    <label>${korean ? "날짜" : "Date"} <select class="recovery-date"><option value="">${korean ? "모든 날짜" : "All dates"}</option>${dates.map((date) => `<option value="${escapeAttr(date)}">${escapeHtml(date)}</option>`).join("")}</select></label>
+    <div class="recovery-records"></div>`;
+  const list = dialog.querySelector(".recovery-records");
+  const render = () => {
+    const date = dialog.querySelector(".recovery-date").value;
+    const filtered = records.filter((entry) => !date || entry.dayKey === date);
+    list.innerHTML = filtered.length ? "" : `<p>${korean ? "아직 기록된 변경이 없습니다. 우선업무를 수정·완료·삭제하면 이전 내용이 남습니다." : "No recorded changes yet. Editing, completing or deleting a task records its previous version."}</p>`;
+    filtered.forEach((entry) => {
+      const row = document.createElement("article");
+      row.className = "recovery-record";
+      const label = entry.after ? (korean ? "변경" : "Changed") : (korean ? "삭제" : "Deleted");
+      const at = new Date(entry.at).toLocaleString(korean ? "ko-KR" : "en-US");
+      row.innerHTML = `<small>${escapeHtml(entry.dayKey)} · ${label} · ${escapeHtml(at)}</small><h3>${escapeHtml(entry.before.text)}</h3>
+        <p>${korean ? "이전" : "Before"}: ${escapeHtml([entry.before.status, entry.before.priorityUnset ? "?" : entry.before.priority, entry.before.delegate, entry.before.postponeDate].filter(Boolean).join(" · "))}</p>
+        ${entry.after ? `<p>${korean ? "이후" : "After"}: ${escapeHtml([entry.after.text, entry.after.status, entry.after.priorityUnset ? "?" : entry.after.priority, entry.after.delegate, entry.after.postponeDate].filter(Boolean).join(" · "))}</p>` : ""}
+        <button type="button" class="recovery-restore">${entry.restoredAt ? (korean ? "복원본 추가됨" : "Copy added") : (korean ? "오늘에 미완료 복원본 추가" : "Add open copy to today")}</button>`;
+      const button = row.querySelector("button");
+      button.disabled = Boolean(entry.restoredAt) || !accountSaveReady;
+      button.onclick = () => {
+        if (button.dataset.confirm !== "yes") {
+          button.dataset.confirm = "yes";
+          button.textContent = korean ? "확인 · 현재 내용을 유지하고 복원본 추가" : "Confirm: keep current tasks and add a copy";
+          return;
+        }
+        if (!restoreTaskRecoveryCopy(entry)) {
+          button.dataset.confirm = "";
+          button.textContent = korean ? "계정 연결을 확인한 후 다시 눌러주세요" : "Check your account connection and try again";
+          return;
+        }
+        button.disabled = true;
+        button.textContent = korean ? "복원본 추가됨 · 저장 상태를 확인하세요" : "Copy added · check save status";
+      };
+      list.append(row);
+    });
+  };
+  dialog.querySelector("select").onchange = render;
+  render();
+  if (!dialog.open) dialog.showModal();
 }
 
 function saveCriticalPlannerAction(reason = "중요 변경 저장 중") {
@@ -3201,6 +3332,7 @@ function queueResumeServerValidation() {
 
 function hasPlannerContent(source = state) {
   const hasText = (value) => String(value || "").trim().length > 0;
+  if ((source.taskRecoveryHistory || []).some((item) => hasText(item.before?.text))) return true;
   if (hasText(source.foundation?.mission)) return true;
   if ((source.foundation?.values || []).some(hasText)) return true;
   if ((source.foundation?.roles || []).some((role) => hasText(role.goal) || hasText(role.renewal))) return true;
@@ -4064,6 +4196,7 @@ function setupSelectors() {
   if (el("quickLogoutButton")) el("quickLogoutButton").onclick = logoutPlanner;
   if (el("settingsLogoutButton")) el("settingsLogoutButton").onclick = logoutPlanner;
   if (el("settingsExportButton")) el("settingsExportButton").onclick = exportPlannerWorkbook;
+  el("settingsTaskRecoveryButton")?.addEventListener("click", openTaskRecoveryHistory);
   if (el("settingsImportButton")) el("settingsImportButton").onclick = () => el("importFile").click();
   if (el("approvalRefreshUsers")) el("approvalRefreshUsers").onclick = () => loadApprovalUsers({ force: true });
   el("privacyNowButton").onclick = () => activatePrivacyBlind("수동 보안모드가 실행되었습니다.");
@@ -11104,6 +11237,12 @@ function renderTaskBoard(day, dayKey = iso(selectedDate), displayItems = null) {
     openRepeatManager("create");
   };
   addGroup.append(add, repeat);
+  const recovery = document.createElement("button");
+  recovery.type = "button";
+  recovery.className = "add-row task-recovery-open";
+  recovery.textContent = getAppLanguage() === "ko" ? "변경 이력 · 되찾기" : "Task history & recovery";
+  recovery.onclick = openTaskRecoveryHistory;
+  addGroup.append(recovery);
   list.appendChild(addGroup);
   board.appendChild(list);
 }
@@ -11185,6 +11324,7 @@ function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
   const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
   const editableTask = location?.task || task;
   const wasActive = isActiveTaskSlot(editableTask);
+  delete editableTask.recoveryCopy;
   editableTask.text = input.value;
   if (editableTask !== task) task.text = input.value;
   if (editableTask.text.trim()) {
@@ -12904,6 +13044,7 @@ function extractTaskTimeHint(text = "") {
 }
 
 function syncTaskTimeHintToSchedule(task, day = ensureDay(), options = {}) {
+  if (task.recoveryCopy) return false;
   if (!task) return false;
   day.appointments ||= {};
   day.autoTaskScheduleLinks ||= {};
@@ -12984,6 +13125,7 @@ function syncVisibleTaskTimeHints(day = ensureDay(), carryovers = [], options = 
   });
   if (shouldSyncCarryoverTimeHints(selectedKey)) {
     carryovers.forEach((task) => {
+      if (task.recoveryCopy) return;
       if (syncTaskTextTimeHintToSchedule(task.text, day, {
         blockedSlots: directTaskSlots,
         linkId: getCarryoverScheduleLinkId(task),

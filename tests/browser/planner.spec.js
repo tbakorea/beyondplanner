@@ -146,12 +146,14 @@ test('phone navigation never covers task or schedule headers while lists scroll'
       expect(list.y+list.height).toBeLessThanOrEqual(bottom.y+1);
     }
   };
-  await check();
+  // A real iPhone UA enables the paged swipe animation. Wait for the panel to
+  // settle before hit-testing headers; keep all overlap assertions unchanged.
+  await expect(async()=>check()).toPass({timeout:5000});
   await page.locator('#dailyNextDay').click();
   await expect(page.locator('#dailyDateSwipeZone')).not.toHaveClass(/is-current-day/);
-  await check();
+  await expect(async()=>check()).toPass({timeout:5000});
   for(const id of ['taskBoard','appointmentList']) await page.locator('#'+id).evaluate(el=>{el.scrollTop=200;});
-  await check();
+  await expect(async()=>check()).toPass({timeout:5000});
   await page.screenshot({path:info.outputPath('phone-lists-below-navigation.png')});
 });
 

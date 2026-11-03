@@ -16,6 +16,7 @@ function runIphoneQuotaRegression(source) {
     const clonePlannerValue=x=>JSON.parse(JSON.stringify(x)),preparePlannerStateForPersistence=x=>x;
     const queueDisplayCachePersist=()=>displaySchedules++,markLocalStateUpdated=()=>dirty=true,scheduleAccountSave=()=>schedules++;
     const saveStatus={},renderSidebarAfterDailyInput=()=>{};
+    const captureTaskRecoveryHistory=()=>{};
     ${helpers}
     ${extract('saveState')}
     let error;try{saveState({fastSave:true});}catch(e){error=e;}
