@@ -21807,6 +21807,10 @@ body.classic-mode .day-schedule-panel > .panel-title-row [data-section-ai][hidde
   content: none !important;
 }
 
+.quick-strip > .settings-nav-button.utility-icon .simple-gear-icon::before {
+  transform: scale(2) !important;
+}
+
 .quick-strip > .top-status .top-more-menu summary.manage-menu-button {
   min-width: 42px !important;
   width: 42px !important;
