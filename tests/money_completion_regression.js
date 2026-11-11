@@ -9,7 +9,7 @@ function runMoneyCompletionRegression(source) {
     "clonePlannerValue", "plannerValuesEqual", "timestampMs", "isPlainPlannerObject",
     "mergePlannerTaskRecord", "mergePlannerValue", "isPlannerTaskRecord", "getCarryoverTasks",
     "getDayTaskSnapshots", "isTaskResolvedForDate", "hasTaskCompletionRecord", "isTaskDeletedFromDate",
-    "cloneCarryoverTaskList"];
+    "cloneCarryoverTaskList", "ensureDueMonthlyRepeatOccurrences"];
   for (const optional of ["findMoneyTaskToPreserve", "isHistoricalFixedMoneyTask"]) {
     if (source.includes(`function ${optional}(`)) names.push(optional);
   }

@@ -32,9 +32,11 @@ for (const mode of ['classic', 'ceo']) {
       }).toPass({timeout:5000});
       const dateBefore = await page.locator('#dayTitle').textContent();
       const title = page.locator('.day-task-panel > .panel-title-row');
+      // Locator hover waits for the scaled workspace to settle after resize.
+      // A cached screen coordinate can otherwise send the wheel to Schedule.
+      await board.hover();
       const titleBefore = await title.boundingBox();
       const box = await board.boundingBox();
-      await page.mouse.move(box.x + box.width/2, box.y + Math.min(60,box.height/2));
       // Real wheel input catches clipped/non-scrolling ancestors that setting
       // scrollTop directly or scrollIntoView would conceal.
       await page.mouse.wheel(0,10000);
@@ -68,11 +70,11 @@ for (const mode of ['classic', 'ceo']) {
       await page.mouse.wheel(0,-10000);
       await expect.poll(()=>board.evaluate(el=>el.scrollTop)).toBe(0);
       const schedule=page.locator('#appointmentList');
+      await schedule.hover();
       const scheduleBox=await schedule.boundingBox();
       expect(scheduleBox.y+scheduleBox.height).toBeLessThanOrEqual(size.height+1);
       const scheduleTitle=page.locator('.day-schedule-panel > .panel-title-row');
       const scheduleTitleBefore=await scheduleTitle.boundingBox();
-      await page.mouse.move(scheduleBox.x+scheduleBox.width/2,scheduleBox.y+Math.min(60,scheduleBox.height/2));
       await page.mouse.wheel(0,10000);
       await expect(async()=>{
         const last=await schedule.locator('.appointment-row').last().boundingBox();

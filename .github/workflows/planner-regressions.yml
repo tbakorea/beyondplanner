@@ -20,6 +20,7 @@ jobs:
       - run: node tests/delegation_regression.js
       - run: node tests/postpone_regression.js
       - run: node tests/money_completion_regression.js
+      - run: node tests/monthly_repeat_regression.js
       - run: node tests/today_cache_regression.js
       - run: node tests/completion_counter_regression.js
       - run: node tests/resume_save_regression.js

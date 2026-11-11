@@ -10387,6 +10387,7 @@ function shouldCarryRepeatTask(task, currentKey) {
   const sourceKey = task.repeatSourceDate || task.date || String(task.repeatId).match(/^repeat-\d+-(\d{4}-\d{2}-\d{2})$/)?.[1] || "";
   const rule = repeatRuleForTask(task);
   if (!sourceKey || !rule) return true;
+  if (sourceKey >= currentKey || !shouldShowCarryoversForDate(currentKey)) return false;
   if (rule.deletedFrom && currentKey >= rule.deletedFrom) return false;
   if (!repeatRuleAllowsCarryover(rule)) return false;
   const carryUntilKey = repeatCarryUntilKey(rule, sourceKey);
@@ -10448,6 +10449,7 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
       return;
     }
     const task = setTaskCompletionState({
+      id: repeatId,
       text: rule.text.trim(),
       status: "미완료",
       repeatId,
@@ -10457,6 +10459,42 @@ function applyRepeatingPriorityTasks(key = iso(selectedDate)) {
     }, false);
     assignTaskOrder(day, task);
     day.tasks[priority].push(task);
+  });
+}
+
+function ensureMonthlyRepeatOccurrencesForDate(key) {
+  if (!isValidIsoDate(key)) return;
+  const date = parseDate(key);
+  if ((state.repeats?.priorityTasks || []).some((rule) => rule.frequency === "monthly" && shouldRepeatOnDate(rule, date))) {
+    ensureDay(key);
+  }
+}
+
+function latestMonthlyRepeatDateBefore(rule, key) {
+  normalizeRepeatRule(rule);
+  if (rule.frequency !== "monthly" || !rule.active || !rule.text.trim()) return "";
+  const limit = parseDate(key);
+  limit.setDate(limit.getDate() - 1);
+  if (rule.endMode === "date" && rule.endDate && iso(limit) > rule.endDate) limit.setTime(parseDate(rule.endDate).getTime());
+  if (rule.deletedFrom && iso(limit) >= rule.deletedFrom) {
+    limit.setTime(parseDate(rule.deletedFrom).getTime());
+    limit.setDate(limit.getDate() - 1);
+  }
+  // Even a 31st-of-month rule has an occurrence within these three months.
+  // Look up only the latest cycle, without generating an unbounded history.
+  for (let offset = 0; offset < 3; offset += 1) {
+    const first = new Date(limit.getFullYear(), limit.getMonth() - offset, 1);
+    if (rule.monthday > daysInMonth(first.getFullYear(), first.getMonth())) continue;
+    const date = new Date(first.getFullYear(), first.getMonth(), rule.monthday);
+    if (date <= limit && shouldRepeatOnDate(rule, date)) return iso(date);
+  }
+  return "";
+}
+
+function ensureDueMonthlyRepeatOccurrences(currentKey) {
+  (state.repeats?.priorityTasks || []).forEach((rule) => {
+    const key = latestMonthlyRepeatDateBefore(rule, currentKey);
+    if (key) ensureMonthlyRepeatOccurrencesForDate(key);
   });
 }
 
@@ -10685,7 +10723,7 @@ function saveRepeatEditor(rule, isEdit) {
   repeatEditingIndex = -1;
   repeatEditingDraft = null;
   renderRepeatPriorityList();
-  renderDay();
+  renderDay({ forceLists: true });
 }
 
 function deleteRepeatRule(index) {
@@ -12366,6 +12404,9 @@ function getCarryoverSuppressionIdentityValues(task = {}, priority = "", dayKey 
   const taskCopy = { ...task };
   if (priority && !taskCopy.priority) taskCopy.priority = priority;
   if (dayKey && !taskCopy.date) taskCopy.date = dayKey;
+  // A completed/deleted monthly occurrence must not suppress later months,
+  // even though the title and rule index are identical.
+  if (repeatRuleForTask(taskCopy)?.frequency === "monthly") return getCarryoverIdentityValues(taskCopy);
   const text = normalizeSearchText(taskCopy.text || "");
   const taskPriority = taskCopy.priority || priority || taskCopy.originalPriority || "";
   const identities = [
@@ -16655,6 +16696,9 @@ function formatMoneyAmount(value) {
 }
 
 function getDayTasks(key) {
+  // Resolve saved monthly rules in calendars too, before a day is first opened.
+  // The rule is the recurrence source; no finite future horizon is prefilled.
+  ensureMonthlyRepeatOccurrencesForDate(key);
   const day = state.days[key];
   if (!day) return [];
   normalizeDayTasks(day, key);
@@ -16699,6 +16743,9 @@ function cloneCarryoverTaskList(items = []) {
 function getCarryoverTasks(date) {
   const currentKey = iso(date);
   if (!shouldShowCarryoversForDate(currentKey)) return [];
+  // A due occurrence still exists when its day was never opened on a device.
+  // Generate it only after that date has passed, never in a future preview.
+  ensureDueMonthlyRepeatOccurrences(currentKey);
   const version = carryoverTaskCacheVersion();
   if (carryoverTaskCache.key === currentKey && carryoverTaskCache.version === version) {
     return cloneCarryoverTaskList(carryoverTaskCache.items);
@@ -16783,7 +16830,7 @@ function isCarryoverIdentitySuppressed(task = {}, suppressedIdentities = new Set
 function getCarryoverTaskIdentity(task = {}) {
   const postponeRoot = task.postponedFrom || task.postponeId || "";
   if (postponeRoot) return `postpone:${postponeRoot}`;
-  if (task.repeatId) return `repeat:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}`;
+  if (task.repeatId) return `repeat:${repeatRuleForTask(task)?.frequency === "monthly" ? task.repeatId : String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}`;
   if (task.financeItemId) return `money:${task.financeItemId}`;
   if (task.projectTaskId) return `project:${task.projectTaskId}`;
   const taskRoot = getTaskCarryoverRootKey(task);
@@ -16795,7 +16842,7 @@ function getCarryoverSemanticIdentity(task = {}) {
   const text = normalizeSearchText(task.text || "");
   if (!text) return "";
   if (task.financeItemId) return `money-text:${text}`;
-  if (task.repeatId) return `repeat-text:${String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}:${text}`;
+  if (task.repeatId) return `repeat-text:${repeatRuleForTask(task)?.frequency === "monthly" ? task.repeatId : String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}:${text}`;
   if (task.projectTaskId) return `project-text:${task.projectTaskId}:${text}`;
   if (task.postponedFrom || task.postponeId) return `postpone-text:${task.postponedFrom || task.postponeId}:${text}`;
   if (task.carryoverForkFrom || task.carryoverSourceDate || task.date) return `task-text:${text}`;
