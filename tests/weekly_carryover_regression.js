@@ -1,14 +1,10 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const source=fs.readFileSync(require('node:path').join(__dirname,'../dashboard/app.js'),'utf8');
-const extract=name=>source.match(new RegExp(`function ${name}\\([^\\n]*\\{\\n[\\s\\S]*?\\n\\}`))[0];
-const run=new Function('assert',`
-const isPlainPlannerObject=v=>v&&typeof v==='object'&&!Array.isArray(v);
-const getPlannerArrayCarryoverMergeKey=()=>'', normalizeWeeklyPriority=t=>t;
-const setTaskCompletionState=(t,done)=>({...t,done}),newTaskId=()=>Math.random().toString();
-const clonePlannerValue=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
-const plannerValuesEqual=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const mergePlannerValue=(base,local,remote)=>({...remote,...local});
-${['getPlannerArrayItemKey','canMergePlannerArrayByKey','mapPlannerArrayByKey','mergePlannerArrays','cloneWeeklyPriorityForCarry','consolidateWeeklyPriorityCarryovers'].map(extract).join('\n')}
+const program=source.slice(0,source.lastIndexOf('\nsetup().catch('));
+const storage=new Map([['beyondWorkAuthSession.v1',JSON.stringify({email:'weekly-qa@example.test',provider:'supabase',accessToken:'fixture-only',expiresAt:4102444800})]]);
+const win={location:{search:'',pathname:'/dashboard/index.html',hash:''},setTimeout:()=>1,clearTimeout:()=>{}};
+const doc={getElementById:()=>null,querySelector:()=>null,activeElement:null,hidden:false};
+const run=new Function('assert','window','localStorage','document','navigator',program+`
 const original={id:'source',text:'사업장 이동',status:'미완료',priority:'A'};
 const a=cloneWeeklyPriorityForCarry(original,'2026-10-25'),b=cloneWeeklyPriorityForCarry(original,'2026-10-25');
 assert.equal(a.id,b.id,'independent first opens must create the same carryover ID');
@@ -27,4 +23,30 @@ consolidateWeeklyPriorityCarryovers(edits);
 assert.equal(edits.priorities.length,2,'different edits must survive consolidation');
 assert.equal(mergePlannerArrays([],edits.priorities,edits.priorities).length,2,'different legacy edits must survive future merges');
 assert.notEqual(cloneWeeklyPriorityForCarry(original,'2026-11-01').id,cloneWeeklyPriorityForCarry(original,'2026-10-25').id);
-`);run(assert);console.log('9 weekly carryover identity, merge and recovery checks passed');
+const done=setTaskCompletionState({...b,status:'완료',completedDate:'2026-11-04',completedAt:'2026-11-04T02:00:00Z',lifecycleUpdatedAt:'2026-11-04T02:00:01Z',postponeMode:''},true);
+for (const [local,remote] of [[a,done],[done,a]]) {
+  const merged=mergePlannerArrays([], [local], [remote]);
+  assert.equal(merged.length,1);
+  assert.equal(merged[0].done,true,'an independently created open row cannot replace a saved completion');
+}
+const renamed=mergePlannerArrays([a],[{...a,text:'수정된 주간업무'}],[done]);
+assert.equal(renamed[0].text,'수정된 주간업무');
+assert.equal(renamed[0].done,true,'renaming a carryover does not discard concurrent completion');
+const mixed={priorities:[{...a},{...done,weeklyCarryoverVariant:done.id}]};
+consolidateWeeklyPriorityCarryovers(mixed);
+assert.equal(mixed.priorities.filter(t=>t.text).length,1,'completed and stale open copies represent the same occurrence');
+assert.equal(mixed.priorities[0].done,true);
+assert.equal(mixed.priorities[0].completedDate,'2026-11-04');
+assert.equal(getPlannerArrayItemKey(mixed.priorities[0]),getPlannerArrayItemKey(a),'consolidation retains the original merge key');
+assert.equal(mixed.priorityDuplicateArchive[0].id,a.id,'the stale copy remains recoverable');
+assert.equal(createWeeklyPriorities('2026-11-08',{weeks:{'2026-11-01':mixed}}).filter(t=>t.text).length,0,'recovered completion does not carry to the next week');
+const reopened=setTaskCompletionState({...a,status:'진행중',completedDate:'',completedAt:'',lifecycleUpdatedAt:'2026-11-05T02:00:00Z'},false);
+const later={priorities:[{...done},{...reopened}]};
+consolidateWeeklyPriorityCarryovers(later);
+assert.equal(later.priorities[0].status,'진행중','a later intentional reopen wins');
+assert.equal(later.priorities[0].completedAt,'');
+assert.equal(mergePlannerArrays([], [done], [reopened])[0].status,'진행중');
+const legacy=normalizeWeeklyPriority({id:'legacy',text:'완료 날짜가 있는 주간업무',done:false,status:'미완료',completedDate:'2026-11-04'});
+assert.equal(legacy.done,true,'a saved legacy completion date repairs an inconsistent checkbox');
+`);run(assert,win,{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},doc,{language:'ko-KR'});
+console.log('Weekly carryover identity, completion conflicts, explicit reopen and recovery checks passed');

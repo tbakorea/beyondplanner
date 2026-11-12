@@ -217,3 +217,88 @@ test('legacy duplicated weekly carryovers consolidate, archive and survive reloa
   await expect(page.locator('.day-task-panel .task-text-input').first()).toHaveValue('QA 주간 중복 보존 검사');
   expect(await values()).toEqual(rows.map(t=>t.text));
 });
+
+function weeklyFixtureDates(snapshot) {
+  const today=Object.keys(snapshot.state.days).sort().at(-1);
+  const sunday=new Date(today+'T12:00:00Z');
+  sunday.setUTCDate(sunday.getUTCDate()-sunday.getUTCDay());
+  const week=sunday.toISOString().slice(0,10);
+  sunday.setUTCDate(sunday.getUTCDate()-7);
+  return {today,week,previous:sunday.toISOString().slice(0,10)};
+}
+
+const weeklyCompletionRow=(page,label)=>page.locator('#dayCompass .weekly-priority-row').filter({
+  has:page.locator(`input[value="${label}"]`),
+});
+
+test('weekly completion survives an older duplicate and a fresh reload',async({context,page,request})=>{
+  const snapshot=await(await request.get('/qa/snapshot')).json();
+  const {today,week,previous}=weeklyFixtureDates(snapshot);
+  const label='QA 완료한 주간 업무';
+  const openCopy={id:'old-open',text:label,done:false,status:'미완료',carryoverSourceId:'weekly-origin',carryoverFromWeek:previous};
+  snapshot.state.weeks[week]={priorities:[openCopy,{
+    ...openCopy,id:'saved-completion',status:'완료',done:true,completedDate:today,
+    completedAt:today+'T01:00:00Z',lifecycleUpdatedAt:today+'T01:00:01Z',postponeMode:'',
+  }],compass:[]};
+  await request.post('/api/state',{data:{state:snapshot.state,baseUpdatedAt:snapshot.updatedAt}});
+  await open(context,page);
+  const row=weeklyCompletionRow(page,label);
+  await expect(row).toHaveCount(1);
+  await expect(row).toHaveClass(/marker-check/);
+  const input=page.locator('.day-task-panel .task-text-input').first();
+  await input.fill('QA 주간 완료 보존'); await input.blur();
+  await expect.poll(async()=>{
+    const saved=await(await request.get('/qa/snapshot')).json();
+    return saved.state.weeks[week]?.priorityDuplicateArchive?.map(item=>item.id);
+  }).toContain('old-open');
+  await page.evaluate(()=>localStorage.clear());
+  await page.reload();
+  await expect(row).toHaveCount(1);
+  await expect(row).toHaveClass(/marker-check/);
+});
+
+test('a stale first save of the week cannot reopen a completed carryover',async({browser,context,page,request},info)=>{
+  const snapshot=await(await request.get('/qa/snapshot')).json();
+  const {week,previous}=weeklyFixtureDates(snapshot);
+  const label='QA 첫 주간 이월 완료';
+  snapshot.state.weeks[previous]={priorities:[{id:'prior-week-item',text:label,done:false,status:'미완료'}],compass:[]};
+  await request.post('/api/state',{data:{state:snapshot.state,baseUpdatedAt:snapshot.updatedAt}});
+  await open(context,page);
+  const other=await browser.newContext({...info.project.use,timezoneId:'Asia/Seoul'});
+  let release;
+  const blocked=new Promise(resolve=>{release=resolve;});
+  try {
+    const second=await other.newPage();
+    await open(other,second);
+    let queued=false;
+    await other.route('**/api/state',async route=>{
+      if(route.request().method()==='POST') {
+        const {state}=route.request().postDataJSON();
+        queued ||= Object.values(state.days).some(day=>day.tasks?.A?.some(item=>item.id==='qa-1'&&item.done));
+        await blocked;
+      }
+      await route.continue();
+    });
+    await second.locator('#taskBoard .task-row .task-cycle').first().click();
+    await expect.poll(()=>queued).toBeTruthy();
+    if(await page.locator('#daySwipe').evaluate(el=>getComputedStyle(el).display==='flex')) {
+      await page.locator('#dailyPulseZone [data-day-panel-jump="week"]').click();
+    }
+    await weeklyCompletionRow(page,label).locator('.task-cycle').click();
+    const readSaved=async()=>(await(await request.get('/qa/snapshot')).json()).state;
+    await expect.poll(async()=>{
+      return (await readSaved()).weeks[week]?.priorities?.find(item=>item.text===label)?.done;
+    }).toBe(true);
+    await second.bringToFront();
+    const stale=second.waitForResponse(response=>new URL(response.url()).pathname==='/api/state'&&response.request().method()==='POST');
+    release();
+    expect((await(await stale).json()).stale).toBe(true);
+    await expect.poll(async()=>{
+      const saved=await readSaved();
+      return {
+        checked:saved.weeks[week]?.priorities?.filter(item=>item.text===label).map(item=>item.done),
+        dailyChecked:Object.values(saved.days).some(day=>day.tasks?.A?.some(item=>item.id==='qa-1'&&item.done)),
+      };
+    },{timeout:20000}).toEqual({checked:[true],dailyChecked:true});
+  } finally { release(); await other.close(); }
+});

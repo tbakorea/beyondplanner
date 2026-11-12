@@ -3163,7 +3163,11 @@ function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = []) {
 
     if (!hasLocal && !hasRemote) return items;
     if (!hasBase) {
-      items.push(clonePlannerValue(hasLocal ? localItem : remoteItem));
+      // Both devices can derive the same weekly occurrence before either
+      // saves it. Even without a base row, merge its completion history.
+      items.push(hasLocal && hasRemote && key.startsWith("weekly:")
+        ? mergePlannerTaskRecord(undefined, localItem, remoteItem)
+        : clonePlannerValue(hasLocal ? localItem : remoteItem));
       return items;
     }
     if (!hasLocal) {
@@ -3833,7 +3837,7 @@ function normalizeWeeklyPriority(item = {}) {
   item.id ||= newTaskId();
   if (item.carryoverFromWeek && !item.carryoverSourceId) item.carryoverSourceId = item.id;
   item.text ||= "";
-  const completed = isTaskCompleted(item);
+  const completed = isTaskCompleted(item) || hasTaskCompletionRecord(item);
   item.status ||= completed ? "완료" : "미완료";
   if (completed) {
     item.status = "완료";
@@ -3870,25 +3874,48 @@ function cloneWeeklyPriorityForCarry(item = {}, sourceWeekKey = "") {
 }
 
 function consolidateWeeklyPriorityCarryovers(week) {
-  const seen = new Set();
+  const seen = new Map();
   const origins = new Set();
   const duplicates = [];
-  week.priorities = (week.priorities || []).filter((item) => {
-    if (!item.carryoverFromWeek || !item.carryoverSourceId || !String(item.text || "").trim()) return true;
-    // Only identical copies of the same carryover are safe to consolidate.
-    // Independent entries and differing edits must remain available.
-    const content = Object.fromEntries(Object.entries(item).filter(([key]) => !["id", "weeklyCarryoverVariant"].includes(key)).sort(([a], [b]) => a.localeCompare(b)));
+  const completionFields = new Set([
+    "id", "weeklyCarryoverVariant", "status", "done", ...TASK_COMPLETION_ALIAS_KEYS,
+    "completedDate", "completedAt", "lifecycleUpdatedAt",
+  ]);
+  week.priorities = (week.priorities || []).reduce((rows, item) => {
+    if (!item.carryoverFromWeek || !item.carryoverSourceId || !String(item.text || "").trim()) {
+      rows.push(item);
+      return rows;
+    }
+    // Match the same origin and content, ignoring only its completion state.
+    // Independent entries and other edits still remain separate.
+    const content = Object.fromEntries(Object.entries(item)
+      .filter(([key, value]) => !completionFields.has(key) && (key !== "postponeMode" || value))
+      .sort(([a], [b]) => a.localeCompare(b)));
     const fingerprint = JSON.stringify(content);
     if (!seen.has(fingerprint)) {
-      seen.add(fingerprint);
+      seen.set(fingerprint, rows.length);
       const origin = `${item.carryoverFromWeek}:${item.carryoverSourceId}`;
       if (origins.has(origin)) item.weeklyCarryoverVariant ||= item.id;
       origins.add(origin);
-      return true;
+      rows.push(item);
+      return rows;
     }
-    duplicates.push(JSON.parse(JSON.stringify(item)));
-    return false;
-  });
+    const index = seen.get(fingerprint);
+    const current = rows[index];
+    const currentTime = Math.max(timestampMs(current.lifecycleUpdatedAt), timestampMs(current.completedAt));
+    const itemTime = Math.max(timestampMs(item.lifecycleUpdatedAt), timestampMs(item.completedAt));
+    if (itemTime > currentTime || (itemTime === currentTime && getTaskResolutionRank(item) > getTaskResolutionRank(current))) {
+      // Preserve the row's existing merge identity when replacing its state.
+      duplicates.push(clonePlannerValue(current));
+      const winner = { ...item, id: current.id };
+      if (current.weeklyCarryoverVariant) winner.weeklyCarryoverVariant = current.weeklyCarryoverVariant;
+      else delete winner.weeklyCarryoverVariant;
+      rows[index] = winner;
+    } else {
+      duplicates.push(clonePlannerValue(item));
+    }
+    return rows;
+  }, []);
   if (!duplicates.length) return;
   week.priorityDuplicateArchive ||= [];
   const archived = new Set(week.priorityDuplicateArchive.map((item) => JSON.stringify(item)));
@@ -10976,7 +11003,6 @@ function renderDayCompass() {
     }
     text.oninput = () => {
       item.text = text.value;
-      delete item.carryoverFromWeek;
       normalizeWeeklyPriority(item);
       saveState();
     };
