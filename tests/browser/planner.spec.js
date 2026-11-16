@@ -138,6 +138,77 @@ test('edit, completion, animated save and new browser context preserve server da
   await fresh.close();
 });
 
+test('new priority and completion paint before preparing the planner save', async ({ context, page, request }, info) => {
+  await open(context, page);
+  const title = 'QA 신규 우선업무';
+  const board = page.locator('#taskBoard');
+  const rows = board.locator('.task-row');
+  const blankIndex = await rows.evaluateAll(items =>
+    items.findIndex(item => !item.querySelector('.task-text-input').value));
+  const row = rows.nth(blankIndex);
+  await row.locator('input.task-text-input').fill(title);
+  await row.locator('input.task-text-input').blur();
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+
+  await request.post('/qa/delay', { data: { seconds: 2 } });
+  await page.evaluate(() => {
+    let pendingFrame = null;
+    window.taskActionFrames = [];
+    const captureHistory = window.captureTaskRecoveryHistory;
+    window.captureTaskRecoveryHistory = () => {
+      if (pendingFrame) pendingFrame.saves++;
+      captureHistory();
+    };
+    for (const [event, selector] of [['input', '.priority-select'], ['click', '.task-cycle']]) {
+      document.querySelector('#taskBoard').addEventListener(event, ({ target }) => {
+        if (!target.matches(selector)) return;
+        const row = target.closest('.task-row');
+        const frame = { saves: 0 };
+        pendingFrame = frame;
+        requestAnimationFrame(() => {
+          frame.label = row.querySelector('.task-status-label').textContent;
+          frame.marker = row.querySelector('.task-cycle').textContent;
+          window.taskActionFrames.push(frame);
+          pendingFrame = null;
+        });
+      }, true);
+    }
+  });
+
+  await row.locator('.priority-select').selectOption('B');
+  await expect(row.locator('.task-status-label')).toHaveText('B');
+  await expect.poll(() => page.evaluate(() => window.taskActionFrames.slice())).toEqual([
+    { saves: 0, label: 'B', marker: '' },
+  ]);
+  const completion = row.locator('.task-cycle');
+  if (info.project.use.hasTouch) await completion.tap();
+  else await completion.click();
+  await expect(row).toHaveClass(/marker-check/);
+  await expect.poll(() => page.evaluate(() => window.taskActionFrames.slice())).toEqual([
+    { saves: 0, label: 'B', marker: '' },
+    { saves: 0, label: 'B', marker: '✓' },
+  ]);
+  await expect(page.locator('#dailyCompletion')).toHaveText('1/21');
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved', { timeout: 30000 });
+  const { state } = await (await request.get('/qa/snapshot')).json();
+  expect(Object.values(state.days).flatMap(day => day.tasks?.B || []))
+    .toContainEqual(expect.objectContaining({ text: title, priority: 'B', done: true }));
+  await page.reload();
+  await expect(board.locator('.task-row').filter({ has: page.locator(`input[value="${title}"]`) }))
+    .toHaveClass(/marker-check/);
+
+  // A tab can be backgrounded or closed before the next frame runs.
+  await row.locator('.priority-select').evaluate(select => {
+    select.value = 'C';
+    select.dispatchEvent(new Event('input', { bubbles: true }));
+    window.dispatchEvent(new PageTransitionEvent('pagehide'));
+  });
+  await expect.poll(async () => {
+    const { state } = await (await request.get('/qa/snapshot')).json();
+    return Object.values(state.days).flatMap(day => day.tasks?.C || []);
+  }, { timeout: 15000 }).toContainEqual(expect.objectContaining({ text: title, priority: 'C', done: true }));
+});
+
 test('two independent browsers merge overlapping saves without reverting unrelated edits', async ({browser,context,page,request},info) => {
   await open(context,page);
   const other=await browser.newContext({...info.project.use,timezoneId:'Asia/Seoul'});

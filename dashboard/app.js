@@ -626,6 +626,7 @@ let approvalUsers = [];
 let approvalStats = { total: 0, pending: 0, approved: 0, suspended: 0, rejected: 0 };
 const TASK_CYCLE_LOCK_MS = 900;
 const taskCycleLocks = new Map();
+let pendingDailyTaskControlSave = null;
 const POSTPONE_PICKER_GUARD_MS = 180;
 const postponePickerGuards = new WeakMap();
 
@@ -1870,6 +1871,8 @@ function writePlannerCacheValue(key, value) {
 }
 
 function saveState(options = {}) {
+  // The snapshot includes any daily task controls edited since the last paint.
+  pendingDailyTaskControlSave = null;
   captureTaskRecoveryHistory();
   const stateSnapshot = options.raw
     ? clonePlannerValue(state)
@@ -2025,6 +2028,36 @@ function saveCriticalPlannerAction(reason = "중요 변경 저장 중") {
   saveState({ fastSave: true });
   if (accountSaveReady) window.setTimeout(() => flushPlannerSave(reason), 0);
   else scheduleAccountSave(120);
+}
+
+function saveDailyTaskControlAction(reason) {
+  // Protect the in-memory edit from older server responses immediately.
+  markDailyTaskMutation(2200);
+  markLocalStateUpdated();
+  saveStatus.saving = true;
+  saveStatus.message = reason;
+  renderPlannerSaveStatus();
+
+  if (pendingDailyTaskControlSave) {
+    pendingDailyTaskControlSave.reason = reason;
+  } else {
+    const pending = { reason, accountEmail: getAuthSession()?.email };
+    pendingDailyTaskControlSave = pending;
+    const save = () => {
+      if (pendingDailyTaskControlSave !== pending) return;
+      if (pending.accountEmail !== getAuthSession()?.email) {
+        pendingDailyTaskControlSave = null;
+        return;
+      }
+      if (accountSaveReady) flushPlannerSave(pending.reason);
+      else saveState({ fastSave: true });
+    };
+    // Leave a frame for the row to paint before preparing the full snapshot.
+    // The timer also runs when animation frames are paused.
+    window.setTimeout(save, 100);
+    window.requestAnimationFrame(() => window.requestAnimationFrame(save));
+  }
+  renderDayAfterTaskMutation({ deferRender: true });
 }
 
 function refreshDailyTaskRelatedViews() {
@@ -2381,6 +2414,9 @@ function scheduleAccountSave(delay = 650) {
 }
 
 function flushPlannerSave(reason = "즉시 저장", options = {}) {
+  if (pendingDailyTaskControlSave && pendingDailyTaskControlSave.accountEmail === getAuthSession()?.email) {
+    saveState({ fastSave: true });
+  }
   window.clearTimeout(accountSaveTimer);
   const meta = getStateMeta();
   const hasPendingSave = hasPendingPlannerSave(meta);
@@ -7823,7 +7859,8 @@ function renderWeek() {
 
 function renderDay(options = {}) {
   const day = ensureDay();
-  const editing = !options.forceLists && isAnyPlannerTextEditing();
+  const editing = (options.preserveFocusedText && isTextEntryPlannerTarget())
+    || (!options.forceLists && isAnyPlannerTextEditing());
   const key = iso(selectedDate);
   const dayTitle = el("dayTitle");
   if (dayTitle) {
@@ -11297,14 +11334,13 @@ function renderDayAfterTaskMutation(options = {}) {
   markDailyTaskMutation(1800);
   markPlannerInputEditing(900);
   markDailyFieldEditing(900);
-  if (options.fastSummary) {
-    refreshDailyStatusViews();
-    queueActiveViewRender({ forceLists: true }, options.delay || 120);
+  if (options.deferRender) {
+    queueActiveViewRender({ forceLists: true, preserveFocusedText: true }, 120);
   } else {
     renderDay({ forceLists: true });
   }
   if (isPagedDaySwipe()) positionDaySwipe(panel, true);
-  scheduleDailyTaskRelatedRefresh(options.fastSummary ? 360 : 220);
+  scheduleDailyTaskRelatedRefresh(options.deferRender ? 360 : 220);
 }
 
 function getTaskRefs(day) {
@@ -11366,7 +11402,7 @@ function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
     else assignTaskOrderAfterActive(dayState, editableTask);
   }
   const scheduleChanged = syncTaskTimeHintToSchedule(editableTask, dayState, { dayKey });
-  if ((scheduleChanged || options.forceScheduleRender) && dayKey === iso(selectedDate)) renderAppointments(dayState);
+  if (scheduleChanged && dayKey === iso(selectedDate)) renderAppointments(dayState);
   saveState({ fastSave: true });
   return { day: dayState, task: editableTask, scheduleChanged, dayKey };
 }
@@ -11568,8 +11604,7 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
       if (targetTask !== task) Object.assign(task, targetTask);
       reflectTaskMarkerOnRow(row, targetTask);
       showTaskCycleFeedback(cycle, feedback);
-      saveCriticalPlannerAction("우선업무 완료 상태 저장 중");
-      renderDayAfterTaskMutation({ fastSummary: true });
+      saveDailyTaskControlAction("우선업무 완료 상태 저장 중");
     });
   };
   if (prioritySelect) {
@@ -11608,13 +11643,27 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
     }, { task });
   }
   bindDailyTaskTextInput(text);
-  text.oninput = () => commitDailyTaskTextInput(task, priority, index, text, { typing: true, dayKey });
+  let committedText = text.value;
+  let scheduleChangedWhileTyping = false;
+  text.oninput = () => {
+    const result = commitDailyTaskTextInput(task, priority, index, text, { typing: true, dayKey });
+    committedText = text.value;
+    scheduleChangedWhileTyping ||= Boolean(result?.scheduleChanged);
+  };
+  let textCommitTimer = 0;
   const commitTextAndSchedule = () => {
-    window.setTimeout(() => {
-      const result = commitDailyTaskTextInput(task, priority, index, text, { typing: false, forceScheduleRender: true, dayKey });
-      if (result?.day && result.dayKey === iso(selectedDate)) {
-        syncVisibleTaskTimeHints(result.day, getCarryoverTasks(parseDate(dayKey)), { dayKey });
+    window.clearTimeout(textCommitTimer);
+    textCommitTimer = window.setTimeout(() => {
+      if (text.value !== committedText) {
+        const result = commitDailyTaskTextInput(task, priority, index, text, { typing: false, dayKey });
+        committedText = text.value;
+        scheduleChangedWhileTyping ||= Boolean(result?.scheduleChanged);
       }
+      if (scheduleChangedWhileTyping && dayKey === iso(selectedDate)) {
+        const day = ensureDay(dayKey);
+        if (syncVisibleTaskTimeHints(day, getCarryoverTasks(parseDate(dayKey)), { dayKey })) renderAppointments(day);
+      }
+      scheduleChangedWhileTyping = false;
     }, 0);
   };
   text.addEventListener("change", commitTextAndSchedule);
@@ -11965,8 +12014,7 @@ function handlePriorityMenuChange(task, fromPriority, index, value) {
     return;
   }
   targetTask.priorityUnset = true;
-  saveCriticalPlannerAction("우선업무 중요도 저장 중");
-  renderDayAfterTaskMutation();
+  saveDailyTaskControlAction("우선업무 중요도 저장 중");
 }
 
 function moveTaskPriority(fromPriority, index, toPriority, taskRef = null) {
@@ -11991,8 +12039,7 @@ function moveLocatedTaskPriority(day, location, toPriority) {
     day.tasks[toPriority] ||= [];
     if (!day.tasks[toPriority].includes(task)) day.tasks[toPriority].push(task);
   }
-  saveCriticalPlannerAction("우선업무 중요도 저장 중");
-  renderDayAfterTaskMutation();
+  saveDailyTaskControlAction("우선업무 중요도 저장 중");
 }
 
 function monthlyTaskSeries(task) {
@@ -12974,8 +13021,7 @@ function updateCarryoverTaskMarker(taskRef, anchor = null, targetKey = iso(selec
   }
   reflectTaskMarkerOnRow(anchor?.closest?.(".task-row"), source);
   showTaskCycleFeedback(anchor, feedback);
-  saveCriticalPlannerAction("이월 우선업무 완료 상태 저장 중");
-  renderDayAfterTaskMutation({ fastSummary: true });
+  saveDailyTaskControlAction("이월 우선업무 완료 상태 저장 중");
 }
 
 function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDate)) {
@@ -13013,13 +13059,11 @@ function updateCarryoverTaskPriority(taskRef, value, targetKey = iso(selectedDat
       source.day.tasks[source.priority] = source.day.tasks[source.priority].filter((task) => task !== source.task);
       source.day.tasks[value].push(source.task);
     }
-    saveCriticalPlannerAction("이월 우선업무 중요도 저장 중");
-    renderDayAfterTaskMutation();
+    saveDailyTaskControlAction("이월 우선업무 중요도 저장 중");
     return;
   }
   source.task.priorityUnset = true;
-  saveCriticalPlannerAction("이월 우선업무 중요도 저장 중");
-  renderDayAfterTaskMutation();
+  saveDailyTaskControlAction("이월 우선업무 중요도 저장 중");
 }
 
 function updateTaskDelegate(task, value) {
@@ -17537,7 +17581,7 @@ function renderActiveViewSections(options = {}) {
   else if (activeView === "memos") renderMemos();
   else if (activeView === "search") renderSearch();
   else if (activeView === "coach") renderCoach(activeCoachSection);
-  else renderDay({ forceLists: Boolean(options.forceLists) });
+  else renderDay({ forceLists: options.forceLists, preserveFocusedText: options.preserveFocusedText });
   renderWeatherChip();
   normalizePrimaryNavigationLabels();
   updateSettingsTabState();

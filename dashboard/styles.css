@@ -4744,6 +4744,11 @@ body.ceo-mode .finance-row-fixed .finance-repeat-end-date {
   cursor: default;
 }
 
+#taskBoard .task-cycle,
+#taskBoard .priority-select {
+  touch-action: manipulation;
+}
+
 .task-cycle small {
   display: block;
   color: var(--forest);
