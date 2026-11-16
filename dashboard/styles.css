@@ -22789,6 +22789,24 @@ body.ceo-mode.day-view-active .appointment-list {
   overflow-x: hidden !important;
 }
 
+/* Spanning the original tracks keeps their heights and the gaps between them. */
+#appointmentList {
+  --appointment-slot-height: 32px;
+  grid-auto-rows: var(--classic-row-height, var(--appointment-slot-height));
+  align-content: start;
+}
+
+#appointmentList > .appointment-row {
+  grid-row: span var(--slot-span, 1);
+  min-height: 0 !important;
+}
+
+@media (pointer: coarse) and (min-width: 641px) and (max-width: 1366px) {
+  #appointmentList {
+    --appointment-slot-height: 36px;
+  }
+}
+
 .appointment-row,
 body.classic-mode.day-view-active .appointment-row,
 body.ceo-mode.day-view-active .appointment-row {
@@ -22928,7 +22946,12 @@ body.ceo-mode.day-view-active .appointment-row.is-current-time .appointment-time
 }
 
 @media (max-width: 640px) {
-  .day-main-panel.is-focus-schedule .appointment-list {
+  #appointmentList {
+    --appointment-slot-height: 36px;
+  }
+
+  .day-main-panel.is-focus-schedule #appointmentList {
+    --appointment-slot-height: 40px;
     overscroll-behavior: contain !important;
     touch-action: pan-y !important;
   }
@@ -22954,7 +22977,6 @@ body.ceo-mode.day-view-active .appointment-row.is-current-time .appointment-time
 
   .day-main-panel.is-focus-schedule .appointment-row.is-merged {
     grid-template-columns: 62px minmax(0, 1fr) 34px !important;
-    min-height: calc(44px * var(--slot-span, 1)) !important;
   }
 
   .day-main-panel.is-focus-schedule .appointment-row.is-merged input[type="text"] {

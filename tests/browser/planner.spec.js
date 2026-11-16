@@ -166,6 +166,68 @@ test('two independent browsers merge overlapping saves without reverting unrelat
   await other.close();
 });
 
+test('merged appointments retain the height and position of their original slots', async ({ context, page }) => {
+  await open(context, page);
+  const phone = page.viewportSize().width <= 640;
+  const list = page.locator('#appointmentList');
+  const slots = await list.locator('.appointment-row').evaluateAll(rows =>
+    rows.map(row => row.dataset.appointmentSlot));
+  const firstRow = list.locator(`[data-appointment-slot="${slots[0]}"]`);
+  const footprint = () => list.evaluate((element, slots) => {
+    const firstTop = element.firstElementChild.offsetTop;
+    return slots.map(slot => {
+      const row = element.querySelector(`[data-appointment-slot="${slot}"]`);
+      if (!row) return null;
+      const top = row.offsetTop - firstTop;
+      return { top, bottom: top + row.offsetHeight };
+    });
+  }, slots);
+  const expectSamePosition = (actual, expected) => {
+    expect(Math.abs(actual - expected)).toBeLessThanOrEqual(1);
+  };
+
+  const splitView = phone ? await footprint() : null;
+  const openSchedule = page.locator('[data-mobile-focus-open="schedule"]');
+  if (phone) {
+    await openSchedule.click();
+    await expect(page.locator('.day-main-panel')).toHaveClass(/is-focus-schedule/);
+  }
+
+  const original = await footprint();
+  for (const span of [2, 3]) {
+    await firstRow.locator('.appointment-merge-button').click();
+    await expect(firstRow).toHaveAttribute('data-appointment-span', String(span));
+    const merged = await footprint();
+    expectSamePosition(merged[0].bottom, original[span - 1].bottom);
+    expectSamePosition(merged[span].top, original[span].top);
+  }
+
+  if (phone) {
+    await page.locator('.day-schedule-panel [data-mobile-focus-close]').click();
+    await expect(page.locator('.day-main-panel')).not.toHaveClass(/is-focus-schedule/);
+    const merged = await footprint();
+    expectSamePosition(merged[0].bottom, splitView[2].bottom);
+    expectSamePosition(merged[3].top, splitView[3].top);
+    await openSchedule.click();
+  }
+
+  await firstRow.locator('.split-appointment').click();
+  await expect(firstRow).toHaveAttribute('data-appointment-span', '1');
+  const restored = await footprint();
+  for (const [index, row] of restored.entries()) {
+    expectSamePosition(row.top, original[index].top);
+    expectSamePosition(row.bottom, original[index].bottom);
+  }
+
+  page.once('dialog', dialog => dialog.accept());
+  await page.locator('[data-schedule-range="all"]').click();
+  await expect(firstRow).toHaveAttribute('data-appointment-span', String(slots.length));
+  await expect(firstRow.locator('input')).toHaveValue('QA 일정');
+  const allDay = await footprint();
+  expectSamePosition(allDay[0].bottom, original.at(-1).bottom);
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+});
+
 test('phone navigation never covers task or schedule headers while lists scroll', async ({context,page},info) => {
   test.skip(info.project.use.viewport.width>640,'Phone-specific overlapping navigation regression');
   await open(context,page);
