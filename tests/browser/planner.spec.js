@@ -12,6 +12,47 @@ async function open(context, page) {
 }
 test.beforeEach(async ({request}) => { await request.post('/qa/reset'); });
 
+test('startup keeps old tasks hidden during a slow read and after a failed read',async({context,page,request})=>{
+  const {state:cached}=await(await request.get('/qa/snapshot')).json();
+  const today=Object.keys(cached.days).sort().at(-1);
+  cached.days[today].tasks.A[0].text='QA 이전 화면의 업무';
+  await context.addInitScript(({session,cached})=>{
+    localStorage.setItem('beyondWorkAuthSession.v1',JSON.stringify(session));
+    localStorage.setItem(`franklinClassicPlanner2026.v1.${encodeURIComponent(session.email)}`,JSON.stringify(cached));
+  },{session,cached});
+  let failFirstRead;
+  const firstRead=new Promise(resolve=>{failFirstRead=resolve;});
+  let reads=0,saves=0;
+  await context.route('**/*',async route=>{
+    const url=new URL(route.request().url());
+    if(url.hostname!=='127.0.0.1')return route.abort();
+    if(url.pathname==='/api/state') {
+      if(route.request().method()==='POST')saves++;
+      else if(++reads===1){
+        await firstRead;
+        return route.fulfill({status:503,json:{error:'QA temporary connection failure'}});
+      }
+    }
+    return route.continue();
+  });
+  const oldTask=page.locator('#taskBoard input[value="QA 이전 화면의 업무"]');
+  try {
+    await page.goto('/dashboard/index.html');
+    await expect(page.locator('#bootMessage')).toHaveText('오늘 일정 확인에 시간이 걸리고 있습니다');
+    await expect(page.locator('#bootScreen')).toBeVisible();
+    await expect(oldTask).toHaveCount(0);
+    expect(saves).toBe(0);
+  } finally {failFirstRead();}
+  await expect(page.locator('#bootMessage')).toContainText('불러오지 못했습니다');
+  await expect(oldTask).toHaveCount(0);
+  expect(saves).toBe(0);
+  await page.getByRole('button',{name:'다시 시도'}).click();
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  await expect(page.locator('#taskBoard .task-text-input').first()).toHaveValue('QA 업무 01');
+  await expect(oldTask).toHaveCount(0);
+  await expect(page.locator('.app-shell')).not.toHaveAttribute('inert','');
+});
+
 test('header, tasks and navigation remain reachable', async ({context,page}, info) => {
   await open(context,page);
   const header=await page.locator('.app-header').boundingBox();

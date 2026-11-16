@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20261111c" />
+    <link rel="stylesheet" href="./styles.css?v=20261116a" />
   </head>
   <body>
-    <div class="boot-screen" id="bootScreen" role="status" aria-live="polite">
+    <div class="boot-screen" id="bootScreen">
       <div class="boot-card">
         <div class="boot-brand">
           <span class="boot-mark" aria-hidden="true"><span class="compass-spark-icon"></span></span>
@@ -33,12 +33,13 @@
           </ul>
         </div>
         <div class="boot-stage" aria-label="앱 준비 상태">
-          <span id="bootMessage">오늘의 우선순위를 정렬하는 중</span>
+          <span id="bootMessage" role="status">오늘 일정을 불러오는 중</span>
           <i aria-hidden="true"></i>
+          <button type="button" id="bootRetryButton" class="boot-retry" hidden>다시 시도</button>
         </div>
       </div>
     </div>
-    <header class="app-header">
+    <header class="app-header" inert>
       <div class="brand-block" aria-label="beyond ai planning system">
         <div class="brand-row">
           <h1>Beyond Work</h1>
@@ -127,7 +128,7 @@
     </header>
 
     <p id="plannerConnectionStatus" class="planner-connection-status" role="status" aria-live="polite">자료를 불러오는 중입니다.</p>
-    <main class="app-shell">
+    <main class="app-shell" inert>
       <aside class="sidebar">
         <section class="tool-panel">
           <label class="search-box">
@@ -1049,6 +1050,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20261112a"></script>
+    <script src="./app.js?v=20261116a"></script>
   </body>
 </html>

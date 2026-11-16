@@ -521,8 +521,6 @@ let memoSearchQuery = "";
 let activeMoneyDraftId = "";
 // Cache migration reads schedule settings, task constants, and merge helpers.
 // Bootstrap state first; migrate only after all module bindings are initialized.
-let initialCachedPlannerState = null;
-let hasInitialDeviceCache = false;
 let state = loadEmptyState();
 let plannerMutationSeq = 0;
 let todaySliceRequestSeq = 0;
@@ -558,15 +556,11 @@ let displayCacheTimer = 0;
 let plannerBaseCacheTimer = 0;
 let sidebarRenderFrame = 0;
 let pendingActiveViewRenderOptions = {};
-const BOOT_MIN_READING_MS = 0;
-const BOOT_FAILSAFE_MS = 1100;
 const AUTH_REFRESH_TIMEOUT_MS = 8000;
 const STATE_FETCH_TIMEOUT_MS = 10000;
 const STATE_SAVE_TIMEOUT_MS = 15000;
 const LONG_SUSPEND_SERVER_FIRST_MS = 60 * 1000;
-const bootStartedAt = Date.now();
-let bootHideTimer = 0;
-let bootFailsafeTimer = 0;
+let bootSlowTimer = 0;
 const DEFAULT_WEATHER_COORDS = weatherRegions.ulsan;
 const WEATHER_CACHE_KEY = "beyondWork.weather.v1";
 let weatherState = { status: "idle", icon: "", temp: null, code: null, label: "", summary: "", advice: "" };
@@ -1330,8 +1324,8 @@ function loadCachedPlannerState() {
 function persistDisplayCache(nextState = state) {
   try {
     const sessionEmail = getAuthSession()?.email || "";
-    // The account snapshot already provides the boot preview. Storing two
-    // additional full copies can exhaust Safari's storage quota.
+    // The account snapshot already provides the browser-side recovery copy.
+    // Storing two more full copies can exhaust Safari's storage quota.
     if (localStorage.getItem(plannerStorageKey())) return;
     const hasContent = hasPlannerContent(nextState);
     if (!hasContent) {
@@ -2149,46 +2143,28 @@ async function hydrateServerState(options = {}) {
     if (!response.ok) throw new Error(await extractSaveError(response));
     const payload = await response.json();
     if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return;
-    accountSaveReady = true;
-    saveStatus.ready = true;
-    if (payload.notModified) {
+    if (payload.notModified || (payload.exists !== false && !(payload.exists === true && isPlainPlannerObject(payload.state)))) {
       throw new Error("자료 전체를 불러오지 못했습니다. 다시 연결해주세요.");
     }
+    accountSaveReady = true;
+    saveStatus.ready = true;
     if (payload.exists && payload.state) {
-      // Supabase DB is the source of truth. Browser storage is only a temporary display cache.
-      // During hydration, the DB stays authoritative. Persisted browser cache is
-      // a fast boot preview only; only edits made in this live runtime may merge.
-      // This prevents a device waking after days from uploading its stale cache.
+      // The DB supplies the first visible list. The browser snapshot is held
+      // in memory for recovery, and only validated pending edits may merge.
       const localMeta = getStateMeta();
-      const serverHasContent = hasPlannerContent(payload.state);
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
-      const hasRecoverableDirtyEdit = hasRuntimeDirtyEdit;
-      const localHasContent = serverHasContent ? hasRecoverableDirtyEdit && hasPlannerContent(state) : hasPlannerContent(state);
-      if (!hasRecoverableDirtyEdit && localMeta.dirty) {
+      if (!hasRuntimeDirtyEdit && localMeta.dirty) {
         const sessionEmail = getAuthSession()?.email || "";
         saveStateMeta({ dirty: false, accountEmail: sessionEmail });
       }
       if (
-        (hasRecoverableDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq)) &&
+        (hasRuntimeDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq)) &&
         queueIncomingServerStateMerge(payload, readPlannerBaseState() || hydrationBaseState, "입력 완료 후 최신 데이터 병합")
       ) {
         return;
       }
-      lastServerUpdatedAt = payload.updatedAt || "";
-      if (!serverHasContent && localHasContent) {
-        // Keep the last visible planner as a boot preview instead of replacing the screen with blanks.
-        // The database remains authoritative; this preview is not uploaded automatically.
-        saveStateMeta({
-          baseUpdatedAt: lastServerUpdatedAt,
-          lastSavedAt: lastServerUpdatedAt,
-          dirty: false,
-          accountEmail: getAuthSession()?.email || "",
-        });
-        saveStatus.message = "마지막 화면 표시 중";
-      } else {
-        setBootMessage("오늘의 화면을 최신 기준으로 맞추는 중");
-        storeStateFromServer(payload, "저장됨");
-      }
+      setBootMessage("오늘의 화면을 최신 기준으로 맞추는 중");
+      storeStateFromServer(payload, "저장됨");
     } else {
       const localMeta = getStateMeta();
       const localHasContent = hasPlannerContent(state);
@@ -2196,11 +2172,6 @@ async function hydrateServerState(options = {}) {
         lastServerUpdatedAt = "";
         saveStatus.message = "새 변경 저장 중";
         scheduleAccountSave(120);
-        return;
-      }
-      if (localHasContent) {
-        // Do not wipe an existing boot preview when the server row is temporarily unavailable or empty.
-        saveStatus.message = "마지막 화면 표시 중";
         return;
       }
       // A missing DB row means a new account state. Never auto-upload leftover device/browser cache.
@@ -2268,7 +2239,6 @@ async function hydrateTodaySlice(targetDate = selectedDate, options = {}) {
     todaySliceCache.set(dayKey, payload);
     if (iso(selectedDate) === dayKey && options.render !== false) {
       renderStartupFrame({ forceLists: true, skipWeather: true });
-      if (options.hideBoot) hideBootScreen(0);
     }
     return true;
   } catch {
@@ -16930,7 +16900,7 @@ function escapeHtml(value = "") {
     .replaceAll(">", "&gt;");
 }
 
-function showView(name) {
+function showView(name, { render = true } = {}) {
   if (name === "sheets") name = "day";
   const previousView = document.querySelector(".view.active")?.id?.replace("view-", "") || "";
   document.body.dataset.activeView = name;
@@ -16946,7 +16916,7 @@ function showView(name) {
   if (name === "day") positionDaySwipe(previousView === "day" ? currentDayPanel : "main", previousView !== "day");
   keepActiveTopViewVisible(name);
   scheduleClassicViewportFit();
-  queueActiveViewRender({ forceLists: name === "day" }, 32);
+  if (render) queueActiveViewRender({ forceLists: name === "day" }, 32);
 }
 
 function keepActiveTopViewVisible(name) {
@@ -17549,6 +17519,7 @@ function getActiveViewName() {
 }
 
 function renderActiveViewSections(options = {}) {
+  if (!initialServerHydrationFinished) return;
   if (!options.preEnsured) {
     ensureMonth();
     ensureWeek();
@@ -17701,17 +17672,13 @@ function renderStartupFrame(options = {}) {
   try { updateStickyPanelTop(); } catch {}
 }
 
-function renderHydratedTodayFrame(options = {}) {
+function renderHydratedTodayFrame() {
   selectedDate = todayInPlanner();
   selectedFinanceMonth = monthKey(selectedDate);
   currentDayPanel = "main";
   daySwipeKey = "";
-  showView("day");
-  if (options.defer) {
-    queueActiveViewRender({ forceLists: true }, options.delay ?? 80);
-  } else {
-    renderStartupFrame({ forceLists: true });
-  }
+  showView("day", { render: false });
+  renderStartupFrame({ forceLists: true });
   queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
   stabilizeDaySwipePosition("main");
 }
@@ -17722,22 +17689,6 @@ function scheduleIdleTask(callback, timeout = 1200) {
     return;
   }
   window.setTimeout(callback, 0);
-}
-
-function schedulePostBootRender() {
-  scheduleIdleTask(() => {
-    const hasSession = Boolean(getAuthSession()?.accessToken);
-    if (hasSession && !initialServerHydrationFinished) {
-      schedulePostBootRender();
-      return;
-    }
-    if (hasSession && initialServerHydrationFinished) {
-      queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
-      return;
-    }
-    renderActiveViewSections({ forceLists: true });
-    queuePlannerMaintenance({ syncMoney: true, backup: true }, 2600);
-  }, 900);
 }
 
 function setBootMessage(message) {
@@ -17989,51 +17940,47 @@ function renderBootCoaching() {
   localStorage.setItem(DAILY_OPENING_SEEN_KEY, iso(todayInPlanner()));
 }
 
-function hideBootScreen(delay = 120) {
+function hideBootScreen() {
   const boot = el("bootScreen");
   if (!boot || boot.classList.contains("is-hidden")) return;
-  const elapsed = Date.now() - bootStartedAt;
-  const readingDelay = Math.max(0, BOOT_MIN_READING_MS - elapsed);
-  const finalDelay = Math.max(delay, readingDelay);
-  window.clearTimeout(bootHideTimer);
-  bootHideTimer = window.setTimeout(() => {
-    window.clearTimeout(bootFailsafeTimer);
-    boot.classList.add("is-hidden");
-    window.setTimeout(() => boot.remove(), 360);
-  }, finalDelay);
+  boot.classList.add("is-hidden");
+  document.querySelector(".app-header")?.removeAttribute("inert");
+  document.querySelector(".app-shell")?.removeAttribute("inert");
+  window.setTimeout(() => boot.remove(), 360);
 }
 
-function scheduleBootScreenFailsafe(delay = BOOT_FAILSAFE_MS) {
-  window.clearTimeout(bootFailsafeTimer);
-  bootFailsafeTimer = window.setTimeout(() => {
-    saveStatus.message = saveStatus.message || "최신 데이터 확인 중";
-    hideBootScreen(0);
-  }, delay);
+function showBootLoadFailure() {
+  window.clearTimeout(bootSlowTimer);
+  setBootMessage("오늘 일정을 불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.");
+  el("bootScreen")?.classList.add("is-load-failed");
+  const retry = el("bootRetryButton");
+  if (retry) retry.hidden = false;
 }
 
 async function finishInitialServerHydration() {
-  try {
-    await hydrateServerState();
-    if (getAuthSession()?.accessToken) {
-      if (saveStatus.ready) {
-        renderHydratedTodayFrame({ defer: hasInitialDeviceCache, delay: 80 });
-        setBootMessage("최신 내용을 반영했습니다");
-      } else {
-        renderStartupFrame({ forceLists: true });
-        setBootMessage(saveStatus.message || "자료 연결을 확인해주세요");
-      }
-    }
-  } catch (error) {
-    saveStatus.message = networkErrorMessage(error, "최신 데이터 확인 지연");
-    renderStartupFrame({ forceLists: true });
-  } finally {
-    initialServerHydrationFinished = true;
-    hideBootScreen(40);
-    window.setTimeout(maybeShowDailyOpeningMessage, hasInitialDeviceCache ? 420 : 620);
+  const retry = el("bootRetryButton");
+  if (retry) retry.hidden = true;
+  el("bootScreen")?.classList.remove("is-load-failed");
+  setBootMessage("오늘 일정을 불러오는 중");
+  bootSlowTimer = window.setTimeout(() => setBootMessage("오늘 일정 확인에 시간이 걸리고 있습니다"), 1200);
+  await hydrateServerState();
+  if (!getAuthSession()?.accessToken || !accountSaveReady || !saveStatus.ready) {
+    showBootLoadFailure();
+    return;
   }
+  renderHydratedTodayFrame();
+  initialServerHydrationFinished = true;
+  window.clearTimeout(bootSlowTimer);
+  setBootMessage("최신 내용을 반영했습니다");
+  hideBootScreen();
+  window.setTimeout(maybeShowDailyOpeningMessage, 420);
+  scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
+  window.setInterval(queuePassiveServerPull, 15000);
 }
 
 async function setup() {
+  const retry = el("bootRetryButton");
+  if (retry) retry.onclick = () => window.location.reload();
   resumePendingPlannerSave();
   setupGlobalInputEditingGuard();
   setupSelectors();
@@ -18041,43 +17988,29 @@ async function setup() {
   selectedDate = todayInPlanner();
   currentDayPanel = "main";
   daySwipeKey = "";
-  showView("day");
-  setBootMessage(hasInitialDeviceCache ? "마지막 화면을 여는 중" : "앱을 여는 중");
-  renderStartupFrame({ skipWeather: true });
+  showView("day", { render: false });
   renderBootCoaching();
   hydrateWeatherFromCache();
   renderWeatherChip();
-  scheduleBootScreenFailsafe(hasInitialDeviceCache ? 1200 : BOOT_FAILSAFE_MS);
-  if (hasInitialDeviceCache) hideBootScreen(40);
-  // The initial screen must come from one complete canonical DB read.
-  // Date-navigation slices remain optional after that read.
-  window.setTimeout(() => finishInitialServerHydration(), hasInitialDeviceCache ? 120 : 0);
-  schedulePostBootRender();
-  scheduleIdleTask(() => setupWeather({ persist: true }), 1800);
-  window.setInterval(queuePassiveServerPull, 15000);
   window.addEventListener("pagehide", persistDisplayCache);
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) persistDisplayCache();
   });
+  if (retry) retry.onclick = () => finishInitialServerHydration().catch(showBootLoadFailure);
+  // Date-navigation slices remain optional after the first complete DB read.
+  await finishInitialServerHydration();
 }
 
 function initializePlannerCachedState() {
-  initialCachedPlannerState = loadCachedPlannerState();
-  hasInitialDeviceCache = Boolean(initialCachedPlannerState && hasPlannerContent(initialCachedPlannerState));
-  if (initialCachedPlannerState) {
-    state = initialCachedPlannerState;
+  const cachedPlannerState = loadCachedPlannerState();
+  if (cachedPlannerState) {
+    state = cachedPlannerState;
     selectedSheetId = state.customSheets.activeId;
   }
 }
 
 initializePlannerCachedState();
 
-setup().catch((error) => {
-  saveStatus.message = networkErrorMessage(error, "앱 시작 확인 지연");
-  try {
-    renderStartupFrame({ forceLists: true });
-  } catch {
-    // Keep the boot recovery path quiet; the page should still become usable.
-  }
-  hideBootScreen(0);
+setup().catch(() => {
+  showBootLoadFailure();
 });

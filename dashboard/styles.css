@@ -20173,6 +20173,20 @@ body.ceo-mode .daily-title {
 /* Fast boot pass: keep launch polished without delaying app entry. */
 .boot-screen {
   transition: opacity 180ms ease, visibility 180ms ease !important;
+  background-color: var(--paper) !important;
+}
+
+.boot-screen.is-load-failed .boot-stage i { display: none; }
+
+.boot-retry {
+  justify-self: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--forest);
+  font-weight: 800;
 }
 
 .boot-card {

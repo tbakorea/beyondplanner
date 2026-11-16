@@ -17,7 +17,7 @@ async function runFullBootRegression(source) {
     const document={getElementById:()=>null,querySelector:()=>null,activeElement:null,hidden:false};
     const run=(suffix)=>new Function("window","localStorage","document","URLSearchParams","navigator",program+suffix)(window,storage,document,class{get(){return null;}},{language:"ko-KR"});
     const first=run(`
-      const before={cached:hasInitialDeviceCache,text:state.days["2026-10-26"]?.tasks?.A?.[0]?.text};
+      const before={cached:hasPlannerContent(state),text:state.days["2026-10-26"]?.tasks?.A?.[0]?.text};
       if(before.cached){
         writePlannerBaseState(state);
         const task=state.days["2026-10-26"].tasks.A[0];
@@ -30,14 +30,14 @@ async function runFullBootRegression(source) {
     assert(first.cached&&first.text==="월요일 저장 업무",`${width}: existing account must load before rendering; migration must not fail in temporal dead zone`);checks++;
     const second=run(`
       const resumed=resumePendingPlannerSave();
-      return {cached:hasInitialDeviceCache,resumed,task:state.days["2026-10-26"]?.tasks?.A?.[0],appointment:state.days["2026-10-28"]?.appointments?.["10:00"],dirty:getStateMeta().dirty};
+      return {cached:hasPlannerContent(state),resumed,task:state.days["2026-10-26"]?.tasks?.A?.[0],appointment:state.days["2026-10-28"]?.appointments?.["10:00"],dirty:getStateMeta().dirty};
     `);
     assert(second.cached&&second.resumed&&second.dirty,`${width}: pending edit must be recognized after complete runtime restart`);checks++;
     assert(second.task?.done&&second.task.text==="월요일 수정 완료"&&second.appointment==="오늘 추가한 일정",`${width}: Monday text/check and today's appointment must survive runtime restart`);checks++;
   }
   // A display-only preview must also migrate successfully once all bindings exist.
   const data=new Map([["beyondWorkAuthSession.v1",JSON.stringify({email,provider:"supabase",accessToken:"fixture-only"})],[`beyondWorkLastDisplayState.v1.${account}`,JSON.stringify({accountEmail:email,state:snapshot})]]);
-  const result=new Function("window","localStorage","document","URLSearchParams","navigator",program+';return hasInitialDeviceCache;')({location:{search:"",pathname:"/dashboard/index.html",hash:""}}, {getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)}, {},class{get(){return null;}},{language:"ko-KR"});
+  const result=new Function("window","localStorage","document","URLSearchParams","navigator",program+';return hasPlannerContent(state);')({location:{search:"",pathname:"/dashboard/index.html",hash:""}}, {getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)}, {},class{get(){return null;}},{language:"ko-KR"});
   assert(result,"display-only fallback must not become a blank account during initial migration");checks++;
   // Run real hydration, three-way merge, persistence and acknowledgement with
   // only HTTP and DOM rendering substituted. This catches interactions that
