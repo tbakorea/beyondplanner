@@ -1831,6 +1831,8 @@ function normalizeProject(project) {
     goal: project?.goal || "",
     nextAction: project?.nextAction || "",
     dueDate: project?.dueDate || "",
+    decisionText: typeof project?.decisionText === "string" ? project.decisionText : "",
+    decisionDueDate: isValidIsoDate(project?.decisionDueDate) ? project.decisionDueDate : "",
     budget: project?.budget || "",
     actual: project?.actual || "",
     notes: project?.notes || "",
@@ -3169,9 +3171,10 @@ function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = []) {
 
     if (!hasLocal && !hasRemote) return items;
     if (!hasBase) {
-      // Both devices can derive the same weekly occurrence before either
-      // saves it. Even without a base row, merge its completion history.
-      items.push(hasLocal && hasRemote && key.startsWith("weekly:")
+      // Both devices can create the same weekly occurrence or project
+      // decision before either saves it. Keep its completion history.
+      const sameTask = key.startsWith("weekly:") || key.startsWith("id:project-decision:");
+      items.push(hasLocal && hasRemote && sameTask
         ? mergePlannerTaskRecord(undefined, localItem, remoteItem)
         : clonePlannerValue(hasLocal ? localItem : remoteItem));
       return items;
@@ -7987,9 +7990,12 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ]);
     return;
   }
-  centerButton?.classList.add("is-empty");
-  centerButton?.setAttribute("aria-label", "오늘 실행 요약");
-  node.innerHTML = `<span class="pulse-empty" aria-hidden="true"></span>`;
+  const showDecisions = selectedKey === todayKey;
+  centerButton?.classList.toggle("is-empty", !showDecisions);
+  centerButton?.setAttribute("aria-label", showDecisions ? "오늘의 대표 결정" : "오늘 실행 요약");
+  node.innerHTML = showDecisions
+    ? `<span class="daily-decision-label">대표 결정 <span aria-hidden="true">⌄</span></span>`
+    : `<span class="pulse-empty" aria-hidden="true"></span>`;
   renderDailyPulseDetails([
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
     ...(selectedWeather ? [["날씨", `${getWeatherConditionIcon(selectedWeather)} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
@@ -8004,7 +8010,7 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
     ["목표 연결", alignment.value, alignment.detail],
     ["하루 회고", review.value, review.detail],
     ["AI 신호", coachLabel, coach.title],
-  ]);
+  ], showDecisions);
 }
 
 function buildDailyExecutionSignal(day, tasks, carryovers, completion) {
@@ -8285,9 +8291,11 @@ function tokenOverlap(source = "", target = "") {
   return tokens.some((token) => sourceText.includes(token));
 }
 
-function renderDailyPulseDetails(items) {
+function renderDailyPulseDetails(items, showDecisions = false) {
   const node = el("dailyPulseDetails");
   if (!node) return;
+  if (!showDecisions && node.dataset.projectDecisions === "true" && !node.hidden) toggleDailyPulseDetails();
+  node.dataset.projectDecisions = String(showDecisions);
   node.innerHTML = items.map(([label, value, detail]) => `
     <div class="daily-pulse-detail-item">
       <span>${escapeHtml(label)}</span>
@@ -8295,6 +8303,7 @@ function renderDailyPulseDetails(items) {
       <small>${escapeHtml(detail)}</small>
     </div>
   `).join("");
+  if (showDecisions && !node.hidden) renderProjectDecisions(node);
 }
 
 function toggleDailyPulseDetails() {
@@ -8304,6 +8313,90 @@ function toggleDailyPulseDetails() {
   const nextHidden = !node.hidden ? true : false;
   node.hidden = nextHidden;
   toggle.setAttribute("aria-expanded", String(!nextHidden));
+  if (!nextHidden && node.dataset.projectDecisions === "true") renderProjectDecisions(node);
+}
+
+function projectDecisionKey(project) {
+  return `project-decision:${encodeURIComponent(project.id)}:${project.decisionText.trim()}`;
+}
+
+function renderProjectDecisions(container) {
+  container.querySelector(".project-decisions")?.remove();
+  const today = todayInPlanner();
+  const todayKey = iso(today);
+  const lastDay = new Date(today);
+  lastDay.setDate(lastDay.getDate() + 6);
+  const lastKey = iso(lastDay);
+  const decisions = (state.projects?.items || [])
+    .filter((project) => project.status !== "완료" && project.decisionText?.trim())
+    .map((project) => ({ project, key: projectDecisionKey(project), dueDate: project.decisionDueDate || project.dueDate }))
+    .filter(({ dueDate }) => !isValidIsoDate(dueDate) || dueDate <= lastKey)
+    .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"));
+  const decisionKeys = new Set(decisions.map(({ key }) => key));
+  const registered = new Set();
+  const completed = new Set();
+  if (decisionKeys.size) {
+    for (const day of Object.values(state.days || {})) {
+      for (const [priority] of priorities) {
+        for (const task of day.tasks?.[priority] || []) {
+          if (!decisionKeys.has(task.projectTaskId)) continue;
+          registered.add(task.projectTaskId);
+          if (isTaskCompleted(task)) completed.add(task.projectTaskId);
+        }
+      }
+    }
+  }
+  const visible = decisions.filter(({ key }) => !completed.has(key));
+  const section = document.createElement("section");
+  section.className = "project-decisions";
+  section.setAttribute("aria-label", "향후 7일 대표 결정");
+  section.innerHTML = `
+    <div class="project-decisions-heading">
+      <h3>대표 결정</h3>
+      <small>${formatShortDate(today)}–${formatShortDate(lastDay)} · 기한 경과 및 미정 포함</small>
+    </div>
+    ${visible.length ? `<ul>${visible.map(({ project, key, dueDate }) => {
+      const deadline = isValidIsoDate(dueDate) ? formatShortDate(parseDate(dueDate)) : "미정";
+      const overdue = isValidIsoDate(dueDate) && dueDate < todayKey;
+      return `<li>
+        <div>
+          <button class="decision-project-link" type="button" data-decision-project="${escapeAttr(project.id)}">${escapeHtml(projectTitle(project))}</button>
+          <strong>${escapeHtml(project.decisionText.trim())}</strong>
+          ${project.nextAction?.trim() ? `<small>다음 행동 ${escapeHtml(project.nextAction.trim())}</small>` : ""}
+          <small>담당 ${escapeHtml(project.owner?.trim() || "미정")} · 기한 ${escapeHtml(deadline)}${overdue ? " (경과)" : ""}</small>
+        </div>
+        ${registered.has(key)
+          ? '<span class="project-decision-registered">업무 등록됨</span>'
+          : `<button class="mini-action decision-add-task" type="button" data-add-decision="${escapeAttr(project.id)}"
+              aria-label="${escapeAttr(projectTitle(project))} 대표 결정 A 업무로 올리기">A 업무로 올리기</button>`}
+      </li>`;
+    }).join("")}</ul>` : `<p>검토할 결정이 없습니다.</p><button class="mini-action decision-project-link" type="button" data-decision-project="">프로젝트에서 등록</button>`}
+  `;
+  section.querySelectorAll("[data-decision-project]").forEach((button) => {
+    button.onclick = () => {
+      toggleDailyPulseDetails();
+      showView("projects", { render: false });
+      if (button.dataset.decisionProject) selectProject(button.dataset.decisionProject, { openDetail: true });
+      else renderProjects();
+    };
+  });
+  section.querySelectorAll("[data-add-decision]").forEach((button) => {
+    button.onclick = () => {
+      const project = state.projects?.items?.find((item) => item.id === button.dataset.addDecision);
+      if (!project?.decisionText?.trim() || project.status === "완료" || iso(selectedDate) !== todayKey || guardDailyEdit(todayKey)) return;
+      const key = projectDecisionKey(project);
+      if (findTaskRecordById(key)) return;
+      captureUndo("대표 결정 업무 추가");
+      const task = addTaskToDate(todayKey, `대표 결정: ${projectTitle(project)} - ${project.decisionText.trim()}`, "A");
+      task.id = key;
+      task.projectTaskId = key;
+      task.priority = "A";
+      saveDailyTaskControlAction("대표 결정 업무 저장 중");
+      renderProjectDecisions(container);
+      showUndoNotice("대표 결정을 오늘의 A 업무에 올렸습니다.");
+    };
+  });
+  container.prepend(section);
 }
 
 function getNextAppointmentSummary(day) {
@@ -12214,6 +12307,7 @@ function schedulePostponedTask(task, priority, targetDate) {
       postponedFrom: task.postponeId,
       postponedSourceDate: sourceKey,
       originalPriority: targetPriority,
+      ...(task.projectTaskId ? { projectTaskId: task.projectTaskId } : {}),
     }, false);
     assignTaskOrder(targetDay, existingTask);
     targetDay.tasks[targetPriority].push(existingTask);
@@ -15462,6 +15556,10 @@ function renderProjectBoard() {
         <label><span class="row-label">${escapeHtml(meta.nextActionLabel)}</span><input type="text" data-field="nextAction" value="${escapeAttr(project.nextAction)}" placeholder="오늘 또는 이번 주 실행할 일" /></label>
         <label><span class="row-label">${escapeHtml(meta.dueDateLabel)}</span><input type="date" data-field="dueDate" value="${escapeAttr(project.dueDate)}" /></label>
       </div>
+      <div class="project-action-row">
+        <label><span class="row-label">대표 결정사항</span><input type="text" data-field="decisionText" value="${escapeAttr(project.decisionText)}" placeholder="예: 창호업체 확정" /></label>
+        <label><span class="row-label">결정 기한</span><input type="date" data-field="decisionDueDate" value="${escapeAttr(project.decisionDueDate)}" /></label>
+      </div>
       <div class="project-action-buttons">
         <button class="project-primary-action" type="button">다음 행동을 오늘 업무로 보내기</button>
         <button class="project-report-action" type="button">보고서</button>
@@ -15782,7 +15880,7 @@ function deleteProject(projectId) {
   const index = projects.findIndex((project) => project.id === projectId);
   if (index < 0) return;
   const project = projects[index];
-  const ok = window.confirm(`${projectTitle(project)} 프로젝트를 삭제할까요? 연결된 오늘 업무 항목도 함께 정리됩니다.`);
+  const ok = window.confirm(`${projectTitle(project)} 프로젝트를 삭제할까요? 진행 중인 자동 연결 업무도 정리됩니다.`);
   if (!ok) return;
   removeProjectLinkedTask(project.id);
   state.projects.items.splice(index, 1);
@@ -15894,9 +15992,10 @@ function addProject(templateType = "custom") {
 
 function updateProjectField(index, field, value) {
   const project = state.projects.items[index];
-  if (!project) return;
+  if (!project || project[field] === value) return;
+  const previous = { ...project };
   project[field] = value;
-  if (["title", "nextAction", "dueDate", "status"].includes(field)) linkProjectToTask(project);
+  if (["title", "nextAction", "dueDate", "status"].includes(field)) linkProjectToTask(project, previous);
   saveState();
   renderProjectSummary();
   renderProjectCardSummary(index);
@@ -15990,20 +16089,18 @@ function addProjectNextActionToToday(project) {
   const title = projectTitle(project);
   const action = project.nextAction?.trim() || "다음 행동 정하기";
   const text = `프로젝트: ${title} - ${action}`;
+  const dayKey = iso(selectedDate);
+  const day = ensureDay(dayKey);
+  const existing = priorities.some(([priority]) => (day.tasks?.[priority] || []).some((task) =>
+    task.projectQuickTaskId === project.id && task.text?.endsWith(` - ${action}`)));
+  if (existing) {
+    showView("day");
+    return;
+  }
   captureUndo("프로젝트 오늘 업무 추가");
-  const day = ensureDay(iso(selectedDate));
-  const existingRef = priorities
-    .map(([priority]) => ({ priority, task: (day.tasks?.[priority] || []).find((item) => item.projectQuickTaskId === project.id) }))
-    .find((item) => item.task);
-  const task = existingRef?.task || setTaskCompletionState({ text: "", status: "미완료", priorityUnset: false }, false);
-  task.text = text;
-  task.status = "미완료";
-  setTaskCompletionState(task, false);
-  task.priorityUnset = false;
+  const task = addTaskToDate(dayKey, text, "B");
   task.projectQuickTaskId = project.id;
   task.projectSourceTitle = title;
-  if (!Number.isFinite(Number(task.order))) assignTaskOrder(day, task);
-  if (!existingRef) day.tasks.B.push(task);
   saveState();
   showView("day");
   renderAll();
@@ -16028,29 +16125,57 @@ function normalizeProbability(value) {
   return Math.max(0, Math.min(100, number)) / 100;
 }
 
-function linkProjectToTask(project) {
-  removeProjectLinkedTask(project.id);
-  if (!project.dueDate || !project.nextAction?.trim() || project.status === "완료") return;
-  const targetDay = ensureDay(project.dueDate);
-  const task =
-    targetDay.tasks.B.find((item) => item.projectTaskId === project.id) ||
-    targetDay.tasks.B.find((item) => !item.text?.trim()) ||
-    setTaskCompletionState({ text: "", status: "미완료", priorityUnset: false }, false);
-  task.text = `프로젝트: ${project.title || "이름 없음"} - ${project.nextAction.trim()}`;
-  task.status = "미완료";
-  setTaskCompletionState(task, false);
-  task.priorityUnset = false;
-  task.projectTaskId = project.id;
-  if (!Number.isFinite(Number(task.order))) assignTaskOrder(targetDay, task);
-  if (!targetDay.tasks.B.includes(task)) targetDay.tasks.B.push(task);
+function projectActionPrefix(projectId) {
+  return `project-action:${encodeURIComponent(projectId)}:`;
+}
+
+function getProjectLinkedTasks(projectId) {
+  const prefix = projectActionPrefix(projectId);
+  return Object.entries(state.days || {}).flatMap(([dayKey, day]) =>
+    priorities.flatMap(([priority]) => (day.tasks?.[priority] || [])
+      .filter((task) => task.projectTaskId === projectId || task.projectTaskId?.startsWith(prefix))
+      .map((task) => ({ dayKey, day, priority, task }))));
+}
+
+function canUpdateProjectLinkedTask({ task }) {
+  return !shouldStrikeTask(task) && !task.deletedAt && !task.deletedFromDate && !task.carryoverDeletedFrom;
+}
+
+function detachProjectLinkedTask({ day, priority, task }) {
+  clearTaskScheduleLinkForInactive(task, day);
+  day.tasks[priority] = day.tasks[priority].filter((item) => item !== task);
+}
+
+function linkProjectToTask(project, previous = project) {
+  const action = project.nextAction?.trim();
+  const previousAction = previous.nextAction?.trim();
+  if (!action && !previousAction) return;
+  const prefix = projectActionPrefix(project.id);
+  const linked = getProjectLinkedTasks(project.id);
+  const matches = ({ task }, value) => value && (task.projectTaskId === prefix + value
+    || (task.projectTaskId === project.id && task.text?.endsWith(` - ${value}`)));
+  const current = linked.filter((record) => matches(record, action));
+  const candidates = linked.filter((record) => matches(record, action) || matches(record, previousAction));
+  const editable = candidates.filter(canUpdateProjectLinkedTask);
+  const target = current.find(canUpdateProjectLinkedTask) || editable[0];
+  const needsTask = action && isValidIsoDate(project.dueDate) && project.status !== "완료"
+    && !current.some(({ task }) => shouldStrikeTask(task) || task.deletedAt || task.deletedFromDate);
+  editable.filter((record) => !needsTask || record !== target).forEach(detachProjectLinkedTask);
+  if (!needsTask) return;
+  const text = `프로젝트: ${projectTitle(project)} - ${action}`;
+  const task = target?.task || addTaskToDate(project.dueDate, text, "B");
+  if (target && target.dayKey !== project.dueDate) {
+    detachProjectLinkedTask(target);
+    const targetDay = ensureDay(project.dueDate);
+    assignTaskOrder(targetDay, task);
+    targetDay.tasks[target.priority].push(task);
+  }
+  task.text = text;
+  task.projectTaskId = prefix + action;
 }
 
 function removeProjectLinkedTask(projectId) {
-  Object.values(state.days || {}).forEach((day) => {
-    priorities.forEach(([priority]) => {
-      day.tasks[priority] = day.tasks[priority].filter((task) => task.projectTaskId !== projectId);
-    });
-  });
+  getProjectLinkedTasks(projectId).filter(canUpdateProjectLinkedTask).forEach(detachProjectLinkedTask);
 }
 
 function renderFinanceMonthNav() {

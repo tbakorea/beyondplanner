@@ -110,6 +110,124 @@ test('header, tasks and navigation remain reachable', async ({context,page}, inf
   await page.screenshot({path:info.outputPath('layout.png'),fullPage:true});
 });
 
+test('Today shows the seven-day project decisions and saves one linked A task', async ({ browser, context, page, request }, info) => {
+  const snapshot = await (await request.get('/qa/snapshot')).json();
+  const today = Object.keys(snapshot.state.days).sort().at(-1);
+  const dateOffset = (days) => {
+    const date = new Date(today + 'T12:00:00Z');
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  };
+  snapshot.state.projects = { items: [
+    { id: 'qa-window', title: 'QA 옥동', nextAction: '업체 회신 확인', owner: '현장 담당', decisionText: '창호업체 확정', decisionDueDate: dateOffset(6) },
+    { id: 'qa-later', title: 'QA 범위 밖', decisionText: '다음 주 검토', decisionDueDate: dateOffset(7) },
+    { id: 'qa-overdue', title: 'QA 지난 기한', decisionText: '일정 변경 결정', decisionDueDate: dateOffset(-1) },
+    { id: 'qa-undated', title: 'QA 날짜 미정', decisionText: '공정 순서 결정' },
+    { id: 'qa-closed', title: 'QA 완료 프로젝트', decisionText: '종료 처리', decisionDueDate: today, status: '완료' },
+  ] };
+  await request.post('/api/state', { data: { state: snapshot.state, baseUpdatedAt: snapshot.updatedAt } });
+  await open(context, page);
+  const toggle = page.getByRole('button', { name: '오늘의 대표 결정' });
+  const decisions = page.getByRole('region', { name: '향후 7일 대표 결정' });
+  await toggle.click();
+  await expect(decisions.getByRole('listitem')).toHaveCount(3);
+  await expect(decisions).toContainText('현장 담당');
+  await expect(decisions).toContainText('업체 회신 확인');
+  await expect(decisions).toContainText('(경과)');
+  await expect(decisions).toContainText('기한 미정');
+  await expect(decisions).not.toContainText('다음 주 검토');
+  await expect(decisions).not.toContainText('종료 처리');
+
+  const promote = () => decisions.getByRole('button', { name: 'QA 옥동 대표 결정 A 업무로 올리기' });
+  if (page.viewportSize().width <= 640) {
+    expect((await promote().boundingBox()).height).toBeGreaterThanOrEqual(44);
+    await page.screenshot({ path: info.outputPath('today-project-decisions.png') });
+  }
+  await promote().click();
+  await expect(decisions).toContainText('업무 등록됨');
+  await expect(promote()).toHaveCount(0);
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  const saved = await (await request.get('/qa/snapshot')).json();
+  const promoted = saved.state.days[today].tasks.A.filter(task => task.text === '대표 결정: QA 옥동 - 창호업체 확정');
+  expect(promoted).toHaveLength(1);
+  expect(await page.evaluate(task => mergePlannerArrays([], [task], [{ ...task, done: true, status: '완료' }]),
+    promoted[0])).toMatchObject([{ id: promoted[0].id, done: true, status: '완료' }]);
+
+  const fresh = await browser.newContext({ ...info.project.use, timezoneId: 'Asia/Seoul' });
+  try {
+    const reopened = await fresh.newPage();
+    await open(fresh, reopened);
+    const reopenedToggle = reopened.getByRole('button', { name: '오늘의 대표 결정' });
+    const reopenedDecisions = reopened.getByRole('region', { name: '향후 7일 대표 결정' });
+    await reopenedToggle.click();
+    await expect(reopenedDecisions).toContainText('업무 등록됨');
+    await expect(reopenedDecisions.getByRole('button', { name: 'QA 옥동 대표 결정 A 업무로 올리기' })).toHaveCount(0);
+    await reopenedToggle.click();
+    const action = reopened.locator('#taskBoard .task-row').filter({
+      has: reopened.locator('input[value="대표 결정: QA 옥동 - 창호업체 확정"]'),
+    });
+    await expect(action.locator('.task-status-label')).toHaveText('A');
+    await action.locator('.task-cycle').click();
+    await expect(action).toHaveClass(/marker-check/);
+    await reopenedToggle.click();
+    await expect(reopenedDecisions).not.toContainText('창호업체 확정');
+    await expect(reopened.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+    await reopened.getByRole('button', { name: '내일로 이동' }).click();
+    await expect(reopened.locator('#dailyPulseDetails')).toBeHidden();
+  } finally {
+    await fresh.close();
+  }
+});
+
+test('project edits preserve completed actions and update the same open linked action', async ({ context, page, request }) => {
+  const snapshot = await (await request.get('/qa/snapshot')).json();
+  const today = Object.keys(snapshot.state.days).sort().at(-1);
+  const next = new Date(today + 'T12:00:00Z');
+  next.setUTCDate(next.getUTCDate() + 1);
+  const tomorrow = next.toISOString().slice(0, 10);
+  const project = { id: 'qa-project', title: 'QA 기존 현장', nextAction: '끝난 확인', dueDate: today, decisionText: '다음 검토' };
+  snapshot.state.projects = { items: [project] };
+  snapshot.state.days[today].tasks.B = [{
+    id: 'qa-completed-action', projectTaskId: project.id, priority: 'B',
+    text: '프로젝트: QA 기존 현장 - 끝난 확인', status: '완료', done: true, completedDate: today,
+  }];
+  await request.post('/api/state', { data: { state: snapshot.state, baseUpdatedAt: snapshot.updatedAt } });
+  await open(context, page);
+  await page.getByRole('button', { name: '오늘의 대표 결정' }).click();
+  await page.getByRole('region', { name: '향후 7일 대표 결정' })
+    .getByRole('button', { name: 'QA 기존 현장', exact: true }).click();
+  const detail = page.locator('#view-projects .project-card');
+  await detail.locator('.project-title-input').fill('QA 새 현장명');
+  await detail.locator('[data-field="dueDate"]').fill(tomorrow);
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+
+  const taskRows = async (day) => {
+    const { state } = await (await request.get('/qa/snapshot')).json();
+    return Object.values(state.days[day]?.tasks || {}).flat().filter(task => task.projectTaskId);
+  };
+  expect(await taskRows(today)).toContainEqual(expect.objectContaining({ id: 'qa-completed-action', done: true }));
+  expect(await taskRows(tomorrow)).toHaveLength(0);
+
+  await detail.locator('[data-field="nextAction"]').fill('새로운 조치');
+  await detail.locator('[data-field="decisionText"]').fill('새 대표 결정');
+  await detail.locator('[data-field="decisionDueDate"]').fill(tomorrow);
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  const upcoming = await taskRows(tomorrow);
+  expect(upcoming).toHaveLength(1);
+  expect(upcoming[0]).toMatchObject({ text: '프로젝트: QA 새 현장명 - 새로운 조치', status: '미완료' });
+
+  await detail.locator('[data-field="dueDate"]').fill(today);
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  expect(await taskRows(tomorrow)).toHaveLength(0);
+  expect(await taskRows(today)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'qa-completed-action', done: true, completedDate: today }),
+    expect.objectContaining({ id: upcoming[0].id, status: '미완료' }),
+  ]));
+  await page.reload();
+  await page.getByRole('button', { name: '오늘의 대표 결정' }).click();
+  await expect(page.getByRole('region', { name: '향후 7일 대표 결정' })).toContainText('새 대표 결정');
+});
+
 test('edit, completion, animated save and new browser context preserve server data', async ({browser,context,page,request},info) => {
   await open(context,page);
   await request.post('/qa/delay',{data:{seconds:2}});

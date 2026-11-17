@@ -23157,6 +23157,111 @@ body.ceo-mode.day-view-active .appointment-row.is-current-time .appointment-time
   background: transparent !important;
 }
 
+#dailyPulseToggle:has(.daily-decision-label),
+#dailyPulseToggle:has(.daily-decision-label) .daily-pulse {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+}
+
+.daily-decision-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--forest);
+  font-size: clamp(11px, 1.1vw, 14px);
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+#dailyPulseDetails[data-project-decisions="true"] {
+  max-height: min(46dvh, 340px);
+  background: var(--paper) !important;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.project-decisions {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 4px 8px 8px;
+  border-bottom: 1px solid var(--soft-line);
+}
+
+.project-decisions-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.project-decisions-heading h3,
+.project-decisions p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.project-decisions small,
+.project-decision-registered {
+  color: var(--muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.project-decisions ul {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.project-decisions li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 12px;
+  padding: 6px 0;
+}
+
+.project-decisions li + li {
+  border-top: 1px solid var(--soft-line);
+}
+
+.project-decisions li strong,
+.project-decisions li small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.project-decisions li .decision-project-link {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+  color: var(--forest);
+  font: inherit;
+  font-weight: 850;
+  text-align: start;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.project-decisions .decision-add-task,
+.project-decisions > .decision-project-link {
+  min-height: 36px;
+  justify-self: start;
+}
+
+@media (max-width: 640px) {
+  .project-decisions li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-decisions button {
+    min-height: 44px !important;
+  }
+}
+
 /* 2026-09-16 video QA polish.
    Keep the date-row weather chip legible on wide/landscape screens and give
    the daily task/schedule scrollers enough bottom runway so the last rows are
@@ -24517,6 +24622,9 @@ body.day-view-active #dailyDateSwipeZone {
 }
 body.day-view-active #dailyDateSwipeZone.is-current-day {
   grid-template-columns: var(--day-arrow-width) minmax(0, 1fr) var(--day-arrow-width) !important;
+}
+#dailyDateSwipeZone #dailyTodayButton[hidden] {
+  display: none !important;
 }
 #dailyDateSwipeZone #dailyPrevDay,
 #dailyDateSwipeZone #dailyNextDay {
