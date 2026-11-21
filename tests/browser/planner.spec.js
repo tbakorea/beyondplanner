@@ -1,13 +1,13 @@
 const { test, expect } = require('@playwright/test');
 const session = { email:'browser-qa@example.test', provider:'supabase', accessToken:'isolated-fixture-only', tier:'ceo', expiresAt:4102444800 };
-async function open(context, page) {
+async function open(context, page, firstTask = 'QA 업무 01') {
   if(test.info().project.metadata.plannerMode) await context.addInitScript(mode=>localStorage.setItem('beyondWorkMode',mode),test.info().project.metadata.plannerMode);
   await context.addInitScript(s => {
     if (!localStorage.getItem('beyondWorkAuthSession.v1')) localStorage.setItem('beyondWorkAuthSession.v1', JSON.stringify(s));
   }, session);
   await context.route('**/*', route => new URL(route.request().url()).hostname === '127.0.0.1' ? route.continue() : route.abort());
   await page.goto('/dashboard/index.html');
-  await expect(page.locator('.day-task-panel .task-text-input').filter({visible:true}).first()).toHaveValue('QA 업무 01');
+  await expect(page.locator('.day-task-panel .task-text-input').filter({visible:true}).first()).toHaveValue(firstTask);
   await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state','saved',{timeout:30000});
 }
 test.beforeEach(async ({request}) => { await request.post('/qa/reset'); });
@@ -51,6 +51,50 @@ test('startup keeps old tasks hidden during a slow read and after a failed read'
   await expect(page.locator('#taskBoard .task-text-input').first()).toHaveValue('QA 업무 01');
   await expect(oldTask).toHaveCount(0);
   await expect(page.locator('.app-shell')).not.toHaveAttribute('inert','');
+});
+
+test('startup with a year of history preserves completed tasks and editable carryovers', async ({ context, page, request }) => {
+  const snapshot = await (await request.get('/qa/snapshot')).json();
+  const today = Object.keys(snapshot.state.days).sort().at(-1);
+  const keyBefore = offset => {
+    const date = new Date(today + 'T12:00:00Z');
+    date.setUTCDate(date.getUTCDate() - offset);
+    return date.toISOString().slice(0, 10);
+  };
+  for (let offset = 1; offset < 365; offset++) {
+    const key = keyBefore(offset);
+    snapshot.state.days[key] = { tasks: { A: [], B: Array.from({ length: 20 }, (_, index) => ({
+      id: 'qa-history-' + key + '-' + index, text: 'QA 완료 기록 ' + key + '-' + index,
+      status: '완료', done: true, completedDate: key,
+    })), C: [] }, appointments: {} };
+  }
+  snapshot.state.days[keyBefore(364)].tasks.A.push(
+    { id: 'qa-open-root', text: 'QA 남은 이월', status: '미완료', done: false },
+    { id: 'qa-done-root', text: 'QA 완료한 이월', status: '미완료', done: false },
+  );
+  snapshot.state.days[keyBefore(3)].tasks.A.push({ id: 'qa-first-fork', carryoverForkFrom: 'qa-open-root', text: 'QA 남은 이월', status: '미완료', done: false });
+  snapshot.state.days[keyBefore(2)].tasks.A.push({ id: 'qa-last-fork', carryoverForkFrom: 'qa-first-fork', text: 'QA 남은 이월', status: '미완료', done: false });
+  snapshot.state.days[keyBefore(1)].tasks.A.push({ id: 'qa-done-fork', carryoverForkFrom: 'qa-done-root', text: 'QA 완료한 이월', status: '완료', done: true, completedDate: keyBefore(1) });
+  await request.post('/api/state', { data: { state: snapshot.state, baseUpdatedAt: snapshot.updatedAt } });
+  await open(context, page, 'QA 남은 이월');
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  await expect(page.locator('#dailyCompletion')).toHaveText('0/21');
+  await expect(page.locator('#taskBoard input[value="QA 완료한 이월"]')).toHaveCount(0);
+  const carried = page.locator('#taskBoard .task-row').filter({
+    has: page.locator('input[value="QA 남은 이월"]'),
+  });
+  await expect(carried).toHaveCount(1);
+  await carried.locator('.task-cycle').click();
+  await expect(page.locator('#dailyCompletion')).toHaveText('1/21');
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  await page.reload();
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  await expect(page.locator('#dailyCompletion')).toHaveText('1/21');
+  await expect(page.locator('#taskBoard input[value="QA 남은 이월"]')).toHaveCount(1);
+  const saved = await (await request.get('/qa/snapshot')).json();
+  expect(saved.state.days[keyBefore(364)].tasks.B).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: 'qa-history-' + keyBefore(364) + '-0', done: true, completedDate: keyBefore(364) }),
+  ]));
 });
 
 test('header, tasks and navigation remain reachable', async ({context,page}, info) => {

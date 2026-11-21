@@ -12394,22 +12394,25 @@ function findTaskRecordById(taskId = "") {
   return null;
 }
 
-function resolveCarryoverRootKey(seedKey = "") {
+function resolveCarryoverRootKey(seedKey = "", tasksById = null) {
   let rootKey = String(seedKey || "").trim();
   const seen = new Set();
   while (rootKey && !seen.has(rootKey)) {
     seen.add(rootKey);
-    const record = findTaskRecordById(rootKey);
-    const parentKey = record?.task?.carryoverForkFrom || "";
+    const task = tasksById ? tasksById.get(rootKey) : findTaskRecordById(rootKey)?.task;
+    const parentKey = task?.carryoverForkFrom || "";
     if (!parentKey) return rootKey;
     rootKey = parentKey;
   }
   return rootKey;
 }
 
-function getTaskCarryoverRootKey(task = {}, fallbackKey = "") {
+function getTaskCarryoverRootKey(task = {}, fallbackKey = "", tasksById = null) {
+  // Ordinary records already are their own root. Searching the complete
+  // history for every record turns carryover analysis into quadratic work.
+  if (!task?.carryoverForkFrom && !fallbackKey) return String(task?.id || "").trim();
   const seedKey = task?.carryoverForkFrom || fallbackKey || task?.id || "";
-  return resolveCarryoverRootKey(seedKey);
+  return resolveCarryoverRootKey(seedKey, tasksById);
 }
 
 function carryoverForkKey(taskRef, source) {
@@ -12455,7 +12458,7 @@ function dedupeMaterializedCarryoverCopies(day, dayKey = iso(selectedDate)) {
   return changed;
 }
 
-function getDailyTaskDuplicateIdentities(task = {}, priority = "", dayKey = iso(selectedDate)) {
+function getDailyTaskDuplicateIdentities(task = {}, priority = "", dayKey = iso(selectedDate), tasksById = null) {
   normalizeTask(task);
   const text = normalizeSearchText(task.text || "");
   const identities = [];
@@ -12466,7 +12469,7 @@ function getDailyTaskDuplicateIdentities(task = {}, priority = "", dayKey = iso(
   if (task.postponedFrom || task.postponeId) identities.push(`postpone:${task.postponedFrom || task.postponeId}`);
   if (isMaterializedCarryoverTask(task)) {
     identities.push(
-      getCarryoverTaskIdentity({ ...task, priority, date: dayKey }),
+      getCarryoverTaskIdentity({ ...task, priority, date: dayKey }, tasksById),
       getCarryoverSemanticIdentity({ ...task, priority, date: dayKey }),
     );
   }
@@ -12536,19 +12539,19 @@ function applyDeletedDailyTaskIdentities(day = {}, dayKey = iso(selectedDate)) {
   return changed;
 }
 
-function getCarryoverSuppressionIdentityValues(task = {}, priority = "", dayKey = iso(selectedDate)) {
+function getCarryoverSuppressionIdentityValues(task = {}, priority = "", dayKey = iso(selectedDate), tasksById = null) {
   if (!task || typeof task !== "object") return [];
   const taskCopy = { ...task };
   if (priority && !taskCopy.priority) taskCopy.priority = priority;
   if (dayKey && !taskCopy.date) taskCopy.date = dayKey;
   // A completed/deleted monthly occurrence must not suppress later months,
   // even though the title and rule index are identical.
-  if (repeatRuleForTask(taskCopy)?.frequency === "monthly") return getCarryoverIdentityValues(taskCopy);
+  if (repeatRuleForTask(taskCopy)?.frequency === "monthly") return getCarryoverIdentityValues(taskCopy, tasksById);
   const text = normalizeSearchText(taskCopy.text || "");
   const taskPriority = taskCopy.priority || priority || taskCopy.originalPriority || "";
   const identities = [
-    ...getCarryoverIdentityValues(taskCopy),
-    ...getDailyTaskDuplicateIdentities(taskCopy, taskPriority, taskCopy.date || dayKey),
+    ...getCarryoverIdentityValues(taskCopy, tasksById),
+    ...getDailyTaskDuplicateIdentities(taskCopy, taskPriority, taskCopy.date || dayKey, tasksById),
   ];
   if (text) {
     identities.push(`task-text:${text}`, `text:${text}`);
@@ -16920,7 +16923,17 @@ function getCarryoverTasks(date) {
     carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(cached.items) };
     return cloneCarryoverTaskList(cached.items);
   }
-  const suppressedIdentities = buildCarryoverSuppressionSet(currentKey);
+  // Keep the lookup scoped to this calculation so edits and server reads
+  // cannot leave stale references in a long-lived task index.
+  const tasksById = new Map();
+  Object.values(state.days || {}).forEach((day) => {
+    priorities.forEach(([priority]) => {
+      (day?.tasks?.[priority] || []).forEach((task) => {
+        if (task.id && !tasksById.has(task.id)) tasksById.set(task.id, task);
+      });
+    });
+  });
+  const suppressedIdentities = buildCarryoverSuppressionSet(currentKey, tasksById);
   const candidates = Object.keys(state.days)
     .filter((key) => key < currentKey)
     .sort()
@@ -16933,17 +16946,17 @@ function getCarryoverTasks(date) {
       if (completedKey && completedKey < currentKey) return false;
       if (task.status === "연기") return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
-      if (isCarryoverIdentitySuppressed(task, suppressedIdentities)) return false;
+      if (isCarryoverIdentitySuppressed(task, suppressedIdentities, tasksById)) return false;
       return task.text && !isTaskResolvedForDate(task, currentKey) && ["미완료", "진행중"].includes(task.status);
     });
-  const items = dedupeCarryoverTasks(candidates);
+  const items = dedupeCarryoverTasks(candidates, tasksById);
   carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(items) };
   carryoverTaskCacheByDate.set(currentKey, { version, items: cloneCarryoverTaskList(items) });
   pruneCarryoverCache(carryoverTaskCacheByDate);
   return cloneCarryoverTaskList(items);
 }
 
-function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
+function buildCarryoverSuppressionSet(currentKey = iso(selectedDate), tasksById = null) {
   const version = carryoverTaskCacheVersion();
   const cached = carryoverSuppressionCacheByDate.get(currentKey);
   if (cached?.version === version) return new Set(cached.items);
@@ -16959,7 +16972,7 @@ function buildCarryoverSuppressionSet(currentKey = iso(selectedDate)) {
       }
       getDayTaskSnapshots(key).forEach((task) => {
         if (!task?.text || !shouldSuppressOpenCarryoverCandidate(task, currentKey)) return;
-        getCarryoverSuppressionIdentityValues(task, task.priority, task.date || key).forEach((identity) => suppressed.add(identity));
+        getCarryoverSuppressionIdentityValues(task, task.priority, task.date || key, tasksById).forEach((identity) => suppressed.add(identity));
       });
     });
   carryoverSuppressionCacheByDate.set(currentKey, { version, items: Array.from(suppressed) });
@@ -16982,23 +16995,23 @@ function shouldSuppressOpenCarryoverCandidate(task = {}, currentKey = iso(select
   return false;
 }
 
-function getCarryoverIdentityValues(task = {}) {
-  return [getCarryoverTaskIdentity(task), getCarryoverSemanticIdentity(task)].filter(Boolean);
+function getCarryoverIdentityValues(task = {}, tasksById = null) {
+  return [getCarryoverTaskIdentity(task, tasksById), getCarryoverSemanticIdentity(task)].filter(Boolean);
 }
 
-function isCarryoverIdentitySuppressed(task = {}, suppressedIdentities = new Set()) {
+function isCarryoverIdentitySuppressed(task = {}, suppressedIdentities = new Set(), tasksById = null) {
   if (!suppressedIdentities?.size) return false;
-  return getCarryoverSuppressionIdentityValues(task, task.priority, task.date || task.carryoverSourceDate || iso(selectedDate))
+  return getCarryoverSuppressionIdentityValues(task, task.priority, task.date || task.carryoverSourceDate || iso(selectedDate), tasksById)
     .some((identity) => suppressedIdentities.has(identity));
 }
 
-function getCarryoverTaskIdentity(task = {}) {
+function getCarryoverTaskIdentity(task = {}, tasksById = null) {
   const postponeRoot = task.postponedFrom || task.postponeId || "";
   if (postponeRoot) return `postpone:${postponeRoot}`;
   if (task.repeatId) return `repeat:${repeatRuleForTask(task)?.frequency === "monthly" ? task.repeatId : String(task.repeatId).replace(/-\d{4}-\d{2}-\d{2}$/, "")}`;
   if (task.financeItemId) return `money:${task.financeItemId}`;
   if (task.projectTaskId) return `project:${task.projectTaskId}`;
-  const taskRoot = getTaskCarryoverRootKey(task);
+  const taskRoot = getTaskCarryoverRootKey(task, "", tasksById);
   if (taskRoot) return `task:${taskRoot}`;
   return `text:${normalizeSearchText(task.text || "")}:${task.priority || ""}`;
 }
@@ -17021,11 +17034,11 @@ function shouldPreferCarryoverCandidate(next = {}, current = {}) {
   return getTaskOrder(next) > getTaskOrder(current);
 }
 
-function dedupeCarryoverTasks(tasks = []) {
+function dedupeCarryoverTasks(tasks = [], tasksById = null) {
   const byIdentity = new Map();
   const taskIdentities = new Map();
   tasks.forEach((task) => {
-    const identities = [getCarryoverTaskIdentity(task), getCarryoverSemanticIdentity(task)].filter(Boolean);
+    const identities = [getCarryoverTaskIdentity(task, tasksById), getCarryoverSemanticIdentity(task)].filter(Boolean);
     const existing = identities.map((identity) => byIdentity.get(identity)).find(Boolean);
     if (!existing || shouldPreferCarryoverCandidate(task, existing)) {
       if (existing) {
