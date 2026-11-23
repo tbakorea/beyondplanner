@@ -11470,7 +11470,7 @@ function commitDailyTaskTextInput(task, priority, index, input, options = {}) {
   if (isDailyEditLocked(dayKey)) {
     const dayState = ensureDay(dayKey);
     const location = resolveDailyTaskEditLocation(dayState, task, priority, index);
-    hydrateFieldValueUnlessEditing(input, location?.task?.text || task?.text || "");
+    hydrateFieldValueUnlessEditing(input, getTaskDisplayText(location?.task || task));
     return null;
   }
   const isTyping = options.typing !== false;
@@ -11646,9 +11646,9 @@ function renderTaskRow(task, priority, index, dayKey = iso(selectedDate)) {
     <button class="task-cycle" type="button" aria-label="완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <div class="task-text-cell">
-      <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" placeholder="업무 내용" />
+      <input class="task-text-input" type="text" value="${escapeAttr(getTaskDisplayText(task))}" placeholder="업무 내용" />
       ${renderTaskLinkTags(inlineTags)}
-      ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
+      ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">M</button>` : ""}
     </div>
     <button class="task-delete" type="button" aria-label="우선업무 삭제">×</button>
   `;
@@ -11801,19 +11801,24 @@ function bindDailyTaskTextInput(input) {
   };
 }
 
+function getTaskDisplayText(task = {}) {
+  return String(task.text || "").replace(/^\s*자금\s*확인\s*\(\s*매월\s*\)\s*[:：]?\s*/, "");
+}
+
 function renderTaskLinkTags(tags = []) {
   if (!tags.length) return "";
-  return `<span class="task-link-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</span>`;
+  return `<span class="task-link-tags">${tags.map((tag) => `<span title="${escapeAttr(tag)}">${escapeHtml(tag === "Money" ? "M" : tag)}</span>`).join("")}</span>`;
 }
 
 function getTaskLinkTags(task = {}) {
   const tags = [];
   const text = task.text || "";
+  const isRecurringOrMoneyTask = task.repeatId || task.financeItemId || text !== getTaskDisplayText(task);
   const add = (tag) => {
     if (!tags.includes(tag)) tags.push(tag);
   };
   if (task.financeItemId || /자금|입금|지출|카드|이자|정산|대금|money/i.test(text)) add("Money");
-  if (task.projectTaskId || matchesProjectContext(text)) add("프로젝트");
+  if (!isRecurringOrMoneyTask && (task.projectTaskId || matchesProjectContext(text))) add("프로젝트");
   if (matchesGoalContext(text)) add("목표");
   if (/운동|건강|걷기|수면|회복|투약|검진|스트레칭/.test(text)) add("건강");
   return tags.slice(0, 3);
@@ -12996,9 +13001,9 @@ function renderCarryoverTask(task, dayKey = iso(selectedDate)) {
     <button class="task-cycle" type="button" aria-label="이월업무 완료 상태 변경">${getTaskMarkerLabel(marker)}</button>
     <div class="task-status-cell" data-status="${escapeAttr(getTaskStatusLabel(task, menuValue))}">${getTaskStatusDisplay(task, menuValue)}${statusControl}</div>
     <div class="task-text-cell">
-      <input class="task-text-input" type="text" value="${escapeAttr(task.text)}" />
+      <input class="task-text-input" type="text" value="${escapeAttr(getTaskDisplayText(task))}" />
       ${renderTaskLinkTags(inlineTags)}
-      ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">Money</button>` : ""}
+      ${task.financeItemId ? `<button class="task-money-link" type="button" aria-label="Money 항목으로 이동">M</button>` : ""}
     </div>
     <button class="task-delete" type="button" aria-label="이월 우선업무 삭제">×</button>
   `;
@@ -13039,12 +13044,16 @@ function renderCarryoverTask(task, dayKey = iso(selectedDate)) {
   }
   const textInput = row.querySelector(".task-text-input");
   bindDailyTaskTextInput(textInput);
+  let committedText = textInput.value;
   const commitCarryoverText = (event, options = {}) => {
     const isTyping = options.typing !== false;
     dailyTextEditingActive = isTyping;
     markDailyFieldEditing(isTyping ? 10 * 60 * 1000 : 1600);
     markDailyTaskMutation(isTyping ? 6000 : 2200);
-    updateCarryoverTaskText(task, event.target.value, dayKey);
+    if (event.target.value !== committedText) {
+      updateCarryoverTaskText(task, event.target.value, dayKey);
+      committedText = event.target.value;
+    }
     if (options.forceScheduleRender && dayKey === iso(selectedDate)) {
       const dayState = ensureDay(dayKey);
       syncVisibleTaskTimeHints(dayState, getCarryoverTasks(parseDate(dayKey)), { dayKey });

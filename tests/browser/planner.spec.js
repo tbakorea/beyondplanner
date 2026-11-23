@@ -97,6 +97,67 @@ test('startup with a year of history preserves completed tasks and editable carr
   ]));
 });
 
+test('recurring Money tasks show compact titles and M labels through editing and reload', async ({ context, page, request }, info) => {
+  const snapshot = await (await request.get('/qa/snapshot')).json();
+  const today = Object.keys(snapshot.state.days).sort().at(-1);
+  const yesterday = Object.keys(snapshot.state.days).sort()[0];
+  const title = '이자 (강) 20일 165만';
+  const currentId = 'qa-interest-' + today.slice(0, 7);
+  const carryId = 'qa-carry-' + yesterday.slice(0, 7);
+  snapshot.state.finance = { months: {}, fixed: [
+    { id: 'qa-interest', title, dueDay: Number(today.slice(-2)), startDate: today, type: '지출' },
+    { id: 'qa-carry', title: 'QA 이월 납부', dueDay: Number(yesterday.slice(-2)), startDate: yesterday, type: '지출' },
+  ] };
+  snapshot.state.projects = { items: [{ id: 'qa-project', title: 'QA 현장', nextAction: '이자 납부' }] };
+  snapshot.state.days[today].tasks.A.unshift(
+    { id: 'qa-interest-task', financeItemId: currentId, text: '자금 확인(매월): ' + title, status: '미완료', done: false },
+    { id: 'qa-money-tag', text: 'QA 자금 확보', status: '미완료', done: false },
+  );
+  snapshot.state.days[yesterday].tasks.A.push({
+    id: 'qa-carry-task', financeItemId: carryId, text: '자금확인(매월): QA 이월 납부', status: '미완료', done: false,
+  });
+  await request.post('/api/state', { data: { state: snapshot.state, baseUpdatedAt: snapshot.updatedAt } });
+  await open(context, page, 'QA 이월 납부');
+  const board = page.locator('#taskBoard');
+  const taskRow = value => board.locator('.task-row').filter({ has: page.locator('input[value="' + value + '"]') });
+  const current = taskRow(title);
+  const carried = taskRow('QA 이월 납부');
+  for (const row of [current, carried]) {
+    await expect(row.locator('.task-money-link')).toHaveText('M');
+    await expect(row.locator('.task-link-tags span').filter({ hasText: /^프로젝트$/ })).toHaveCount(0);
+    await expect(row.locator('.task-link-tags span[title="Money"]')).toHaveCount(0);
+  }
+  await expect(taskRow('QA 자금 확보').locator('.task-link-tags span[title="Money"]')).toHaveText('M');
+  await carried.locator('.task-text-input').focus();
+  await carried.locator('.task-text-input').blur();
+  const beforeEdit = await (await request.get('/qa/snapshot')).json();
+  expect(beforeEdit.state.days[yesterday].tasks.A.find(task => task.id === 'qa-carry-task').text)
+    .toBe('자금확인(매월): QA 이월 납부');
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  await expect(current.locator('.task-text-input')).toBeInViewport({ ratio: 0.95 });
+  await page.screenshot({ path: info.outputPath('compact-recurring-money.png') });
+
+  await current.locator('.task-cycle').click();
+  await expect(current).toHaveClass(/marker-check/);
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  const editedTitle = '이자 (강) 20일 170만';
+  await current.locator('.task-text-input').fill(editedTitle);
+  await current.locator('.task-text-input').blur();
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  await page.reload();
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  const edited = taskRow(editedTitle);
+  await expect(edited).toHaveClass(/marker-check/);
+  await expect(edited.locator('.task-money-link')).toHaveText('M');
+  await expect(edited.locator('.task-link-tags span').filter({ hasText: /^프로젝트$/ })).toHaveCount(0);
+  const saved = await (await request.get('/qa/snapshot')).json();
+  expect(Object.values(saved.state.days[today].tasks).flat().find(task => task.id === 'qa-interest-task'))
+    .toMatchObject({ text: editedTitle, financeItemId: currentId, done: true });
+  await edited.getByRole('button', { name: 'Money 항목으로 이동' }).click();
+  await expect(page.locator('#view-notes')).toHaveClass(/active/);
+  await expect(page.locator('#fixedMoneyRows input[value="' + title + '"]')).toBeVisible();
+});
+
 test('header, tasks and navigation remain reachable', async ({context,page}, info) => {
   await open(context,page);
   const header=await page.locator('.app-header').boundingBox();
