@@ -1,0 +1,163 @@
+// Run from the repository root with swift scripts/render_boot_brand.swift.
+import AVFoundation
+import CoreGraphics
+import CoreText
+import Foundation
+import ImageIO
+import UniformTypeIdentifiers
+
+let width = 1280
+let height = 720
+let frameRate: Int32 = 30
+let duration = 2.4
+let outputDirectory = URL(fileURLWithPath: CommandLine.arguments.dropFirst().first ?? "dashboard/assets/boot", isDirectory: true)
+try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
+let movieURL = outputDirectory.appendingPathComponent("beyond-planner-intro-v1.mp4")
+let posterURL = outputDirectory.appendingPathComponent("beyond-planner-intro-v1.jpg")
+if FileManager.default.fileExists(atPath: movieURL.path) {
+    try FileManager.default.removeItem(at: movieURL)
+}
+
+let forest = CGColor(red: 0.12, green: 0.23, blue: 0.19, alpha: 1)
+let gold = CGColor(red: 0.71, green: 0.60, blue: 0.38, alpha: 1)
+let paper = CGColor(red: 247 / 255, green: 245 / 255, blue: 239 / 255, alpha: 1)
+let displayFont = CTFontCreateUIFontForLanguage(.emphasizedSystem, 170, nil)!
+let detailFont = CTFontCreateUIFontForLanguage(.system, 31, nil)!
+
+func textLine(_ text: String, font: CTFont, tracking: CGFloat = 0, color: CGColor = forest) -> CTLine {
+    let attributes: [NSAttributedString.Key: Any] = [
+        NSAttributedString.Key(kCTFontAttributeName as String): font,
+        NSAttributedString.Key(kCTForegroundColorAttributeName as String): color,
+        NSAttributedString.Key(kCTKernAttributeName as String): tracking,
+    ]
+    return CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attributes))
+}
+
+func drawBrand(in context: CGContext, time: Double) {
+    let canvas = CGRect(x: 0, y: 0, width: width, height: height)
+    context.setFillColor(paper)
+    context.fill(canvas)
+    let phase = time / duration
+    let breath = CGFloat((1 - cos(phase * 2 * .pi)) / 2)
+    let colors = [CGColor(red: 1, green: 0.993, blue: 0.97, alpha: 0.85), paper] as CFArray
+    let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: [0, 1])!
+    context.drawRadialGradient(gradient, startCenter: CGPoint(x: 640, y: 380), startRadius: 0,
+                               endCenter: CGPoint(x: 640, y: 380), endRadius: 650, options: [.drawsAfterEndLocation])
+
+    let letters = Array("BEYOND")
+    let lines = letters.map { textLine(String($0), font: displayFont) }
+    let advances = lines.map { CGFloat(CTLineGetTypographicBounds($0, nil, nil, nil)) }
+    let tracking: CGFloat = 8 - 3 * breath
+    let wordWidth = advances.reduce(0, +) + tracking * CGFloat(letters.count - 1)
+    var x = (CGFloat(width) - wordWidth) / 2
+    let baseline: CGFloat = 355 + breath * 5
+    context.saveGState()
+    context.setAlpha(0.87 + 0.13 * breath)
+    for index in letters.indices {
+        let lift = sin(phase * 2 * .pi + Double(index) * 0.42) * Double(breath) * 2
+        context.textPosition = CGPoint(x: x, y: baseline + lift)
+        CTLineDraw(lines[index], context)
+        if letters[index] == "O" {
+            let center = CGPoint(x: x + advances[index] / 2, y: baseline + CTFontGetCapHeight(displayFont) / 2 + lift)
+            let angle = phase * 2 * .pi + .pi / 2
+            context.setStrokeColor(gold)
+            context.setLineWidth(3)
+            context.setLineCap(.round)
+            context.move(to: center)
+            context.addLine(to: CGPoint(x: center.x + cos(angle) * 22, y: center.y + sin(angle) * 22))
+            context.strokePath()
+            context.setFillColor(gold)
+            context.fillEllipse(in: CGRect(x: center.x - 2.5, y: center.y - 2.5, width: 5, height: 5))
+        }
+        x += advances[index] + tracking
+    }
+    context.restoreGState()
+
+    let subtitle = textLine("PLANNER", font: detailFont, tracking: 17)
+    let subtitleWidth = CTLineGetTypographicBounds(subtitle, nil, nil, nil)
+    context.setAlpha(0.66 + 0.14 * breath)
+    context.textPosition = CGPoint(x: (Double(width) - subtitleWidth) / 2 + 8.5, y: 275)
+    CTLineDraw(subtitle, context)
+    context.setAlpha(1)
+
+    let rule = CGRect(x: 528, y: 232, width: 224, height: 1)
+    context.setFillColor(CGColor(red: 0.71, green: 0.60, blue: 0.38, alpha: 0.22))
+    context.fill(rule)
+    let glint = CGRect(x: 528 + breath * 188, y: 231, width: 36, height: 3)
+    context.setFillColor(gold)
+    context.addPath(CGPath(roundedRect: glint, cornerWidth: 1.5, cornerHeight: 1.5, transform: nil))
+    context.fillPath()
+}
+
+let writer = try AVAssetWriter(outputURL: movieURL, fileType: .mp4)
+writer.shouldOptimizeForNetworkUse = true
+let settings: [String: Any] = [
+    AVVideoCodecKey: AVVideoCodecType.h264,
+    AVVideoWidthKey: width,
+    AVVideoHeightKey: height,
+    AVVideoColorPropertiesKey: [
+        AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+        AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+        AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+    ],
+    AVVideoCompressionPropertiesKey: [
+        AVVideoAverageBitRateKey: 400_000,
+        AVVideoProfileLevelKey: AVVideoProfileLevelH264BaselineAutoLevel,
+        AVVideoExpectedSourceFrameRateKey: frameRate,
+        AVVideoMaxKeyFrameIntervalKey: frameRate,
+        AVVideoAllowFrameReorderingKey: false,
+    ],
+]
+let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+input.expectsMediaDataInRealTime = false
+let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input, sourcePixelBufferAttributes: [
+    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32ARGB,
+    kCVPixelBufferWidthKey as String: width,
+    kCVPixelBufferHeightKey as String: height,
+    kCVPixelBufferCGImageCompatibilityKey as String: true,
+    kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+])
+writer.add(input)
+guard writer.startWriting() else { throw writer.error! }
+writer.startSession(atSourceTime: .zero)
+let frameCount = Int(duration * Double(frameRate))
+
+for frame in 0..<frameCount {
+    while !input.isReadyForMoreMediaData {
+        if writer.status == .failed { throw writer.error! }
+        Thread.sleep(forTimeInterval: 0.002)
+    }
+    var buffer: CVPixelBuffer?
+    guard let pool = adaptor.pixelBufferPool,
+          CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer) == kCVReturnSuccess,
+          let pixelBuffer = buffer else { fatalError("Unable to allocate a video frame") }
+    CVPixelBufferLockBaseAddress(pixelBuffer, [])
+    CVBufferSetAttachment(pixelBuffer, kCVImageBufferCGColorSpaceKey,
+                          CGColorSpace(name: CGColorSpace.sRGB)!, .shouldPropagate)
+    let context = CGContext(data: CVPixelBufferGetBaseAddress(pixelBuffer), width: width, height: height,
+                            bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
+                            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)!
+    drawBrand(in: context, time: Double(frame) / Double(frameRate))
+    if frame == 0 {
+        let destination = CGImageDestinationCreateWithURL(posterURL as CFURL, UTType.jpeg.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(destination, context.makeImage()!, [kCGImageDestinationLossyCompressionQuality: 0.88] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { fatalError("Unable to write the poster") }
+    }
+    CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
+    guard adaptor.append(pixelBuffer, withPresentationTime: CMTime(value: Int64(frame), timescale: frameRate)) else {
+        throw writer.error ?? NSError(domain: "BootVideo", code: 1)
+    }
+}
+input.markAsFinished()
+let finished = DispatchSemaphore(value: 0)
+writer.finishWriting { finished.signal() }
+guard finished.wait(timeout: .now() + 60) == .success, writer.status == .completed else {
+    throw writer.error ?? NSError(domain: "BootVideo", code: 2)
+}
+for intermediate in try FileManager.default.contentsOfDirectory(at: outputDirectory, includingPropertiesForKeys: nil)
+where intermediate.lastPathComponent.hasPrefix(movieURL.lastPathComponent + ".sb-") {
+    try FileManager.default.removeItem(at: intermediate)
+}
+print("Rendered \(frameCount) silent frames at \(width)×\(height).")
+print(movieURL.path)
+print(posterURL.path)

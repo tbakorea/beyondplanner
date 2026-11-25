@@ -5,36 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20261125a" />
+    <link rel="stylesheet" href="./styles.css?v=20261125b" />
   </head>
   <body>
-    <div class="boot-screen" id="bootScreen">
-      <div class="boot-card">
-        <div class="boot-brand">
-          <span class="boot-mark" aria-hidden="true"><span class="compass-spark-icon"></span></span>
-          <div class="boot-brand-copy">
-            <span>AI 계획 시스템</span>
-            <strong>Beyond Work</strong>
-          </div>
+    <div class="boot-screen boot-brand-launch" id="bootScreen">
+      <div class="boot-brand-stage">
+        <div class="boot-brand-visual" role="img" aria-label="Beyond Planner">
+          <img class="boot-brand-poster" src="./assets/boot/beyond-planner-intro-v1.jpg" width="1280" height="720" alt="" fetchpriority="high" />
+          <video class="boot-brand-film" id="bootBrandVideo" src="./assets/boot/beyond-planner-intro-v1.mp4" width="1280" height="720" muted playsinline loop preload="none" poster="./assets/boot/beyond-planner-intro-v1.jpg" aria-hidden="true"></video>
         </div>
-        <span class="boot-dayline" id="bootDayline">오늘의 장면을 준비합니다</span>
-        <div class="boot-value-strip" id="bootValueStrip" aria-label="Beyond Work 핵심 가치">
-          <span>중요한 일을 시간표에 연결합니다.</span>
-          <span>목표, 일정, Money 흐름을 한 화면에서 정리합니다.</span>
-          <span>기록이 쌓일수록 코칭은 더 정확해집니다.</span>
-        </div>
-        <div class="boot-coaching" aria-label="오늘의 코칭">
-          <span class="boot-coaching-kicker">오늘의 시작</span>
-          <p id="bootCoachingMessage">오늘의 첫 선택이 하루의 방향을 만듭니다.</p>
-          <p class="boot-navigate-en" id="bootNavigateEnglish">The first choice sets the direction of the day.</p>
-          <small class="boot-verse-source" id="bootVerseSource">오늘의 흐름을 준비합니다.</small>
-          <ul id="bootCoachingSignals">
-            <li>중요한 일 하나를 실제 시간에 앉히세요.</li>
-          </ul>
-        </div>
-        <div class="boot-stage" aria-label="앱 준비 상태">
-          <span id="bootMessage" role="status">오늘 일정을 불러오는 중</span>
-          <i aria-hidden="true"></i>
+        <div class="boot-readiness" aria-label="앱 준비 상태">
+          <span class="boot-status-message" id="bootMessage" role="status">오늘 일정을 불러오는 중</span>
           <button type="button" id="bootRetryButton" class="boot-retry" hidden>다시 시도</button>
         </div>
       </div>
@@ -1050,6 +1031,6 @@
     </section>
 
     <script src="./data.js?v=20260629o"></script>
-    <script src="./app.js?v=20261125a"></script>
+    <script src="./app.js?v=20261125b"></script>
   </body>
 </html>
