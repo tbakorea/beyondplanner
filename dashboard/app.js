@@ -1211,7 +1211,7 @@ function resolveDailyTaskEditLocation(day, taskRef, fallbackPriority = "A", fall
   return { task: taskRef, priority: targetPriority, index: day.tasks[targetPriority].length - 1 };
 }
 
-function normalizeDayTasks(day, dayKey = iso(selectedDate)) {
+function normalizeDayTasks(day, dayKey = iso(selectedDate), tasksById = null) {
   if (!day) return;
   day.tasks ||= { A: emptyTasks(DAILY_EMPTY_TASK_MIN), B: [], C: [] };
   day.taskOrderCounter = Math.max(1, Number(day.taskOrderCounter || 1));
@@ -1225,7 +1225,7 @@ function normalizeDayTasks(day, dayKey = iso(selectedDate)) {
       if (!hasTaskOrder(task)) assignTaskOrder(day, task);
     });
   });
-  dedupeMaterializedCarryoverCopies(day, dayKey);
+  dedupeMaterializedCarryoverCopies(day, dayKey, tasksById);
   alignDailyTaskPriorityLocations(day);
   compactEmptyDailyTaskSlots(day);
 }
@@ -1406,6 +1406,18 @@ function normalizeDeletedTaskIdentities(day = {}) {
   return day.deletedTaskIdentities;
 }
 
+function createPlannerTaskLookup(sourceState = state) {
+  const tasksById = new Map();
+  Object.values(sourceState.days || {}).forEach((day) => {
+    priorities.forEach(([priority]) => {
+      (day?.tasks?.[priority] || []).forEach((task) => {
+        if (task.id && !tasksById.has(task.id)) tasksById.set(task.id, task);
+      });
+    });
+  });
+  return tasksById;
+}
+
 function migrateState(nextState) {
   nextState.appSettings = normalizeAppSettings(nextState.appSettings);
   nextState.finance ||= createFinanceState();
@@ -1424,8 +1436,9 @@ function migrateState(nextState) {
   nextState.repeats.priorityTasks ||= emptyRepeatRules(REPEAT_PRIORITY_MIN_ROWS);
   while (nextState.repeats.priorityTasks.length < REPEAT_PRIORITY_MIN_ROWS) nextState.repeats.priorityTasks.push(emptyRepeatRule());
   nextState.repeats.priorityTasks.forEach(normalizeRepeatRule);
+  const tasksById = createPlannerTaskLookup(nextState);
   Object.entries(nextState.weeks || {}).forEach(([key, week]) => normalizePlannerWeekRecord(week, key, nextState));
-  Object.entries(nextState.days || {}).forEach(([dayKey, day]) => normalizePlannerDayRecord(day, dayKey));
+  Object.entries(nextState.days || {}).forEach(([dayKey, day]) => normalizePlannerDayRecord(day, dayKey, tasksById));
   return nextState;
 }
 
@@ -1444,7 +1457,7 @@ function normalizePlannerWeekRecord(week, key, sourceState = state) {
   return week;
 }
 
-function normalizePlannerDayRecord(day, dayKey) {
+function normalizePlannerDayRecord(day, dayKey, tasksById = null) {
   if (!day || typeof day !== "object") return day;
   day.memo ||= "";
   day.memoTitle ||= "";
@@ -1457,14 +1470,17 @@ function normalizePlannerDayRecord(day, dayKey) {
   day.scheduleUnit = normalizeScheduleUnit(day.scheduleUnit || "");
   ensureAppointmentSlots(day, day.scheduleUnit);
   normalizeAppointmentMerges(day);
-  normalizeDayTasks(day, dayKey);
-  applyDeletedDailyTaskIdentities(day, dayKey);
-  dedupeDailyTaskCopies(day, dayKey);
+  normalizeDayTasks(day, dayKey, tasksById);
+  applyDeletedDailyTaskIdentities(day, dayKey, tasksById);
+  dedupeDailyTaskCopies(day, dayKey, tasksById);
   return day;
 }
 
 function preparePlannerStateForPersistence(nextState = state) {
   if (!nextState || typeof nextState !== "object") return nextState;
+  // Resolve roots against this snapshot, including incoming server records.
+  // Rebuild for each pass so removed or replaced parents cannot stay cached.
+  const tasksById = createPlannerTaskLookup(nextState);
   Object.entries(nextState.days || {}).forEach(([dayKey, day]) => {
     if (!day) return;
     day.appointmentMerges ||= {};
@@ -1473,9 +1489,9 @@ function preparePlannerStateForPersistence(nextState = state) {
     normalizeDeletedCarryoverTaskIdentities(day);
     normalizeDeletedTaskIdentities(day);
     normalizeAppointmentMerges(day);
-    normalizeDayTasks(day, dayKey);
-    applyDeletedDailyTaskIdentities(day, dayKey);
-    dedupeDailyTaskCopies(day, dayKey);
+    normalizeDayTasks(day, dayKey, tasksById);
+    applyDeletedDailyTaskIdentities(day, dayKey, tasksById);
+    dedupeDailyTaskCopies(day, dayKey, tasksById);
     purgePrematureCarryoverEntries(day, dayKey);
     clearOrphanTaskScheduleLinks(day);
     clearMisdatedDirectTaskScheduleLinks(day, dayKey);
@@ -2841,7 +2857,7 @@ function hasPendingPlannerSave(meta = getStateMeta()) {
 
 function storeStateFromServer(payload, message) {
   if (payload.updatedAt && lastServerUpdatedAt && isTimestampNewer(lastServerUpdatedAt, payload.updatedAt)) return;
-  state = preparePlannerStateForPersistence(getPayloadPlannerState(payload) || migrateState(payload.state));
+  state = getPayloadPlannerState(payload) || preparePlannerStateForPersistence(migrateState(payload.state));
   selectedSheetId = state.customSheets.activeId;
   lastServerUpdatedAt = payload.updatedAt || "";
   todaySliceCache.clear();
@@ -7888,7 +7904,7 @@ function renderDay(options = {}) {
   }
   renderScheduleUnitControls(day);
   if (!editing) renderAppointments(day, key);
-  renderCoach();
+  if (getActiveViewName() === "coach") renderCoach();
   bindDayTextFields(day, key);
   if (!el("dailyCalendarPopover").hidden) renderDailyCalendar();
   if (isPlannerCalendarOpen("daily")) renderPlannerCalendarSheet();
@@ -7956,19 +7972,6 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const selectedKey = iso(selectedDate);
   const todayKey = iso(todayInPlanner());
   const isPastDate = selectedKey < todayKey;
-  const activeTasks = tasks.filter((task) => task.text);
-  const carryoverOpen = carryovers.filter((task) => !isCarryoverCompletedOn(task, selectedKey));
-  const openTasks = activeTasks.filter((task) => !shouldStrikeTask(task)).length + carryoverOpen.length;
-  const nextAppointment = getNextAppointmentSummary(day);
-  const coach = buildCoachAnalysis();
-  const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
-  const coachLabel = coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정";
-  const nextText = nextAppointment.text === "비어 있음" ? "없음" : nextAppointment.text;
-  const execution = buildDailyExecutionSignal(day, tasks, carryovers, completion);
-  const intelligence = buildDailyIntelligence(buildPlannerContext(selectedKey));
-  const pattern = buildPatternSignal(selectedDate);
-  const alignment = buildGoalProjectAlignmentSignal(tasks);
-  const review = buildDailyReviewSignal(day);
   const selectedWeather = selectedKey !== todayKey ? getWeatherRecordForDate(selectedKey) : null;
   const weatherRange = selectedWeather ? formatWeatherTemperatureRange(selectedWeather) : "";
   if (isPastDate) {
@@ -7993,9 +7996,29 @@ function renderDailyPulse(day, tasks, carryovers, completion) {
   const showDecisions = selectedKey === todayKey;
   centerButton?.classList.toggle("is-empty", !showDecisions);
   centerButton?.setAttribute("aria-label", showDecisions ? "오늘의 대표 결정" : "오늘 실행 요약");
-  node.innerHTML = showDecisions
+  const labelMarkup = showDecisions
     ? `<span class="daily-decision-label">대표 결정 <span aria-hidden="true">⌄</span></span>`
     : `<span class="pulse-empty" aria-hidden="true"></span>`;
+  // Keep a pressed label attached while a background refresh updates Today.
+  if (node.innerHTML !== labelMarkup) node.innerHTML = labelMarkup;
+  const details = el("dailyPulseDetails");
+  if (details?.hidden) {
+    details.dataset.projectDecisions = String(showDecisions);
+    return;
+  }
+  const activeTasks = tasks.filter((task) => task.text);
+  const carryoverOpen = carryovers.filter((task) => !isCarryoverCompletedOn(task, selectedKey));
+  const openTasks = activeTasks.filter((task) => !shouldStrikeTask(task)).length + carryoverOpen.length;
+  const nextAppointment = getNextAppointmentSummary(day);
+  const coach = buildCoachAnalysis();
+  const completionRate = completion.total ? Math.round((completion.done / completion.total) * 100) : 0;
+  const coachLabel = coach.severity === "alert" ? "주의" : coach.severity === "warm" ? "조정" : "안정";
+  const nextText = nextAppointment.text === "비어 있음" ? "없음" : nextAppointment.text;
+  const execution = buildDailyExecutionSignal(day, tasks, carryovers, completion);
+  const intelligence = buildDailyIntelligence(buildPlannerContext(selectedKey));
+  const pattern = buildPatternSignal(selectedDate);
+  const alignment = buildGoalProjectAlignmentSignal(tasks);
+  const review = buildDailyReviewSignal(day);
   renderDailyPulseDetails([
     ["오늘 실행", `${completion.done}/${completion.total}`, `${completionRate}% 완료 · 남은 업무 ${openTasks}`],
     ...(selectedWeather ? [["날씨", `${getWeatherConditionIcon(selectedWeather)} ${selectedWeather.summary || "기록"}`, `${weatherRange ? `최저/최고 ${weatherRange}` : selectedWeather.label || "선택 날짜 날씨 기록"}`]] : []),
@@ -8313,7 +8336,12 @@ function toggleDailyPulseDetails() {
   const nextHidden = !node.hidden ? true : false;
   node.hidden = nextHidden;
   toggle.setAttribute("aria-expanded", String(!nextHidden));
-  if (!nextHidden && node.dataset.projectDecisions === "true") renderProjectDecisions(node);
+  if (!nextHidden) {
+    const key = iso(selectedDate);
+    const day = ensureDay(key);
+    const carryovers = getCarryoverTasks(selectedDate);
+    renderDailyPulse(day, getDayTasks(key), carryovers, getDailyCompletionSummary(day, key, carryovers));
+  }
 }
 
 function projectDecisionKey(project) {
@@ -9885,7 +9913,7 @@ async function setupWeather(options = {}) {
   renderWeatherDependentSurfaces();
   renderWeatherSettings();
   updateCoachBubble();
-  if (activeCoachSection === "weather" || activeCoachSection === "") renderCoach();
+  if (getActiveViewName() === "coach" && (activeCoachSection === "weather" || activeCoachSection === "")) renderCoach();
 }
 
 async function getWeatherCoordinates() {
@@ -12428,7 +12456,7 @@ function isMaterializedCarryoverTask(task = {}) {
   return Boolean(task?.carryoverForkFrom || task?.carryoverSourceDate);
 }
 
-function dedupeMaterializedCarryoverCopies(day, dayKey = iso(selectedDate)) {
+function dedupeMaterializedCarryoverCopies(day, dayKey = iso(selectedDate), tasksById = null) {
   if (!day?.tasks) return false;
   const byIdentity = new Map();
   const taskIdentities = new Map();
@@ -12440,10 +12468,10 @@ function dedupeMaterializedCarryoverCopies(day, dayKey = iso(selectedDate)) {
       normalizeTask(task);
       const taskWithContext = { ...task, priority, date: dayKey };
       const identities = Array.from(new Set([
-        getCarryoverTaskIdentity(taskWithContext),
+        getCarryoverTaskIdentity(taskWithContext, tasksById),
         getCarryoverSemanticIdentity(taskWithContext),
-        ...getCarryoverIdentityValues(taskWithContext),
-        ...getDailyTaskDuplicateIdentities(task, priority, dayKey),
+        ...getCarryoverIdentityValues(taskWithContext, tasksById),
+        ...getDailyTaskDuplicateIdentities(task, priority, dayKey, tasksById),
       ].filter(Boolean)));
       const existing = identities.map((identity) => byIdentity.get(identity)).find(Boolean);
       if (!existing) {
@@ -12482,7 +12510,7 @@ function getDailyTaskDuplicateIdentities(task = {}, priority = "", dayKey = iso(
   return identities.filter(Boolean);
 }
 
-function getDailyTaskDeletionIdentities(task = {}, priority = "", dayKey = iso(selectedDate)) {
+function getDailyTaskDeletionIdentities(task = {}, priority = "", dayKey = iso(selectedDate), tasksById = null) {
   if (!isPlainPlannerObject(task)) return [];
   const identities = [];
   [
@@ -12497,7 +12525,7 @@ function getDailyTaskDeletionIdentities(task = {}, priority = "", dayKey = iso(s
     if (value !== undefined && value !== null && String(value).trim()) identities.push(`${prefix}:${String(value)}`);
   });
   if (isMaterializedCarryoverTask(task)) {
-    identities.push(...getCarryoverIdentityValues({ ...task, priority, date: dayKey }));
+    identities.push(...getCarryoverIdentityValues({ ...task, priority, date: dayKey }, tasksById));
   }
   const text = normalizeSearchText(task.text || "");
   if (text && (isMaterializedCarryoverTask(task) || isSystemManagedDailyTaskCandidate(task))) {
@@ -12521,7 +12549,7 @@ function markDailyTaskDeletedForDate(day = ensureDay(), task = {}, priority = ""
   return changed;
 }
 
-function applyDeletedDailyTaskIdentities(day = {}, dayKey = iso(selectedDate)) {
+function applyDeletedDailyTaskIdentities(day = {}, dayKey = iso(selectedDate), tasksById = null) {
   if (!day?.tasks) return false;
   const deleted = new Set(normalizeDeletedTaskIdentities(day));
   if (!deleted.size) return false;
@@ -12530,7 +12558,7 @@ function applyDeletedDailyTaskIdentities(day = {}, dayKey = iso(selectedDate)) {
     const list = day.tasks[priority] || [];
     const next = list.filter((task) => {
       if (!isActiveTaskSlot(task)) return true;
-      const identities = getDailyTaskDeletionIdentities(task, priority, dayKey);
+      const identities = getDailyTaskDeletionIdentities(task, priority, dayKey, tasksById);
       const shouldDelete = identities.some((identity) => deleted.has(identity));
       if (shouldDelete) {
         clearTaskScheduleLinkForInactive(task, day);
@@ -12659,7 +12687,7 @@ function mergeDuplicateDailyTaskState(target = {}, duplicate = {}) {
   });
 }
 
-function dedupeDailyTaskCopies(day, dayKey = iso(selectedDate)) {
+function dedupeDailyTaskCopies(day, dayKey = iso(selectedDate), tasksById = null) {
   if (!day?.tasks) return false;
   const byIdentity = new Map();
   const taskIdentities = new Map();
@@ -12668,7 +12696,7 @@ function dedupeDailyTaskCopies(day, dayKey = iso(selectedDate)) {
     const list = day.tasks[priority] || [];
     day.tasks[priority] = list.filter((task) => {
       if (!isActiveTaskSlot(task)) return true;
-      const identities = getDailyTaskDuplicateIdentities(task, priority, dayKey);
+      const identities = getDailyTaskDuplicateIdentities(task, priority, dayKey, tasksById);
       if (!identities.length) return true;
       const existing = identities.map((identity) => byIdentity.get(identity)).find(Boolean);
       if (!existing) {
@@ -16932,22 +16960,13 @@ function getCarryoverTasks(date) {
     carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(cached.items) };
     return cloneCarryoverTaskList(cached.items);
   }
-  // Keep the lookup scoped to this calculation so edits and server reads
-  // cannot leave stale references in a long-lived task index.
-  const tasksById = new Map();
-  Object.values(state.days || {}).forEach((day) => {
-    priorities.forEach(([priority]) => {
-      (day?.tasks?.[priority] || []).forEach((task) => {
-        if (task.id && !tasksById.has(task.id)) tasksById.set(task.id, task);
-      });
-    });
-  });
-  const suppressedIdentities = buildCarryoverSuppressionSet(currentKey, tasksById);
   const candidates = Object.keys(state.days)
     .filter((key) => key < currentKey)
     .sort()
     .flatMap((key) => getDayTaskSnapshots(key))
     .filter((task) => {
+      if (!task.text) return false;
+      normalizeTask(task);
       const completedKey = task.carryoverDoneDate || "";
       const deletedFrom = task.carryoverDeletedFrom || "";
       if (deletedFrom && deletedFrom <= currentKey) return false;
@@ -16955,10 +16974,17 @@ function getCarryoverTasks(date) {
       if (completedKey && completedKey < currentKey) return false;
       if (task.status === "연기") return false;
       if (!shouldCarryRepeatTask(task, currentKey)) return false;
-      if (isCarryoverIdentitySuppressed(task, suppressedIdentities, tasksById)) return false;
-      return task.text && !isTaskResolvedForDate(task, currentKey) && ["미완료", "진행중"].includes(task.status);
+      return !isTaskResolvedForDate(task, currentKey) && ["미완료", "진행중"].includes(task.status);
     });
-  const items = dedupeCarryoverTasks(candidates, tasksById);
+  let items = [];
+  if (candidates.length) {
+    // Keep the index scoped to this calculation so edits cannot leave stale
+    // parent references. Resolved-only histories need no suppression index.
+    const tasksById = createPlannerTaskLookup(state);
+    const suppressedIdentities = buildCarryoverSuppressionSet(currentKey, tasksById);
+    const openTasks = candidates.filter((task) => !isCarryoverIdentitySuppressed(task, suppressedIdentities, tasksById));
+    items = dedupeCarryoverTasks(openTasks, tasksById);
+  }
   carryoverTaskCache = { key: currentKey, version, items: cloneCarryoverTaskList(items) };
   carryoverTaskCacheByDate.set(currentKey, { version, items: cloneCarryoverTaskList(items) });
   pruneCarryoverCache(carryoverTaskCacheByDate);
@@ -17840,7 +17866,6 @@ function renderCriticalDailyShell() {
 }
 
 function renderStartupFrame(options = {}) {
-  renderCriticalDailyShell();
   try { ensureMonth(); } catch {}
   try { ensureWeek(); } catch {}
   try { ensureDay(); } catch {}

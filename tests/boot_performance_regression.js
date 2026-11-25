@@ -61,11 +61,49 @@ const run = new Function("window", "localStorage", "document", "URLSearchParams"
   assert.equal(resolveCarryoverRootKey('orphan', missing), 'missing', 'missing legacy parents preserve the known root ID');
   const cycle = new Map([['a', {carryoverForkFrom: 'b'}], ['b', {carryoverForkFrom: 'a'}]]);
   assert.equal(resolveCarryoverRootKey('a', cycle), 'a', 'malformed legacy cycles must terminate');
-  return 'Year-long startup lookup, carryover completion, index freshness and legacy chain checks passed';
+
+  const incoming = { days: {}, weeks: {}, months: {} };
+  for (let index = 0; index < 32; index++) {
+    incoming.days[keys[index]] = { tasks: { A: [{
+      id: 'server-' + index, text: '서버 이월 단계 ' + index, status: '미완료', done: false,
+      ...(index ? {carryoverForkFrom: 'server-' + (index - 1)} : {}),
+    }], B: [], C: [] } };
+  }
+  incoming.days[todayKey] = { tasks: { A: [
+    {id: 'server-open', text: '변경 전 제목', carryoverForkFrom: 'server-31', status: '미완료', done: false},
+    {id: 'server-done', text: '완료한 제목', carryoverForkFrom: 'server-0', status: '완료', done: true, completedDate: todayKey},
+  ], B: [], C: [] } };
+  state.days[keys[0]].tasks.C.push({id: 'server-31', carryoverForkFrom: 'stale-parent', text: '이전 화면 기록', status: '미완료'});
+  const payloadBefore = JSON.stringify(incoming);
+  let preparationPasses = 0;
+  const originalPrepare = preparePlannerStateForPersistence;
+  preparePlannerStateForPersistence = function(...args) { preparationPasses++; return originalPrepare(...args); };
+  scans = 0;
+  storeStateFromServer({state: incoming, exists: true, updatedAt: '2026-11-25T01:00:00Z'}, '저장됨');
+  assert.equal(scans, 0, 'incoming history must resolve its own parent index without scanning the previous account state');
+  assert.equal(preparationPasses, 1, 'one server response must receive one persistence preparation pass');
+  assert.equal(JSON.stringify(incoming), payloadBefore, 'normalization must preserve the incoming payload used for conflict recovery');
+  const mergedForks = state.days[todayKey].tasks.A.filter(task => task.carryoverForkFrom);
+  assert.equal(mergedForks.length, 1, 'different titles with a shared multi-level root must consolidate');
+  assert.equal(mergedForks[0].done, true, 'the completed descendant must keep its completion record');
+
+  state = migrateState({days: {[keys.at(-2)]: {tasks: {A: [{id: 'resolved-only', text: '이미 끝난 업무', status: '완료', done: true}], B: [], C: []}}}, weeks: {}, months: {}});
+  invalidateCarryoverTaskCache();
+  let suppressionPasses = 0;
+  const originalSuppression = buildCarryoverSuppressionSet;
+  buildCarryoverSuppressionSet = function(...args) { suppressionPasses++; return originalSuppression(...args); };
+  assert.deepEqual(getCarryoverTasks(today), []);
+  assert.equal(suppressionPasses, 0, 'resolved-only histories must skip suppression analysis');
+  setTaskCompletionState(state.days[keys.at(-2)].tasks.A[0], false);
+  state.days[keys.at(-2)].tasks.A[0].status = '미완료';
+  invalidateCarryoverTaskCache();
+  assert.equal(getCarryoverTasks(today)[0].id, 'resolved-only', 'a later reopen must invalidate the empty carryover result');
+  assert.equal(suppressionPasses, 1);
+  return 'Startup indexing, single-pass hydration, completion, empty-history and legacy chain checks passed';
 `);
 
 console.log(run(
-  { location: { search: "", pathname: "/dashboard/index.html", hash: "" } },
+  { location: { search: "", pathname: "/dashboard/index.html", hash: "" }, setTimeout: () => 1, clearTimeout() {} },
   { getItem: key => storage.get(key) || null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) },
   { getElementById: () => null, querySelector: () => null },
   class { get() { return null; } },

@@ -158,6 +158,40 @@ test('recurring Money tasks show compact titles and M labels through editing and
   await expect(page.locator('#fixedMoneyRows input[value="' + title + '"]')).toBeVisible();
 });
 
+test('Today defers hidden analyses and opens fresh summaries and coaching on demand', async ({ context, page }) => {
+  await open(context, page);
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  const details = page.locator('#dailyPulseDetails');
+  await expect(details).toBeHidden();
+  await expect(details.locator('.daily-pulse-detail-item')).toHaveCount(0);
+  await expect(page.locator('#coachMessage')).toBeEmpty();
+
+  await page.locator('#taskBoard .task-cycle').first().click();
+  await expect(page.locator('#dailyCompletion')).toHaveText('1/20');
+  await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
+  const toggle = page.getByRole('button', { name: '오늘의 대표 결정' });
+  await toggle.hover();
+  await page.mouse.down();
+  await page.evaluate(() => refreshDailyStatusViews());
+  await page.mouse.up();
+  await expect(details.locator('.daily-pulse-detail-item').first().locator('strong')).toHaveText('1/20');
+  await toggle.click();
+  await expect(details).toBeHidden();
+
+  await page.locator('#coachBubble').click();
+  await expect(page.locator('#view-coach')).toHaveClass(/active/);
+  await expect(page.locator('#coachMessage')).toBeVisible();
+  await expect(page.locator('#coachMessage strong').first()).not.toBeEmpty();
+  await expect(page.locator('#coachSuggestions .coach-suggestion').first()).toBeVisible();
+  await page.getByRole('tab', { name: '사용법', exact: true }).click();
+  await expect(page.locator('#coachGuide')).toBeVisible();
+  await page.getByRole('tab', { name: '코칭', exact: true }).click();
+  await expect(page.locator('#coachMessage')).toBeVisible();
+  await page.getByRole('button', { name: '코칭 닫기' }).click();
+  await expect(page.locator('#view-day')).toHaveClass(/active/);
+  await expect(page.locator('#dailyCompletion')).toHaveText('1/20');
+});
+
 test('header, tasks and navigation remain reachable', async ({context,page}, info) => {
   await open(context,page);
   const header=await page.locator('.app-header').boundingBox();
@@ -374,6 +408,7 @@ test('new priority and completion paint before preparing the planner save', asyn
   await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state', 'saved');
 
   await request.post('/qa/delay', { data: { seconds: 2 } });
+  const pulseTop = (await page.locator('#dailyPulseZone').boundingBox()).y;
   await page.evaluate(() => {
     let pendingFrame = null;
     window.taskActionFrames = [];
@@ -400,6 +435,7 @@ test('new priority and completion paint before preparing the planner save', asyn
 
   await row.locator('.priority-select').selectOption('B');
   await expect(row.locator('.task-status-label')).toHaveText('B');
+  expect(Math.abs((await page.locator('#dailyPulseZone').boundingBox()).y - pulseTop)).toBeLessThanOrEqual(1);
   await expect.poll(() => page.evaluate(() => window.taskActionFrames.slice())).toEqual([
     { saves: 0, label: 'B', marker: '' },
   ]);
