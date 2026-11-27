@@ -24560,27 +24560,27 @@ body.classic-mode.day-view-active #dayTitle {
   height: 34px;
   margin-left: auto;
   box-sizing: border-box;
-  color: #56675e;
-  background: linear-gradient(150deg, #fffefb, #f1f0e9);
-  border: 1px solid rgb(37 62 50 / 9%);
+  color: #304e40;
+  background: linear-gradient(150deg, #fffefb, #f7f5ee);
+  border: 1px solid rgb(37 62 50 / 20%);
   border-radius: 50%;
   box-shadow: 0 1px 3px rgb(30 48 39 / 4%), inset 0 1px 0 rgb(255 255 255 / 85%);
   transition: color 240ms ease, background-color 240ms ease, border-color 240ms ease;
 }
 #headerSaveClock .save-clock-face {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   overflow: visible;
   stroke: currentColor;
-  stroke-width: 1.35;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-#headerSaveClock .save-clock-dial { opacity: .4; stroke-width: 1.1; }
-#headerSaveClock .save-clock-indices { opacity: .45; stroke-width: 1; }
+#headerSaveClock .save-clock-dial { opacity: .8; stroke-width: 1.4; }
+#headerSaveClock .save-clock-indices { opacity: .85; stroke-width: 1.35; }
 #headerSaveClock .save-clock-pivot { fill: currentColor; stroke: none; }
-#headerSaveClock .save-clock-hour { stroke-width: 1.65; }
+#headerSaveClock .save-clock-hour { stroke-width: 2.1; }
 #headerSaveClock .save-clock-minute,
 #headerSaveClock .save-clock-hour {
   transform-box: view-box;
@@ -24595,13 +24595,13 @@ body.classic-mode.day-view-active #dayTitle {
   transition: opacity 220ms ease;
 }
 #headerSaveClock .save-clock-check,
-#headerSaveClock .save-clock-alert { opacity: 0; stroke-width: 1.65; }
-#headerSaveClock[data-save-state="saving"] { color: #947a48; border-color: rgb(148 122 72 / 18%); }
+#headerSaveClock .save-clock-alert { opacity: 0; stroke-width: 2.1; }
+#headerSaveClock[data-save-state="saving"] { color: #795a20; border-color: rgb(121 90 32 / 28%); }
 #headerSaveClock[data-save-state="saving"] .save-clock-minute { animation: save-minute-sweep 2.4s linear infinite; }
 #headerSaveClock[data-save-state="saving"] .save-clock-hour { animation: save-minute-sweep 28.8s linear infinite; }
 #headerSaveClock[data-save-state="waiting"] .save-clock-minute { animation: save-minute-sweep 8s linear infinite; }
-#headerSaveClock[data-save-state="saved"] { color: #345d49; border-color: rgb(52 93 73 / 14%); }
-#headerSaveClock[data-save-state="alert"] { color: #a2483c; border-color: rgb(162 72 60 / 18%); }
+#headerSaveClock[data-save-state="saved"] { color: #244f39; border-color: rgb(36 79 57 / 24%); }
+#headerSaveClock[data-save-state="alert"] { color: #993c30; border-color: rgb(153 60 48 / 28%); }
 #headerSaveClock[data-save-state="saved"] .save-clock-check,
 #headerSaveClock[data-save-state="alert"] .save-clock-alert { opacity: 1; }
 #headerSaveClock:is([data-save-state="saved"], [data-save-state="alert"]) .save-clock-indices,
@@ -25051,21 +25051,21 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
 .boot-screen.boot-brand-launch {
   z-index: 4000;
   padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom)) !important;
-  background: #f7f5ef !important;
+  background: #0e211b !important;
 }
 
 .boot-brand-stage {
   position: relative;
-  width: min(860px, 100%);
+  width: min(1120px, 100%);
 }
 
 .boot-brand-visual {
   position: relative;
-  width: min(100%, 96dvh);
+  width: min(100%, 120dvh);
   margin-inline: auto;
   aspect-ratio: 16 / 9;
   overflow: hidden;
-  background: #f7f5ef;
+  background: #0e211b;
 }
 
 .boot-brand-poster,
@@ -25076,7 +25076,7 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  mask-image: radial-gradient(ellipse farthest-side at center, #000 75%, transparent 100%);
+  mask-image: radial-gradient(ellipse farthest-side at center, #000 85%, transparent 100%);
 }
 
 .boot-readiness {
@@ -25088,7 +25088,7 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
   gap: 14px;
   width: min(420px, 100%);
   transform: translateX(-50%);
-  color: var(--muted);
+  color: #e1ddcd;
   text-align: center;
   font-size: 13px;
   line-height: 1.6;
@@ -25115,6 +25115,15 @@ body.day-view-active #dailyDateSwipeZone.is-current-day {
 }
 
 .boot-brand-launch [hidden] { display: none !important; }
+.boot-brand-launch .boot-retry {
+  background: #f7f5ef;
+  color: #173b2a;
+  border-color: #e1ddcd;
+}
+
+@media (max-height: 480px) {
+  .boot-brand-visual { width: min(100%, 82dvh); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .boot-brand-film { display: none !important; }
