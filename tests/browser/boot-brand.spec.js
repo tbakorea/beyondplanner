@@ -33,7 +33,7 @@ test('English brand video plays silently and exits as soon as planner data is re
     await expect.poll(() => video.evaluate(video => video.currentTime)).toBeGreaterThan(0.12);
     expect(await video.evaluate(video => ({ muted: video.muted, inline: video.playsInline, loop: video.loop, paused: video.paused })))
       .toEqual({ muted: true, inline: true, loop: true, paused: false });
-    expect(await video.evaluate(video => video.duration)).toBeCloseTo(2.4, 1);
+    expect(await video.evaluate(video => video.duration)).toBeCloseTo(3.2, 1);
     await expect(page.locator('.boot-brand-poster')).toBeInViewport({ ratio: 0.95 });
     await page.screenshot({ path: info.outputPath('beyond-planner-motion.png') });
     const media = await video.elementHandle();
@@ -76,4 +76,18 @@ test('reduced motion displays the poster without requesting the video', async ({
   } finally {
     preview.release();
   }
+});
+
+test('reduced motion keeps precise clock hands still while a real save completes', async ({context,page,request}) => {
+  const preview=await openBrandPreview(context,page,{reducedMotion:true});
+  preview.release();
+  await expect(page.locator('#bootScreen')).toHaveCount(0);
+  await request.post('/qa/delay',{data:{seconds:2}});
+  await page.locator('#taskBoard .task-text-input').first().fill('QA 정적인 저장 표시');
+  await page.locator('#dailyCompletion').click();
+  await expect(page.locator('#headerSaveClock')).toHaveAttribute('data-save-state','saving');
+  await expect(page.locator('#headerSaveClock .save-clock-minute')).toHaveCSS('animation-name','none');
+  await expect(page.locator('#headerSaveClock .save-clock-hour')).toHaveCSS('animation-name','none');
+  await expect(page.locator('#headerSaveClock')).toHaveAttribute('data-save-state','saved');
+  await expect(page.locator('#headerSaveClock .save-clock-check')).toHaveCSS('opacity','1');
 });

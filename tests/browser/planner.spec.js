@@ -373,12 +373,17 @@ test('edit, completion, animated save and new browser context preserve server da
   const input=page.locator('.day-task-panel .task-text-input').first();
   await input.fill('QA 수정 완료'); await input.blur();
   await expect(page.locator('#headerSaveClock')).toHaveAttribute('data-save-state','saving');
-  if(page.viewportSize().width<=640) {
-    const clock=page.locator('.save-clock-face');
-    expect(await clock.evaluate(el=>getComputedStyle(el,'::before').animationName)).toBe('planner-clock-tick');
-    await page.screenshot({path:info.outputPath('saving-clock.png')});
-  }
+  const minute=page.locator('#headerSaveClock .save-clock-minute');
+  const hour=page.locator('#headerSaveClock .save-clock-hour');
+  expect(await minute.evaluate(el=>getComputedStyle(el).animationName)).toBe('save-minute-sweep');
+  expect(await hour.evaluate(el=>getComputedStyle(el).animationDuration)).toBe('28.8s');
+  const angle=await minute.evaluate(el=>getComputedStyle(el).transform);
+  await expect.poll(()=>minute.evaluate(el=>getComputedStyle(el).transform)).not.toBe(angle);
+  await page.screenshot({path:info.outputPath('saving-clock.png')});
+  await page.locator('#headerSaveClock').screenshot({path:info.outputPath('saving-clock-detail.png')});
   await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state','saved',{timeout:30000});
+  await expect(page.locator('#headerSaveClock .save-clock-check')).toHaveCSS('opacity','1');
+  await expect(minute).toHaveCSS('opacity','0');
   await page.locator('.day-task-panel .task-cycle').first().click();
   await expect(page.locator('.day-task-panel .task-row').first()).toHaveClass(/done/);
   await expect(page.locator('#topSaveStatus')).toHaveAttribute('data-save-state','saved',{timeout:30000});

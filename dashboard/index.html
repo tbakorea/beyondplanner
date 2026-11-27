@@ -5,14 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f7f5ef" />
     <title>Beyond Work</title>
-    <link rel="stylesheet" href="./styles.css?v=20261125b" />
+    <link rel="stylesheet" href="./styles.css?v=20261127b" />
   </head>
   <body>
     <div class="boot-screen boot-brand-launch" id="bootScreen">
       <div class="boot-brand-stage">
         <div class="boot-brand-visual" role="img" aria-label="Beyond Planner">
-          <img class="boot-brand-poster" src="./assets/boot/beyond-planner-intro-v1.jpg" width="1280" height="720" alt="" fetchpriority="high" />
-          <video class="boot-brand-film" id="bootBrandVideo" src="./assets/boot/beyond-planner-intro-v1.mp4" width="1280" height="720" muted playsinline loop preload="none" poster="./assets/boot/beyond-planner-intro-v1.jpg" aria-hidden="true"></video>
+          <img class="boot-brand-poster" src="./assets/boot/beyond-planner-intro-v2.jpg" width="1280" height="720" alt="" fetchpriority="high" />
+          <video class="boot-brand-film" id="bootBrandVideo" src="./assets/boot/beyond-planner-intro-v2.mp4" width="1280" height="720" muted playsinline loop preload="none" poster="./assets/boot/beyond-planner-intro-v2.jpg" aria-hidden="true"></video>
         </div>
         <div class="boot-readiness" aria-label="앱 준비 상태">
           <span class="boot-status-message" id="bootMessage" role="status">오늘 일정을 불러오는 중</span>
@@ -26,7 +26,15 @@
           <h1>Beyond Work</h1>
           <button class="weather-chip" id="weatherChip" type="button" hidden title="오늘 날씨" aria-label="오늘 날씨"></button>
           <span id="headerSaveClock" class="header-save-clock" data-save-state="waiting" role="img" aria-label="저장 상태: 확인 중" title="저장 상태 확인 중">
-            <span class="save-clock-face" aria-hidden="true"></span>
+            <svg class="save-clock-face" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+              <circle class="save-clock-dial" cx="14" cy="14" r="10.25" />
+              <path class="save-clock-indices" d="M14 5.8v1M22.2 14h-1M14 22.2v-1M5.8 14h1" />
+              <g class="save-clock-hour"><path d="M14 14l4.1-2.65" /></g>
+              <g class="save-clock-minute"><path d="M14 15.2V7.8" /></g>
+              <circle class="save-clock-pivot" cx="14" cy="14" r="1.1" />
+              <path class="save-clock-check" d="m9.6 14.1 3 3 5.8-6.2" />
+              <path class="save-clock-alert" d="M14 9v6m0 3h.01" />
+            </svg>
           </span>
           <button class="coach-bubble" id="coachBubble" type="button" title="AI 코칭" aria-label="AI 코칭"></button>
         </div>
