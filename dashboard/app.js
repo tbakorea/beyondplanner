@@ -3,6 +3,7 @@ const LAST_DISPLAY_CACHE_KEY = "beyondWorkLastDisplayState.v1";
 const STATE_META_KEY = "beyondWorkPlannerStateMeta.v1";
 const STATE_BASE_KEY = "beyondWorkPlannerStateBase.v1";
 const volatilePlannerMeta = new Map();
+const runtimePlannerBases = new Map();
 const INSTALLATION_KEY = "beyondWorkInstallationId";
 const LOCK_CONFIG_KEY = "beyondWorkLockConfig.v1";
 const BIOMETRIC_KEY = "beyondWorkBiometricCredential.v1";
@@ -545,6 +546,8 @@ let passiveRefreshTimer = 0;
 let passiveServerPullInFlight = false;
 let resumeServerValidationTimer = 0;
 let resumeServerValidationPending = false;
+let resumeServerValidationRequired = false;
+let resumeServerValidationRetryCount = 0;
 let plannerHiddenAt = 0;
 let lastServerUpdatedAt = "";
 let sidebarRenderTimer = 0;
@@ -1352,20 +1355,26 @@ function queueDisplayCachePersist(nextState = state, delay = 900) {
 }
 
 function readPlannerBaseState() {
+  const runtimeBase = runtimePlannerBases.get(plannerStateBaseKey());
+  if (runtimeBase) return clonePlannerValue(runtimeBase);
   try {
+    const meta = getStateMeta();
+    if (Object.hasOwn(meta, "baseSnapshotUpdatedAt") && meta.baseSnapshotUpdatedAt !== getServerBaseUpdatedAt(meta)) return null;
     const parsed = JSON.parse(localStorage.getItem(plannerStateBaseKey()) || "null");
     if (!parsed || typeof parsed !== "object") return null;
     const baseState = migrateState(parsed);
-    return hasPlannerContent(baseState) ? baseState : null;
+    return baseState;
   } catch {
     return null;
   }
 }
 
-function writePlannerBaseState(nextState = state) {
+function writePlannerBaseState(nextState = state, updatedAt = lastServerUpdatedAt) {
   try {
-    if (!hasPlannerContent(nextState)) return;
-    writePlannerCacheValue(plannerStateBaseKey(), JSON.stringify(nextState));
+    const snapshot = clonePlannerValue(nextState);
+    runtimePlannerBases.set(plannerStateBaseKey(), snapshot);
+    const cached = writePlannerCacheValue(plannerStateBaseKey(), JSON.stringify(snapshot));
+    saveStateMeta({ baseSnapshotUpdatedAt: cached ? updatedAt : "" });
   } catch {
     // Base snapshots are only used to merge concurrent edits safely.
   }
@@ -1897,7 +1906,7 @@ function saveState(options = {}) {
     : preparePlannerStateForPersistence(clonePlannerValue(state));
   const cached = writePlannerCacheValue(plannerStorageKey(), JSON.stringify(stateSnapshot));
   queueDisplayCachePersist(stateSnapshot, options.fastSave ? 1200 : 900);
-  markLocalStateUpdated();
+  markLocalStateUpdated({ pendingSnapshotValid: cached });
   scheduleAccountSave(options.fastSave ? 120 : 650);
   if (!cached) {
     saveStatus.message = "기기 임시저장 공간 부족 · DB 저장 완료 전 종료하지 마세요";
@@ -1935,7 +1944,7 @@ function collectTaskRecoveryChanges(beforeDay = {}, afterDay = {}, dayKey = "") 
 function captureTaskRecoveryHistory() {
   if (!accountSaveReady || !getAuthSession()?.email) return;
   let baseline;
-  try { baseline = JSON.parse(localStorage.getItem(plannerStateBaseKey()) || "null"); } catch { return; }
+  try { baseline = readPlannerBaseState(); } catch { return; }
   if (!baseline) return;
   const changes = Object.keys(baseline.days || {}).flatMap((key) => collectTaskRecoveryChanges(baseline.days[key], state.days?.[key], key));
   if (!changes.length) return;
@@ -2131,7 +2140,7 @@ function renderSidebarAfterDailyInput() {
 
 function canPersistDerivedState() {
   if (!getAuthSession()?.accessToken) return false;
-  return Boolean(accountSaveReady && initialServerHydrationFinished);
+  return Boolean(accountSaveReady && initialServerHydrationFinished && !resumeServerValidationRequired && !resumeServerValidationPending);
 }
 
 function knownServerStateUpdatedAt(meta = getStateMeta()) {
@@ -2204,13 +2213,17 @@ async function hydrateServerState(options = {}) {
       // in memory for recovery, and only validated pending edits may merge.
       const localMeta = getStateMeta();
       const hasRuntimeDirtyEdit = hasCurrentRuntimeDirtyEdit(localMeta);
+      if (hasRuntimeDirtyEdit && !initialServerHydrationFinished) {
+        preserveSuspendedPlannerSnapshot("재실행 전 미저장 상태");
+      }
       if (!hasRuntimeDirtyEdit && localMeta.dirty) {
+        preserveSuspendedPlannerSnapshot("이전 미저장 상태 · DB 확인 전 보존");
         const sessionEmail = getAuthSession()?.email || "";
         saveStateMeta({ dirty: false, accountEmail: sessionEmail });
       }
       if (
         (hasRuntimeDirtyEdit || hasRuntimeLocalEditSince(hydrationStartedSeq)) &&
-        queueIncomingServerStateMerge(payload, readPlannerBaseState() || hydrationBaseState, "입력 완료 후 최신 데이터 병합")
+        queueIncomingServerStateMerge({ ...payload, preferRemoteConflicts: options.resumeValidation === true || !initialServerHydrationFinished }, readPlannerBaseState() || hydrationBaseState, "입력 완료 후 최신 데이터 병합")
       ) {
         return;
       }
@@ -2397,7 +2410,7 @@ async function hydrateServerConfig() {
 }
 
 function scheduleAccountSave(delay = 650) {
-  if (resumeServerValidationPending) {
+  if (resumeServerValidationPending || resumeServerValidationRequired) {
     saveStatus.saving = true;
     saveStatus.message = "최신 데이터 확인 후 저장";
     renderSidebarAfterDailyInput();
@@ -2478,7 +2491,7 @@ async function persistStateToServer(options = {}) {
 }
 
 async function persistStateToServerAttempt(options = {}) {
-  if (resumeServerValidationPending) {
+  if (resumeServerValidationPending || resumeServerValidationRequired) {
     saveStatus.saving = true;
     saveStatus.message = "최신 데이터 확인 후 저장";
     renderSidebarAfterDailyInput();
@@ -2491,6 +2504,8 @@ async function persistStateToServerAttempt(options = {}) {
     return;
   }
   const session = await ensureFreshAuthSession();
+  // A focus/visibility event may have started validation during token refresh.
+  if (resumeServerValidationPending || resumeServerValidationRequired || !accountSaveReady) return;
   if (!session?.accessToken) {
     accountSaveReady = false;
     saveStatus.saving = false;
@@ -2507,6 +2522,12 @@ async function persistStateToServerAttempt(options = {}) {
     return;
   }
   let meta = getStateMeta();
+  if (!meta.dirty && !options.bumpUpdatedAt) {
+    saveStatus.saving = false;
+    saveStatus.message = "저장됨";
+    renderSidebarAfterDailyInput();
+    return;
+  }
   if (meta.dirty && !hasPendingPlannerSave(meta)) {
     saveStateMeta({ dirty: false, accountEmail: getAuthSession()?.email || "" });
     saveStatus.saving = false;
@@ -2553,7 +2574,6 @@ async function persistStateToServerAttempt(options = {}) {
     }
     if (payload.stale) {
       const serverUpdatedAt = payload.updatedAt || lastServerUpdatedAt;
-      lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
       saveStatus.ready = true;
       const retryCount = Number(options.staleRetry || 0);
       const localMeta = getStateMeta();
@@ -2570,26 +2590,23 @@ async function persistStateToServerAttempt(options = {}) {
       if (remoteState && hasUnflushedLocalEdit && retryCount < 4) {
         const baseState = readPlannerBaseState() || remoteState;
         if (isAnyPlannerInputEditing()) {
-          pendingServerStateMerge = {
-            payload: { state: remoteState, updatedAt: serverUpdatedAt },
-            baseState,
-            message: "입력 완료 후 최신 데이터 병합",
-          };
-          saveStatus.saving = true;
-          saveStatus.message = "입력 완료 후 최신 데이터 병합";
-          renderSidebarAfterDailyInput();
-          schedulePendingServerStateMerge();
+          queueIncomingServerStateMerge({ state: remoteState, updatedAt: serverUpdatedAt }, baseState, "입력 완료 후 최신 데이터 병합");
           return;
         }
         const localState = plannerMutationSeq > saveStartedMutationSeq || isTimestampNewer(localMeta.updatedAt, updatedAt)
           ? preparePlannerStateForPersistence(clonePlannerValue(state))
           : stateSnapshot;
-        const mergedState = mergePlannerStates(baseState, localState, remoteState);
+        const mergedState = mergePlannerStates(baseState, localState, remoteState, {
+          preferRemoteConflicts: resumeServerValidationRequired || resumeServerValidationPending,
+        });
+        writePlannerBaseState(remoteState, serverUpdatedAt);
+        lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
         state = mergedState;
         selectedSheetId = state.customSheets.activeId;
-        writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
+        const cached = writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
         persistDisplayCache();
         markLocalStateUpdated({
+          pendingSnapshotValid: cached,
           updatedAt: nextPlannerMutationTimestamp(serverUpdatedAt, localMeta.updatedAt, updatedAt),
           baseUpdatedAt: serverUpdatedAt,
           lastSavedAt: serverUpdatedAt,
@@ -2772,7 +2789,7 @@ function markLocalStateUpdated(extra = {}) {
   const meta = getStateMeta();
   const { updatedAt: explicitUpdatedAt, ...rest } = extra || {};
   const updatedAt = explicitUpdatedAt || nextPlannerMutationTimestamp(lastServerUpdatedAt, meta.updatedAt);
-  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, pendingEditVersion: 1, accountEmail: getAuthSession()?.email || "", ...rest });
+  saveStateMeta({ updatedAt, dirty: true, mutationSeq: plannerMutationSeq, pendingEditVersion: 1, pendingSnapshotValid: false, accountEmail: getAuthSession()?.email || "", ...rest });
   return updatedAt;
 }
 
@@ -2782,6 +2799,7 @@ function resumePendingPlannerSave() {
   // Only edits explicitly marked by this version may survive a new runtime.
   // Old boot caches never acquire edit authority merely by being newer.
   if (!email || meta.accountEmail !== email || meta.pendingEditVersion !== 1
+      || meta.pendingSnapshotValid === false
       || !meta.dirty || !Number.isSafeInteger(meta.mutationSeq) || meta.mutationSeq <= 0
       || !timestampMs(meta.updatedAt) || !readPlannerBaseState()) return false;
   plannerMutationSeq = Math.max(plannerMutationSeq, meta.mutationSeq);
@@ -2879,11 +2897,14 @@ function queueIncomingServerStateMerge(payload, baseState, message = "입력 완
       && isTimestampNewer(pendingServerStateMerge.payload.updatedAt, payload.updatedAt)) return true;
   const remoteState = getPayloadPlannerState(payload);
   if (!remoteState) return false;
+  const preferRemoteConflicts = payload.preferRemoteConflicts === true
+    || pendingServerStateMerge?.payload?.preferRemoteConflicts === true
+    || resumeServerValidationRequired || resumeServerValidationPending;
   if (!isAnyPlannerInputEditing()) {
-    return mergeIncomingServerStateNow({ state: remoteState, updatedAt: payload.updatedAt || "" }, baseState, message);
+    return mergeIncomingServerStateNow({ state: remoteState, updatedAt: payload.updatedAt || "", preferRemoteConflicts }, baseState, message);
   }
   pendingServerStateMerge = {
-    payload: { state: remoteState, updatedAt: payload.updatedAt || "" },
+    payload: { state: remoteState, updatedAt: payload.updatedAt || "", preferRemoteConflicts },
     baseState,
     message,
   };
@@ -2927,13 +2948,15 @@ function mergeIncomingServerStateNow(payload, baseState, message = "최신 데�
     renderActiveViewSections({ forceLists: true });
     return true;
   }
-  const mergedState = mergePlannerStates(baseState || readPlannerBaseState() || remoteState, state, remoteState);
+  const mergedState = mergePlannerStates(readPlannerBaseState() || baseState || remoteState, state, remoteState, { preferRemoteConflicts: payload.preferRemoteConflicts === true });
+  writePlannerBaseState(remoteState, serverUpdatedAt);
   state = mergedState;
   selectedSheetId = state.customSheets.activeId;
-  writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
+  const cached = writePlannerCacheValue(plannerStorageKey(), JSON.stringify(state));
   persistDisplayCache();
   lastServerUpdatedAt = serverUpdatedAt || lastServerUpdatedAt;
   markLocalStateUpdated({
+    pendingSnapshotValid: cached,
     updatedAt: nextPlannerMutationTimestamp(lastServerUpdatedAt, localMeta.updatedAt),
     baseUpdatedAt: lastServerUpdatedAt,
     lastSavedAt: lastServerUpdatedAt,
@@ -3104,7 +3127,7 @@ function isPlannerTaskRecord(value) {
   return hasTaskIdentity && hasTaskShape;
 }
 
-function mergePlannerTaskRecord(baseTask = {}, localTask = {}, remoteTask = {}) {
+function mergePlannerTaskRecord(baseTask = {}, localTask = {}, remoteTask = {}, options = {}) {
   const keys = new Set([
     ...Object.keys(isPlainPlannerObject(baseTask) ? baseTask : {}),
     ...Object.keys(isPlainPlannerObject(localTask) ? localTask : {}),
@@ -3112,7 +3135,7 @@ function mergePlannerTaskRecord(baseTask = {}, localTask = {}, remoteTask = {}) 
   ]);
   const merged = {};
   keys.forEach((key) => {
-    const value = mergePlannerValue(baseTask?.[key], localTask?.[key], remoteTask?.[key]);
+    const value = mergePlannerValue(baseTask?.[key], localTask?.[key], remoteTask?.[key], options);
     if (value !== undefined) merged[key] = value;
   });
 
@@ -3155,11 +3178,11 @@ function mapPlannerArrayByKey(array = []) {
   return map;
 }
 
-function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = []) {
+function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = [], options = {}) {
   if (!canMergePlannerArrayByKey(baseArray, localArray, remoteArray)) {
     if (plannerValuesEqual(localArray, baseArray)) return clonePlannerValue(remoteArray);
     if (plannerValuesEqual(remoteArray, baseArray)) return clonePlannerValue(localArray);
-    return clonePlannerValue(localArray);
+    return clonePlannerValue(options.preferRemoteConflicts ? remoteArray : localArray);
   }
 
   const baseMap = mapPlannerArrayByKey(baseArray);
@@ -3191,8 +3214,8 @@ function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = []) {
       // decision before either saves it. Keep its completion history.
       const sameTask = key.startsWith("weekly:") || key.startsWith("id:project-decision:");
       items.push(hasLocal && hasRemote && sameTask
-        ? mergePlannerTaskRecord(undefined, localItem, remoteItem)
-        : clonePlannerValue(hasLocal ? localItem : remoteItem));
+        ? mergePlannerTaskRecord(undefined, localItem, remoteItem, options)
+        : clonePlannerValue(hasRemote && options.preferRemoteConflicts ? remoteItem : hasLocal ? localItem : remoteItem));
       return items;
     }
     if (!hasLocal) {
@@ -3201,16 +3224,17 @@ function mergePlannerArrays(baseArray = [], localArray = [], remoteArray = []) {
       return items;
     }
     if (!hasRemote) {
+      if (options.preferRemoteConflicts) return items;
       if (plannerValuesEqual(localItem, baseItem)) return items;
       items.push(clonePlannerValue(localItem));
       return items;
     }
-    items.push(mergePlannerValue(baseItem, localItem, remoteItem));
+    items.push(mergePlannerValue(baseItem, localItem, remoteItem, options));
     return items;
   }, []);
 }
 
-function mergePlannerValue(baseValue, localValue, remoteValue) {
+function mergePlannerValue(baseValue, localValue, remoteValue, options = {}) {
   if (plannerValuesEqual(localValue, baseValue)) return clonePlannerValue(remoteValue);
   if (plannerValuesEqual(remoteValue, baseValue)) return clonePlannerValue(localValue);
   if (Array.isArray(localValue) || Array.isArray(remoteValue) || Array.isArray(baseValue)) {
@@ -3218,10 +3242,11 @@ function mergePlannerValue(baseValue, localValue, remoteValue) {
       Array.isArray(baseValue) ? baseValue : [],
       Array.isArray(localValue) ? localValue : [],
       Array.isArray(remoteValue) ? remoteValue : [],
+      options,
     );
   }
   if (isPlannerTaskRecord(localValue) || isPlannerTaskRecord(remoteValue) || isPlannerTaskRecord(baseValue)) {
-    return mergePlannerTaskRecord(baseValue, localValue, remoteValue);
+    return mergePlannerTaskRecord(baseValue, localValue, remoteValue, options);
   }
   if (isPlainPlannerObject(localValue) && isPlainPlannerObject(remoteValue)) {
     const keys = new Set([
@@ -3231,12 +3256,14 @@ function mergePlannerValue(baseValue, localValue, remoteValue) {
     ]);
     const merged = {};
     keys.forEach((key) => {
-      const value = mergePlannerValue(baseValue?.[key], localValue?.[key], remoteValue?.[key]);
+      const value = mergePlannerValue(baseValue?.[key], localValue?.[key], remoteValue?.[key], options);
       if (value !== undefined) merged[key] = value;
     });
     return merged;
   }
-  return clonePlannerValue(localValue);
+  // On wake, an older unacknowledged edit cannot replace a conflicting value
+  // already committed to the DB. Non-conflicting local edits still survive.
+  return clonePlannerValue(options.preferRemoteConflicts ? remoteValue : localValue);
 }
 
 function getPayloadPlannerState(payload) {
@@ -3248,8 +3275,8 @@ function getPayloadPlannerState(payload) {
   }
 }
 
-function mergePlannerStates(baseState, localState, remoteState) {
-  const merged = mergePlannerValue(baseState || {}, localState || {}, remoteState || {});
+function mergePlannerStates(baseState, localState, remoteState, options = {}) {
+  const merged = mergePlannerValue(baseState || {}, localState || {}, remoteState || {}, options);
   mergePlannerDeletionMarkers(merged, localState, remoteState);
   return preparePlannerStateForPersistence(migrateState(merged || {}));
 }
@@ -3284,7 +3311,7 @@ async function extractSaveError(response) {
 }
 
 async function refreshServerStateInBackground() {
-  if (passiveServerPullInFlight || document.hidden) return;
+  if (passiveServerPullInFlight || document.hidden || resumeServerValidationPending || resumeServerValidationRequired) return;
   passiveServerPullInFlight = true;
   try {
     if (!accountSaveReady) {
@@ -3327,8 +3354,8 @@ async function refreshServerStateAfterResume() {
   const meta = getStateMeta();
 
   window.clearTimeout(accountSaveTimer);
-  if (longSuspend && meta.dirty) {
-    preserveSuspendedPlannerSnapshot("잠자기 해제 전 로컬 상태");
+  if (meta.dirty) {
+    preserveSuspendedPlannerSnapshot(longSuspend ? "잠자기 해제 전 로컬 상태" : "화면 복귀 전 미저장 상태");
     // Edits made by this live session remain pending across sleep. Only an
     // untouched cache from a previous session yields to the canonical DB row.
     if (!hasCurrentRuntimeDirtyEdit(meta)) {
@@ -3343,16 +3370,31 @@ async function refreshServerStateAfterResume() {
   renderSidebarAfterDailyInput();
   try {
     await hydrateServerState({ forceFull: true, resumeValidation: true });
+    if (saveStatus.ready && !pendingServerStateMerge) renderActiveViewSections({ forceLists: true });
   } finally {
     resumeServerValidationPending = false;
+    resumeServerValidationRequired = !saveStatus.ready;
     plannerHiddenAt = 0;
     accountSaveReady = Boolean(getAuthSession()?.accessToken && saveStatus.ready);
-    if (hasCurrentRuntimeDirtyEdit()) scheduleAccountSave(120);
+    if (accountSaveReady) resumeServerValidationRetryCount = 0;
+    else if (!document.hidden && getAuthSession()?.accessToken) {
+      const delay = Math.min(30000, 1000 * (2 ** Math.min(resumeServerValidationRetryCount++, 5)));
+      window.clearTimeout(resumeServerValidationTimer);
+      resumeServerValidationTimer = window.setTimeout(refreshServerStateAfterResume, delay);
+    }
+    if (accountSaveReady && hasCurrentRuntimeDirtyEdit()) scheduleAccountSave(120);
   }
 }
 
 function queueResumeServerValidation() {
   if (document.hidden || !initialServerHydrationFinished) return;
+  // Close the save gate synchronously, before an expired autosave timer or a
+  // token refresh can send the sleeping device's snapshot.
+  resumeServerValidationRequired = true;
+  resumeServerValidationRetryCount = 0;
+  accountSaveReady = false;
+  window.clearTimeout(accountSaveTimer);
+  window.clearTimeout(passiveRefreshTimer);
   window.clearTimeout(resumeServerValidationTimer);
   resumeServerValidationTimer = window.setTimeout(() => {
     refreshServerStateAfterResume();

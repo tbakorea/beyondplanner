@@ -13,6 +13,8 @@ async function runResumeSaveRegression(source) {
     let state={memo:"today edited schedule",customSheets:{activeId:"sheet"}},selectedSheetId="sheet";
     let meta={dirty:true,mutationSeq:1},plannerMutationSeq=1,accountSaveReady=true;
     let resumeServerValidationPending=false,initialServerHydrationFinished=true,plannerHiddenAt=Date.now()-3600000;
+    let resumeServerValidationRequired=false;
+    let resumeServerValidationRetryCount=0,resumeServerValidationTimer=0;
     const LONG_SUSPEND_SERVER_FIRST_MS=300000,accountSaveTimer=0;
     const document={hidden:false};const window={clearTimeout:()=>{}};
     const saveStatus={ready:true,saving:false,message:""};
@@ -20,6 +22,7 @@ async function runResumeSaveRegression(source) {
     const getAuthSession=()=>({accessToken:"test",email:"test@example.test"});
     let backups=0,retries=0;
     const preserveSuspendedPlannerSnapshot=()=>backups++,renderSidebarAfterDailyInput=()=>{},scheduleAccountSave=()=>retries++;
+    const renderActiveViewSections=()=>{};
     const hydrateServerState=async()=>{if(!hasCurrentRuntimeDirtyEdit())state.memo="old server snapshot";};
     let lastServerUpdatedAt="2026-10-27T08:00:00Z",pendingServerStateMerge={payload:{updatedAt:"2026-10-27T09:00:00Z"}};
     const isTimestampNewer=(a,b)=>Date.parse(a)>Date.parse(b);

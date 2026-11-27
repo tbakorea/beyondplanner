@@ -5,6 +5,7 @@ new Function('assert',`
 ${['taskRecoverySnapshot','collectTaskRecoveryChanges','captureTaskRecoveryHistory','restoreTaskRecoveryCopy'].map(extract).join('\n')}
 const day={tasks:{A:[{id:'one',text:'카드 결제 14:00',status:'미완료',done:false,financeItemId:'card'}],B:[],C:[]},appointments:{'14:00':'현재 일정'}};
 const copy=x=>JSON.parse(JSON.stringify(x)),base={days:{'2026-11-03':copy(day)}};
+const readPlannerBaseState=()=>copy(base);
 let state=copy(base),selectedDate='2026-11-03',accountSaveReady=true,ids=0,saves=0;
 const getAuthSession=()=>({email:'qa@example.test'}),iso=x=>x,plannerStateBaseKey=()=>'',localStorage={getItem:()=>JSON.stringify(base)},newTaskId=()=>String(++ids);
 const todayInPlanner=()=> '2026-11-03',ensureDay=()=>state.days['2026-11-03'];

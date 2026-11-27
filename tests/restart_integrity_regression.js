@@ -12,6 +12,8 @@ function runRestartIntegrityRegression(source) {
   return new Function(`
     const assert=(ok,label)=>{if(!ok)throw new Error(label);};
     const storage=new Map(),timers=new Map();let timerId=0,plannerBaseCacheTimer=0;
+    const runtimePlannerBases=new Map();let lastServerUpdatedAt="2026-10-26T00:00:00Z";
+    const getServerBaseUpdatedAt=()=>lastServerUpdatedAt;
     const window={setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id)};
     const scheduleIdleTask=fn=>window.setTimeout(fn);
     const drain=()=>{while(timers.size){const jobs=[...timers.values()];timers.clear();jobs.forEach(fn=>fn());}};

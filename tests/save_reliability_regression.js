@@ -12,7 +12,7 @@ async function runSaveReliabilityRegression(source) {
     let meta,plannerMutationSeq=5,plannerSaveRetryCount=0,plannerSaveInFlight=null,lastServerUpdatedAt="2026-10-27T08:00:00Z",hasBase=true;
     const state={memo:"new edit"},selectedDate="2026-10-27",iso=x=>x,weekKey=x=>x;
     const document={hidden:false},saveStatus={};
-    const resumeServerValidationPending=false,accountSaveReady=true,STATE_SAVE_TIMEOUT_MS=1000;
+    const resumeServerValidationPending=false,resumeServerValidationRequired=false,accountSaveReady=true,STATE_SAVE_TIMEOUT_MS=1000;
     const getAuthSession=()=>({email:"test@example.test",accessToken:"test"}),ensureFreshAuthSession=async()=>getAuthSession();
     const getStateMeta=()=>meta,saveStateMeta=x=>Object.assign(meta,x);
     const clonePlannerValue=x=>JSON.parse(JSON.stringify(x)),preparePlannerStateForPersistence=x=>x;

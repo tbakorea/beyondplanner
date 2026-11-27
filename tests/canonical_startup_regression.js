@@ -9,6 +9,8 @@ async function runCanonicalStartupRegression(source) {
     const clonePlannerValue=x=>JSON.parse(JSON.stringify(x)),hydrateServerConfig=()=>{};
     const isPlainPlannerObject=x=>Boolean(x&&typeof x==='object'&&!Array.isArray(x));
     const getAuthSession=()=>({accessToken:"test",email:"test@example.test"}),ensureFreshAuthSession=async()=>getAuthSession();
+    const preserveSuspendedPlannerSnapshot=()=>{};
+    const initialServerHydrationFinished=false;
     const authStateHeaders=()=>({}),getStateMeta=()=>meta,saveStateMeta=x=>Object.assign(meta,x);
     const hasPlannerContent=s=>!!s?.days?.["2026-10-26"]?.tasks?.A?.length;
     const hasCurrentRuntimeDirtyEdit=()=>!!meta.dirty,hasRuntimeLocalEditSince=()=>!!meta.dirty;

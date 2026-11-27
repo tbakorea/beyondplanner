@@ -12,7 +12,7 @@ module.exports = defineConfig({
     { name: 'ipad-landscape-ceo', testMatch: /ipad-scroll.spec.js/, metadata: { plannerMode: 'ceo' }, use: { browserName: 'webkit', viewport: {width:1280,height:960}, isMobile:true, hasTouch:true } },
     { name: 'ipad-portrait-ceo', testMatch: /ipad-scroll.spec.js/, metadata: { plannerMode: 'ceo' }, use: { browserName: 'webkit', viewport: {width:768,height:1024}, isMobile:true, hasTouch:true } },
     { name: 'desktop', use: { browserName: 'chromium', viewport: {width:1366,height:900} } },
-    { name: 'mac-safari', testMatch: /(desktop-scroll|monthly-repeat|boot-brand)\.spec\.js/, use: { browserName: 'webkit', viewport: {width:1440,height:900}, userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15' } },
+    { name: 'mac-safari', testMatch: /(desktop-scroll|monthly-repeat|boot-brand|multi-device-resume)\.spec\.js/, use: { browserName: 'webkit', viewport: {width:1440,height:900}, userAgent:'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15' } },
     { name: 'desktop-compact-ceo', metadata: { plannerMode: 'ceo' }, use: { browserName: 'chromium', viewport: {width:900,height:1000} } },
   ],
   webServer: { command: 'python3 tests/browser/server.py', port:8765, reuseExistingServer:false },
